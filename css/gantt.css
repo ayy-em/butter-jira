@@ -1,0 +1,283 @@
+.gantt-wrap {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.gantt-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.gantt-mode-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.gantt-mode-btn:hover { color: var(--text); border-color: var(--muted); }
+.gantt-mode-btn.active {
+  background: rgba(232,234,240,0.08);
+  color: var(--text);
+  border-color: var(--text);
+}
+
+.gantt-info {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.gantt-chart-wrap {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.gantt-chart-wrap .gantt-container {
+  background: var(--surface);
+}
+
+.gantt-chart-wrap .gantt .grid-background { fill: var(--surface); }
+.gantt-chart-wrap .gantt .grid-header { fill: var(--surface); stroke: var(--border); }
+.gantt-chart-wrap .gantt .grid-row { fill: var(--surface); }
+.gantt-chart-wrap .gantt .grid-row:nth-child(even) { fill: rgba(13,15,18,0.3); }
+.gantt-chart-wrap .gantt .row-line { stroke: var(--border); }
+.gantt-chart-wrap .gantt .tick { stroke: var(--border); }
+.gantt-chart-wrap .gantt .today-highlight { fill: rgba(232,234,240,0.05); }
+
+.gantt-chart-wrap .gantt .bar { rx: 3; ry: 3; }
+.gantt-chart-wrap .gantt .bar-progress { rx: 3; ry: 3; }
+.gantt-chart-wrap .gantt .bar-label { fill: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 12px; }
+
+.gantt-chart-wrap .gantt .lower-text,
+.gantt-chart-wrap .gantt .upper-text {
+  fill: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+}
+
+.gantt-chart-wrap .gantt .handle-group { display: none; }
+
+.gantt-task-label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gantt-task-label .expand-btn {
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--muted);
+  transition: transform 0.15s;
+  user-select: none;
+  width: 14px;
+  text-align: center;
+}
+
+.gantt-task-label .expand-btn.expanded { transform: rotate(90deg); }
+
+/* Per-board bar colours are generated at runtime from the configured boards —
+   see injectBoardBarStyles() in js/views/gantt.js. This is the fallback for
+   bars whose board has no colour set. */
+.gantt .bar { fill: var(--muted); opacity: 0.7; }
+.gantt .bar-progress { fill: var(--muted); }
+
+.child-task .bar { opacity: 0.5; }
+
+/* ── Dropdown controls ─────────────────────────────────────────────────────── */
+
+.gantt-controls-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  flex-shrink: 0;
+  margin: 0 2px;
+}
+
+.gantt-dropdown-wrap {
+  position: relative;
+}
+
+.gantt-dropdown-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.gantt-dropdown-btn:hover { color: var(--text); border-color: var(--muted); }
+.gantt-dropdown-btn.active { color: var(--text); border-color: var(--text); background: rgba(232,234,240,0.06); }
+
+.gantt-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 0;
+  min-width: 210px;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.45);
+}
+
+.gantt-dropdown-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.gantt-dropdown-option:hover { color: var(--text); }
+.gantt-dropdown-option input[type="radio"] { cursor: pointer; accent-color: var(--accent-primary); }
+
+.tf-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 14px 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.tf-date-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  width: 118px;
+  color-scheme: dark;
+}
+
+.tf-apply-btn {
+  background: transparent;
+  border: 1px solid var(--accent-primary);
+  color: var(--accent-primary);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.tf-apply-btn:hover { background: rgba(79,142,247,0.12); }
+
+/* Epic filter panel */
+.gantt-filter-panel {
+  min-width: 300px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.gantt-filter-actions {
+  display: flex;
+  gap: 10px;
+  padding: 4px 14px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.gantt-filter-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent-primary);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.gantt-filter-action-btn:hover { text-decoration: underline; }
+
+.gantt-filter-group {
+  padding: 8px 14px 3px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.gantt-filter-epic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.12s;
+}
+.gantt-filter-epic-row:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.gantt-filter-epic-row input[type="checkbox"] { cursor: pointer; accent-color: var(--accent-primary); flex-shrink: 0; }
+.gantt-filter-epic-row .epic-key { min-width: 68px; flex-shrink: 0; }
+.gantt-filter-epic-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.undated-epics {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.undated-epics-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+.undated-epics-header:hover { color: var(--text); }
+.undated-epics-header .arrow { transition: transform 0.15s; }
+.undated-epics-header .arrow.open { transform: rotate(90deg); }
+
+.undated-epics-list {
+  padding: 0 14px 10px;
+}
+
+.undated-epic-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.undated-epic-row:last-child { border-bottom: none; }

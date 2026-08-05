@@ -1,0 +1,77 @@
+.filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .filter-search {
+    padding: 6px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 12px;
+    width: 180px;
+    outline: none;
+  }
+  .filter-search:focus { border-color: #4F8EF7; }
+  .filter-dropdown { position: relative; }
+  .filter-trigger {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .filter-trigger:hover { color: var(--text); border-color: var(--muted); }
+  .filter-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px;
+    min-width: 160px;
+    z-index: 50;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .filter-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    font-size: 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .filter-item:hover { background: rgba(232,234,240,0.05); }
+  .filter-item input[type="checkbox"] {
+    accent-color: #4F8EF7;
+  }
+  .filter-item.selectable { padding: 6px 10px; }
+  .filter-item.selectable.selected { background: rgba(79,142,247,0.15); color: #4F8EF7; }
+  .filter-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .filter-toggle.active {
+    background: rgba(232,234,240,0.08);
+    color: var(--text);
+    border-color: var(--text);
+  }

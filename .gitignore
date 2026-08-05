@@ -1,0 +1,40 @@
+# ── Instance-specific configuration ─────────────────────────────────────────
+# Local overrides: Jira site URL, boards, field mappings, additional fields,
+# branding. Never commit — see config.local.example.json for the shape.
+config.local.json
+
+# ── Organisation branding ───────────────────────────────────────────────────
+# Logos and wordmarks belong to whoever owns them, not to this repo.
+assets/brand/*
+!assets/brand/.gitkeep
+
+# ── Secrets ─────────────────────────────────────────────────────────────────
+# API tokens live in browser storage, never on disk. These patterns exist so a
+# stray file can't be committed by accident.
+*.pem
+key.pem
+.env
+.env.*
+!.env.example
+secrets.json
+
+# ── Packaging output ────────────────────────────────────────────────────────
+*.zip
+*.crx
+dist/
+build/
+
+# ── Tooling and OS noise ────────────────────────────────────────────────────
+node_modules/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*~
+
+# ── Local agent/editor state ────────────────────────────────────────────────
+.claude/settings.local.json
