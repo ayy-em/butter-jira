@@ -6,6 +6,7 @@ import {
 import { getCredentials, saveCredentials, defaultExpiry } from "./credentials.js";
 import { isReauthOpen, promptReauth, renderExpiryBanner } from "./components/reauth.js";
 import { cache, loadBoards, loadTheme, saveBoards } from "./utils.js";
+import { loadTeam, loadTeamOnly } from "./team.js";
 import {
   CONFIG,
   boardPaletteColor,
@@ -22,6 +23,9 @@ const TOKEN_HELP_URL = "https://id.atlassian.com/manage-profile/security/api-tok
 async function init() {
   await loadBoards();
   await loadTheme();
+  // Roster and its filter preference must be in place before any view renders,
+  // since display names and the Team Only toggle both read from them.
+  await Promise.all([loadTeam(), loadTeamOnly()]);
   document.title = CONFIG.brand.productName;
   const creds = await getCredentials();
 

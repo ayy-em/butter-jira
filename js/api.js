@@ -226,6 +226,61 @@ export async function discoverFieldMappings(creds) {
   return mapping;
 }
 
+// ── People ──────────────────────────────────────────────────────────────────
+
+function toPerson(user) {
+  return {
+    accountId: user.accountId,
+    displayName: user.displayName || "",
+    // Jira only returns this when the caller may view email addresses.
+    email: user.emailAddress || "",
+    avatarUrl: user.avatarUrls?.["24x24"] || user.avatarUrls?.["16x16"] || "",
+    active: user.active !== false,
+    accountType: user.accountType || "",
+  };
+}
+
+// Directory search. Requires the "Browse users and groups" global permission —
+// plenty of Jira sites restrict it to admins, so callers must handle a 403 by
+// falling back to harvest or manual entry.
+export async function searchUsers(query, creds) {
+  const users = await jiraFetch("/rest/api/3/user/search", creds, {
+    query,
+    maxResults: 50,
+  });
+  return users
+    .map(toPerson)
+    // Drop app/bot/customer accounts — a team roster wants humans.
+    .filter((u) => !u.accountType || u.accountType === "atlassian")
+    .filter((u) => u.active);
+}
+
+// Everyone currently carrying work on the configured boards. Needs no extra
+// permission, which is why it is the default way to build a roster — but it
+// only finds people with an assigned issue right now.
+export async function harvestTeamCandidates(creds) {
+  const [sprintIssues, backlogIssues] = await Promise.all([
+    getAllSprintIssues(creds),
+    getAllBacklogIssues(creds),
+  ]);
+
+  const byAccount = new Map();
+  for (const issue of [...sprintIssues, ...backlogIssues]) {
+    const assignee = issue.fields?.assignee;
+    if (!assignee?.accountId) continue;
+    const existing = byAccount.get(assignee.accountId);
+    if (existing) {
+      existing.issueCount++;
+      continue;
+    }
+    byAccount.set(assignee.accountId, { ...toPerson(assignee), issueCount: 1 });
+  }
+
+  return [...byAccount.values()].sort(
+    (a, b) => b.issueCount - a.issueCount || a.displayName.localeCompare(b.displayName)
+  );
+}
+
 // All fields on the site, for the manual override dropdowns in Settings.
 export async function listFields(creds) {
   const fields = await jiraFetch("/rest/api/3/field", creds);

@@ -232,6 +232,41 @@
     .checkbox-row strong { color: var(--accent-warning); font-weight: 600; }
     .token-status-expired { color: var(--accent-danger); }
     .token-status-soon { color: var(--accent-warning); }
+
+    .inline-row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .inline-row input { margin-bottom: 0; }
+    .inline-btn { width: auto; flex: 0 0 auto; padding: 8px 12px; margin-bottom: 0; }
+    .roster-row { gap: 6px; }
+    .roster-avatar {
+      width: 22px; height: 22px; border-radius: 50%; flex: 0 0 22px;
+      object-fit: cover; background: var(--border);
+    }
+    .roster-avatar-placeholder {
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text);
+    }
+    .roster-jira-name {
+      flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .roster-row input.roster-override { flex: 1 1 96px; min-width: 0; }
+    .roster-row input.roster-emoji { flex: 0 0 44px; text-align: center; }
+    .roster-badge {
+      font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      border: 1px solid var(--accent-warning); color: var(--accent-warning);
+      border-radius: 3px; padding: 1px 4px; flex: 0 0 auto;
+    }
+    .roster-toggle { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+    .roster-toggle span { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+    .result-row { justify-content: space-between; }
+    .result-add {
+      background: none; border: 1px solid var(--accent-primary);
+      color: var(--accent-primary); font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; text-transform: uppercase; padding: 3px 8px;
+      border-radius: 3px; cursor: pointer; flex: 0 0 auto;
+    }
+    .result-add:disabled { border-color: var(--border); color: var(--muted); cursor: default; }
   </style>
 </head>
 <body>
@@ -306,6 +341,40 @@
     <div class="board-list" id="statusGroupList"></div>
     <button class="add-board-btn" id="addGroupBtn">+ Add group</button>
 
+    <div class="section-title">Team roster</div>
+    <div class="hint">
+      Who counts as "the team": drives the Team Only filter, display-name
+      overrides, and later standup and planning. Stored on this device only —
+      it holds colleagues' details, so it never goes into synced storage or a
+      config export unless you tick the box below.
+    </div>
+    <div class="board-list" id="rosterList"></div>
+    <div class="hint" id="rosterNote"></div>
+
+    <div class="btn-row">
+      <button class="add-board-btn" id="harvestRosterBtn">↓ Harvest from boards</button>
+      <button class="add-board-btn" id="toggleAddPersonBtn">+ Add a person</button>
+    </div>
+
+    <div id="addPersonPanel" hidden>
+      <div class="hint">
+        Search needs the "Browse users" permission in Jira. If your account
+        doesn't have it, add people by <strong>account ID</strong> (from the
+        Jira profile URL) or by email — an email is linked automatically the
+        next time that person shows up in a harvest.
+      </div>
+      <div class="inline-row">
+        <input type="search" id="userSearchInput" placeholder="Search Jira directory by name or email">
+        <button class="add-board-btn inline-btn" id="userSearchBtn">Search</button>
+      </div>
+      <div class="board-list" id="userSearchResults"></div>
+      <div class="inline-row">
+        <input type="text" id="manualIdentifier" placeholder="Account ID or email">
+        <input type="text" id="manualName" placeholder="Display name (optional)">
+        <button class="add-board-btn inline-btn" id="addManualBtn">Add</button>
+      </div>
+    </div>
+
     <div class="section-title">Field mapping</div>
     <div class="hint">
       Custom field IDs differ per Jira site. Discover resolves them by field name;
@@ -343,6 +412,10 @@
     <label class="checkbox-row">
       <input type="checkbox" id="includeToken">
       <span>Include the API token in the export <strong>(plaintext credential in a file)</strong></span>
+    </label>
+    <label class="checkbox-row">
+      <input type="checkbox" id="includeRoster">
+      <span>Include the team roster <strong>(colleagues' names and emails in a file)</strong></span>
     </label>
     <div class="btn-row">
       <button class="add-board-btn" id="exportBtn">↑ Export config</button>

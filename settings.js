@@ -23,6 +23,8 @@ import {
   exportFilename,
   parseImport,
 } from "./js/portable.js";
+import { allMembers, loadTeam, saveMembers } from "./js/team.js";
+import { initRoster } from "./js/roster-ui.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -48,6 +50,7 @@ const tokenExpiryInput = el("tokenExpiry");
 const tokenStatusNote = el("tokenStatusNote");
 const forgetTokenBtn = el("forgetTokenBtn");
 const includeTokenBox = el("includeToken");
+const includeRosterBox = el("includeRoster");
 const exportBtn = el("exportBtn");
 const importBtn = el("importBtn");
 const importFile = el("importFile");
@@ -56,6 +59,7 @@ let boards = [];
 let statusGroups = [];
 let fields = {};
 let currentTheme = "dark";
+let roster = null;   // roster editor, created once on first init
 
 chrome.storage.sync.get("theme", (result) => {
   currentTheme = result.theme || "dark";
@@ -329,6 +333,7 @@ forgetTokenBtn.addEventListener("click", async () => {
 
 exportBtn.addEventListener("click", async () => {
   const includeToken = includeTokenBox.checked;
+  const includeRoster = includeRosterBox.checked;
   if (includeToken) {
     const proceed = confirm(
       "The exported file will contain your API token in plaintext.\n\n" +
@@ -336,12 +341,25 @@ exportBtn.addEventListener("click", async () => {
     );
     if (!proceed) return;
   }
+  if (includeRoster) {
+    const proceed = confirm(
+      "The exported file will contain your team roster: colleagues' names, " +
+        "emails and Jira account IDs.\n\nContinue?"
+    );
+    if (!proceed) return;
+  }
   const credentials = await loadCredentials();
-  const payload = buildExport({ credentials, includeToken });
+  const payload = buildExport({
+    credentials,
+    includeToken,
+    includeRoster,
+    members: roster ? roster.getMembers() : allMembers(),
+  });
   downloadJson(exportFilename(), payload);
+  const caveats = [includeToken && "a live token", includeRoster && "personal data"].filter(Boolean);
   flash(
-    includeToken ? "Exported — file contains a live token, store it carefully" : "Exported",
-    includeToken ? "warning" : "success"
+    caveats.length ? `Exported — file contains ${caveats.join(" and ")}, store it carefully` : "Exported",
+    caveats.length ? "warning" : "success"
   );
 });
 
@@ -366,6 +384,7 @@ importFile.addEventListener("change", async () => {
     result.config.site?.baseUrl && `site ${result.config.site.baseUrl}`,
     result.config.boards && `${result.config.boards.length} boards`,
     result.config.statusGroups && `${result.config.statusGroups.length} status groups`,
+    result.members && `${result.members.length} roster members`,
     result.account?.email && `account ${result.account.email}`,
     result.account?.token && "an API token",
   ].filter(Boolean);
@@ -373,6 +392,7 @@ importFile.addEventListener("change", async () => {
   if (!confirm(`Import will replace:\n\n${summary.join("\n")}\n\nContinue?`)) return;
 
   await saveConfig(result.config);
+  if (result.members) await saveMembers(result.members);
   if (result.account?.email && result.account?.token) {
     await saveCredentials({
       email: result.account.email,
@@ -445,6 +465,8 @@ saveBtn.addEventListener("click", async () => {
     tokenExpiresAt: tokenExpiryInput.value || defaultExpiry(),
   });
 
+  if (roster) await saveMembers(roster.getMembers());
+
   baseUrlInput.value = CONFIG.site.baseUrl;
   boards = validBoards;
   renderBoards();
@@ -457,6 +479,7 @@ saveBtn.addEventListener("click", async () => {
 
 async function init() {
   await loadConfig();
+  await loadTeam();
 
   el("productName").textContent = CONFIG.brand.productName;
   el("productTagline").textContent = CONFIG.brand.tagline;
@@ -477,6 +500,9 @@ async function init() {
   if (stored?.email) emailInput.value = stored.email;
   if (stored?.token) tokenInput.value = stored.token;
   tokenExpiryInput.value = stored?.tokenExpiresAt?.slice(0, 10) || "";
+
+  if (!roster) roster = initRoster({ flash, requireLiveJira: withLiveConfig });
+  roster.setMembers(allMembers());
 
   renderBoards();
   renderStatusGroups();

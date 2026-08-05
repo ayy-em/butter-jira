@@ -15,7 +15,7 @@ their own Jira site.
 | Data access | Read-only, HTTP Basic (email + API token), `js/api.js` |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/agile/1.0/board/*` |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping), overridable via `config.local.json` |
-| Storage | `chrome.storage.sync` for config; `chrome.storage.local` for credentials, schema version, and a 5-minute response cache |
+| Storage | `chrome.storage.sync` for config; `chrome.storage.local` for credentials, roster, schema version, and a 5-minute response cache |
 | Build step | None — plain ES modules, one vendored lib (`libs/frappe-gantt`) |
 | Version control | `.gitignore` in place; `git init` when convenient |
 | Tests | None; manual checklist + `scripts/jira-smoke.js` connectivity check |
@@ -28,7 +28,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Milestone sequence at a glance
 
 ```
-M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People layer ──┬──▶ M4 Monitoring ──▶ M5 Issue detail
+M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ──▶ M5 Issue detail
                                                                         │
                                                                         ├──▶ M6 Standup mode
                                                                         │
@@ -127,18 +127,25 @@ browser-level ID pinning, which is on the manual checklist.
 
 ---
 
-## M3 — People layer: team mapping *(feature 3)*
+## M3 — People layer: team mapping ✔ *(feature 3)*
 
-**Size: M** · Depends on M2. Hard dependency for M6, M8, M9, M10.
+**Size: M** · Done. Depends on M2. Hard dependency for M6, M8, M9, M10.
 
-- Roster editor in settings: add members from `GET /rest/api/3/user/search` or harvested from board issues (`extractAssignees` in `js/utils.js:122` already does the harvesting).
-- Per-member: `accountId` (the stable key), display name override, optional nickname/emoji, avatar override, active flag, default capacity inputs (reserved for M8).
-- Global "my team only" filter, wired into the existing filter component (`js/components/filters.js`) so all three views honour it.
-- Replace `formatDisplayName` (`js/utils.js:113`) heuristics with roster lookup, falling back to the Jira name.
-- Surface non-roster assignees as "outside team" rather than hiding them silently — silent filtering makes issue counts lie.
+**What was built**
 
-**Exit criteria:** one roster, defined once, respected by every view and reused
-by later milestones. Use synthetic names in any fixtures or screenshots.
+- **Roster data layer** (`js/team.js`) — device-local, since a roster holds colleagues' names, emails and avatars. Shape carries a team list plus an active id from day one, so a team switcher is additive later rather than a migration. Members dedupe on accountId, then email, merging blanks instead of duplicating a person.
+- **Three ways onto the roster** (`js/roster-ui.js`), in order of how widely they work:
+  1. **Harvest from boards** — `getAllSprintIssues` + `getAllBacklogIssues`, no extra Jira permission, ranked by issue count. Only finds people with an assigned issue right now, which is why it is not the only path.
+  2. **Directory search** — `GET /rest/api/3/user/search`, filtered to human accounts. Needs "Browse users and groups", which many sites restrict to admins, so a 403 degrades to an explanatory note rather than an error.
+  3. **Manual entry** — account ID (reliable) or email. An email-only member is stored **unlinked**, flagged in the UI, and gets its accountId filled in automatically the next time that person appears in a harvest.
+- **Per-member**: display-name override, emoji, avatar override, active flag, and a `capacity` object carried through untouched for the planner (M8).
+- **Team Only filter** in the filter bar, persisted, honoured by all three views. It hides work assigned *outside* the roster but keeps unassigned issues — hiding those would make the M4 hygiene checks lie.
+- **Outsiders are marked, not hidden**: the assignee dropdown labels them `· outside team`, and `extractAssignees` sorts roster members first.
+- Display names resolve through the roster everywhere (`assigneeLabel`), falling back to the Jira name shortened to first + last.
+- Roster is **excluded from config export** unless explicitly ticked, behind a confirm — same pattern as the token. Import warns before storing colleagues' details.
+
+**Exit criteria met:** one roster, defined once, respected by every view and
+reused by later milestones. Verified by `scripts/test-team.mjs` (84 checks).
 
 ---
 
@@ -191,7 +198,7 @@ randomise order → 5-second countdown → person's Kanban (current sprint, thei
 issues) → audio cue at 3-2-1 → draw next name → "get ready" card with name and
 avatar → fade → next Kanban, timer starts.
 
-- Attendance picker prefilled from the active roster; remembers yesterday's selection.
+- Attendance picker prefilled from `activeMembers()`; remembers yesterday's selection.
 - Per-person duration with a bulk "set all" and a visible total ("14 min for 7 people").
 - Seeded shuffle so an interrupted session can resume the same order.
 - State machine — `idle → countdown → speaking → handoff → done` — held in one place. Timer drift matters here: use timestamp deltas, not accumulated `setInterval` ticks.

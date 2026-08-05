@@ -9,7 +9,7 @@ import {
   getAvatarUrl,
   extractAssignees,
   fmtDate,
-  formatDisplayName,
+  assigneeLabel,
   BOARDS,
   loadStatusGroups,
   saveStatusGroups,
@@ -183,7 +183,7 @@ export async function mount(container, creds) {
         pill.appendChild(makePlaceholder(a.displayName));
       }
       const name = document.createElement("span");
-      name.textContent = formatDisplayName(a.displayName);
+      name.textContent = a.displayName;
       pill.appendChild(name);
       pill.addEventListener("click", () => {
         selectedPerson =
@@ -450,7 +450,7 @@ export async function mount(container, creds) {
         footer.appendChild(ph);
       }
       const nm = document.createElement("span");
-      nm.textContent = formatDisplayName(f.assignee.displayName);
+      nm.textContent = assigneeLabel(f.assignee);
       footer.appendChild(nm);
     }
 

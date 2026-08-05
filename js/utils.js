@@ -6,6 +6,7 @@ import {
   loadConfig,
   saveConfig,
 } from "./config.js";
+import { avatarOverrideFor, displayNameFor, isOnTeam } from "./team.js";
 
 // Boards come from user config — there are no built-in defaults, because board
 // IDs and project keys belong to one specific Jira site.
@@ -106,35 +107,37 @@ export function getEpicKey(issue) {
 
 export function getAvatarUrl(issue) {
   const a = issue.fields.assignee;
+  const override = avatarOverrideFor(a?.accountId);
+  if (override) return override;
   if (!a || !a.avatarUrls) return null;
   return a.avatarUrls["24x24"] || a.avatarUrls["16x16"] || null;
 }
 
-export function formatDisplayName(name) {
-  if (!name) return "—";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return `${parts[0]} ${parts[parts.length - 1]}`;
-  }
-  return parts[0];
+// The name to show for an issue's assignee, roster override included.
+export function assigneeLabel(assignee) {
+  return displayNameFor(assignee);
 }
 
+// Distinct assignees across the issues, roster members first. `displayName` is
+// the resolved label so callers can render it directly; `onTeam` lets the UI
+// mark outsiders instead of hiding them silently.
 export function extractAssignees(issues) {
   const map = new Map();
   for (const issue of issues) {
     const a = issue.fields.assignee;
-    if (!a) continue;
-    if (!map.has(a.accountId)) {
-      map.set(a.accountId, {
-        accountId: a.accountId,
-        displayName: a.displayName,
-        avatarUrl: getAvatarUrl(issue),
-      });
-    }
+    if (!a?.accountId || map.has(a.accountId)) continue;
+    map.set(a.accountId, {
+      accountId: a.accountId,
+      displayName: displayNameFor(a),
+      jiraName: a.displayName || "",
+      avatarUrl: getAvatarUrl(issue),
+      onTeam: isOnTeam(a.accountId),
+    });
   }
-  return [...map.values()].sort((a, b) =>
-    a.displayName.localeCompare(b.displayName)
-  );
+  return [...map.values()].sort((a, b) => {
+    if (a.onTeam !== b.onTeam) return a.onTeam ? -1 : 1;
+    return a.displayName.localeCompare(b.displayName);
+  });
 }
 
 export async function loadStatusGroups() {
