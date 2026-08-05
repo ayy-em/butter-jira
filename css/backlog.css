@@ -1,0 +1,138 @@
+.backlog-wrap {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.backlog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
+.backlog-count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.backlog-table-wrap {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin: auto;
+}
+
+.backlog-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 0 auto;
+}
+
+.backlog-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.backlog-table th {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 14px;
+  text-align: left;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.backlog-table th:hover { color: var(--text); }
+.backlog-table th .sort-arrow { margin-left: 4px; font-size: 10px; }
+
+.backlog-table td {
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.backlog-table tr {
+  transition: background 0.1s;
+}
+.backlog-table tbody tr:hover {
+  background: rgba(232,234,240,0.03);
+}
+
+.backlog-row {
+  border-left: 3px solid transparent;
+}
+
+.board-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.issue-key {
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 500;
+  text-transform: uppercase;
+  text-decoration: none;
+  font-size: 12px;
+}
+.issue-key:hover { text-decoration: underline; }
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.assignee-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.avatar-placeholder {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+/* due date colors now in app.css (.due-overdue, .due-7, .due-14, .due-normal) */
+
+.summary-cell {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -1,0 +1,228 @@
+.kanban-wrap {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.person-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.person-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.person-pill:hover { color: var(--text); border-color: var(--muted); }
+.person-pill.active {
+  color: var(--text);
+  border-color: var(--text);
+  background: rgba(232,234,240,0.06);
+}
+
+.person-pill .avatar {
+  width: 18px;
+  height: 18px;
+}
+.person-pill .avatar-placeholder {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+}
+
+.sprint-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-left: auto;
+}
+
+.sprint-toggle button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.sprint-toggle button.active {
+  background: rgba(232,234,240,0.08);
+  color: var(--text);
+}
+
+.kanban-board {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 8px;
+  justify-content: safe center;
+}
+
+.kanban-column {
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 100%;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.kanban-col-count {
+  background: var(--border);
+  color: var(--text);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.kanban-col-cards {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kanban-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  border-top: 3px solid transparent;
+  position: relative;
+}
+.kanban-card:hover { border-color: var(--muted); }
+
+.kanban-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.kanban-card .issue-key {
+  font-size: 11px;
+}
+
+.kanban-card-type {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+.kanban-card-summary {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.kanban-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.kanban-card-footer .sp {
+  font-family: 'IBM Plex Mono', monospace;
+  margin-left: auto;
+}
+
+.kanban-card-board-stripe {
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 0;
+  width: 3px;
+  border-radius: 0 0 0 4px;
+}
+
+.kanban-empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 24px 0;
+  font-size: 16px;
+}
+
+.kanban-col-drag-over {
+  outline: 2px dashed var(--accent-primary);
+  outline-offset: -2px;
+}
+
+.kanban-group-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.kanban-group-btn:hover { color: var(--text); border-color: var(--muted); }
+
+.kanban-group-editor-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  animation: modal-in 0.15s ease;
+}

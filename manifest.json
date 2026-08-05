@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "ButterJira",
+  "version": "0.1.0",
+  "description": "Gantt, Backlog, and Kanban views across your Jira boards. Because the other one sucks.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://*.atlassian.net/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "icons": {
+    "128": "assets/logo.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "ButterJira",
+    "default_icon": "assets/logo.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "_comment": [
+    "Copy to config.local.json (untracked) to pre-seed or override configuration.",
+    "Every key is optional — omit what you don't need. The Settings page writes to",
+    "browser storage, which wins over this file, EXCEPT additionalFields: those are",
+    "merged, so anything listed here is always requested.",
+    "Reload the extension after editing."
+  ],
+
+  "site": {
+    "baseUrl": "https://your-org.atlassian.net",
+    "wikiPath": "/wiki"
+  },
+
+  "brand": {
+    "productName": "ButterJira",
+    "tagline": "Because the other one sucks.",
+    "orgName": "",
+    "orgLogo": "assets/brand/org-logo.png"
+  },
+
+  "boards": [
+    { "id": 1, "name": "ABC", "projectKey": "ABC", "color": "#4F8EF7" },
+    { "id": 2, "name": "DEF", "projectKey": "DEF", "color": "#F7914F" }
+  ],
+
+  "statusGroups": [
+    { "name": "To Do", "statuses": ["To Do", "Open", "Backlog"] },
+    { "name": "In Progress", "statuses": ["In Progress"] },
+    { "name": "In Review", "statuses": ["In Review", "Code Review"] },
+    { "name": "Done", "statuses": ["Done", "Closed", "Resolved"] }
+  ],
+
+  "_fieldsComment": [
+    "Custom field IDs are assigned per Jira site. Leave these out and let",
+    "Settings > Field mapping > Discover resolve them by field name; set them",
+    "here only if your site names fields unusually. Each role takes an ordered",
+    "list — the first field carrying a value wins."
+  ],
+  "fields": {
+    "storyPoints": ["customfield_10016"],
+    "startDate": ["customfield_10015"],
+    "epicLink": ["customfield_10014"],
+    "sprint": ["customfield_10020"]
+  },
+
+  "_additionalFieldsComment": [
+    "Extra fields to request on every issue query. Use for anything the views",
+    "should carry that isn't part of the base set — team, severity, environment,",
+    "or a custom estimate. Merged with whatever Settings holds."
+  ],
+  "additionalFields": ["customfield_10050", "timetracking"]
+}

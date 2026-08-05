@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>ButterJira — Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    html, body {
+      height: auto;
+      min-height: 100vh;
+      overflow: auto;
+    }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .settings-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 32px;
+      width: 460px;
+    }
+    .logo-area {
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .logo-area img { width: 48px; height: 48px; }
+    h1 {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 18px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      text-align: center;
+      margin-bottom: 2px;
+      color: var(--text);
+    }
+    .tagline {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 24px;
+      font-style: italic;
+    }
+    .settings-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 16px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-family: 'IBM Plex Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="number"] {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px;
+      margin-bottom: 4px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--accent-primary); }
+    input[readonly] { color: var(--muted); cursor: not-allowed; }
+    .field-group { margin-bottom: 14px; }
+    .token-wrap { position: relative; }
+    .token-wrap input { padding-right: 60px; }
+    .token-toggle {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      background: var(--border);
+      border: none;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+    .token-toggle:hover { color: var(--text); }
+    .helper-link {
+      display: inline-block;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      color: var(--accent-primary);
+      text-decoration: none;
+      margin-bottom: 14px;
+    }
+    .helper-link:hover { text-decoration: underline; }
+    .section-title {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin: 20px 0 10px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .board-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .board-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    .board-row input {
+      margin-bottom: 0;
+      flex: 1;
+    }
+    .board-row input[type="number"] { width: 80px; flex: 0 0 80px; }
+    .board-row input[type="text"] { flex: 1; }
+    .board-row input[type="color"] {
+      width: 28px; height: 28px; border: none; background: none; cursor: pointer; padding: 0;
+    }
+    .board-row .remove-board {
+      background: none; border: none; color: #EF4444; cursor: pointer;
+      font-size: 16px; padding: 2px 6px; border-radius: 3px;
+    }
+    .board-row .remove-board:hover { background: rgba(239,68,68,0.15); }
+    .add-board-btn {
+      background: transparent;
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      padding: 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      text-align: center;
+      margin-bottom: 14px;
+    }
+    .add-board-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+    .btn-save {
+      width: 100%;
+      padding: 10px;
+      background: var(--accent-primary);
+      border: none;
+      border-radius: 4px;
+      color: #fff;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: opacity 0.15s;
+    }
+    .btn-save:hover { opacity: 0.85; }
+    .status {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--accent-success);
+      font-family: 'IBM Plex Mono', monospace;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .status.visible { opacity: 1; }
+
+    .settings-theme-toggle {
+      transform: scale(1.4);
+      transform-origin: center;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin: 2px 0 10px;
+    }
+    .hint code {
+      font-family: 'IBM Plex Mono', monospace;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0 3px;
+    }
+    .btn-row { display: flex; gap: 8px; }
+    .btn-row .add-board-btn { flex: 1; }
+    .field-role-row { flex-wrap: wrap; }
+    .field-role-row .role-label {
+      flex: 0 0 96px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+    }
+    .field-role-row .role-unresolved { color: var(--accent-warning); }
+  </style>
+</head>
+<body>
+  <div class="settings-card">
+    <div class="logo-area">
+      <img src="assets/logo.png" alt="">
+    </div>
+    <h1 id="productName">ButterJira</h1>
+    <div class="tagline" id="productTagline">Because the other one sucks.</div>
+
+    <div class="settings-header">
+      <button class="theme-toggle settings-theme-toggle" id="themeToggle" title="Toggle theme">
+        <span class="toggle-track">
+          <span class="toggle-stars">
+            <span class="toggle-star"></span><span class="toggle-star"></span>
+            <span class="toggle-star"></span><span class="toggle-star"></span>
+            <span class="toggle-star"></span>
+          </span>
+          <span class="toggle-cloud"></span><span class="toggle-cloud"></span>
+        </span>
+        <span class="toggle-rays">
+          <span class="toggle-ray"></span><span class="toggle-ray"></span>
+          <span class="toggle-ray"></span><span class="toggle-ray"></span>
+          <span class="toggle-ray"></span><span class="toggle-ray"></span>
+          <span class="toggle-ray"></span>
+        </span>
+        <span class="toggle-body">
+          <span class="toggle-crater"></span><span class="toggle-crater"></span>
+          <span class="toggle-crater"></span>
+        </span>
+      </button>
+    </div>
+
+    <div class="field-group">
+      <label for="baseUrl">Jira Site URL</label>
+      <input type="text" id="baseUrl" placeholder="your-org.atlassian.net">
+      <div class="hint">Jira Cloud site or Data Center host. Non-Atlassian hosts prompt for access on save.</div>
+    </div>
+
+    <div class="field-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="you@example.com">
+    </div>
+
+    <div class="field-group">
+      <label for="token">API Token</label>
+      <div class="token-wrap">
+        <input type="password" id="token" placeholder="Paste Jira API token">
+        <button class="token-toggle" id="toggleToken">Show</button>
+      </div>
+      <a class="helper-link" href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener">
+        Need an API token? Create one here
+      </a>
+    </div>
+
+    <div class="section-title">Boards in scope</div>
+    <div class="board-list" id="boardList"></div>
+    <div class="btn-row">
+      <button class="add-board-btn" id="addBoardBtn">+ Add board</button>
+      <button class="add-board-btn" id="importBoardsBtn">↓ Import from Jira</button>
+    </div>
+
+    <div class="section-title">Status Column Grouping (Kanban)</div>
+    <div class="board-list" id="statusGroupList"></div>
+    <button class="add-board-btn" id="addGroupBtn">+ Add group</button>
+
+    <div class="section-title">Field mapping</div>
+    <div class="hint">
+      Custom field IDs differ per Jira site. Discover resolves them by field name;
+      override manually if your site uses different names.
+    </div>
+    <div class="board-list" id="fieldRoleList"></div>
+    <button class="add-board-btn" id="discoverFieldsBtn">⟳ Discover from Jira</button>
+
+    <div class="section-title">Additional fields</div>
+    <div class="hint">
+      Extra field IDs requested on every issue query, comma-separated
+      (e.g. <code>customfield_10050, timetracking</code>). Entries from
+      <code>config.local.json</code> are merged in and shown below.
+    </div>
+    <input type="text" id="additionalFields" placeholder="customfield_10050, ...">
+    <div class="hint" id="localFieldsNote"></div>
+
+    <div class="section-title">Branding (optional)</div>
+    <div class="field-group">
+      <label for="orgName">Organisation name</label>
+      <input type="text" id="orgName" placeholder="Shown in the nav bar">
+    </div>
+    <div class="field-group">
+      <label for="orgLogo">Organisation logo path</label>
+      <input type="text" id="orgLogo" placeholder="assets/brand/org-logo.png">
+      <div class="hint">Files under <code>assets/brand/</code> are untracked by git.</div>
+    </div>
+
+    <button class="btn-save" id="saveBtn">Save</button>
+    <div class="status" id="status">Saved</div>
+  </div>
+  <script type="module" src="settings.js"></script>
+</body>
+</html>
