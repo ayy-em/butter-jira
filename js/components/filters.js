@@ -1,4 +1,5 @@
 import { BOARDS, debounce } from "../utils.js";
+import { hasRoster, isOutsideTeam, isTeamOnly, setTeamOnly } from "../team.js";
 
 const TYPE_OPTIONS = ["Epic", "Story", "Task", "Bug", "Sub-task"];
 
@@ -14,8 +15,17 @@ function statusColor(name) {
   return STATUS_COLORS[name.toLowerCase()] || "#6B7280";
 }
 
+// Outsiders are marked, not hidden — a filter list that silently omits people
+// makes issue counts look wrong.
+function assigneeOptionLabel(assignee) {
+  if (!hasRoster() || assignee.onTeam) return assignee.displayName;
+  return `${assignee.displayName} · outside team`;
+}
+
 export function applyFilters(issues, state) {
   return issues.filter((issue) => {
+    // Roster filter: hides work assigned outside the team, keeps unassigned.
+    if (state.teamOnly && isOutsideTeam(issue)) return false;
     if (state.boards.length && !state.boards.includes(issue.boardId))
       return false;
     const typeName = issue.fields.issuetype?.name || "";
@@ -49,6 +59,7 @@ export function renderFilters(container, config, onChange) {
     statuses: [],
     search: "",
     currentSprintOnly: config.sprints ? true : false,
+    teamOnly: hasRoster() ? isTeamOnly() : false,
   };
 
   function emit() {
@@ -117,7 +128,7 @@ export function renderFilters(container, config, onChange) {
         "Assignee",
         config.assignees.map((a) => ({
           value: a.accountId,
-          label: a.displayName,
+          label: assigneeOptionLabel(a),
         })),
         [],
         (sel) => {
@@ -127,6 +138,25 @@ export function renderFilters(container, config, onChange) {
       );
       container.appendChild(wrap);
     }
+  }
+
+  // Only offered once there is a roster to filter against.
+  if (hasRoster()) {
+    const btn = document.createElement("button");
+    btn.className = "filter-toggle mono";
+    btn.title = "Hide issues assigned outside the team roster. Unassigned issues stay visible.";
+    const paint = () => {
+      btn.classList.toggle("active", state.teamOnly);
+      btn.textContent = state.teamOnly ? "Team Only" : "Everyone";
+    };
+    paint();
+    btn.addEventListener("click", async () => {
+      state.teamOnly = !state.teamOnly;
+      await setTeamOnly(state.teamOnly);
+      paint();
+      emit();
+    });
+    container.appendChild(btn);
   }
 
   if (config.statuses && config.statuses.length) {

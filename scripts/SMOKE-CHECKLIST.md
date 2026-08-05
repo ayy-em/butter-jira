@@ -1,8 +1,8 @@
 # Manual smoke checklist
 
-Run `node scripts/test-config.mjs` and `node scripts/test-credentials.mjs`
-first — they cover the config layer, field mapping, storage migrations and the
-token lifecycle automatically. This checklist is for everything it cannot reach: the UI,
+Run `node scripts/test-config.mjs`, `node scripts/test-credentials.mjs` and
+`node scripts/test-team.mjs` first — they cover the config layer, field mapping,
+storage migrations, the token lifecycle and the roster automatically. This checklist is for everything it cannot reach: the UI,
 the browser APIs, and real Jira data. Run it after touching config,
 API, or view code. `chrome://extensions` → reload the extension first, and keep
 DevTools open on the app tab: a clean console is part of every pass.
@@ -65,8 +65,30 @@ override file. Anything else is a finding.
 - [ ] Import a non-ButterJira JSON file → clean "not a ButterJira config export" error
 - [ ] Import a truncated/corrupt file → error, existing settings unchanged
 
+## 5c. Team roster
+- [ ] Empty roster → no Team Only button in the filter bar
+- [ ] Harvest from boards → assignees appear, ranked by issue count, none duplicated
+- [ ] Harvest twice → no duplicates, "all already on the roster"
+- [ ] Search directory → results list; already-added people show "on roster", disabled
+- [ ] Search directory on an account without Browse-users → clean 403 note, no error toast
+- [ ] Add by account ID → member appears immediately, no "unlinked" badge
+- [ ] Add by email on a site you can search → resolves to a real account
+- [ ] Add by email where search 403s → member appears with "unlinked" badge
+- [ ] Harvest after adding an unlinked email that matches a real assignee → badge clears, override kept
+- [ ] Set a display-name override → used in Backlog, Kanban cards, Kanban person pills, assignee filter
+- [ ] Set an emoji → prefixes the name everywhere
+- [ ] Set an avatar override → replaces the Jira avatar; broken URL falls back to initials
+- [ ] Untick "in" for a member → they drop out of Team Only, stay in the roster
+- [ ] Roster edits without pressing Save → not persisted after reload (by design; note says so)
+- [ ] DevTools → Storage: `teams` is in `local`, **not** in `sync`
+- [ ] Team Only on → issues assigned outside the roster disappear, unassigned stay
+- [ ] Team Only choice survives a reload and applies to all three views
+- [ ] Assignee filter labels non-roster people `· outside team`
+- [ ] Export without the roster box → `grep` the file for a colleague's email: no match
+- [ ] Export with the roster box → confirm dialog, then roster present in the file
+
 ## 6. Repo hygiene (before pushing)
-- [ ] `node scripts/test-config.mjs` and `node scripts/test-credentials.mjs` pass
+- [ ] `node scripts/test-config.mjs`, `test-credentials.mjs` and `test-team.mjs` pass
 - [ ] `grep -ri` for your org name, site host, and internal project keys → no hits in tracked files
 - [ ] `git status --ignored` → `config.local.json` and `assets/brand/*` are ignored
 - [ ] `node scripts/jira-smoke.js` passes with env vars set

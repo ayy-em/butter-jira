@@ -48,6 +48,7 @@ Everything is editable from the Settings page (⚙ in the nav bar):
 - **Jira site URL** — switch instances without touching code
 - **Boards in scope** — import from Jira, or add board ID + label + project key manually
 - **Status column grouping** — map your workflow's statuses onto Kanban columns
+- **Team roster** — who is on the team, with display-name overrides and emoji
 - **Field mapping** — which custom field holds story points, start date, epic link, sprint
 - **Additional fields** — extra field IDs to fetch on every issue query
 - **Branding** — optional org name and logo shown in the nav bar
@@ -75,6 +76,38 @@ on one instance and something else entirely on the next. Nothing here hardcodes
 those IDs: the app resolves them by field name (Settings → Field mapping →
 **Discover from Jira**) and falls back to manual entry when a site uses unusual
 names. An unresolved role means the related column simply shows no value.
+
+### Team roster
+
+Defines who counts as "the team": it drives the **Team Only** filter,
+display-name overrides, and later standup and planning. Three ways to populate
+it, in Settings:
+
+| Method | Needs | Finds |
+|---|---|---|
+| Harvest from boards | nothing beyond normal access | anyone with an assigned issue on your boards |
+| Search directory | Jira "Browse users and groups" permission | anyone on the site |
+| Add manually | nothing | anyone, by account ID or email |
+
+Directory search 403s on sites that restrict user browsing to admins — that is
+expected, and the UI says so. Adding by **account ID** (the last path segment of
+a Jira profile URL) always works. Adding by **email** stores the person as
+`unlinked`: they show in the roster but cannot be matched to issues until their
+account ID is filled in, which happens automatically on the next harvest.
+
+Per member you can set a display-name override (used everywhere in place of the
+Jira name), an emoji, an avatar override, and an active flag. Inactive members
+are kept but ignored by filters.
+
+**Team Only** in the filter bar hides work assigned outside the roster. It keeps
+unassigned issues visible on purpose — those are usually the team's problem too.
+People outside the roster are labelled `· outside team` in the assignee filter
+rather than silently dropped.
+
+The roster lives in `chrome.storage.local` on that device only, because it holds
+other people's personal data. It is never written to synced storage, never
+belongs in `config.local.json`, and is excluded from config exports unless you
+tick the box.
 
 ### Branding
 
@@ -107,6 +140,8 @@ settings.html/.js   # configuration UI
 background.js       # service worker: opens the app tab
 js/config.js        # all instance-specific config lives here
 js/credentials.js   # device-local token storage + expiry lifecycle
+js/team.js          # team roster: storage, display names, team-only filter
+js/roster-ui.js     # roster editor for the Settings page
 js/migrations.js    # numbered storage migrations
 js/portable.js      # config export/import
 js/api.js           # Jira REST client (read-only)
@@ -126,8 +161,9 @@ No build step — plain ES modules, loaded directly by Chrome.
 Config-layer unit checks — no dependencies, no network, no browser:
 
 ```bash
-node scripts/test-config.mjs       # config layer, field discovery  (68 checks)
+node scripts/test-config.mjs       # config layer, field discovery     (68 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (82 checks)
+node scripts/test-team.mjs         # roster, display names, filtering  (84 checks)
 ```
 
 `test-config.mjs` covers URL normalisation, the defaults → `config.local.json` →
@@ -137,6 +173,10 @@ team-managed Jira naming, and the field accessors.
 `test-credentials.mjs` covers storage migrations (including the legacy
 sync→local credential move), token expiry arithmetic and wording, and
 export/import validation.
+
+`test-team.mjs` covers roster storage and deduplication, display-name
+resolution, the team-only filter, linking members added by email, and
+roster export/import opt-in.
 
 `scripts/SMOKE-CHECKLIST.md` is the manual pass for anything involving the UI.
 
@@ -164,6 +204,10 @@ you tick the box) or just paste a fresh token there.
 
 **Settings → Forget token on this device** removes the credential and keeps
 everything else — useful on a shared machine.
+
+The team roster is also `chrome.storage.local` only — it holds colleagues'
+names, emails and account IDs, so it never goes into synced storage and is
+excluded from exports unless you opt in.
 
 Jira responses are cached in `chrome.storage.local` for five minutes. Nothing is
 sent anywhere except your own Jira site.
@@ -199,8 +243,8 @@ change the shape.
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) — issue detail, monitoring, standup mode, sprint
-planner, and dashboards are planned. M0–M2 are done: hygiene, whitelabelling,
-and durable identity/config.
+planner, and dashboards are planned. M0–M3 are done: hygiene, whitelabelling,
+durable identity/config, and the team roster.
 
 ## Licence
 

@@ -11,7 +11,7 @@ import {
   getAvatarUrl,
   getEpicKey,
   extractAssignees,
-  formatDisplayName,
+  assigneeLabel,
 } from "../utils.js";
 import { browseUrl } from "../config.js";
 import { renderFilters, applyFilters } from "../components/filters.js";
@@ -260,7 +260,7 @@ export async function mount(container, creds) {
         aWrap.appendChild(makeAvatarPlaceholder(f.assignee.displayName));
       }
       const nameSpan = document.createElement("span");
-      nameSpan.textContent = formatDisplayName(f.assignee.displayName);
+      nameSpan.textContent = assigneeLabel(f.assignee);
       nameSpan.style.fontSize = "12px";
       aWrap.appendChild(nameSpan);
     } else {

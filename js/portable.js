@@ -7,12 +7,19 @@
 
 import { CONFIG, DEFAULT_STATUS_GROUPS, normalizeBaseUrl } from "./config.js";
 import { SCHEMA_VERSION } from "./migrations.js";
+import { normalizeMember } from "./team.js";
 
 export const EXPORT_FORMAT = "butterjira-config";
 export const EXPORT_VERSION = 1;
 
-// `now` and `credentials` are injected so this stays pure and testable.
-export function buildExport({ now = new Date(), credentials = null, includeToken = false } = {}) {
+// `now`, `credentials` and `members` are injected so this stays pure and testable.
+export function buildExport({
+  now = new Date(),
+  credentials = null,
+  includeToken = false,
+  includeRoster = false,
+  members = [],
+} = {}) {
   const payload = {
     format: EXPORT_FORMAT,
     formatVersion: EXPORT_VERSION,
@@ -37,6 +44,12 @@ export function buildExport({ now = new Date(), credentials = null, includeToken
       payload.account.tokenExpiresAt = credentials.tokenExpiresAt || null;
       payload.containsSecret = true;
     }
+  }
+
+  // Roster is other people's personal data, so it ships only when asked for.
+  if (includeRoster && members.length) {
+    payload.team = { members: members.map((m) => ({ ...normalizeMember(m) })) };
+    payload.containsPersonalData = true;
   }
 
   return payload;
@@ -125,6 +138,19 @@ export function parseImport(text) {
     ];
   }
 
+  // Roster only when the file actually carries one — `undefined` means "leave
+  // the existing roster alone", which is different from "replace it with none".
+  let members;
+  if (Array.isArray(raw.team?.members)) {
+    members = raw.team.members
+      .filter((m) => m && typeof m === "object")
+      .map(normalizeMember)
+      .filter((m) => m.accountId || m.email || m.jiraName);
+    const dropped = raw.team.members.length - members.length;
+    if (dropped > 0) warnings.push(`${dropped} roster entr${dropped === 1 ? "y" : "ies"} skipped (no identifier).`);
+    if (members.length) warnings.push(`File contains a roster of ${members.length} — colleagues' details will be stored on this device.`);
+  }
+
   const account = {};
   if (typeof raw.account?.email === "string") account.email = raw.account.email;
   if (typeof raw.account?.token === "string") {
@@ -135,11 +161,11 @@ export function parseImport(text) {
     warnings.push("File contains an API token — it will be stored on this device.");
   }
 
-  if (!Object.keys(config).length && !Object.keys(account).length) {
+  if (!Object.keys(config).length && !Object.keys(account).length && !members?.length) {
     return { ok: false, error: "File contained nothing importable" };
   }
 
-  return { ok: true, config, account, warnings };
+  return { ok: true, config, account, members, warnings };
 }
 
 // Triggers a file download from an extension page. No `downloads` permission
