@@ -8,6 +8,21 @@ import {
   saveConfig,
 } from "./js/config.js";
 import { discoverFieldMappings, listBoards } from "./js/api.js";
+import {
+  clearToken,
+  defaultExpiry,
+  describeTokenStatus,
+  loadCredentials,
+  saveCredentials,
+  saveTokenExpiry,
+  tokenStatus,
+} from "./js/credentials.js";
+import {
+  buildExport,
+  downloadJson,
+  exportFilename,
+  parseImport,
+} from "./js/portable.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -29,6 +44,13 @@ const localFieldsNote = el("localFieldsNote");
 const orgNameInput = el("orgName");
 const orgLogoInput = el("orgLogo");
 const themeToggle = el("themeToggle");
+const tokenExpiryInput = el("tokenExpiry");
+const tokenStatusNote = el("tokenStatusNote");
+const forgetTokenBtn = el("forgetTokenBtn");
+const includeTokenBox = el("includeToken");
+const exportBtn = el("exportBtn");
+const importBtn = el("importBtn");
+const importFile = el("importFile");
 
 let boards = [];
 let statusGroups = [];
@@ -280,6 +302,99 @@ discoverFieldsBtn.addEventListener("click", () =>
 
 additionalFieldsInput.addEventListener("input", renderLocalFieldsNote);
 
+async function renderTokenStatus() {
+  const status = await tokenStatus();
+  tokenStatusNote.textContent = describeTokenStatus(status);
+  tokenStatusNote.classList.toggle("token-status-expired", status.expired);
+  tokenStatusNote.classList.toggle("token-status-soon", status.expiringSoon);
+}
+
+tokenExpiryInput.addEventListener("change", async () => {
+  await saveTokenExpiry(tokenExpiryInput.value || null);
+  await renderTokenStatus();
+});
+
+// Leaves the site, boards and field mapping in place — only the credential goes.
+forgetTokenBtn.addEventListener("click", async () => {
+  if (!confirm("Remove the stored API token from this device?\n\nBoards, field mapping and branding are kept. You will be asked for a token next time the app loads.")) {
+    return;
+  }
+  await clearToken();
+  tokenInput.value = "";
+  tokenExpiryInput.value = "";
+  await renderTokenStatus();
+  flash("Token removed from this device", "warning");
+  await notifyApp();
+});
+
+exportBtn.addEventListener("click", async () => {
+  const includeToken = includeTokenBox.checked;
+  if (includeToken) {
+    const proceed = confirm(
+      "The exported file will contain your API token in plaintext.\n\n" +
+        "Anyone who opens the file can act as you in Jira. Continue?"
+    );
+    if (!proceed) return;
+  }
+  const credentials = await loadCredentials();
+  const payload = buildExport({ credentials, includeToken });
+  downloadJson(exportFilename(), payload);
+  flash(
+    includeToken ? "Exported — file contains a live token, store it carefully" : "Exported",
+    includeToken ? "warning" : "success"
+  );
+});
+
+importBtn.addEventListener("click", () => importFile.click());
+
+importFile.addEventListener("change", async () => {
+  const file = importFile.files?.[0];
+  if (!file) return;
+  importFile.value = "";
+
+  let text;
+  try {
+    text = await file.text();
+  } catch (err) {
+    return flash(`Could not read file: ${err.message}`, "error");
+  }
+
+  const result = parseImport(text);
+  if (!result.ok) return flash(`Import failed: ${result.error}`, "error");
+
+  const summary = [
+    result.config.site?.baseUrl && `site ${result.config.site.baseUrl}`,
+    result.config.boards && `${result.config.boards.length} boards`,
+    result.config.statusGroups && `${result.config.statusGroups.length} status groups`,
+    result.account?.email && `account ${result.account.email}`,
+    result.account?.token && "an API token",
+  ].filter(Boolean);
+
+  if (!confirm(`Import will replace:\n\n${summary.join("\n")}\n\nContinue?`)) return;
+
+  await saveConfig(result.config);
+  if (result.account?.email && result.account?.token) {
+    await saveCredentials({
+      email: result.account.email,
+      token: result.account.token,
+      tokenExpiresAt: result.account.tokenExpiresAt || defaultExpiry(),
+    });
+  }
+
+  await init();
+  const notes = result.warnings.length ? ` (${result.warnings.join(" ")})` : "";
+  flash(`Imported${notes}`, result.warnings.length ? "warning" : "success");
+  await notifyApp();
+});
+
+async function notifyApp() {
+  const appUrl = chrome.runtime.getURL("app.html");
+  const tabs = await chrome.tabs.query({ url: appUrl });
+  for (const tab of tabs) {
+    chrome.tabs.sendMessage(tab.id, { type: "credentials-updated" });
+  }
+}
+
 async function ensureHostPermission(baseUrl) {
   let origin;
   try {
@@ -324,19 +439,20 @@ saveBtn.addEventListener("click", async () => {
     fields,
     additionalFields: extraFields,
   });
-  await chrome.storage.sync.set({ email, token });
+  await saveCredentials({
+    email,
+    token,
+    tokenExpiresAt: tokenExpiryInput.value || defaultExpiry(),
+  });
 
   baseUrlInput.value = CONFIG.site.baseUrl;
   boards = validBoards;
   renderBoards();
   renderLocalFieldsNote();
+  await renderTokenStatus();
   flash("Saved");
 
-  const appUrl = chrome.runtime.getURL("app.html");
-  const tabs = await chrome.tabs.query({ url: appUrl });
-  for (const tab of tabs) {
-    chrome.tabs.sendMessage(tab.id, { type: "credentials-updated" });
-  }
+  await notifyApp();
 });
 
 async function init() {
@@ -357,15 +473,16 @@ async function init() {
   );
   additionalFieldsInput.value = (CONFIG.additionalFields || []).join(", ");
 
-  chrome.storage.sync.get(["email", "token"], (result) => {
-    if (result.email) emailInput.value = result.email;
-    if (result.token) tokenInput.value = result.token;
-  });
+  const stored = await loadCredentials();
+  if (stored?.email) emailInput.value = stored.email;
+  if (stored?.token) tokenInput.value = stored.token;
+  tokenExpiryInput.value = stored?.tokenExpiresAt?.slice(0, 10) || "";
 
   renderBoards();
   renderStatusGroups();
   renderFieldRoles();
   renderLocalFieldsNote();
+  await renderTokenStatus();
 }
 
 init();

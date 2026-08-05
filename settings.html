@@ -215,6 +215,23 @@
       color: var(--muted);
     }
     .field-role-row .role-unresolved { color: var(--accent-warning); }
+    .checkbox-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin-bottom: 10px;
+      cursor: pointer;
+      text-transform: none;
+      letter-spacing: 0;
+      font-family: 'IBM Plex Sans', sans-serif;
+    }
+    .checkbox-row input { margin-top: 2px; flex: 0 0 auto; }
+    .checkbox-row strong { color: var(--accent-warning); font-weight: 600; }
+    .token-status-expired { color: var(--accent-danger); }
+    .token-status-soon { color: var(--accent-warning); }
   </style>
 </head>
 <body>
@@ -268,6 +285,14 @@
       <a class="helper-link" href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener">
         Need an API token? Create one here
       </a>
+      <div class="hint">Stored on this device only — never in synced browser storage.</div>
+    </div>
+
+    <div class="field-group">
+      <label for="tokenExpiry">Token expires on</label>
+      <input type="date" id="tokenExpiry">
+      <div class="hint" id="tokenStatusNote"></div>
+      <button class="add-board-btn" id="forgetTokenBtn">✕ Forget token on this device</button>
     </div>
 
     <div class="section-title">Boards in scope</div>
@@ -308,6 +333,22 @@
       <input type="text" id="orgLogo" placeholder="assets/brand/org-logo.png">
       <div class="hint">Files under <code>assets/brand/</code> are untracked by git.</div>
     </div>
+
+    <div class="section-title">Backup &amp; transfer</div>
+    <div class="hint">
+      Export writes a JSON file with your site, boards, status groups, field
+      mapping and branding. Import merges a file back in — use it to move to
+      another browser or hand a working setup to a teammate.
+    </div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="includeToken">
+      <span>Include the API token in the export <strong>(plaintext credential in a file)</strong></span>
+    </label>
+    <div class="btn-row">
+      <button class="add-board-btn" id="exportBtn">↑ Export config</button>
+      <button class="add-board-btn" id="importBtn">↓ Import config</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
 
     <button class="btn-save" id="saveBtn">Save</button>
     <div class="status" id="status">Saved</div>

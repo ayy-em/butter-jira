@@ -15,7 +15,7 @@ their own Jira site.
 | Data access | Read-only, HTTP Basic (email + API token), `js/api.js` |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/agile/1.0/board/*` |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping), overridable via `config.local.json` |
-| Storage | `chrome.storage.sync` for config + credentials, `chrome.storage.local` for a 5-minute response cache |
+| Storage | `chrome.storage.sync` for config; `chrome.storage.local` for credentials, schema version, and a 5-minute response cache |
 | Build step | None — plain ES modules, one vendored lib (`libs/frappe-gantt`) |
 | Version control | `.gitignore` in place; `git init` when convenient |
 | Tests | None; manual checklist + `scripts/jira-smoke.js` connectivity check |
@@ -28,7 +28,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Milestone sequence at a glance
 
 ```
-M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ──▶ M3 People layer ──┬──▶ M4 Monitoring ──▶ M5 Issue detail
+M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People layer ──┬──▶ M4 Monitoring ──▶ M5 Issue detail
                                                                         │
                                                                         ├──▶ M6 Standup mode
                                                                         │
@@ -102,9 +102,9 @@ with no code edits. No org string or asset in the tracked tree.
 
 ---
 
-## M2 — Durable identity and config *(feature 2)*
+## M2 — Durable identity and config ✔ *(feature 2)*
 
-**Size: M** · Depends on M1.
+**Size: M** · Done. Depends on M1.
 
 **Root cause of the re-login pain:** removing and re-adding an unpacked
 extension mints a **new extension ID**, and `chrome.storage` is namespaced per
@@ -112,16 +112,18 @@ ID — so the old settings are still on disk but unreachable. Plain reloads (the
 ↻ button, or a code change) keep the same ID and *do* preserve storage. So this
 is an identity problem, not a storage problem.
 
-**Tasks**
+**What was built**
 
-- Pin the extension ID: add a `key` field to `manifest.json` (public half of a generated keypair). Same ID across remove/re-add and across machines, so storage survives. Private key stays out of the repo.
-- Config export/import as a JSON file — the belt-and-braces answer, and also how you onboard a teammate or move to another browser. Offer "export without credentials" as the default.
-- Move the API token out of `chrome.storage.sync` (`js/api.js:237`, `js/router.js:209`, `settings.js:327`) into `chrome.storage.local`. `sync` replicates it in plaintext through the user's Google account to every signed-in device; `local` keeps it on the machine. Non-secret config can stay on `sync`.
-- Schema versioning + migrations: store `configVersion`, run migrations on `chrome.runtime.onInstalled`. This is what makes "the codebase changed" a non-event instead of a reset.
-- **Token lifecycle UX.** Atlassian API tokens now expire (1–365 days, one year by default). Record the creation/expiry date at setup, warn at T-14 days, and on a 401 show a "your token expired — paste a new one" banner that keeps boards, team, and field mappings intact. Today `jiraFetch` fires a `jira-auth-error` event (`js/api.js:20`, `js/api.js:39`) that drops the user back to a bare setup screen; expiry is the single most likely 401 cause and deserves a named path.
+- **Pinned the extension ID** — `manifest.json` carries a `key` (public half of a generated keypair), so the ID is `bcbejonnfmamlddbojnjjgdabndpicff` on every machine and survives remove/re-add. The private half was never written to disk: unpacked loading only needs the public key. Must be removed before a Chrome Web Store upload, which assigns its own identity — noted in the README.
+- **Config export/import** (`js/portable.js`) — JSON file with site, brand, boards, status groups, field mapping and additional fields. The token is excluded by default and needs an explicit checkbox plus a confirm to include. Import validates and sanitises every field, drops junk with a warning rather than throwing, and refuses files that are not ButterJira exports.
+- **Token moved to `chrome.storage.local`** (`js/credentials.js`) — off `sync`, which replicated it in plaintext through the user's Google account to every signed-in device. Non-secret config stays on `sync`. Cross-machine transfer is now the export/import flow. Also added a "forget token on this device" action that keeps everything else.
+- **Numbered storage migrations** (`js/migrations.js`) — `schemaVersion` in local storage, migrations run before any config or credential read (memoised, idempotent) and on `chrome.runtime.onInstalled`. v1→v2 moves legacy synced credentials to local. Storage written by a newer build is left untouched rather than mangled. This is what makes a codebase change a non-event.
+- **Token lifecycle UX** — creation and expiry dates recorded at setup (default one year, since Atlassian does not expose real expiry over the API), correctable in Settings, with a once-a-day banner from T-14 onwards. A 401 now opens a re-auth prompt asking for the token alone, with site, email, boards and field mapping preserved; parallel 401s produce one prompt, not a pile-up.
 
-**Exit criteria:** remove the extension, re-add it, and land straight in the app
-with all settings intact. An expired token asks for a token and nothing else.
+**Exit criteria met:** remove the extension, re-add it, and land straight in the
+app with all settings intact. An expired token asks for a token and nothing else.
+Verified by `scripts/test-credentials.mjs` (82 checks) for everything except the
+browser-level ID pinning, which is on the manual checklist.
 
 ---
 
@@ -303,13 +305,13 @@ stay too obviously silly to be mistaken for a performance metric.
 | greenhopper sprint report is undocumented | M7 | Two prototypes plus a daily-snapshot fallback that depends on nothing private |
 | ~~Hardcoded `customfield_*` IDs are instance-specific~~ | M1 ✔ | Resolved: discovery via `/rest/api/3/field` + manual override per role |
 | Request fan-out across boards hits rate limits | M7, M8 | Reuse cached aggregates, per-resource TTLs, batch where the API allows |
-| Token expiry mistaken for a broken app | M2 | Expiry tracking, T-14 warning, targeted re-auth banner |
+| ~~Token expiry mistaken for a broken app~~ | M2 ✔ | Resolved: expiry tracking, T-14 banner, token-only re-auth prompt |
 | Writes corrupt real sprint data | M8 | Draft mode, batch confirmation, undo window, isolated write helpers |
 | Unsanitised Jira HTML injected into the page | M5 | Allowlist sanitiser; CSP as defence in depth, not the primary control |
 
 ## Open questions
 
-1. **Distribution** — private Chrome Web Store listing, or stay unpacked/internal? Affects whether the manifest `key` approach in M2 is the right one, and whether M1's whitelabelling needs to survive a public listing review.
+1. ~~**Distribution**~~ — answered 2026-08-05: unpacked now, possible Web Store listing later. The manifest `key` is in place for unpacked use and must be deleted before any store upload.
 2. **Board-per-project assumption** — `getAllEpics` (`js/api.js:142-160`) maps issue keys to boards via project key. Any org running several boards over one project will need a different mapping before M7's per-board stats are trustworthy. More pressing now that the board picker lets anyone select overlapping boards.
 3. **Velocity source for M8** — historical (needs closed-sprint data) or hand-entered per person? Historical is better and more work.
-4. **Team scope** — one roster, or several named teams switchable from the nav? Cheap to design for now, awkward to retrofit after M6 and M8 both depend on it.
+4. ~~**Team scope**~~ — answered 2026-08-05: one roster, but stored under a team key from the start so a switcher can be added later without a migration.

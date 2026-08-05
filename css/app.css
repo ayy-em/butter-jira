@@ -400,3 +400,87 @@ html, body {
   white-space: nowrap;
 }
 .nav-jira-link:hover { color: var(--text); border-color: var(--muted); }
+
+/* ── Token expiry banner ─────────────────────────────────────────────────── */
+.expiry-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--accent-warning);
+  color: var(--text);
+  font-size: 12px;
+}
+.expiry-banner.expired { border-top-color: var(--accent-danger); }
+.expiry-banner-btn {
+  background: none;
+  border: 1px solid var(--accent-warning);
+  color: var(--accent-warning);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.expiry-banner.expired .expiry-banner-btn {
+  border-color: var(--accent-danger);
+  color: var(--accent-danger);
+}
+.expiry-banner-btn:hover { background: rgba(247,145,79,0.12); }
+.expiry-banner-btn.subtle {
+  border-color: var(--border);
+  color: var(--muted);
+}
+.expiry-banner-btn.subtle:hover { background: rgba(139,145,160,0.12); }
+
+/* ── Re-auth prompt ──────────────────────────────────────────────────────── */
+/* Appended to <body>, so unlike the setup screen it has to position itself. */
+.reauth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  height: auto;
+  background: rgba(13, 15, 18, 0.82);
+  backdrop-filter: blur(2px);
+}
+[data-theme="light"] .reauth-overlay { background: rgba(243, 244, 246, 0.85); }
+.reauth-meta {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 16px;
+  word-break: break-word;
+}
+.reauth-help {
+  display: block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--accent-primary);
+  text-decoration: none;
+  margin: 12px 0 14px;
+}
+.reauth-help:hover { text-decoration: underline; }
+.reauth-dismiss {
+  width: 100%;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  padding: 6px;
+}
+.reauth-dismiss:hover { color: var(--text); }

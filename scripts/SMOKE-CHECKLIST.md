@@ -1,7 +1,8 @@
 # Manual smoke checklist
 
-Run `node scripts/test-config.mjs` first — it covers the config layer and field
-mapping automatically. This checklist is for everything it cannot reach: the UI,
+Run `node scripts/test-config.mjs` and `node scripts/test-credentials.mjs`
+first — they cover the config layer, field mapping, storage migrations and the
+token lifecycle automatically. This checklist is for everything it cannot reach: the UI,
 the browser APIs, and real Jira data. Run it after touching config,
 API, or view code. `chrome://extensions` → reload the extension first, and keep
 DevTools open on the app tab: a clean console is part of every pass.
@@ -45,12 +46,27 @@ override file. Anything else is a finding.
 - [ ] Set organisation name with no logo → text label appears
 - [ ] Toggle light/dark on app and settings → both readable, org wordmark inverts
 
-## 5. Auth failure path
-- [ ] Corrupt the stored token (Settings → save a bad one) → 401 toast, no crash loop
-- [ ] Restore a good token → views load again
+## 5. Identity, credentials, expiry
+- [ ] Note the ID at `chrome://extensions`, remove the extension, load unpacked again → **same ID**, and settings are still there
+- [ ] DevTools → Application → Storage: token is in `chrome.storage.local`, **not** in `sync`
+- [ ] Upgrading from a pre-M2 install: token moved to local automatically, no re-login
+- [ ] Corrupt the stored token (Settings → save a bad one) → re-auth prompt appears, asking only for a token
+- [ ] Re-auth prompt: bad token → "still rejected"; good token → views reload with boards intact
+- [ ] Dismiss the re-auth prompt (Esc or "Not now") → toast explains, no crash loop
+- [ ] Set token expiry to a date within 14 days → banner appears once; Dismiss → gone for the rest of the day
+- [ ] Set expiry to a past date → banner reads "expired" in red
+- [ ] Save Settings without changing the token → creation date does not move
+- [ ] Forget token on this device → token cleared, boards and field mapping kept
+
+## 5b. Export / import
+- [ ] Export without the token box ticked → file downloads, `grep` it for your token: no match
+- [ ] Tick "include token" → confirm dialog appears; file then contains it
+- [ ] Import that file into a fresh profile → site, boards, status groups, field mapping restored
+- [ ] Import a non-ButterJira JSON file → clean "not a ButterJira config export" error
+- [ ] Import a truncated/corrupt file → error, existing settings unchanged
 
 ## 6. Repo hygiene (before pushing)
-- [ ] `node scripts/test-config.mjs` passes
+- [ ] `node scripts/test-config.mjs` and `node scripts/test-credentials.mjs` pass
 - [ ] `grep -ri` for your org name, site host, and internal project keys → no hits in tracked files
 - [ ] `git status --ignored` → `config.local.json` and `assets/brand/*` are ignored
 - [ ] `node scripts/jira-smoke.js` passes with env vars set

@@ -234,11 +234,6 @@ export async function listFields(creds) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function getCredentials() {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(["email", "token"], (result) => {
-      if (result.email && result.token) resolve(result);
-      else resolve(null);
-    });
-  });
-}
+// Credential storage moved to js/credentials.js (device-local). Re-exported so
+// existing callers keep working through one import.
+export { getCredentials } from "./credentials.js";
