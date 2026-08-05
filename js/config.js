@@ -10,6 +10,8 @@
 // `additionalFields` is the exception: it is the union of the local file and
 // storage, so a local override can always add fields without fighting the UI.
 
+import { runMigrations } from "./migrations.js";
+
 const LOCAL_OVERRIDE_FILE = "config.local.json";
 
 // Field roles the app needs, with the Jira field names to look for during
@@ -128,6 +130,9 @@ function readStorage(keys) {
 }
 
 export async function loadConfig() {
+  // Storage shape is brought up to date before anything reads it.
+  await runMigrations();
+
   const local = await readLocalOverrides();
   const stored = await readStorage(STORAGE_KEYS);
 

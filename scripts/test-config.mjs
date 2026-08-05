@@ -9,25 +9,34 @@ const CONFIG_URL = new URL("../js/config.js", import.meta.url);
 const API_URL = new URL("../js/api.js", import.meta.url);
 const UTILS_URL = new URL("../js/utils.js", import.meta.url);
 
-let storage = {};
+let storage = {};      // chrome.storage.sync
+let localStore = {};   // chrome.storage.local
 let localFile = null;
 let routes = {};
+
+// Both stores support the callback form, which is what migrations.js and
+// credentials.js use.
+const pick = (store, keys) =>
+  Object.fromEntries(
+    (Array.isArray(keys) ? keys : [keys]).filter((k) => k in store).map((k) => [k, store[k]])
+  );
 
 globalThis.chrome = {
   runtime: { getURL: (p) => `chrome-extension://test/${p}` },
   storage: {
     sync: {
-      get: (keys, cb) =>
-        cb(
-          Object.fromEntries(
-            (Array.isArray(keys) ? keys : [keys])
-              .filter((k) => k in storage)
-              .map((k) => [k, storage[k]])
-          )
-        ),
-      set: async (obj) => Object.assign(storage, obj),
+      get: (keys, cb) => cb(pick(storage, keys)),
+      set: (obj, cb) => { Object.assign(storage, obj); cb?.(); return Promise.resolve(); },
+      remove: (keys, cb) => { for (const k of [].concat(keys)) delete storage[k]; cb?.(); return Promise.resolve(); },
     },
-    local: { get: async () => ({}), set: async () => {}, remove: async () => {} },
+    local: {
+      get: (keys, cb) => {
+        const out = keys == null ? { ...localStore } : pick(localStore, keys);
+        return cb ? cb(out) : Promise.resolve(out);
+      },
+      set: (obj, cb) => { Object.assign(localStore, obj); cb?.(); return Promise.resolve(); },
+      remove: (keys, cb) => { for (const k of [].concat(keys)) delete localStore[k]; cb?.(); return Promise.resolve(); },
+    },
   },
 };
 globalThis.document = { dispatchEvent: () => {} };

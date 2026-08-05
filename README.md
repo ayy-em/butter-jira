@@ -106,10 +106,13 @@ app.html            # main app shell
 settings.html/.js   # configuration UI
 background.js       # service worker: opens the app tab
 js/config.js        # all instance-specific config lives here
+js/credentials.js   # device-local token storage + expiry lifecycle
+js/migrations.js    # numbered storage migrations
+js/portable.js      # config export/import
 js/api.js           # Jira REST client (read-only)
 js/utils.js         # board/field/date/theme helpers + response cache
 js/router.js        # hash routing, setup flow, board picker
-js/components/      # nav bar, filter bar
+js/components/      # nav bar, filter bar, re-auth prompt
 js/views/           # backlog, gantt, kanban
 css/                # one stylesheet per view
 libs/               # vendored frappe-gantt
@@ -123,13 +126,17 @@ No build step — plain ES modules, loaded directly by Chrome.
 Config-layer unit checks — no dependencies, no network, no browser:
 
 ```bash
-node scripts/test-config.mjs
+node scripts/test-config.mjs       # config layer, field discovery  (68 checks)
+node scripts/test-credentials.mjs  # migrations, tokens, export/import (82 checks)
 ```
 
-Covers URL normalisation, the defaults → `config.local.json` → storage
-resolution order, field discovery against both company-managed and team-managed
-Jira naming, and the field accessors. Run it after touching `js/config.js`,
-`js/utils.js`, or the discovery code in `js/api.js`.
+`test-config.mjs` covers URL normalisation, the defaults → `config.local.json` →
+storage resolution order, field discovery against both company-managed and
+team-managed Jira naming, and the field accessors.
+
+`test-credentials.mjs` covers storage migrations (including the legacy
+sync→local credential move), token expiry arithmetic and wording, and
+export/import validation.
 
 `scripts/SMOKE-CHECKLIST.md` is the manual pass for anything involving the UI.
 
@@ -149,16 +156,51 @@ broken". It reads only from the environment — no credentials on disk.
 
 ## Data handling
 
-Your API token is stored in `chrome.storage.sync`, which replicates it through
-your Google account to your signed-in devices. Moving it to device-local
-storage is [ROADMAP.md](ROADMAP.md) M2. Jira responses are cached in
-`chrome.storage.local` for five minutes. Nothing is sent anywhere except your
-own Jira site.
+Your API token is stored in `chrome.storage.local` — on that device only. It is
+deliberately kept out of `chrome.storage.sync`, which would replicate it in
+plaintext through your Google account to every signed-in browser. To move to
+another machine, use **Settings → Export config** (the token is excluded unless
+you tick the box) or just paste a fresh token there.
+
+**Settings → Forget token on this device** removes the credential and keeps
+everything else — useful on a shared machine.
+
+Jira responses are cached in `chrome.storage.local` for five minutes. Nothing is
+sent anywhere except your own Jira site.
+
+### Token expiry
+
+Atlassian does not expose a token's expiry date over the API, so the app records
+one at setup (creation + 365 days) and treats it as a reminder you can correct in
+Settings. From 14 days out you get a once-a-day banner. If a token dies anyway,
+a 401 opens a prompt asking for the new token alone — boards, field mapping and
+branding are untouched.
+
+## Extension identity
+
+`manifest.json` includes a `key`, which pins the extension ID to
+`bcbejonnfmamlddbojnjjgdabndpicff`. Without it Chrome mints a new ID whenever the
+extension is removed and re-added, and because `chrome.storage` is namespaced per
+ID, your settings would appear to vanish. The private half of that keypair is not
+in the repo and is not needed for loading unpacked.
+
+**Before uploading to the Chrome Web Store, delete the `key` field** — the store
+assigns its own identity, and the stored settings on your dev install will not
+carry over to the listed version.
+
+## Storage migrations
+
+Anything that changes the shape of stored data gets a numbered migration in
+`js/migrations.js` rather than a "clear your settings" note. Migrations are
+idempotent, run once per device before any config read, and refuse to touch
+storage written by a newer build. Bump `SCHEMA_VERSION` and add an entry when you
+change the shape.
 
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) — issue detail, monitoring, standup mode, sprint
-planner, and dashboards are planned; M0/M1 (this whitelabelling work) are done.
+planner, and dashboards are planned. M0–M2 are done: hygiene, whitelabelling,
+and durable identity/config.
 
 ## Licence
 

@@ -1,9 +1,10 @@
 import {
   discoverFieldMappings,
-  getCredentials,
   listBoards,
   verifyCredentials,
 } from "./api.js";
+import { getCredentials, saveCredentials, defaultExpiry } from "./credentials.js";
+import { isReauthOpen, promptReauth, renderExpiryBanner } from "./components/reauth.js";
 import { cache, loadBoards, loadTheme, saveBoards } from "./utils.js";
 import {
   CONFIG,
@@ -30,8 +31,17 @@ async function init() {
     mountView(await getCredentials());
   });
 
-  document.addEventListener("jira-auth-error", () => {
-    showToast("401 — Jira authentication failed. Re-configure credentials.", true);
+  // A 401 means the token died, not that the config is gone. Ask for the one
+  // field that changed and resume where we were.
+  document.addEventListener("jira-auth-error", async () => {
+    if (isReauthOpen()) return; // parallel requests, one prompt
+    const refreshed = await promptReauth();
+    if (!refreshed) {
+      showToast("Jira rejected the stored token — views will not load until it is replaced.", true);
+      return;
+    }
+    await cache.clear();
+    mountView(refreshed);
   });
 
   chrome.runtime.onMessage?.addListener((msg) => {
@@ -62,6 +72,7 @@ async function init() {
     return;
   }
 
+  renderExpiryBanner();
   mountView(creds);
 }
 
@@ -163,9 +174,9 @@ function showSetup() {
   const status = document.getElementById("setup-status");
 
   siteInput.value = CONFIG.site.baseUrl || "";
-  chrome.storage.sync.get(["email", "token"], (result) => {
-    if (result.email) emailInput.value = result.email;
-    if (result.token) tokenInput.value = result.token;
+  getCredentials().then((stored) => {
+    if (stored?.email) emailInput.value = stored.email;
+    if (stored?.token) tokenInput.value = stored.token;
   });
 
   toggleBtn.addEventListener("click", () => {
@@ -206,7 +217,8 @@ function showSetup() {
       const creds = { email, token };
       const user = await verifyCredentials(creds);
 
-      await chrome.storage.sync.set({ email, token });
+      // Device-local, with a default expiry reminder Settings can correct.
+      await saveCredentials({ email, token, tokenExpiresAt: defaultExpiry() });
 
       saveBtn.textContent = "Reading field layout...";
       try {
