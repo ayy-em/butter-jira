@@ -1,7 +1,7 @@
 # Manual smoke checklist
 
-Run `node scripts/test-config.mjs`, `test-credentials.mjs`, `test-team.mjs` and
-`test-monitor.mjs` first — they cover the config layer, field mapping,
+Run `node scripts/test-config.mjs`, `test-credentials.mjs`, `test-team.mjs`,
+`test-monitor.mjs` and `test-issue.mjs` first — they cover the config layer, field mapping,
 storage migrations, the token lifecycle and the roster automatically. This checklist is for everything it cannot reach: the UI,
 the browser APIs, and real Jira data. Run it after touching config,
 API, or view code. `chrome://extensions` → reload the extension first, and keep
@@ -56,6 +56,39 @@ override file. Anything else is a finding.
 - [ ] Untick all four → "Every check is muted" empty state
 - [ ] Clear the story-points field mapping → that section reads "Can't run", counts nothing, and does not flag every issue
 - [ ] Clear the epic-link mapping → "no epic parent" still runs, with an orange caveat
+
+## 3c. Issue detail
+- [ ] Plain click on an issue key in Backlog → drawer slides in with that issue
+- [ ] ⌘/Ctrl-click the same key → full page opens in a new tab, same content
+- [ ] Middle-click → full page in a new tab (no drawer)
+- [ ] Right-click → "Open link in new tab" works and lands on the full page
+- [ ] Kanban card click → drawer; ⌘/Ctrl-click and middle-click → full page
+- [ ] Gantt child bar click → drawer; Monitor row keys → drawer
+- [ ] Esc closes the drawer; clicking the dark backdrop closes it; ✕ closes it
+- [ ] Opening a second issue from inside the drawer replaces the first
+- [ ] Header: status badge colour matches the status category (grey/blue/green)
+- [ ] Header: parent row shows type, key and truncated summary; its key opens the parent
+- [ ] Header: project key links to the project in Jira; "Open in Jira" opens the issue
+- [ ] Drawer only: "Full page ↗" opens the standalone page
+- [ ] Meta: assignee and reporter honour roster display-name overrides and avatars
+- [ ] Meta: overdue due date renders red; missing values render as "—"
+- [ ] Meta: sprint shows the sprint name; a carried-over issue lists closed sprints
+- [ ] Description renders formatting (lists, code, tables, links, images)
+- [ ] Links inside the description open in a new tab and are absolute
+- [ ] An issue with no description shows "No description."
+- [ ] Linked issues grouped with Jira's wording ("blocks" vs "is blocked by")
+- [ ] Sub-tasks appear under "has sub-task"; an issue with neither hides the section
+- [ ] Comments load oldest-first with avatars, relative time, exact time on hover
+- [ ] An edited comment shows the "edited" marker
+- [ ] Post a comment → appears at the bottom, count in the heading increments, box clears
+- [ ] ⌘/Ctrl+Enter posts; empty/whitespace-only input keeps the button disabled
+- [ ] Multi-paragraph comment (blank line between) keeps both paragraphs in Jira
+- [ ] Single newline becomes a line break, not a new paragraph, in Jira
+- [ ] Typing `<b>x</b>` posts literally, not as bold
+- [ ] Comment on an issue you lack permission for → "Not allowed to comment"
+- [ ] Open `issue.html?key=NOPE-1` → clean "not found" message
+- [ ] Open `issue.html` with no key → clean "no issue key" message
+- [ ] Full page in light theme is readable; drawer too
 
 ## 4. Branding and theme
 - [ ] No org logo configured → product logo only, nothing broken

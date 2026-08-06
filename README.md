@@ -111,6 +111,32 @@ other people's personal data. It is never written to synced storage, never
 belongs in `config.local.json`, and is excluded from config exports unless you
 tick the box.
 
+### Issue detail
+
+Click any issue key (or a Kanban card, or a Gantt child bar) to open the issue in
+a slide-over drawer. **⌘/Ctrl-click, middle-click, or "open link in new tab"**
+opens the same detail as a full page instead — that page is linkable and
+reloadable, the drawer is not.
+
+Shows the header (key, status, type, parent, project, links out to Jira),
+assignee and reporter, description, start/due dates, story points, sprint,
+linked issues grouped by relationship, sub-tasks, and comments.
+
+**Commenting** is the one thing the app writes back to Jira. Type in the reply
+box and press **Comment** or ⌘/Ctrl+Enter. Plain text only: blank lines become
+paragraphs, single newlines become line breaks, and any markup you type is
+posted literally rather than half-interpreted. Scoped-token setups need
+`write:comment:jira`; unscoped tokens inherit your own Jira permissions.
+
+Descriptions and comments arrive from Jira as HTML written by whoever can
+comment on the issue, so everything passes through an allowlist sanitiser
+(`js/sanitize.js`) before it reaches the page — scripts, iframes, forms, event
+handlers, inline styles and non-http(s) URLs are all removed.
+
+Pull requests, branches and commits are **not** shown: Jira has no public API
+for them. That's tracked in the roadmap's deferred backlog, to be built against
+the GitHub API instead.
+
 ### Monitor tab
 
 Four hygiene checks over the sprint, derived from data the other views already
@@ -159,24 +185,28 @@ the product logo stands alone.
 | `r` | Roadmap (Gantt) |
 | `k` | Kanban |
 | `m` | Monitor |
+| `Esc` | Close the issue drawer |
 
 ## Layout
 
 ```
 app.html            # main app shell
 settings.html/.js   # configuration UI
+issue.html          # full-page issue detail (new-tab target)
 background.js       # service worker: opens the app tab
 js/config.js        # all instance-specific config lives here
 js/credentials.js   # device-local token storage + expiry lifecycle
 js/team.js          # team roster: storage, display names, team-only filter
 js/monitor.js       # sprint hygiene checks (pure derivation)
+js/sanitize.js      # allowlist sanitiser for Jira-rendered HTML
+js/adf.js           # Atlassian Document Format <-> text (comment posting)
 js/roster-ui.js     # roster editor for the Settings page
 js/migrations.js    # numbered storage migrations
 js/portable.js      # config export/import
 js/api.js           # Jira REST client (read-only)
 js/utils.js         # board/field/date/theme helpers + response cache
 js/router.js        # hash routing, setup flow, board picker
-js/components/      # nav bar, filter bar, re-auth prompt
+js/components/      # nav bar, filter bar, re-auth prompt, issue detail
 js/views/           # backlog, gantt, kanban, monitor
 css/                # one stylesheet per view
 libs/               # vendored frappe-gantt
@@ -194,6 +224,7 @@ node scripts/test-config.mjs       # config layer, field discovery     (68 check
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (82 checks)
 node scripts/test-team.mjs         # roster, display names, filtering  (84 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
+node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
 ```
 
 `test-config.mjs` covers URL normalisation, the defaults → `config.local.json` →
@@ -211,6 +242,10 @@ roster export/import opt-in.
 `test-monitor.mjs` covers each hygiene check's type exclusions, done-detection
 via `statusCategory`, both Jira epic-linking styles, muting, and the
 unavailable-check path.
+
+`test-issue.mjs` covers the sanitiser — tag/attribute/URL policy plus the
+element walk against a DOM stub, including obfuscated `javascript:` URLs, event
+handlers and script stripping — and ADF conversion in both directions.
 
 `scripts/SMOKE-CHECKLIST.md` is the manual pass for anything involving the UI.
 
@@ -277,8 +312,8 @@ change the shape.
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) — issue detail, monitoring, standup mode, sprint
-planner, and dashboards are planned. M0–M4 are done: hygiene, whitelabelling,
-durable identity/config, the team roster, and the monitoring tab.
+planner, and dashboards are planned. M0–M5 are done: hygiene, whitelabelling,
+durable identity/config, the team roster, the monitoring tab, and issue detail.
 
 ## Licence
 

@@ -11,8 +11,8 @@ their own Jira site.
 
 | Aspect | Status |
 |---|---|
-| Views | Gantt, Backlog, Kanban, Monitor (`js/views/`) |
-| Data access | Read-only, HTTP Basic (email + API token), `js/api.js` |
+| Views | Gantt, Backlog, Kanban, Monitor, Issue detail (drawer + full page) |
+| Data access | HTTP Basic (email + API token), `js/api.js`. Read-only except posting comments |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/agile/1.0/board/*` |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping), overridable via `config.local.json` |
 | Storage | `chrome.storage.sync` for config; `chrome.storage.local` for credentials, roster, view prefs, schema version, and a 5-minute response cache |
@@ -28,7 +28,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Milestone sequence at a glance
 
 ```
-M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ✔ ─▶ M5 Issue detail
+M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ✔ ─▶ M5 Issue detail ✔
                                                                         │
                                                                         ├──▶ M6 Standup mode
                                                                         │
@@ -171,22 +171,45 @@ in M8.
 
 ---
 
-## M5 — Issue detail *(feature 4)*
+## M5 — Issue detail ✔ *(feature 4)*
 
-**Size: L** · Depends on M4 (whose rows become deep links into the drawer).
+**Size: L** · Done. Depends on M4 (whose rows are now deep links into it).
 
-Fields: key, summary, status, type, assignee/reporter, start and end dates, due
-date, story points, sprint, description, linked issues, subtasks, comments, and
-development links (PRs/branches/commits).
+**Two containers, one renderer.** A plain left-click on any issue key opens a
+slide-over **drawer**; ⌘/Ctrl-click, middle-click, or "open in new tab" opens the
+**full page** (`issue.html?key=ABC-123`). Both call the same
+`renderIssueInto()`, so the layout can't drift between them. Anchors carry the
+page URL as their `href` and only intercept unmodified left-clicks, which means
+the browser handles new-tab opening natively rather than through hand-rolled
+modifier detection.
 
-- `GET /rest/api/3/issue/{key}?expand=renderedFields` — use `renderedFields` for the description so you get HTML instead of hand-rendering Atlassian Document Format.
-- `GET /rest/api/3/issue/{key}/comment` (paginated), newest-first, with author avatars from the M3 roster.
-- Issue links + subtasks + parent breadcrumb; each link opens the same drawer.
-- **Sanitise before injecting.** Jira-rendered HTML goes through a strict allowlist sanitiser before it touches `innerHTML`. The extension CSP (`manifest.json:19`) blocks inline scripts, which limits the blast radius but does not make untrusted HTML safe.
-- **Spike: development information.** PRs, branches, and commits are not in the public REST API. The panel Jira itself renders is backed by `/rest/dev-status/1.0/issue/detail?issueId=…&applicationType=…&dataType=pullrequest`, which is undocumented and unsupported — usable, but it can change without notice. Timebox the spike; ship `GET /rest/api/3/issue/{key}/remotelink` plus commit references parsed from comments as the documented fallback, and degrade to "no dev info available" rather than erroring.
+The drawer deliberately does **not** write the issue key into the URL: the
+router keys off the hash, so an issue key there would remount the underlying
+view. The full page is the linkable, reloadable form.
 
-**Exit criteria:** every field in the feature list renders or is explicitly
-marked unavailable; the dev-info path degrades gracefully; no unsanitised HTML.
+**What renders**
+
+- **Header** — key (links to Jira), status badge coloured by `statusCategory`, issue type with icon, summary, parent row (type chip + key + truncated summary, opening in the drawer), project key + name linking to Jira, and explicit "Open in Jira" / "Full page" links.
+- **Content** — assignee, reporter, start date, due date (overdue in red, with a relative hint), story points, sprint (handles both the object array and the older serialised `name=…` blob, marking closed sprints), then the description.
+- **Linked issues** — grouped by relationship using Jira's own `inward`/`outward` wording so "blocks" and "is blocked by" read correctly, with sub-tasks as their own group. Every key opens in the drawer.
+- **Comments** — paginated, oldest-first, author avatars and roster display names, relative timestamps with exact time on hover, an "edited" marker, and a reply box.
+
+**Reply is the app's first write** (`POST /rest/api/3/issue/{key}/comment`),
+pulled forward from M8 by request. Jira's v3 API takes Atlassian Document
+Format, so `js/adf.js` converts textarea text — blank lines become paragraphs,
+single newlines become hard breaks, and markup is left literal rather than
+half-interpreted. ⌘/Ctrl+Enter posts. The posted comment is re-rendered from
+Jira's response rather than from the local draft, so what's on screen is what
+exists. Scoped-token setups need `write:comment:jira` for this.
+
+- **Sanitiser** (`js/sanitize.js`). Descriptions and comment bodies arrive as Jira-rendered HTML authored by anyone who can comment, so they go through an allowlist before touching the DOM: unknown elements unwrap (keeping their text), `script`/`style`/`iframe`/`form`/`svg` and friends are dropped with their contents, every `on*`/`style`/`srcset`/`data-*` attribute is stripped, and `href`/`src` must parse as http(s)/mailto after control characters are removed (`java\tscript:` is a real bypass). Site-relative Jira URLs resolve against the configured base; surviving links get `target=_blank` + `rel="noopener noreferrer"`. The element walk runs against a minimal DOM stub in the tests, so the dangerous path is covered without a browser.
+- Both rich-text paths degrade: no `renderedFields`/`renderedBody` falls back to text extracted from the ADF rather than showing nothing.
+
+**Exit criteria met:** every field in the feature list renders or is explicitly
+marked unavailable, and no HTML reaches the DOM unsanitised. Verified by
+`scripts/test-issue.mjs` (86 checks, half of them sanitiser attack cases).
+Development links moved to the deferred backlog at the user's request — to be
+homebrewed against the GitHub API later.
 
 ---
 
@@ -239,7 +262,7 @@ This is the first milestone that mutates Jira. Keep that boundary explicit.
 
 **8a — Write layer (S–M)**
 
-- `jiraPut`/`jiraPost` mutation helpers with per-request error surfacing, alongside the existing read helpers in `js/api.js`.
+- `jiraPut` mutation helper with per-request error surfacing, alongside the existing read helpers in `js/api.js`. `jiraPost` already exists and carries the comment write from M5.
 - `PUT /rest/api/3/issue/{key}` for assignee, story points, due date, sprint.
 - Optimistic UI + rollback on failure + targeted cache invalidation (`cache.clear()` at `js/api.js:140` is a blunt instrument once writes exist).
 - Confirmation for bulk operations; an undo window for single ones.
@@ -295,6 +318,32 @@ stay too obviously silly to be mistaken for a performance metric.
 
 ---
 
+## Deferred backlog
+
+Scoped, wanted, and deliberately not scheduled yet.
+
+### Development links on the issue detail *(was part of M5)*
+
+Show pull requests, branches and commits for an issue.
+
+**Why it was deferred:** Jira has no public REST API for this. The panel Jira
+itself renders is backed by
+`/rest/dev-status/1.0/issue/detail?issueId=…&applicationType=…&dataType=pullrequest`,
+which is undocumented, unsupported, and free to change without notice — a poor
+foundation for a feature people would come to rely on.
+
+**Planned approach instead:** talk to the **GitHub API directly** and correlate
+on the issue key. Sketch, for when this gets picked up:
+
+- Search PRs and commits by issue key (`GET /search/issues?q=ABC-123+repo:org/repo+type:pr`, `GET /search/commits?q=ABC-123`), plus branch names matching the key.
+- Config: which repos to search, per project or per board — a `github` block in `config.local.json` and Settings.
+- Auth: a GitHub token, stored device-local like the Jira token (never in synced storage, never in the repo), with the same expiry-reminder treatment.
+- Render as a "Development" section on the issue detail: PR state, review state, branch, recent commits, degrading to "no linked development" when nothing matches.
+- Rate limits matter: search endpoints are capped, so cache per issue key and only fetch when the detail view opens.
+
+**Sizing: M**, plus a spike on key-matching accuracy (short keys like `AB-1`
+produce false positives in commit messages).
+
 ## Icebox
 
 - **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. Pairs naturally with the M7 daily snapshots.
@@ -309,7 +358,9 @@ stay too obviously silly to be mistaken for a performance metric.
 
 | Risk | Milestone | Mitigation |
 |---|---|---|
-| `/rest/dev-status/1.0/` is undocumented and may break without notice | M5 | Timeboxed spike, documented remote-link fallback, graceful degradation |
+| ~~`/rest/dev-status/1.0/` is undocumented~~ | M5 → deferred | Avoided entirely: dev links move to the GitHub API in the deferred backlog |
+| Untrusted Jira HTML reaching the DOM | M5 ✔ | Allowlist sanitiser with the element walk unit-tested; CSP as defence in depth |
+| First write path (comments) misfiring | M5 ✔ | Single narrow endpoint, comment re-rendered from Jira's response, explicit 403 handling |
 | greenhopper sprint report is undocumented | M7 | Two prototypes plus a daily-snapshot fallback that depends on nothing private |
 | ~~Hardcoded `customfield_*` IDs are instance-specific~~ | M1 ✔ | Resolved: discovery via `/rest/api/3/field` + manual override per role |
 | Request fan-out across boards hits rate limits | M7, M8 | Reuse cached aggregates, per-resource TTLs, batch where the API allows |

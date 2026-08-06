@@ -13,7 +13,7 @@ import {
   extractAssignees,
   assigneeLabel,
 } from "../utils.js";
-import { browseUrl } from "../config.js";
+import { attachIssueOpener } from "../components/issue-detail.js";
 import { renderFilters, applyFilters } from "../components/filters.js";
 
 const PRIORITY_ICONS = {
@@ -193,11 +193,9 @@ export async function mount(container, creds) {
     const tdKey = document.createElement("td");
     const keyLink = document.createElement("a");
     keyLink.className = "issue-key";
-    keyLink.href = browseUrl(issue.key);
-    keyLink.target = "_blank";
-    keyLink.rel = "noopener";
     keyLink.style.color = boardColor(issue.boardId);
     keyLink.textContent = issue.key;
+    attachIssueOpener(keyLink, issue.key, creds);
     tdKey.appendChild(keyLink);
     tr.appendChild(tdKey);
 
@@ -207,12 +205,10 @@ export async function mount(container, creds) {
     if (epicKey) {
       const epicLink = document.createElement("a");
       epicLink.className = "issue-key";
-      epicLink.href = browseUrl(epicKey);
-      epicLink.target = "_blank";
-      epicLink.rel = "noopener";
       epicLink.style.color = "var(--muted)";
       epicLink.style.fontSize = "11px";
       epicLink.textContent = epicKey;
+      attachIssueOpener(epicLink, epicKey, creds);
       tdEpic.appendChild(epicLink);
     } else {
       tdEpic.textContent = "—";

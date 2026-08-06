@@ -1,5 +1,5 @@
 import { BOARDS, cache } from "./utils.js";
-import { FIELD_ROLES, issueFields, jiraUrl } from "./config.js";
+import { FIELD_ROLES, detailIssueFields, issueFields, jiraUrl } from "./config.js";
 
 function authHeader(email, token) {
   return "Basic " + btoa(`${email}:${token}`);
@@ -10,6 +10,10 @@ async function jiraFetch(path, creds, params = {}) {
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
+  return jiraFetchUrl(url, creds);
+}
+
+async function jiraFetchUrl(url, creds) {
   const resp = await fetch(url.toString(), {
     headers: {
       Authorization: authHeader(creds.email, creds.token),
@@ -224,6 +228,50 @@ export async function discoverFieldMappings(creds) {
     mapping[role] = ids;
   }
   return mapping;
+}
+
+// ── Single issue ─────────────────────────────────────────────────────────────
+
+// Deliberately uncached: the detail view is opened on demand and must reflect
+// what Jira has now, especially right after posting a comment.
+export async function getIssue(issueKey, creds) {
+  const url = new URL(jiraUrl(`/rest/api/3/issue/${encodeURIComponent(issueKey)}`));
+  url.searchParams.set("fields", detailIssueFields().join(","));
+  // renderedFields gives description as HTML, so we don't hand-render Atlassian
+  // Document Format. It still goes through the sanitiser before insertion.
+  url.searchParams.set("expand", "renderedFields");
+  return jiraFetchUrl(url, creds);
+}
+
+export async function getIssueComments(issueKey, creds) {
+  const all = [];
+  let startAt = 0;
+  while (true) {
+    const url = new URL(
+      jiraUrl(`/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`)
+    );
+    url.searchParams.set("startAt", startAt);
+    url.searchParams.set("maxResults", 100);
+    url.searchParams.set("orderBy", "created");
+    url.searchParams.set("expand", "renderedBody");
+    const data = await jiraFetchUrl(url, creds);
+    const items = data.comments || [];
+    all.push(...items);
+    const total = data.total ?? all.length;
+    startAt += items.length;
+    if (startAt >= total || items.length === 0) break;
+  }
+  return all;
+}
+
+// First write path in the app. Jira's v3 API takes Atlassian Document Format
+// rather than plain text, so the caller passes text and adf.js converts it.
+export async function addIssueComment(issueKey, adfBody, creds) {
+  return jiraPost(
+    `/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`,
+    creds,
+    { body: adfBody }
+  );
 }
 
 // ── People ──────────────────────────────────────────────────────────────────

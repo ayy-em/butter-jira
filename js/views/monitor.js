@@ -1,8 +1,8 @@
 import { getAllBacklogIssues, getAllSprintIssues } from "../api.js";
 import { assigneeLabel, boardColor, boardName, fmtDate, getStoryPoints } from "../utils.js";
-import { browseUrl } from "../config.js";
 import { CONFIG } from "../config.js";
 import { hasRoster, isOutsideTeam, isTeamOnly, setTeamOnly } from "../team.js";
+import { attachIssueOpener } from "../components/issue-detail.js";
 import {
   runChecks,
   setBadgeCount,
@@ -174,11 +174,9 @@ export async function mount(container, creds) {
       for (const entry of worst) {
         const link = document.createElement("a");
         link.className = "monitor-worst-item mono";
-        link.href = browseUrl(entry.issue.key);
-        link.target = "_blank";
-        link.rel = "noopener";
         link.style.color = boardColor(entry.issue.boardId);
         link.textContent = `${entry.issue.key} (${entry.checks.length})`;
+        attachIssueOpener(link, entry.issue.key, creds);
         link.title = `${entry.issue.fields.summary || ""}\n${entry.checks.join(", ")}`;
         worstWrap.appendChild(link);
       }
@@ -266,11 +264,9 @@ export async function mount(container, creds) {
       const tdKey = document.createElement("td");
       const link = document.createElement("a");
       link.className = "issue-key";
-      link.href = browseUrl(issue.key);
-      link.target = "_blank";
-      link.rel = "noopener";
       link.style.color = boardColor(issue.boardId);
       link.textContent = issue.key;
+      attachIssueOpener(link, issue.key, creds);
       tdKey.appendChild(link);
       tr.appendChild(tdKey);
 
