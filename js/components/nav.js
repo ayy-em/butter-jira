@@ -1,5 +1,5 @@
 import { loadTheme, saveTheme } from "../utils.js";
-import { CONFIG, siteHost, wikiUrl } from "../config.js";
+import { CONFIG, jiraHomeUrl, siteHost, wikiUrl } from "../config.js";
 import { getBadgeCount } from "../monitor.js";
 
 const TABS = [
@@ -8,7 +8,7 @@ const TABS = [
   { hash: "#gantt", label: "ROADMAP", key: "r" },
   { hash: "#kanban", label: "KANBAN", key: "k" },
   { hash: "#monitor", label: "MONITOR", key: "m" },
-  { hash: "#standup", label: "STANDUP", key: "s" },
+  { hash: "#standup", label: "STANDUP", key: "s", flair: true },
 ];
 
 let lastSync = null;
@@ -23,6 +23,10 @@ export function setLastSync(date) {
     const mm = String(date.getMinutes()).padStart(2, "0");
     el.textContent = `Synced ${hh}:${mm}`;
   }
+}
+
+function isMac() {
+  return /mac/i.test(navigator.userAgentData?.platform || navigator.platform || "");
 }
 
 function getTimezoneShort() {
@@ -103,6 +107,7 @@ export async function renderNav(onRefresh) {
     btn.className = "nav-tab mono";
     btn.textContent = tab.label;
     btn.dataset.hash = tab.hash;
+    if (tab.flair) btn.classList.add("flair");
     if (tab.hash === "#monitor") {
       const badge = document.createElement("span");
       badge.className = "nav-tab-badge";
@@ -138,23 +143,24 @@ export async function renderNav(onRefresh) {
   const rightGroup = document.createElement("div");
   rightGroup.style.cssText = "display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:0.5rem;";
 
-  const jiraLink = document.createElement("a");
-  jiraLink.className = "nav-jira-link";
-  jiraLink.href = CONFIG.site.baseUrl || "#";
-  jiraLink.target = "_blank";
-  jiraLink.rel = "noopener";
-  jiraLink.textContent = "JIRA";
-  jiraLink.title = siteHost() ? `Open ${siteHost()}` : "Open Jira";
-  rightGroup.appendChild(jiraLink);
+  const host = siteHost();
+  rightGroup.appendChild(
+    createSiteLink("JIRA", jiraHomeUrl(), host ? `Open Jira on ${host}` : "")
+  );
+  rightGroup.appendChild(
+    createSiteLink("CONFLUENCE", wikiUrl(), host ? `Open Confluence on ${host}` : "")
+  );
 
-  const confluenceLink = document.createElement("a");
-  confluenceLink.className = "nav-jira-link";
-  confluenceLink.href = wikiUrl();
-  confluenceLink.target = "_blank";
-  confluenceLink.rel = "noopener";
-  confluenceLink.textContent = "WIKI";
-  confluenceLink.title = "Open Confluence";
-  rightGroup.appendChild(confluenceLink);
+  // Discoverability: the palette is a keyboard feature, and nobody finds a
+  // keyboard feature without being told it exists.
+  const paletteBtn = document.createElement("button");
+  paletteBtn.className = "nav-btn nav-btn-wide mono";
+  paletteBtn.textContent = isMac() ? "⌘K" : "^K";
+  paletteBtn.title = `Command palette (${isMac() ? "⌘" : "Ctrl+"}K) — jump to an issue, person or view`;
+  paletteBtn.addEventListener("click", () => {
+    document.dispatchEvent(new CustomEvent("palette-open"));
+  });
+  rightGroup.appendChild(paletteBtn);
 
   const refreshBtn = document.createElement("button");
   refreshBtn.className = "nav-btn mono";
@@ -216,10 +222,47 @@ export async function renderNav(onRefresh) {
       letter-spacing: 1px;
       padding: 5px 14px;
       border-radius: 4px;
-      transition: color 0.15s, background 0.15s;
+      transition: color 0.15s, background 0.15s, box-shadow 0.2s;
     }
     .nav-tab:hover { color: var(--text); }
     .nav-tab.active { color: var(--text); background: rgba(232,234,240,0.08); }
+
+    /* Standup is a timed, run-once-a-day ritual rather than a view you browse,
+       so it gets an animated gradient ring instead of the flat tab treatment. */
+    .nav-tab.flair {
+      position: relative;
+      color: var(--text);
+      background: linear-gradient(135deg, rgba(79,142,247,0.14), rgba(168,85,247,0.14));
+    }
+    .nav-tab.flair::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      border-radius: 5px;
+      padding: 1px;
+      background: linear-gradient(120deg, #4F8EF7, #A855F7, #F7914F, #4F8EF7);
+      background-size: 300% 100%;
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      animation: nav-flair-sweep 6s linear infinite;
+    }
+    .nav-tab.flair:hover {
+      background: linear-gradient(135deg, rgba(79,142,247,0.26), rgba(168,85,247,0.26));
+      box-shadow: 0 0 14px rgba(79,142,247,0.35);
+    }
+    .nav-tab.flair:hover::before { animation-duration: 1.6s; }
+    .nav-tab.flair.active {
+      background: linear-gradient(135deg, rgba(79,142,247,0.34), rgba(168,85,247,0.34));
+      box-shadow: 0 0 16px rgba(168,85,247,0.35);
+    }
+    @keyframes nav-flair-sweep { to { background-position: 300% 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      .nav-tab.flair::before,
+      .nav-tab.flair:hover::before { animation: none; }
+    }
     .nav-btn {
       background: none;
       border: 1px solid var(--border);
@@ -236,8 +279,35 @@ export async function renderNav(onRefresh) {
       transition: color 0.15s, border-color 0.15s;
     }
     .nav-btn:hover { color: var(--text); border-color: var(--muted); }
+    .nav-btn-wide {
+      width: auto;
+      padding: 0 9px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
   `;
   nav.appendChild(style);
+}
+
+// Every external site link goes through here so an unconfigured site URL can
+// never render a link that goes nowhere: it points at Settings instead, which
+// is where the missing URL is entered.
+function createSiteLink(label, url, title) {
+  const link = document.createElement("a");
+  link.className = "nav-jira-link";
+  link.textContent = label;
+  link.target = "_blank";
+  link.rel = "noopener";
+  if (url) {
+    link.href = url;
+    link.title = title || `Open ${label.toLowerCase()}`;
+  } else {
+    link.href = chrome.runtime.getURL("settings.html");
+    link.classList.add("unset");
+    link.title = "No Jira site URL configured — open Settings to set one";
+  }
+  return link;
 }
 
 // Org wordmarks are usually single-colour and supplied light-on-dark, so they

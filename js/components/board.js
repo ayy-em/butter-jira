@@ -11,6 +11,7 @@ import {
   getAvatarUrl,
   getStoryPoints,
   hashColor,
+  isOverdue,
   resolveStatusGroup,
 } from "../utils.js";
 import { openIssueDrawer, issuePageUrl } from "./issue-detail.js";
@@ -168,12 +169,15 @@ export function renderIssueCard(issue, creds, { showAssignee = true } = {}) {
   return card;
 }
 
-// Renders columns into `board`. Pass `onReorder` to enable drag-to-reorder;
-// omit it for a read-only board.
+// Renders columns into `board`. Both drag behaviours are opt-in, so the standup
+// presentation board gets the same cards with neither: pass `onReorder` for
+// drag-to-reorder of columns, and `onIssueMove` for drag-a-card-between-columns.
+// `onIssueMove(issue, toColumnName, fromColumnName)` owns the Jira write.
 export function renderColumns(board, issues, groups, options = {}) {
   const {
     columnOrder = null,
     onReorder = null,
+    onIssueMove = null,
     creds,
     showAssignee = true,
     emptyLabel = "—",
@@ -181,26 +185,53 @@ export function renderColumns(board, issues, groups, options = {}) {
 
   board.innerHTML = "";
   const columns = groupIssues(issues, groups, columnOrder);
+  // Two drags share the board, so each drop has to know which is in flight:
+  // a column header being reordered, or a card changing status.
   let dragSrcIdx = null;
+  let dragIssue = null;
+  let dragFromColumn = null;
+
+  function clearDropHighlights() {
+    board.querySelectorAll(".kanban-column").forEach((c) => {
+      c.classList.remove("kanban-col-drag-over", "kanban-col-drop-target");
+    });
+  }
 
   columns.forEach((column, ci) => {
     const col = document.createElement("div");
     col.className = "kanban-column";
     col.dataset.colIdx = ci;
 
-    if (onReorder) {
+    if (onReorder || onIssueMove) {
       col.addEventListener("dragover", (e) => {
+        if (dragIssue) {
+          // Dropping a card back where it started is a no-op — don't invite it.
+          if (!onIssueMove || column.name === dragFromColumn) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          col.classList.add("kanban-col-drop-target");
+          return;
+        }
+        if (!onReorder) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
         col.classList.add("kanban-col-drag-over");
       });
-      col.addEventListener("dragleave", () => {
-        col.classList.remove("kanban-col-drag-over");
+      col.addEventListener("dragleave", (e) => {
+        // Moving between the column's own children fires dragleave on the way
+        // through; only clear when the pointer has actually left the column.
+        if (col.contains(e.relatedTarget)) return;
+        col.classList.remove("kanban-col-drag-over", "kanban-col-drop-target");
       });
       col.addEventListener("drop", (e) => {
         e.preventDefault();
-        col.classList.remove("kanban-col-drag-over");
-        if (dragSrcIdx === null || dragSrcIdx === ci) return;
+        clearDropHighlights();
+        if (dragIssue) {
+          if (!onIssueMove || column.name === dragFromColumn) return;
+          onIssueMove(dragIssue, column.name, dragFromColumn);
+          return;
+        }
+        if (!onReorder || dragSrcIdx === null || dragSrcIdx === ci) return;
         const names = columns.map((c) => c.name);
         const [moved] = names.splice(dragSrcIdx, 1);
         names.splice(ci, 0, moved);
@@ -219,10 +250,9 @@ export function renderColumns(board, issues, groups, options = {}) {
         e.dataTransfer.effectAllowed = "move";
       });
       header.addEventListener("dragend", () => {
+        dragSrcIdx = null;
         col.style.opacity = "";
-        board
-          .querySelectorAll(".kanban-column")
-          .forEach((c) => c.classList.remove("kanban-col-drag-over"));
+        clearDropHighlights();
       });
     }
 
@@ -243,8 +273,31 @@ export function renderColumns(board, issues, groups, options = {}) {
       empty.textContent = emptyLabel;
       cards.appendChild(empty);
     }
+    // A column literally named "Done" is treated as finished even if its
+    // statuses aren't in Jira's done category — the board is what people read.
+    const columnIsDone = /^done$/i.test(column.name.trim());
+
     for (const issue of column.issues) {
-      cards.appendChild(renderIssueCard(issue, creds, { showAssignee }));
+      const card = renderIssueCard(issue, creds, { showAssignee });
+      if (!columnIsDone && isOverdue(issue)) card.classList.add("kanban-card-overdue");
+      if (onIssueMove) {
+        card.draggable = true;
+        card.addEventListener("dragstart", (e) => {
+          dragIssue = issue;
+          dragFromColumn = column.name;
+          card.classList.add("kanban-card-dragging");
+          e.dataTransfer.effectAllowed = "move";
+          // Some drop targets refuse a drag with no payload attached.
+          e.dataTransfer.setData("text/plain", issue.key);
+        });
+        card.addEventListener("dragend", () => {
+          dragIssue = null;
+          dragFromColumn = null;
+          card.classList.remove("kanban-card-dragging");
+          clearDropHighlights();
+        });
+      }
+      cards.appendChild(card);
     }
     col.appendChild(cards);
     board.appendChild(col);

@@ -9,6 +9,7 @@
 import { addIssueComment, getIssue, getIssueComments } from "../api.js";
 import { CONFIG, browseUrl, fieldValue } from "../config.js";
 import { assigneeLabel, fmtDate, getStartDate, getStoryPoints, relDate } from "../utils.js";
+import { avatarOverrideFor } from "../team.js";
 import { sanitizeToFragment } from "../sanitize.js";
 import { adfToPlainText, isEmptyAdf, textToAdf } from "../adf.js";
 
@@ -299,7 +300,10 @@ function personCell(person) {
     wrap.classList.add("muted");
     return wrap;
   }
-  const avatarUrl = person.avatarUrls?.["24x24"] || person.avatarUrls?.["16x16"];
+  const avatarUrl =
+    avatarOverrideFor(person.accountId) ||
+    person.avatarUrls?.["24x24"] ||
+    person.avatarUrls?.["16x16"];
   if (avatarUrl) {
     const img = document.createElement("img");
     img.className = "issue-avatar";

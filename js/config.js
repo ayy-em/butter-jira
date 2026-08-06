@@ -195,10 +195,24 @@ export function browseUrl(issueKey) {
   return CONFIG.site.baseUrl ? `${CONFIG.site.baseUrl}/browse/${issueKey}` : "#";
 }
 
+// A bare Atlassian Cloud origin lands on the product picker rather than on
+// Jira, so cloud sites get an explicit product path. Server/Data Center
+// installs serve Jira from the origin itself.
+function isCloudSite() {
+  return siteHost().endsWith(".atlassian.net");
+}
+
+// Both of these return "" when the site is not configured yet, so callers can
+// tell "no destination" apart from a real URL instead of rendering a dead link.
+export function jiraHomeUrl() {
+  if (!CONFIG.site.baseUrl) return "";
+  return isCloudSite() ? `${CONFIG.site.baseUrl}/jira` : CONFIG.site.baseUrl;
+}
+
 export function wikiUrl() {
   return CONFIG.site.baseUrl
     ? `${CONFIG.site.baseUrl}${CONFIG.site.wikiPath || "/wiki"}`
-    : "#";
+    : "";
 }
 
 export function siteHost() {

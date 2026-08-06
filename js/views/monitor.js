@@ -38,6 +38,13 @@ export async function mount(container, creds) {
 
   const controls = document.createElement("div");
   controls.className = "monitor-controls";
+  const controlsLeft = document.createElement("div");
+  controlsLeft.className = "monitor-controls-left";
+  const controlsCenter = document.createElement("div");
+  controlsCenter.className = "monitor-controls-center";
+  const controlsRight = document.createElement("div");
+  controlsRight.className = "monitor-controls-right";
+  controls.append(controlsLeft, controlsCenter, controlsRight);
   wrap.appendChild(controls);
 
   const summary = document.createElement("div");
@@ -50,19 +57,56 @@ export async function mount(container, creds) {
 
   container.appendChild(wrap);
 
-  const scopeBtn = document.createElement("button");
-  scopeBtn.className = "filter-toggle mono";
-  scopeBtn.title = "Sprint scope checks the active sprint only. All issues adds the backlog.";
-  scopeBtn.addEventListener("click", async () => {
-    scope = scope === "sprint" ? "all" : "sprint";
+  // A switch rather than a button: with one label on each side it is obvious
+  // which scope is in effect, where a single button only showed what a click
+  // would do next.
+  const scopeSwitch = document.createElement("div");
+  scopeSwitch.className = "scope-switch";
+
+  const sprintLabel = document.createElement("button");
+  sprintLabel.className = "scope-switch-label mono";
+  sprintLabel.textContent = "Current Sprint";
+  sprintLabel.title = "Check the active sprint only";
+
+  const scopeTrack = document.createElement("button");
+  scopeTrack.className = "scope-switch-track";
+  scopeTrack.setAttribute("role", "switch");
+  scopeTrack.setAttribute("aria-label", "Include the backlog");
+  scopeTrack.title = "Current Sprint checks the active sprint only. All Issues adds the backlog.";
+  const scopeKnob = document.createElement("span");
+  scopeKnob.className = "scope-switch-knob";
+  scopeTrack.appendChild(scopeKnob);
+
+  const allLabel = document.createElement("button");
+  allLabel.className = "scope-switch-label mono";
+  allLabel.textContent = "All Issues";
+  allLabel.title = "Check the active sprint plus the backlog";
+
+  scopeSwitch.append(sprintLabel, scopeTrack, allLabel);
+  controlsCenter.appendChild(scopeSwitch);
+
+  async function setScope(next) {
+    if (next === scope) return;
+    scope = next;
     await saveScope(scope);
+    // The backlog is only fetched the first time the wider scope is asked for.
     if (scope === "all" && !backlogIssues) {
+      scopeTrack.disabled = true;
       sectionsEl.innerHTML = '<div class="spinner" style="height:160px"></div>';
-      backlogIssues = await getAllBacklogIssues(creds);
+      try {
+        backlogIssues = await getAllBacklogIssues(creds);
+      } finally {
+        scopeTrack.disabled = false;
+      }
     }
     render();
-  });
-  controls.appendChild(scopeBtn);
+  }
+
+  scopeTrack.addEventListener("click", () =>
+    setScope(scope === "sprint" ? "all" : "sprint")
+  );
+  sprintLabel.addEventListener("click", () => setScope("sprint"));
+  allLabel.addEventListener("click", () => setScope("all"));
 
   if (hasRoster()) {
     const teamBtn = document.createElement("button");
@@ -73,7 +117,7 @@ export async function mount(container, creds) {
       await setTeamOnly(teamOnly);
       render();
     });
-    controls.appendChild(teamBtn);
+    controlsLeft.appendChild(teamBtn);
     controls._teamBtn = teamBtn;
   }
 
@@ -84,7 +128,7 @@ export async function mount(container, creds) {
   settingsLink.addEventListener("click", () => {
     window.open(chrome.runtime.getURL("settings.html"));
   });
-  controls.appendChild(settingsLink);
+  controlsRight.appendChild(settingsLink);
 
   function scopedIssues() {
     const base =
@@ -100,8 +144,9 @@ export async function mount(container, creds) {
   }
 
   function render() {
-    scopeBtn.classList.toggle("active", scope === "all");
-    scopeBtn.textContent = scope === "all" ? "All Issues" : "Current Sprint";
+    scopeTrack.setAttribute("aria-checked", scope === "all" ? "true" : "false");
+    sprintLabel.classList.toggle("on", scope === "sprint");
+    allLabel.classList.toggle("on", scope === "all");
     if (controls._teamBtn) {
       controls._teamBtn.classList.toggle("active", teamOnly);
       controls._teamBtn.textContent = teamOnly ? "Team Only" : "Everyone";

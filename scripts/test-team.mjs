@@ -136,14 +136,67 @@ check("memberLabel falls back to email",
 section("utils integration");
 check("assigneeLabel uses roster",
   utils.assigneeLabel({ accountId: "acc-1", displayName: "Ada Augusta Lovelace" }) === "Ada");
-check("avatar override applied",
+check("local avatar override wins over Jira's",
+  (await (async () => {
+    await team.saveMembers([{ ...person("acc-1", "Ada"), avatarOverride: "assets/avatars/ada.png" }]);
+    return utils.getAvatarUrl(issue({ accountId: "acc-1", avatarUrls: { "24x24": "https://jira/x.png" } }));
+  })()) === "chrome-extension://test/assets/avatars/ada.png");
+check("member's stored Jira avatar is not an override",
   (await (async () => {
     await team.saveMembers([{ ...person("acc-1", "Ada"), avatarUrl: "https://example.com/a.png" }]);
     return utils.getAvatarUrl(issue({ accountId: "acc-1", avatarUrls: { "24x24": "https://jira/x.png" } }));
-  })()) === "https://example.com/a.png");
+  })()) === "https://jira/x.png");
 check("jira avatar used when no override",
   utils.getAvatarUrl(issue({ accountId: "acc-77", avatarUrls: { "24x24": "https://jira/y.png" } })) === "https://jira/y.png");
 check("no assignee -> null avatar", utils.getAvatarUrl(issue(null)) === null);
+
+section("avatar override paths");
+check("bare relative path kept", team.normalizeAvatarPath("assets/avatars/a.png") === "assets/avatars/a.png");
+check("leading slash stripped", team.normalizeAvatarPath("/assets/avatars/a.png") === "assets/avatars/a.png");
+check("whitespace trimmed", team.normalizeAvatarPath("  assets/a.png  ") === "assets/a.png");
+check("http url rejected", team.normalizeAvatarPath("https://evil.example/a.png") === "");
+check("data url rejected", team.normalizeAvatarPath("data:image/png;base64,AAA") === "");
+check("traversal rejected", team.normalizeAvatarPath("../../etc/passwd") === "");
+check("traversal mid-path rejected", team.normalizeAvatarPath("assets/../../x.png") === "");
+check("empty stays empty", team.normalizeAvatarPath("") === "");
+check("dots inside a filename are fine", team.normalizeAvatarPath("assets/a..b.png") === "assets/a..b.png");
+
+section("slack handles");
+check("bare handle kept", team.normalizeSlackHandle("ada") === "ada");
+check("leading @ stripped", team.normalizeSlackHandle("@ada") === "ada");
+check("repeated @ stripped", team.normalizeSlackHandle("@@ada") === "ada");
+check("dots, dashes, underscores kept", team.normalizeSlackHandle("ada.lovelace_x-1") === "ada.lovelace_x-1");
+check("spaces and junk dropped", team.normalizeSlackHandle(" ada love!ace ") === "adaloveace");
+check("empty stays empty", team.normalizeSlackHandle("") === "");
+check("undefined stays empty", team.normalizeSlackHandle(undefined) === "");
+check("mention uses handle",
+  (await (async () => {
+    await team.saveMembers([{ ...person("acc-1", "Ada Lovelace"), slackHandle: "@ada" }]);
+    return team.slackMentionFor("acc-1");
+  })()) === "@ada");
+check("mention falls back to display name",
+  (await (async () => {
+    await team.saveMembers([{ ...person("acc-1", "Ada Lovelace") }]);
+    return team.slackMentionFor("acc-1");
+  })()) === "Ada Lovelace");
+
+section("overdue detection");
+const overdueIssue = (duedate, statusKey) => ({
+  fields: { duedate, status: { statusCategory: { key: statusKey } } },
+});
+check("past due and in progress is overdue",
+  utils.isOverdue(overdueIssue("2026-08-01", "indeterminate"), new Date(2026, 7, 6)) === true);
+check("past due but done is not overdue",
+  utils.isOverdue(overdueIssue("2026-08-01", "done"), new Date(2026, 7, 6)) === false);
+check("due today is not overdue",
+  utils.isOverdue(overdueIssue("2026-08-06", "indeterminate"), new Date(2026, 7, 6)) === false);
+check("due tomorrow is not overdue",
+  utils.isOverdue(overdueIssue("2026-08-07", "indeterminate"), new Date(2026, 7, 6)) === false);
+check("no due date is never overdue",
+  utils.isOverdue(overdueIssue(undefined, "indeterminate"), new Date(2026, 7, 6)) === false);
+check("year boundary compares correctly",
+  utils.isOverdue(overdueIssue("2025-12-31", "new"), new Date(2026, 0, 1)) === true);
+check("todayIso pads single digits", utils.todayIso(new Date(2026, 0, 5)) === "2026-01-05");
 
 section("extractAssignees ordering and flags");
 await team.saveMembers([person("acc-1", "Ada Lovelace"), person("acc-2", "Alan Turing")]);

@@ -1,6 +1,12 @@
 import { getAllSprintIssues } from "../api.js";
 import { loadStatusGroups } from "../utils.js";
-import { activeMembers, memberLabel, memberFor } from "../team.js";
+import {
+  activeMembers,
+  avatarOverrideFor,
+  memberLabel,
+  memberFor,
+  slackMentionFor,
+} from "../team.js";
 import { renderColumns } from "../components/board.js";
 import * as sfx from "../sfx.js";
 import {
@@ -20,6 +26,7 @@ import {
   loadPrefs,
   loadSession,
   nextId,
+  notesEntries,
   phaseElapsedMs,
   phaseRemainingMs,
   phaseTotalMs,
@@ -73,6 +80,10 @@ export async function mount(container, creds) {
 
   function avatarFor(accountId) {
     const member = memberFor(accountId);
+    // A roster picture override wins; then Jira's, at the largest size standup
+    // has (its avatars are rendered much bigger than a card's).
+    const override = avatarOverrideFor(accountId);
+    if (override) return override;
     if (member?.avatarUrl) return member.avatarUrl;
     const issue = issuesFor(accountId).find((i) => i.fields.assignee?.avatarUrls);
     const urls = issue?.fields.assignee?.avatarUrls;
@@ -497,6 +508,8 @@ export async function mount(container, creds) {
     clock.id = "standup-clock";
     bar.appendChild(clock);
 
+    // Facilitator controls, driven from across the room — deliberately larger
+    // than the small buttons used on the setup card.
     const controls = document.createElement("div");
     controls.className = "standup-controls";
     controls.append(
@@ -506,7 +519,7 @@ export async function mount(container, creds) {
         paintClock(Date.now());
       }),
       ctrlBtn(isPaused(session) ? "Resume" : "Pause", () => togglePauseNow(), "standup-pause"),
-      ctrlBtn(nextId(session) ? "Next →" : "Finish", () => goNext()),
+      ctrlBtn(nextId(session) ? "Next →" : "Finish", () => goNext(), "primary"),
       ctrlBtn("End", () => endEarly(), "ghost")
     );
     bar.appendChild(controls);
@@ -537,18 +550,23 @@ export async function mount(container, creds) {
       el.appendChild(boardWrap);
     }
 
+    // One parking lot per speaker: the box is theirs, so it comes up empty for
+    // the next person and the end screen can address each note to someone.
     const notes = document.createElement("div");
     notes.className = "standup-parking";
     const notesLabel = document.createElement("label");
     notesLabel.className = "standup-parking-label mono";
-    notesLabel.textContent = "Parking lot";
+    notesLabel.textContent = `Parking lot — ${labelFor(id)}`;
     const notesInput = document.createElement("textarea");
     notesInput.className = "standup-parking-input";
-    notesInput.rows = 2;
-    notesInput.placeholder = "Anything to pick up after standup…";
-    notesInput.value = session.notes || "";
+    notesInput.rows = 4;
+    notesInput.placeholder = `Anything to pick up with ${labelFor(id)} after standup…`;
+    notesInput.value = session.notesByPerson?.[id] || "";
     notesInput.addEventListener("input", () => {
-      session = { ...session, notes: notesInput.value };
+      session = {
+        ...session,
+        notesByPerson: { ...session.notesByPerson, [id]: notesInput.value },
+      };
       saveSession(session);
     });
     notes.append(notesLabel, notesInput);
@@ -559,7 +577,7 @@ export async function mount(container, creds) {
 
   function ctrlBtn(label, onClick, extra = "") {
     const btn = document.createElement("button");
-    btn.className = `standup-btn small ${extra}`.trim();
+    btn.className = `standup-btn standup-ctrl ${extra}`.trim();
     btn.textContent = label;
     btn.addEventListener("click", onClick);
     return btn;
@@ -645,27 +663,46 @@ export async function mount(container, creds) {
     }
     card.appendChild(list);
 
-    if ((session.notes || "").trim()) {
+    const entries = notesEntries(session);
+    if (entries.length) {
       const notesTitle = document.createElement("div");
       notesTitle.className = "standup-parking-label mono";
-      notesTitle.textContent = "Parking lot";
-      const notes = document.createElement("pre");
-      notes.className = "standup-notes-out";
-      notes.textContent = session.notes.trim();
-      card.append(notesTitle, notes);
+      notesTitle.textContent = "Parking lot — paste into Slack";
+      card.appendChild(notesTitle);
+
+      // A textarea rather than a <pre>: the point is to select and copy it, and
+      // it stays editable so the facilitator can tidy wording before pasting.
+      const digestBox = document.createElement("textarea");
+      digestBox.className = "standup-digest";
+      digestBox.rows = Math.min(12, entries.length + 1);
+      digestBox.value = slackDigest(session);
+      digestBox.spellcheck = false;
+      card.appendChild(digestBox);
+
+      const missing = entries.filter((e) => !memberFor(e.id)?.slackHandle);
+      if (missing.length) {
+        const note = document.createElement("div");
+        note.className = "standup-hint mono";
+        note.textContent =
+          `No Slack username for ${missing.map((e) => labelFor(e.id)).join(", ")}` +
+          " — display names used instead. Add handles in Settings → Team roster.";
+        card.appendChild(note);
+      }
 
       const actions = document.createElement("div");
       actions.className = "standup-bulk";
-      actions.append(
-        bulkBtn("Copy notes", async () => {
-          try {
-            await navigator.clipboard.writeText(session.notes.trim());
-          } catch {
-            /* clipboard refused — the text is on screen to copy by hand */
-          }
-        }),
-        bulkBtn("Download .txt", () => downloadNotes(session))
-      );
+      const copyBtn = bulkBtn("Copy message", async () => {
+        try {
+          await navigator.clipboard.writeText(digestBox.value);
+          copyBtn.textContent = "Copied";
+          setTimeout(() => { copyBtn.textContent = "Copy message"; }, 1500);
+        } catch {
+          // Clipboard refused — select it instead so ctrl-C still works.
+          digestBox.focus();
+          digestBox.select();
+        }
+      });
+      actions.append(copyBtn, bulkBtn("Download .txt", () => downloadNotes(session)));
       card.appendChild(actions);
     }
 
@@ -681,6 +718,17 @@ export async function mount(container, creds) {
     wrap.appendChild(card);
   }
 
+  // "@handle - note" per person, one line each, ready to paste into Slack.
+  // Multi-line notes are joined with "; " so one person is always one line.
+  function slackDigest(finished) {
+    return notesEntries(finished)
+      .map(({ id, note }) => {
+        const who = memberFor(id) ? slackMentionFor(id) : labelFor(id);
+        return `${who} - ${note.replace(/\s*\n+\s*/g, "; ")}`;
+      })
+      .join("\n");
+  }
+
   function downloadNotes(finished) {
     const lines = [
       `Standup notes — ${new Date().toISOString().slice(0, 10)}`,
@@ -688,7 +736,7 @@ export async function mount(container, creds) {
       ...finished.order.map((id) => `- ${labelFor(id)}`),
       "",
       "Parking lot:",
-      finished.notes.trim(),
+      slackDigest(finished),
       "",
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });

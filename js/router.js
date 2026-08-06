@@ -5,7 +5,7 @@ import {
 } from "./api.js";
 import { getCredentials, saveCredentials, defaultExpiry } from "./credentials.js";
 import { isReauthOpen, promptReauth, renderExpiryBanner } from "./components/reauth.js";
-import { cache, loadBoards, loadTheme, saveBoards } from "./utils.js";
+import { cache, loadBoards, loadTheme, saveBoards, showToast } from "./utils.js";
 import { loadTeam, loadTeamOnly } from "./team.js";
 import {
   CONFIG,
@@ -17,6 +17,12 @@ import {
   siteHost,
 } from "./config.js";
 import { renderNav, updateActiveTab, setLastSync } from "./components/nav.js";
+import {
+  closePalette,
+  invalidatePaletteIndex,
+  isPaletteOpen,
+  openPalette,
+} from "./components/palette.js";
 
 const TOKEN_HELP_URL = "https://id.atlassian.com/manage-profile/security/api-tokens";
 
@@ -31,6 +37,7 @@ async function init() {
 
   renderNav(async () => {
     await cache.clear();
+    invalidatePaletteIndex();
     setLastSync(new Date());
     mountView(await getCredentials());
   });
@@ -45,7 +52,16 @@ async function init() {
       return;
     }
     await cache.clear();
+    invalidatePaletteIndex();
     mountView(refreshed);
+  });
+
+  // The nav's ⌘K button routes through here so the palette has exactly one
+  // owner of credentials and open/close state.
+  document.addEventListener("palette-open", async () => {
+    if (isPaletteOpen()) closePalette();
+    // The re-auth prompt sits below the palette in the stack, so don't bury it.
+    else if (isConfigured() && !isReauthOpen()) openPalette(await getCredentials());
   });
 
   chrome.runtime.onMessage?.addListener((msg) => {
@@ -54,7 +70,18 @@ async function init() {
     }
   });
 
-  document.addEventListener("keydown", (e) => {
+  document.addEventListener("keydown", async (e) => {
+    // Cmd/Ctrl+K is checked before the input guard and before standup's claim on
+    // the keyboard: it must work from anywhere, including out of a text field.
+    if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      if (isPaletteOpen()) closePalette();
+      else if (isConfigured() && !isReauthOpen()) openPalette(await getCredentials());
+      return;
+    }
+
+    if (isPaletteOpen()) return; // the palette owns its own keys while open
+
     if (
       e.target.tagName === "INPUT" ||
       e.target.tagName === "TEXTAREA" ||
@@ -368,6 +395,7 @@ async function showBoardPicker(creds) {
     }));
     await saveBoards(chosen);
     await cache.clear();
+    invalidatePaletteIndex();
     mountView(creds);
   });
 }
@@ -388,15 +416,6 @@ function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[c]);
-}
-
-function showToast(message, isError = false) {
-  const toast = document.getElementById("toast");
-  toast.textContent = message;
-  toast.className = "visible" + (isError ? " error" : "");
-  setTimeout(() => {
-    toast.className = "";
-  }, 5000);
 }
 
 window.addEventListener("hashchange", async () => {

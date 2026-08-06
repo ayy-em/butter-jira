@@ -530,7 +530,13 @@ async function init() {
   if (stored?.token) tokenInput.value = stored.token;
   tokenExpiryInput.value = stored?.tokenExpiresAt?.slice(0, 10) || "";
 
-  if (!roster) roster = initRoster({ flash, requireLiveJira: withLiveConfig });
+  if (!roster) {
+    roster = initRoster({
+      flash,
+      requireLiveJira: withLiveConfig,
+      getBoards: () => boards,
+    });
+  }
   roster.setMembers(allMembers());
 
   renderBoards();

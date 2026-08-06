@@ -12,10 +12,14 @@
 // boards and status groups.
 
 import { harvestTeamCandidates, searchUsers } from "./api.js";
+import { setBoardList } from "./utils.js";
 import {
+  avatarAssetUrl,
   linkPendingMembers,
   memberLabel,
+  normalizeAvatarPath,
   normalizeMember,
+  normalizeSlackHandle,
   removeMember,
   shortenName,
   upsertMember,
@@ -24,7 +28,7 @@ import {
 const el = (id) => document.getElementById(id);
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-export function initRoster({ flash, requireLiveJira }) {
+export function initRoster({ flash, requireLiveJira, getBoards }) {
   const rosterList = el("rosterList");
   const rosterNote = el("rosterNote");
   const harvestBtn = el("harvestRosterBtn");
@@ -61,7 +65,12 @@ export function initRoster({ flash, requireLiveJira }) {
     members.forEach((member, i) => {
       const row = document.createElement("div");
       row.className = "board-row roster-row";
-      row.appendChild(avatarFor(member));
+
+      // The avatar lives in a slot so the preview can be swapped in place as the
+      // override path is typed, without disturbing the rest of the row.
+      const avatarSlot = document.createElement("span");
+      avatarSlot.className = "roster-avatar-slot";
+      row.appendChild(avatarSlot);
 
       const jiraName = document.createElement("span");
       jiraName.className = "roster-jira-name";
@@ -81,6 +90,56 @@ export function initRoster({ flash, requireLiveJira }) {
         members[i].nameOverride = override.value;
       });
       row.appendChild(override);
+
+      const avatarPath = document.createElement("input");
+      avatarPath.type = "text";
+      avatarPath.className = "roster-avatar-path mono";
+      avatarPath.value = member.avatarOverride;
+      avatarPath.placeholder = "assets/avatars/…";
+      avatarPath.title =
+        "Optional: a picture file inside the extension folder, e.g. " +
+        "assets/avatars/sam.png. Replaces the Jira profile picture everywhere " +
+        "in the app. Leave empty to use Jira's.";
+      row.appendChild(avatarPath);
+
+      // Redraws the preview from whatever is currently in the path box, and
+      // flags a path that resolves but has no file behind it.
+      function refreshAvatar() {
+        avatarSlot.replaceChildren(
+          avatarFor(members[i], () => {
+            if (members[i].avatarOverride) avatarPath.classList.add("missing");
+          })
+        );
+      }
+
+      avatarPath.addEventListener("input", () => {
+        const typed = avatarPath.value.trim();
+        const clean = normalizeAvatarPath(typed);
+        members[i].avatarOverride = clean;
+        // Typed something that isn't a package-relative path — a URL, or ../
+        avatarPath.classList.toggle("invalid", Boolean(typed) && !clean);
+        avatarPath.classList.remove("missing");
+        refreshAvatar();
+      });
+
+      refreshAvatar();
+
+      const slack = document.createElement("input");
+      slack.type = "text";
+      slack.className = "roster-slack mono";
+      slack.value = member.slackHandle ? `@${member.slackHandle}` : "";
+      slack.placeholder = "@slack";
+      slack.title =
+        "Slack username, used to address this person in the standup parking-lot " +
+        "digest. The @ is optional.";
+      slack.addEventListener("input", () => {
+        members[i].slackHandle = normalizeSlackHandle(slack.value);
+      });
+      // Reformatted on blur rather than per keystroke, so the caret doesn't jump.
+      slack.addEventListener("blur", () => {
+        slack.value = members[i].slackHandle ? `@${members[i].slackHandle}` : "";
+      });
+      row.appendChild(slack);
 
       const emoji = document.createElement("input");
       emoji.type = "text";
@@ -150,14 +209,22 @@ export function initRoster({ flash, requireLiveJira }) {
     rosterNote.textContent = parts.join(" · ");
   }
 
-  function avatarFor(member) {
+  // Local override first, then Jira's picture, then initials. `onError` fires
+  // when the chosen source fails to load, so the caller can say so.
+  function avatarFor(member, onError = null) {
     const label = memberLabel(member);
-    if (member.avatarUrl) {
+    const src = member.avatarOverride
+      ? avatarAssetUrl(member.avatarOverride)
+      : member.avatarUrl;
+    if (src) {
       const img = document.createElement("img");
       img.className = "roster-avatar";
-      img.src = member.avatarUrl;
+      img.src = src;
       img.alt = "";
-      img.addEventListener("error", () => img.replaceWith(placeholderFor(label)));
+      img.addEventListener("error", () => {
+        onError?.();
+        img.replaceWith(placeholderFor(label));
+      });
       return img;
     }
     return placeholderFor(label);
@@ -187,14 +254,28 @@ export function initRoster({ flash, requireLiveJira }) {
     if (!addPanel.hidden) searchInput.focus();
   });
 
-  harvestBtn.addEventListener("click", () =>
-    requireLiveJira(async (creds) => {
+  harvestBtn.addEventListener("click", () => {
+    // Harvest reads the boards currently listed on this page, including ones
+    // imported but not yet saved. With none there is nothing to scan.
+    const boards = (getBoards?.() || []).filter((b) => b.id);
+    if (!boards.length) {
+      return flash("Add or import a board first — harvest scans board assignees", "warning");
+    }
+
+    // Issues get tagged with their board name from the live list and then
+    // cached, so it has to know these boards before any fetch happens.
+    setBoardList(boards);
+
+    return requireLiveJira(async (creds) => {
       harvestBtn.disabled = true;
       harvestBtn.textContent = "Harvesting...";
       try {
-        const found = await harvestTeamCandidates(creds);
+        const found = await harvestTeamCandidates(creds, boards);
         if (!found.length) {
-          flash("No assignees found on the configured boards", "warning");
+          flash(
+            `No assignees found across ${boards.length} board${boards.length === 1 ? "" : "s"}`,
+            "warning"
+          );
           return;
         }
 
@@ -220,8 +301,8 @@ export function initRoster({ flash, requireLiveJira }) {
         harvestBtn.disabled = false;
         harvestBtn.textContent = "↓ Harvest from boards";
       }
-    }, "Harvest")
-  );
+    }, "Harvest");
+  });
 
   searchBtn.addEventListener("click", () => runSearch());
   searchInput.addEventListener("keydown", (e) => {
