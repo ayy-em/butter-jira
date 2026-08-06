@@ -137,6 +137,31 @@ Pull requests, branches and commits are **not** shown: Jira has no public API
 for them. That's tracked in the roadmap's deferred backlog, to be built against
 the GitHub API instead.
 
+### Standup mode
+
+Press `s` or the STANDUP tab. Pick who's in today, set each person's minutes
+(2 by default), and hit start: five-second countdown, then each person's sprint
+board in a randomised order, one at a time, full-screen.
+
+- The countdown cue is timed to *finish* as the clock hits zero, using the
+  actual length of the audio file — swap in your own and it still lands right.
+- Running over counts up in red rather than cutting anyone off. `+1 min` adds
+  time without disturbing the clock.
+- Reload mid-standup and you get "Resume — same order as before": the order
+  comes from a stored seed, so it's reproducible.
+- A parking-lot box is saved as you type and appears in the end summary, with
+  copy and download buttons.
+- The summary shows actual vs planned time per person and who never got reached.
+
+Sound cues live in `assets/sfx/` (`dun-dun-dun.mp3` at the start,
+`countdown.mp3` before each handover). They're bundled rather than fetched — the
+extension's CSP rules out remote media, and a standup shouldn't lose its cues to
+a slow network. Replace the files to change the sounds; the toggle under the
+start button mutes them.
+
+Needs a team roster (Settings → Team roster) — that's where the participant list
+comes from.
+
 ### Monitor tab
 
 Four hygiene checks over the sprint, derived from data the other views already
@@ -185,7 +210,12 @@ the product logo stands alone.
 | `r` | Roadmap (Gantt) |
 | `k` | Kanban |
 | `m` | Monitor |
+| `s` | Standup |
 | `Esc` | Close the issue drawer |
+
+During a standup the keyboard belongs to the session: `Space` pauses, `→` moves
+to the next person, `Esc` ends it. View shortcuts are suspended so you can't
+navigate away mid-standup.
 
 ## Layout
 
@@ -198,6 +228,8 @@ js/config.js        # all instance-specific config lives here
 js/credentials.js   # device-local token storage + expiry lifecycle
 js/team.js          # team roster: storage, display names, team-only filter
 js/monitor.js       # sprint hygiene checks (pure derivation)
+js/standup.js       # standup session: order, phases, timing (DOM-free)
+js/sfx.js           # bundled sound cues
 js/sanitize.js      # allowlist sanitiser for Jira-rendered HTML
 js/adf.js           # Atlassian Document Format <-> text (comment posting)
 js/roster-ui.js     # roster editor for the Settings page
@@ -206,9 +238,10 @@ js/portable.js      # config export/import
 js/api.js           # Jira REST client (read-only)
 js/utils.js         # board/field/date/theme helpers + response cache
 js/router.js        # hash routing, setup flow, board picker
-js/components/      # nav bar, filter bar, re-auth prompt, issue detail
-js/views/           # backlog, gantt, kanban, monitor
+js/components/      # nav bar, filter bar, re-auth prompt, issue detail, board
+js/views/           # backlog, gantt, kanban, monitor, standup
 css/                # one stylesheet per view
+assets/sfx/         # standup sound cues
 libs/               # vendored frappe-gantt
 scripts/            # jira-smoke.js, manual smoke checklist
 ```
@@ -225,6 +258,7 @@ node scripts/test-credentials.mjs  # migrations, tokens, export/import (82 check
 node scripts/test-team.mjs         # roster, display names, filtering  (84 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
+node scripts/test-standup.mjs      # session timing, order, resume    (105 checks)
 ```
 
 `test-config.mjs` covers URL normalisation, the defaults → `config.local.json` →
@@ -246,6 +280,10 @@ unavailable-check path.
 `test-issue.mjs` covers the sanitiser — tag/attribute/URL policy plus the
 element walk against a DOM stub, including obfuscated `javascript:` URLs, event
 handlers and script stripping — and ADF conversion in both directions.
+
+`test-standup.mjs` covers the standup session with injected clocks: seeded
+ordering, phase transitions, pause arithmetic (including multiple pauses),
+overrun, resume-after-reload, and the board grouping shared with Kanban.
 
 `scripts/SMOKE-CHECKLIST.md` is the manual pass for anything involving the UI.
 
@@ -312,8 +350,9 @@ change the shape.
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) — issue detail, monitoring, standup mode, sprint
-planner, and dashboards are planned. M0–M5 are done: hygiene, whitelabelling,
-durable identity/config, the team roster, the monitoring tab, and issue detail.
+planner and dashboards are planned. M0–M6 are done: hygiene, whitelabelling,
+durable identity/config, the team roster, the monitoring tab, issue detail, and
+standup mode.
 
 ## Licence
 

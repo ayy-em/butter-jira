@@ -7,6 +7,7 @@ const TABS = [
   { hash: "#gantt", label: "ROADMAP", key: "r" },
   { hash: "#kanban", label: "KANBAN", key: "k" },
   { hash: "#monitor", label: "MONITOR", key: "m" },
+  { hash: "#standup", label: "STANDUP", key: "s" },
 ];
 
 let lastSync = null;

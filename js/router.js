@@ -61,10 +61,14 @@ async function init() {
       e.target.isContentEditable
     )
       return;
+    // Standup mode owns the keyboard while it is running: Space, arrows and Esc
+    // are its controls, and navigating away mid-standup would lose the session.
+    if (document.body.dataset.standupActive === "1") return;
     if (e.key === "r" || e.key === "R") location.hash = "#gantt";
     if (e.key === "b" || e.key === "B") location.hash = "#backlog";
     if (e.key === "k" || e.key === "K") location.hash = "#kanban";
     if (e.key === "m" || e.key === "M") location.hash = "#monitor";
+    if (e.key === "s" || e.key === "S") location.hash = "#standup";
   });
 
   if (!creds || !isConfigured()) {
@@ -111,6 +115,9 @@ async function mountView(creds) {
         break;
       case "#monitor":
         viewModule = await import("./views/monitor.js");
+        break;
+      case "#standup":
+        viewModule = await import("./views/standup.js");
         break;
       default:
         viewModule = await import("./views/backlog.js");

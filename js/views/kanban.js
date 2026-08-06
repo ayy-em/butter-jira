@@ -3,19 +3,12 @@ import {
   getAllBacklogIssues,
 } from "../api.js";
 import {
-  hashColor,
-  boardColor,
-  getStoryPoints,
-  getAvatarUrl,
   extractAssignees,
-  fmtDate,
-  assigneeLabel,
   BOARDS,
   loadStatusGroups,
   saveStatusGroups,
-  resolveStatusGroup,
 } from "../utils.js";
-import { openIssueDrawer, issuePageUrl } from "../components/issue-detail.js";
+import { makePlaceholder, renderColumns } from "../components/board.js";
 
 async function loadColumnOrder() {
   const result = await chrome.storage.sync.get("kanbanColumnOrder");
@@ -281,211 +274,15 @@ export async function mount(container, creds) {
   let columnOrder = savedColumnOrder;
 
   function renderBoard() {
-    board.innerHTML = "";
-    const issues = getFiltered();
-
-    const groupOrderBase = groups.map((g) => g.name);
-    const groupMap = new Map();
-    for (const g of groups) groupMap.set(g.name, []);
-
-    for (const issue of issues) {
-      const rawStatus = issue.fields.status?.name || "To Do";
-      const groupName = resolveStatusGroup(rawStatus, groups);
-      if (!groupMap.has(groupName)) {
-        groupMap.set(groupName, []);
-        groupOrderBase.push(groupName);
-      }
-      groupMap.get(groupName).push(issue);
-    }
-
-    let groupOrder;
-    if (columnOrder) {
-      const ordered = columnOrder.filter((n) => groupOrderBase.includes(n));
-      const remaining = groupOrderBase.filter((n) => !ordered.includes(n));
-      groupOrder = [...ordered, ...remaining];
-    } else {
-      groupOrder = groupOrderBase;
-    }
-
-    let dragSrcIdx = null;
-
-    for (let ci = 0; ci < groupOrder.length; ci++) {
-      const groupName = groupOrder[ci];
-      const cards = groupMap.get(groupName) || [];
-      const col = document.createElement("div");
-      col.className = "kanban-column";
-      col.dataset.colIdx = ci;
-
-      col.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        col.classList.add("kanban-col-drag-over");
-      });
-      col.addEventListener("dragleave", () => {
-        col.classList.remove("kanban-col-drag-over");
-      });
-      col.addEventListener("drop", (e) => {
-        e.preventDefault();
-        col.classList.remove("kanban-col-drag-over");
-        if (dragSrcIdx === null || dragSrcIdx === ci) return;
-        const newOrder = [...groupOrder];
-        const [moved] = newOrder.splice(dragSrcIdx, 1);
-        newOrder.splice(ci, 0, moved);
-        columnOrder = newOrder;
-        saveColumnOrder(newOrder);
+    renderColumns(board, getFiltered(), groups, {
+      columnOrder,
+      creds,
+      onReorder: (names) => {
+        columnOrder = names;
+        saveColumnOrder(names);
         renderBoard();
-      });
-
-      const header = document.createElement("div");
-      header.className = "kanban-col-header";
-      header.style.cursor = "grab";
-      header.draggable = true;
-      header.addEventListener("dragstart", (e) => {
-        dragSrcIdx = ci;
-        col.style.opacity = "0.4";
-        e.dataTransfer.effectAllowed = "move";
-      });
-      header.addEventListener("dragend", () => {
-        col.style.opacity = "";
-        board.querySelectorAll(".kanban-column").forEach((c) => c.classList.remove("kanban-col-drag-over"));
-      });
-      const label = document.createElement("span");
-      label.textContent = groupName;
-      header.appendChild(label);
-      const count = document.createElement("span");
-      count.className = "kanban-col-count";
-      count.textContent = cards.length;
-      header.appendChild(count);
-      col.appendChild(header);
-
-      const cardContainer = document.createElement("div");
-      cardContainer.className = "kanban-col-cards";
-
-      if (cards.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "kanban-empty";
-        empty.textContent = "—";
-        cardContainer.appendChild(empty);
-      }
-
-      for (const issue of cards) {
-        cardContainer.appendChild(renderCard(issue));
-      }
-
-      col.appendChild(cardContainer);
-      board.appendChild(col);
-    }
-  }
-
-  function renderCard(issue) {
-    const f = issue.fields;
-    const card = document.createElement("div");
-    card.className = "kanban-card";
-    card.style.borderTopColor = hashColor(issue.key);
-    // Whole card is clickable: plain click opens the drawer, modified or
-    // middle click opens the full page in a new tab.
-    card.addEventListener("click", (e) => {
-      if (e.metaKey || e.ctrlKey || e.shiftKey) {
-        window.open(issuePageUrl(issue.key), "_blank", "noopener");
-        return;
-      }
-      openIssueDrawer(issue.key, creds);
+      },
     });
-    card.addEventListener("auxclick", (e) => {
-      if (e.button === 1) {
-        e.preventDefault();
-        window.open(issuePageUrl(issue.key), "_blank", "noopener");
-      }
-    });
-
-    const stripe = document.createElement("div");
-    stripe.className = "kanban-card-board-stripe";
-    stripe.style.background = boardColor(issue.boardId);
-    card.appendChild(stripe);
-
-    const header = document.createElement("div");
-    header.className = "kanban-card-header";
-    const key = document.createElement("span");
-    key.className = "issue-key";
-    key.style.color = boardColor(issue.boardId);
-    key.textContent = issue.key;
-    header.appendChild(key);
-
-    const right = document.createElement("span");
-    right.style.display = "flex";
-    right.style.alignItems = "center";
-    right.style.gap = "6px";
-    const pName = f.priority?.name || "";
-    const pIcon = { Critical: "🔴", Highest: "🔴", High: "🟠", Medium: "🟡", Low: "🔵", Lowest: "🔵" }[pName] || "";
-    if (pIcon) {
-      const pi = document.createElement("span");
-      pi.textContent = pIcon;
-      pi.style.fontSize = "12px";
-      right.appendChild(pi);
-    }
-    const typeBadge = document.createElement("span");
-    typeBadge.className = "kanban-card-type";
-    typeBadge.textContent = f.issuetype?.name || "—";
-    right.appendChild(typeBadge);
-    header.appendChild(right);
-    card.appendChild(header);
-
-    const summary = document.createElement("div");
-    summary.className = "kanban-card-summary";
-    summary.textContent = f.summary || "";
-    card.appendChild(summary);
-
-    const footer = document.createElement("div");
-    footer.className = "kanban-card-footer";
-
-    if (f.assignee) {
-      const avatarUrl = getAvatarUrl(issue);
-      if (avatarUrl) {
-        const img = document.createElement("img");
-        img.className = "avatar";
-        img.src = avatarUrl;
-        img.style.width = "18px";
-        img.style.height = "18px";
-        img.onerror = () => {
-          const ph = makePlaceholder(f.assignee.displayName);
-          ph.style.width = "18px";
-          ph.style.height = "18px";
-          ph.style.fontSize = "9px";
-          img.replaceWith(ph);
-        };
-        footer.appendChild(img);
-      } else {
-        const ph = makePlaceholder(f.assignee.displayName);
-        ph.style.width = "18px";
-        ph.style.height = "18px";
-        ph.style.fontSize = "9px";
-        footer.appendChild(ph);
-      }
-      const nm = document.createElement("span");
-      nm.textContent = assigneeLabel(f.assignee);
-      footer.appendChild(nm);
-    }
-
-    const sp = getStoryPoints(issue);
-    if (sp !== null) {
-      const spEl = document.createElement("span");
-      spEl.className = "sp";
-      spEl.textContent = `${sp} SP`;
-      footer.appendChild(spEl);
-    }
-
-    if (f.duedate) {
-      const dueEl = document.createElement("span");
-      dueEl.textContent = "📅";
-      dueEl.title = fmtDate(f.duedate);
-      dueEl.style.marginLeft = sp !== null ? "0" : "auto";
-      const due = new Date(f.duedate);
-      if (due < new Date()) dueEl.style.filter = "hue-rotate(-60deg) saturate(2)";
-      footer.appendChild(dueEl);
-    }
-
-    card.appendChild(footer);
-    return card;
   }
 
   function renderAll() {
@@ -498,10 +295,3 @@ export async function mount(container, creds) {
   renderAll();
 }
 
-function makePlaceholder(name) {
-  const el = document.createElement("span");
-  el.className = "avatar-placeholder";
-  el.style.background = hashColor(name);
-  el.textContent = (name || "?")[0].toUpperCase();
-  return el;
-}

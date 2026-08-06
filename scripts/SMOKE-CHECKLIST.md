@@ -1,7 +1,7 @@
 # Manual smoke checklist
 
 Run `node scripts/test-config.mjs`, `test-credentials.mjs`, `test-team.mjs`,
-`test-monitor.mjs` and `test-issue.mjs` first — they cover the config layer, field mapping,
+`test-monitor.mjs`, `test-issue.mjs` and `test-standup.mjs` first — they cover the config layer, field mapping,
 storage migrations, the token lifecycle and the roster automatically. This checklist is for everything it cannot reach: the UI,
 the browser APIs, and real Jira data. Run it after touching config,
 API, or view code. `chrome://extensions` → reload the extension first, and keep
@@ -89,6 +89,34 @@ override file. Anything else is a finding.
 - [ ] Open `issue.html?key=NOPE-1` → clean "not found" message
 - [ ] Open `issue.html` with no key → clean "no issue key" message
 - [ ] Full page in light theme is readable; drawer too
+
+## 3d. Standup mode
+- [ ] `s` or the STANDUP tab opens setup; empty roster → pointer to Settings
+- [ ] Attendance prefilled from the roster; yesterday's selection restored on a later visit
+- [ ] Each person shows their sprint issue count; zero shows in orange
+- [ ] "All in" / "None" work; per-person minutes and "Set all" apply
+- [ ] Totals line updates with attendance and shows both speaking and wall-clock time
+- [ ] Start → goes full-screen, nav and footer hidden, `dun-dun-dun` plays
+- [ ] 5-second countdown shows the first person's name, then their board appears
+- [ ] Board shows only that person's current-sprint issues, no assignee avatars
+- [ ] Cards are readable from across a room; clicking one still opens the drawer
+- [ ] Countdown cue *finishes* as the clock reaches 0:00 (not before, not after)
+- [ ] Timer hits zero → keeps counting up in red, bar turns red, nobody is cut off
+- [ ] `+1 min` adds a minute without jumping the elapsed time
+- [ ] Space pauses (clock dims and freezes) and resumes; paused time is excluded
+- [ ] Pause for a minute, resume → remaining time is unchanged from when you paused
+- [ ] `→` advances → "GET READY" card with the next person's name and avatar
+- [ ] Handoff auto-advances after ~4s into the next person's board
+- [ ] `b` / `k` / `m` do NOT navigate away during a session
+- [ ] Mute toggle silences both cues and persists across a reload
+- [ ] Reload mid-standup → setup shows "Unfinished standup"; Resume continues at the same person in the same order
+- [ ] Discard clears it; starting fresh produces a different order
+- [ ] Parking-lot text survives a person change and a reload
+- [ ] After the last person → summary with actual vs planned per person
+- [ ] Someone who overran is flagged; ending early marks the rest "not reached"
+- [ ] Copy notes and Download .txt both work
+- [ ] Esc mid-session ends it and exits full-screen
+- [ ] Navigating away mid-session stops the timer and the audio (no ghost sounds)
 
 ## 4. Branding and theme
 - [ ] No org logo configured → product logo only, nothing broken
