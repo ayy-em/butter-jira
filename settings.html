@@ -230,6 +230,8 @@
     }
     .checkbox-row input { margin-top: 2px; flex: 0 0 auto; }
     .checkbox-row strong { color: var(--accent-warning); font-weight: 600; }
+    /* Checkbox rows inside a list get their spacing from the list's gap. */
+    .board-row.checkbox-row { margin-bottom: 0; align-items: center; }
     .token-status-expired { color: var(--accent-danger); }
     .token-status-soon { color: var(--accent-warning); }
 
@@ -382,6 +384,15 @@
     </div>
     <div class="board-list" id="fieldRoleList"></div>
     <button class="add-board-btn" id="discoverFieldsBtn">⟳ Discover from Jira</button>
+
+    <div class="section-title">Monitoring checks</div>
+    <div class="hint">
+      Hygiene checks shown on the Monitor tab. All are on by default; untick to
+      mute one. Every check skips epics and anything already done, and all but
+      "unassigned" also skip sub-tasks — a sub-task hangs off a story, so it has
+      no epic of its own and inherits its parent's dates and estimate.
+    </div>
+    <div class="board-list" id="monitorCheckList"></div>
 
     <div class="section-title">Additional fields</div>
     <div class="hint">

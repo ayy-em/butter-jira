@@ -24,6 +24,7 @@ import {
   parseImport,
 } from "./js/portable.js";
 import { allMembers, loadTeam, saveMembers } from "./js/team.js";
+import { MONITOR_CHECKS, isCheckEnabled } from "./js/monitor.js";
 import { initRoster } from "./js/roster-ui.js";
 
 const el = (id) => document.getElementById(id);
@@ -40,6 +41,7 @@ const importBoardsBtn = el("importBoardsBtn");
 const statusGroupList = el("statusGroupList");
 const addGroupBtn = el("addGroupBtn");
 const fieldRoleList = el("fieldRoleList");
+const monitorCheckList = el("monitorCheckList");
 const discoverFieldsBtn = el("discoverFieldsBtn");
 const additionalFieldsInput = el("additionalFields");
 const localFieldsNote = el("localFieldsNote");
@@ -60,6 +62,7 @@ let statusGroups = [];
 let fields = {};
 let currentTheme = "dark";
 let roster = null;   // roster editor, created once on first init
+let monitorChecks = {};
 
 chrome.storage.sync.get("theme", (result) => {
   currentTheme = result.theme || "dark";
@@ -204,6 +207,30 @@ function renderFieldRoles() {
 
     row.append(label, idsInput);
     fieldRoleList.appendChild(row);
+  }
+}
+
+function renderMonitorChecks() {
+  monitorCheckList.innerHTML = "";
+  for (const check of MONITOR_CHECKS) {
+    const row = document.createElement("label");
+    row.className = "board-row checkbox-row";
+    row.style.cursor = "pointer";
+
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = isCheckEnabled(monitorChecks, check.id);
+    box.addEventListener("change", () => {
+      // Store only the muted ones, so checks added later default to on.
+      if (box.checked) delete monitorChecks[check.id];
+      else monitorChecks[check.id] = false;
+    });
+
+    const label = document.createElement("span");
+    label.textContent = `${check.label} — ${check.question}`;
+
+    row.append(box, label);
+    monitorCheckList.appendChild(row);
   }
 }
 
@@ -458,6 +485,7 @@ saveBtn.addEventListener("click", async () => {
     statusGroups: validGroups,
     fields,
     additionalFields: extraFields,
+    monitorChecks,
   });
   await saveCredentials({
     email,
@@ -495,6 +523,7 @@ async function init() {
     Object.keys(FIELD_ROLES).map((role) => [role, [...(CONFIG.fields?.[role] || [])]])
   );
   additionalFieldsInput.value = (CONFIG.additionalFields || []).join(", ");
+  monitorChecks = { ...(CONFIG.monitorChecks || {}) };
 
   const stored = await loadCredentials();
   if (stored?.email) emailInput.value = stored.email;
@@ -507,6 +536,7 @@ async function init() {
   renderBoards();
   renderStatusGroups();
   renderFieldRoles();
+  renderMonitorChecks();
   renderLocalFieldsNote();
   await renderTokenStatus();
 }

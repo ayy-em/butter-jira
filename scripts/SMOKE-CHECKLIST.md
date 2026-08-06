@@ -1,7 +1,7 @@
 # Manual smoke checklist
 
-Run `node scripts/test-config.mjs`, `node scripts/test-credentials.mjs` and
-`node scripts/test-team.mjs` first — they cover the config layer, field mapping,
+Run `node scripts/test-config.mjs`, `test-credentials.mjs`, `test-team.mjs` and
+`test-monitor.mjs` first — they cover the config layer, field mapping,
 storage migrations, the token lifecycle and the roster automatically. This checklist is for everything it cannot reach: the UI,
 the browser APIs, and real Jira data. Run it after touching config,
 API, or view code. `chrome://extensions` → reload the extension first, and keep
@@ -37,7 +37,25 @@ override file. Anything else is a finding.
 - [ ] Gantt: click a child task → opens in Jira; click an epic → expands children
 - [ ] Kanban: cards grouped into the configured columns; click opens Jira
 - [ ] Filters: board and assignee filters apply across all three views
-- [ ] `b` / `r` / `k` switch views; typing in an input does not trigger them
+- [ ] `b` / `r` / `k` / `m` switch views; typing in an input does not trigger them
+
+## 3b. Monitor tab
+- [ ] Opens with `m` or the MONITOR tab; nav badge shows the total, hidden at zero
+- [ ] Counts match reality — spot-check one finding per section against Jira
+- [ ] No sub-tasks in "no epic parent", "no due date" or "no story points"
+- [ ] Sub-tasks DO appear in "unassigned" when nobody is on them
+- [ ] No epics or done issues in any section
+- [ ] A story linked to an epic via `parent` (team-managed project) is not flagged
+- [ ] Clean sections start collapsed with a green count; clicking expands them
+- [ ] Clicking a summary chip scrolls to and expands that section
+- [ ] "Fix these first" lists only issues tripping 2+ checks; hover shows which
+- [ ] Issue keys open the right Jira issue
+- [ ] Scope toggle → All Issues pulls in the backlog (spinner, then larger counts) and survives a reload
+- [ ] Team Only here matches the same toggle in the other views
+- [ ] Settings → untick a check → it disappears from the tab after Save
+- [ ] Untick all four → "Every check is muted" empty state
+- [ ] Clear the story-points field mapping → that section reads "Can't run", counts nothing, and does not flag every issue
+- [ ] Clear the epic-link mapping → "no epic parent" still runs, with an orange caveat
 
 ## 4. Branding and theme
 - [ ] No org logo configured → product logo only, nothing broken
