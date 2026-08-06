@@ -61,15 +61,23 @@ export function avatarAssetUrl(path) {
   }
 }
 
-// Handles get pasted in with or without the leading @, and Slack allows only
-// letters, digits, periods, hyphens and underscores. Stored bare; the @ is added
-// at render time, so one stored form works in mentions and in plain text.
+// Handles get pasted in with or without the leading @. The restriction to
+// letters, digits, periods, hyphens and underscores belonged to Slack's legacy
+// *username*, which was retired in 2017. What @-autocomplete matches today is
+// the *display name*, and that allows spaces and most of UTF-8 — workspaces
+// provisioned from a directory routinely end up with "First Last" there. So the
+// only cleanup left is dropping the leading @, flattening whitespace (the
+// digest is one line per person) and stripping control characters. Stored bare;
+// the @ is added at render time, so one stored form works in mentions and in
+// plain text.
 export function normalizeSlackHandle(input) {
   return String(input ?? "")
+    .replace(/^\s*@+/, "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
-    .replace(/^@+/, "")
-    .replace(/[^A-Za-z0-9._-]/g, "")
-    .slice(0, 40);
+    .slice(0, 80)
+    .trimEnd();
 }
 
 export function normalizeMember(raw = {}) {

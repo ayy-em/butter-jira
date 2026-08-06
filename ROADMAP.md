@@ -1,6 +1,6 @@
 # ButterJira — Roadmap
 
-Last updated: 2026-08-05
+Last updated: 2026-08-07
 
 A Chrome MV3 extension giving Gantt, Backlog, and Kanban views over Jira Cloud
 boards. This roadmap takes it from an internal single-tenant tool to a
@@ -30,7 +30,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ```
 M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ✔ ─▶ M5 Issue detail ✔
                                                                         │
-                                                                        ├──▶ M6 Standup ✔
+                                                                        ├──▶ M6 Standup ✔ ─▶ M11 GitHub sync
                                                                         │
                                                                         └──▶ M7 Dashboard ✔ ─▶ M8 Writes + Planner ──┬──▶ M9 Palette + Triage
                                                                                                                     └──▶ M10 Sprint Wrapped
@@ -42,7 +42,10 @@ rest miserable to build. The people layer (M3) is a hard dependency for standup
 and planning. Monitoring (M4) lands early — it is pure client-side derivation
 over data already being fetched, so it is the cheapest real feature in the list.
 The write layer is deliberately deferred to M8 and isolated in one milestone;
-everything before it stays read-only.
+everything before it stays read-only. M11 hangs off standup rather than the M8
+chain because it is read-only against a second API and shares nothing with the
+Jira write path — it can be picked up whenever, and dropped without stranding
+anything.
 
 ---
 
@@ -365,6 +368,52 @@ stay too obviously silly to be mistaken for a performance metric.
 
 ---
 
+## M11 — GitHub sync *(feature 11)*
+
+**Size: M — split in two** · Depends on M3 (roster). Independent of M8: this is
+read-only against GitHub, so it can land before the Jira write layer.
+
+The standup board answers "what is assigned to you". It cannot answer "what have
+you got in review", which in practice is where half the day went and where the
+blocker usually is. This milestone adds a second, optional source: open pull
+requests across the org, grouped by person, on the same screen as their tickets.
+
+Optional throughout. With no GitHub token configured, nothing in the app changes.
+
+**11a — Config, auth and mapping (S–M)**
+
+- **Settings → GitHub sync**, a collapsed section that stays out of the way until enabled: host, org, token, and a "Test connection" button in the shape Settings already uses for Jira.
+- **Config** (synced, non-sensitive): `github: { host, org, enabled }`. `host` defaults to `github.com`; anything else is GitHub Enterprise Server and shifts the API base from `https://api.github.com` to `https://<host>/api/v3`. Both `config.local.json` and Settings write it, same as every other config block.
+- **Token** (device-local, never synced, never exported): stored through the existing `js/credentials.js` pattern under its own keys, since it is a second credential with its own lifecycle — a dead GitHub token must never break the Jira views. A fine-grained PAT needs *Pull requests: read*, *Metadata: read*, and *Members: read* on the org; a classic PAT needs `repo` + `read:org`.
+- **Real expiry, for once.** Unlike Atlassian, GitHub returns `github-authentication-token-expiration` on every authenticated REST call. Record it from the response instead of guessing at creation + 365 days, and reuse the M2 banner and re-auth prompt verbatim — scoped to a GitHub-only banner that does not present as an app-wide auth failure.
+- **Host permission.** `https://api.github.com/*` goes into `host_permissions`. A GHES host cannot be known at build time, so it is requested at runtime via `chrome.permissions.request` against the existing `optional_host_permissions` — from the Save button, which is the user gesture the API requires. The current CSP does not constrain `connect-src`, so nothing there needs to change.
+- **Roster gains `githubLogin`**, normalised the way handles already are (GitHub logins: alphanumerics and single inner hyphens, ≤39 chars). Plus a **"Match from GitHub org"** button that pulls `/orgs/{org}/members`, proposes a mapping against roster display names, and leaves every row editable — the same assisted-not-automatic shape as the Jira roster import.
+- **Personal data:** a GitHub login is one more identifier attached to a named colleague, so it rides in the roster record and inherits its treatment — local-only storage, and excluded from config export unless the personal-data box is ticked. No new mechanism, and no new decision to get wrong.
+
+**11b — Open PRs in standup (M)**
+
+- **One request for the whole team.** The GraphQL API answers `search(query: "org:X is:pr is:open", type: ISSUE, first: 100)` with author, repo, draft flag, review decision, and check state in a single POST. The REST equivalent is one search call *per person*, against the search endpoint's much tighter 30/minute budget — a nine-person team restarting standup twice would feel it. GraphQL is the primary path; REST search stays as the GHES-version fallback.
+- **Pre-fetch on start.** The GitHub query fires in parallel with `getAllSprintIssues` when standup starts, so nobody watches a spinner on their turn. It is never on the critical path: if it is slow, the standup starts anyway and the panel fills in; if it fails or is unconfigured, the panel is absent and the standup is exactly what it is today. A small status chip on the setup card says which of those happened.
+- **Per-person PR panel** beside the speaker's board: title, repo, age in days, and the state that actually decides what to say — *draft*, *waiting on review*, *changes requested*, *approved and unmerged*, *checks failing*. Sorted by whatever is most stuck.
+- **"Waiting on you" as a second lens.** `review-requested:<login>` PRs are the ones a standup can unblock in ten seconds, so they get their own short list rather than being mixed in with the person's own work.
+- **Orphan PRs** — open PRs by org members not on the roster, and roster members with no `githubLogin` — surfaced once on the summary screen rather than silently dropped, or the panel quietly lies about coverage.
+- **Cache** with the existing 5-minute TTL, keyed by org, so leaving and re-entering standup does not re-query.
+
+**Not in this milestone:** correlating PRs to individual Jira issue keys. That is
+the deferred *development links* item below, and it is a different problem —
+key-matching accuracy — sitting on top of the same auth and config this
+milestone builds. M11 unblocks it; it does not deliver it.
+
+**Exit criteria:** with GitHub configured, a standup shows every open PR the team
+has, grouped by person, fetched in one request before the first person speaks;
+with GitHub not configured, or its token dead, every existing screen behaves
+exactly as it does today. Verified by `scripts/test-github.mjs` over the pure
+parts: login normalisation, API base derivation for github.com vs GHES, GraphQL
+response → view model, grouping by author, review-state and staleness
+derivation, and the unmapped-login accounting.
+
+---
+
 ## Deferred backlog
 
 Scoped, wanted, and deliberately not scheduled yet.
@@ -380,7 +429,9 @@ which is undocumented, unsupported, and free to change without notice — a poor
 foundation for a feature people would come to rely on.
 
 **Planned approach instead:** talk to the **GitHub API directly** and correlate
-on the issue key. Sketch, for when this gets picked up:
+on the issue key. **M11 now builds the auth, config and roster mapping this
+needs**, so what is left here is only the per-issue correlation. Sketch, for when
+this gets picked up:
 
 - Search PRs and commits by issue key (`GET /search/issues?q=ABC-123+repo:org/repo+type:pr`, `GET /search/commits?q=ABC-123`), plus branch names matching the key.
 - Config: which repos to search, per project or per board — a `github` block in `config.local.json` and Settings.
@@ -414,6 +465,9 @@ produce false positives in commit messages).
 | ~~Token expiry mistaken for a broken app~~ | M2 ✔ | Resolved: expiry tracking, T-14 banner, token-only re-auth prompt |
 | Writes corrupt real sprint data | M8 | Draft mode, batch confirmation, undo window, isolated write helpers |
 | Unsanitised Jira HTML injected into the page | M5 | Allowlist sanitiser; CSP as defence in depth, not the primary control |
+| GitHub search rate limit (30/min) throttles standup | M11 | One GraphQL query for the whole org instead of one REST search per person; 5-minute cache; pre-fetch once at standup start |
+| A dead GitHub token reads as the app being broken | M11 | Separate credential and separate banner from Jira's; every GitHub failure degrades to the panel being absent, never to a blocked view |
+| A second identifier per colleague widens the personal-data surface | M11 | `githubLogin` lives in the roster record and inherits its handling — local-only, excluded from export unless explicitly ticked |
 
 ## Open questions
 

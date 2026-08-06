@@ -1,8 +1,10 @@
 // Kanban board rendering, shared by the Kanban view and standup mode.
 //
 // Extracted so standup shows the same cards people already recognise instead of
-// a second, drifting implementation. Column drag-reorder is opt-in via
-// `onReorder`, so the presentation view gets the board without the editing.
+// a second, drifting implementation. Both drag behaviours are opt-in: standup
+// takes card-drag (`onIssueMove`) so a status can be corrected while it is being
+// discussed, but not column reorder (`onReorder`), which is a per-view layout
+// preference rather than something to fiddle with mid-presentation.
 
 import {
   assigneeLabel,
@@ -169,9 +171,9 @@ export function renderIssueCard(issue, creds, { showAssignee = true } = {}) {
   return card;
 }
 
-// Renders columns into `board`. Both drag behaviours are opt-in, so the standup
-// presentation board gets the same cards with neither: pass `onReorder` for
-// drag-to-reorder of columns, and `onIssueMove` for drag-a-card-between-columns.
+// Renders columns into `board`. Both drag behaviours are opt-in: pass
+// `onReorder` for drag-to-reorder of columns, and `onIssueMove` for
+// drag-a-card-between-columns.
 // `onIssueMove(issue, toColumnName, fromColumnName)` owns the Jira write.
 export function renderColumns(board, issues, groups, options = {}) {
   const {

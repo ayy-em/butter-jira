@@ -87,6 +87,8 @@ override file. Anything else is a finding.
 - [ ] Kanban card click → drawer; ⌘/Ctrl-click and middle-click → full page
 - [ ] Gantt child bar click → drawer; Monitor row keys → drawer
 - [ ] Esc closes the drawer; clicking the dark backdrop closes it; ✕ closes it
+- [ ] Drawer sits below the nav and above the footer — both stay fully visible
+- [ ] Clicking a nav tab with the drawer open navigates and closes the drawer
 - [ ] Opening a second issue from inside the drawer replaces the first
 - [ ] Header: status badge colour matches the status category (grey/blue/green)
 - [ ] Header: parent row shows type, key and truncated summary; its key opens the parent
@@ -122,12 +124,16 @@ override file. Anything else is a finding.
 - [ ] 5-second countdown shows the first person's name, then their board appears
 - [ ] Board shows only that person's current-sprint issues, no assignee avatars
 - [ ] Cards are readable from across a room; clicking one still opens the drawer
+- [ ] Drawer opened from the standup board leaves the clock bar and parking lot visible
+- [ ] Drag a card to another column → it moves, toast confirms, Jira reflects it
+- [ ] Drag to a column the workflow disallows → card snaps back, toast names the allowed statuses
+- [ ] Dragging does not open the drawer; the parking-lot text survives a drag
 - [ ] Countdown cue *finishes* as the clock reaches 0:00 (not before, not after)
 - [ ] Timer hits zero → keeps counting up in red, bar turns red, nobody is cut off
 - [ ] `+1 min` adds a minute without jumping the elapsed time
 - [ ] Space pauses (clock dims and freezes) and resumes; paused time is excluded
 - [ ] Pause for a minute, resume → remaining time is unchanged from when you paused
-- [ ] `→` advances → "GET READY" card with the next person's name and avatar
+- [ ] `→` advances → "GET READY" card with the next person's name and avatar, both large enough to read from the back of the room
 - [ ] Handoff auto-advances after ~4s into the next person's board
 - [ ] `b` / `k` / `m` do NOT navigate away during a session
 - [ ] Mute toggle silences both cues and persists across a reload

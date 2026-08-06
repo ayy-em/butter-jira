@@ -130,8 +130,9 @@ export function initRoster({ flash, requireLiveJira, getBoards }) {
       slack.value = member.slackHandle ? `@${member.slackHandle}` : "";
       slack.placeholder = "@slack";
       slack.title =
-        "Slack username, used to address this person in the standup parking-lot " +
-        "digest. The @ is optional.";
+        "Slack display name, used to address this person in the standup " +
+        "parking-lot digest. The @ is optional, and spaces are fine — type it " +
+        "exactly as Slack's @-autocomplete shows it.";
       slack.addEventListener("input", () => {
         members[i].slackHandle = normalizeSlackHandle(slack.value);
       });
