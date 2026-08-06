@@ -1,25 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <title>ButterJira</title>
+  <title>Issue — ButterJira</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="libs/frappe-gantt.min.css">
   <link rel="stylesheet" href="css/app.css">
-  <link rel="stylesheet" href="css/gantt.css">
   <link rel="stylesheet" href="css/backlog.css">
-  <link rel="stylesheet" href="css/kanban.css">
-  <link rel="stylesheet" href="css/filter.css">
-  <link rel="stylesheet" href="css/monitor.css">
   <link rel="stylesheet" href="css/issue.css">
 </head>
-<body>
-  <div id="nav"></div>
-  <div id="view-container"></div>
-  <div id="toast"></div>
-  <script src="libs/frappe-gantt.min.js"></script>
-  <script type="module" src="js/router.js"></script>
+<body class="issue-page-body">
+  <div class="issue-page-bar">
+    <a class="issue-page-home mono" href="app.html">← ButterJira</a>
+    <span class="issue-page-site mono" id="issue-page-site"></span>
+  </div>
+  <main class="issue-page-main" id="issue-root"></main>
+  <script type="module" src="js/issue-page.js"></script>
 </body>
 </html>

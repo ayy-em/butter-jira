@@ -1,6 +1,7 @@
 import { getAllEpics, getEpicChildren } from "../api.js";
 import { boardColor, getStartDate, BOARDS } from "../utils.js";
-import { browseUrl, boardSlug } from "../config.js";
+import { boardSlug } from "../config.js";
+import { attachIssueOpener, openIssueDrawer } from "../components/issue-detail.js";
 
 const VIEW_MODES      = ["Day", "Week", "Month", "Quarter Year"];
 const VIEW_MODE_LABELS = ["Day", "Week", "Month", "Quarter"];
@@ -468,11 +469,10 @@ export async function mount(container, creds) {
       custom_popup_html: task => `
         <div class="gantt-popup" style="padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:12px;">
           <div style="color:#E8EAF0;margin-bottom:4px;">${task.name}</div>
-          <div style="color:#6B7280;font-size:11px;">${task._isChild ? "Click to open in Jira" : "Click to expand children"}</div>
+          <div style="color:#6B7280;font-size:11px;">${task._isChild ? "Click for issue details" : "Click to expand children"}</div>
         </div>`,
       on_click: task => {
-        if (task._isChild)
-          window.open(browseUrl(task.id), "_blank", "noopener");
+        if (task._isChild) openIssueDrawer(task.id, creds);
         else toggleExpand(task.id);
       },
       on_date_change: () => {},
@@ -505,10 +505,9 @@ export async function mount(container, creds) {
       row.style.paddingLeft = "10px";
       const key = document.createElement("a");
       key.className = "issue-key mono";
-      key.href = browseUrl(epic.key);
-      key.target = "_blank"; key.rel = "noopener";
       key.style.color = boardColor(epic.boardId);
       key.textContent = epic.key;
+      attachIssueOpener(key, epic.key, creds);
       row.appendChild(key);
       const sum = document.createElement("span");
       sum.textContent = (epic.fields?.summary || "").slice(0, 60);

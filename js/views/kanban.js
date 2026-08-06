@@ -15,7 +15,7 @@ import {
   saveStatusGroups,
   resolveStatusGroup,
 } from "../utils.js";
-import { browseUrl } from "../config.js";
+import { openIssueDrawer, issuePageUrl } from "../components/issue-detail.js";
 
 async function loadColumnOrder() {
   const result = await chrome.storage.sync.get("kanbanColumnOrder");
@@ -382,8 +382,20 @@ export async function mount(container, creds) {
     const card = document.createElement("div");
     card.className = "kanban-card";
     card.style.borderTopColor = hashColor(issue.key);
-    card.addEventListener("click", () => {
-      window.open(browseUrl(issue.key), "_blank", "noopener");
+    // Whole card is clickable: plain click opens the drawer, modified or
+    // middle click opens the full page in a new tab.
+    card.addEventListener("click", (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey) {
+        window.open(issuePageUrl(issue.key), "_blank", "noopener");
+        return;
+      }
+      openIssueDrawer(issue.key, creds);
+    });
+    card.addEventListener("auxclick", (e) => {
+      if (e.button === 1) {
+        e.preventDefault();
+        window.open(issuePageUrl(issue.key), "_blank", "noopener");
+      }
     });
 
     const stripe = document.createElement("div");

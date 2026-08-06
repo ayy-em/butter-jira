@@ -222,6 +222,17 @@ export function issueFields() {
   return [...new Set([...BASE_ISSUE_FIELDS, ...roleFields, ...CONFIG.additionalFields])];
 }
 
+// Extra fields only the single-issue detail view needs. Kept out of the list
+// used for board-wide queries, where they would bloat every response.
+const DETAIL_ONLY_FIELDS = [
+  "description", "reporter", "project", "issuelinks",
+  "resolutiondate", "timetracking",
+];
+
+export function detailIssueFields() {
+  return [...new Set([...issueFields(), ...DETAIL_ONLY_FIELDS])];
+}
+
 // First non-empty value across the candidate fields for a role.
 export function fieldValue(issue, role) {
   const f = issue?.fields;
