@@ -1,0 +1,287 @@
+/* Chart roles, so the chart body is written against roles rather than raw hex
+   and each mode is selected in one place. Dark is the app's default; the light
+   values are a deliberate re-pick against the light surface, not a flip. */
+.dash-wrap,
+:root[data-theme="dark"] .dash-wrap {
+  --chart-surface: var(--surface);
+  --chart-series-1: #5598e7;      /* 5.89:1 on #161920 */
+  --chart-track: rgba(139, 145, 160, 0.16);
+  --chart-muted-line: #898781;    /* 4.90:1 on #161920 */
+  --chart-grid: #252830;
+}
+:root[data-theme="light"] .dash-wrap {
+  --chart-series-1: #2a78d6;      /* 4.42:1 on #FFFFFF */
+  --chart-track: rgba(75, 85, 99, 0.14);
+  --chart-muted-line: #6b7280;    /* 4.83:1 on #FFFFFF */
+  --chart-grid: #E5E7EB;
+}
+
+.dash-wrap {
+  padding: 16px 20px 40px;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.dash-header { margin-bottom: 16px; }
+.dash-title {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.dash-header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+}
+.dash-header-meta .dash-overdue { color: var(--accent-danger); }
+.dash-goal {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text);
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+}
+
+/* ── Stat tiles ───────────────────────────────────────────────────────────── */
+
+.dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.dash-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 12px 14px;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+}
+.dash-tile-clickable { cursor: pointer; transition: border-color 0.15s; }
+.dash-tile-clickable:hover { border-color: var(--muted); }
+
+.dash-tile-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  margin-bottom: 7px;
+}
+.dash-hint-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 9px;
+  cursor: help;
+}
+
+/* Proportional figures: tabular-nums would make a big number look loose. */
+.dash-tile-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--text);
+}
+.dash-tile-hero .dash-tile-value { font-size: 48px; }
+.dash-tile-icon { font-size: 15px; }
+
+.dash-tile-detail {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* Status states carry an icon and a word — never colour alone. */
+.dash-tile.state-good .dash-tile-icon { color: var(--accent-success); }
+.dash-tile.state-warning .dash-tile-icon { color: var(--accent-warning); }
+.dash-tile.state-critical .dash-tile-icon { color: var(--accent-danger); }
+.dash-tile.state-good { border-color: rgba(79, 207, 142, 0.4); }
+.dash-tile.state-warning { border-color: rgba(247, 145, 79, 0.4); }
+.dash-tile.state-critical { border-color: rgba(239, 68, 68, 0.4); }
+
+/* ── Cards ────────────────────────────────────────────────────────────────── */
+
+.dash-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 14px 16px 16px;
+  margin-bottom: 14px;
+}
+.dash-card-head { display: flex; align-items: baseline; gap: 12px; }
+.dash-card-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  margin-bottom: 12px;
+}
+.dash-readout {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+.dash-readout.behind { color: var(--accent-warning); }
+
+.dash-note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+.dash-burndown-empty { text-align: left; line-height: 1.55; padding: 14px 0; }
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 14px;
+}
+.dash-grid .dash-card { margin-bottom: 0; }
+
+/* ── Chart internals ──────────────────────────────────────────────────────── */
+
+.chart { display: block; overflow: visible; }
+
+/* Text wears text tokens; the marks carry the colour. */
+.chart-label { fill: var(--muted); font-size: 11px; font-family: 'IBM Plex Sans', sans-serif; }
+.chart-value {
+  fill: var(--text);
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+.chart-tick {
+  fill: var(--muted);
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+.chart-inline-label {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Recessive chrome: hairline, solid, one step off the surface. */
+.chart-grid { stroke: var(--chart-grid); stroke-width: 1; }
+.chart-crosshair { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+/* The ideal line is context, not data: same weight, recessive colour. */
+.chart-ideal { opacity: 0.85; }
+.chart-dot { cursor: crosshair; }
+
+.chart-empty {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 18px 0;
+  text-align: center;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 10px;
+}
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.chart-swatch {
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  flex: 0 0 12px;
+}
+.chart-swatch.dashed {
+  border-top: 2px dashed currentColor;
+  height: 0;
+  background: none;
+}
+.chart-dot-key {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+}
+
+/* ── Person table ─────────────────────────────────────────────────────────── */
+
+.dash-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.dash-table th {
+  text-align: left;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 0 8px 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dash-table td {
+  padding: 7px 8px 7px 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.dash-table tr:last-child td { border-bottom: none; }
+.dash-person-name { color: var(--text); }
+.dash-outside {
+  margin-left: 6px;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.dash-num {
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.dash-meter-cell { display: flex; align-items: center; gap: 8px; width: 55%; }
+
+/* Meter: fill and track from the same ramp, so state reads across the bar. */
+.dash-meter {
+  flex: 1;
+  min-width: 40px;
+  height: 8px;
+  background: var(--chart-track);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.dash-meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--chart-series-1);
+  border-radius: 4px;
+}
+.dash-meter-value {
+  font-size: 11px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
+}

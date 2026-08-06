@@ -137,6 +137,36 @@ Pull requests, branches and commits are **not** shown: Jira has no public API
 for them. That's tracked in the roadmap's deferred backlog, to be built against
 the GitHub API instead.
 
+### Sprint dashboard
+
+Press `d` or the SPRINT tab. Sprint name, goal, dates and working days left, then
+a KPI row: points complete, issues done, carried in, added after start, projected
+carry-out, and a hygiene score that links through to the Monitor tab.
+
+Below that: a burndown, sprint progression by status, and breakdowns by board and
+by person. Everything is derived from data the other views already fetched, so
+opening the tab normally costs no Jira requests at all.
+
+**About the burndown.** Jira has no public API for what a sprint looked like on a
+past day. The two available routes are a changelog request *per issue* (60 issues
+= 60 requests, every time you open the tab) and an undocumented internal endpoint.
+So ButterJira records its own aggregate once a day and builds history forward.
+That means:
+
+- the burndown appears on the **second day** you use the tab, not the first;
+- sprints that ran before you installed the extension have no history;
+- history is device-local and not part of a config export.
+
+The chart says which of these applies instead of drawing a line it can't support.
+
+Two figures are approximations, and the UI marks them: **added after start** is
+counted from issue creation date, so an older issue dragged into the sprint
+mid-flight isn't caught; **hygiene** is a coarse share of issues with no finding,
+meant as a nudge rather than a KPI to optimise.
+
+Sub-tasks are excluded from point totals — their estimates duplicate the parent
+story's — and the excluded count is shown rather than hidden.
+
 ### Standup mode
 
 Press `s` or the STANDUP tab. Pick who's in today, set each person's minutes
@@ -211,6 +241,7 @@ the product logo stands alone.
 | `k` | Kanban |
 | `m` | Monitor |
 | `s` | Standup |
+| `d` | Sprint dashboard |
 | `Esc` | Close the issue drawer |
 
 During a standup the keyboard belongs to the session: `Space` pauses, `→` moves
@@ -228,6 +259,9 @@ js/config.js        # all instance-specific config lives here
 js/credentials.js   # device-local token storage + expiry lifecycle
 js/team.js          # team roster: storage, display names, team-only filter
 js/monitor.js       # sprint hygiene checks (pure derivation)
+js/dashboard.js     # sprint aggregation (pure derivation)
+js/snapshots.js     # daily sprint snapshots — the burndown's history
+js/charts.js        # inline SVG chart primitives, no libraries
 js/standup.js       # standup session: order, phases, timing (DOM-free)
 js/sfx.js           # bundled sound cues
 js/sanitize.js      # allowlist sanitiser for Jira-rendered HTML
@@ -239,7 +273,7 @@ js/api.js           # Jira REST client (read-only)
 js/utils.js         # board/field/date/theme helpers + response cache
 js/router.js        # hash routing, setup flow, board picker
 js/components/      # nav bar, filter bar, re-auth prompt, issue detail, board
-js/views/           # backlog, gantt, kanban, monitor, standup
+js/views/           # dashboard, backlog, gantt, kanban, monitor, standup
 css/                # one stylesheet per view
 assets/sfx/         # standup sound cues
 libs/               # vendored frappe-gantt
@@ -259,6 +293,7 @@ node scripts/test-team.mjs         # roster, display names, filtering  (84 check
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
 node scripts/test-standup.mjs      # session timing, order, resume    (105 checks)
+node scripts/test-dashboard.mjs    # aggregation, burndown, geometry  (123 checks)
 ```
 
 `test-config.mjs` covers URL normalisation, the defaults → `config.local.json` →
@@ -284,6 +319,11 @@ handlers and script stripping — and ADF conversion in both directions.
 `test-standup.mjs` covers the standup session with injected clocks: seeded
 ordering, phase transitions, pause arithmetic (including multiple pauses),
 overrun, resume-after-reload, and the board grouping shared with Kanban.
+
+`test-dashboard.mjs` covers working-day arithmetic, carry-in and scope-change
+detection, the per-status/board/person buckets, snapshot storage and pruning, and
+the burndown series — plus chart geometry against a DOM shim, so a NaN coordinate
+or a label placed outside the viewBox fails the suite rather than the eye.
 
 `scripts/SMOKE-CHECKLIST.md` is the manual pass for anything involving the UI.
 
@@ -350,9 +390,9 @@ change the shape.
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) — issue detail, monitoring, standup mode, sprint
-planner and dashboards are planned. M0–M6 are done: hygiene, whitelabelling,
-durable identity/config, the team roster, the monitoring tab, issue detail, and
-standup mode.
+the sprint planner is planned. M0–M7 are done: hygiene, whitelabelling,
+durable identity/config, the team roster, the monitoring tab, issue detail,
+standup mode, and the sprint dashboard.
 
 ## Licence
 
