@@ -11,11 +11,11 @@ their own Jira site.
 
 | Aspect | Status |
 |---|---|
-| Views | Gantt, Backlog, Kanban (`js/views/`) |
+| Views | Gantt, Backlog, Kanban, Monitor (`js/views/`) |
 | Data access | Read-only, HTTP Basic (email + API token), `js/api.js` |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/agile/1.0/board/*` |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping), overridable via `config.local.json` |
-| Storage | `chrome.storage.sync` for config; `chrome.storage.local` for credentials, roster, schema version, and a 5-minute response cache |
+| Storage | `chrome.storage.sync` for config; `chrome.storage.local` for credentials, roster, view prefs, schema version, and a 5-minute response cache |
 | Build step | None — plain ES modules, one vendored lib (`libs/frappe-gantt`) |
 | Version control | `.gitignore` in place; `git init` when convenient |
 | Tests | None; manual checklist + `scripts/jira-smoke.js` connectivity check |
@@ -28,7 +28,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Milestone sequence at a glance
 
 ```
-M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ──▶ M5 Issue detail
+M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ✔ ─▶ M5 Issue detail
                                                                         │
                                                                         ├──▶ M6 Standup mode
                                                                         │
@@ -149,30 +149,31 @@ reused by later milestones. Verified by `scripts/test-team.mjs` (84 checks).
 
 ---
 
-## M4 — Monitoring tab *(feature 6)*
+## M4 — Monitoring tab ✔ *(feature 6)*
 
-**Size: S–M** · Depends on M3. The cheapest real feature here — no new endpoints.
+**Size: S–M** · Done. Depends on M3. Cheapest real feature here — no new endpoints.
 
-Four hygiene checks over the current sprint plus backlog data already in hand:
+**What was built**
 
-1. Unassigned issues
-2. Issues/stories/tasks with no epic parent
-3. Current-sprint issues with no due date
-4. Current-sprint issues with no story points
+- **Four hygiene checks** (`js/monitor.js`), pure derivation over issues the views already fetch: unassigned, no epic parent, no due date, no story points. Exit criteria met with no extra requests.
+- **Type exclusions, stated in the UI rather than hidden.** Every check skips epics and anything already done; all but "unassigned" also skip sub-tasks, because a sub-task hangs off a story — it has no epic of its own and inherits its parent's dates and estimate. Flagging all of them would have made the tab noise. Sub-tasks *do* count as unassigned, since nobody picking one up is a real gap.
+- **Done detection prefers `statusCategory`** over status names, so a workflow with a custom done status ("Shipped") is handled, and a status literally named "Done" that isn't in the done category is not.
+- **Epic detection works on both project styles**: `getEpicKey` reads the configured Epic Link field and falls back to `parent`, so company-managed and team-managed projects both resolve.
+- **Checks that cannot run say so** instead of flagging everything. With no story-points field mapped, "no story points" would otherwise report every issue on the board; it now renders as unavailable with a pointer to Settings, and contributes nothing to the totals. "No epic parent" carries a softer caveat when the Epic Link field is unmapped, since the parent fallback still works.
+- **Cross-check "fix these first"**: issues tripping more than one check are ranked at the top of the summary, because one edit clears several findings.
+- Scope toggle (current sprint / all issues, backlog fetched only when asked for), Team Only toggle shared with the other views, per-section counts, collapsible sections that start collapsed when clean, and a nav badge with the total.
+- Per-check muting in Settings, stored as mutes only — so a check added later defaults to on rather than silently off.
 
-- One tab, four collapsible sections, per-section counts as nav badges.
-- Each row: key, summary, board, assignee, and a jump-out link. Rows become deep links into the M5 detail drawer once it exists; until then, link to Jira `/browse/{key}`.
-- Configurable checks (mute a check, or scope it to team-only via M3).
-- Empty state that is actually satisfying — this tab should be boring most days.
-
-**Exit criteria:** the four checks are correct against a real sprint, and each
-finding is one click from being fixed (in Jira now, in-app after M8).
+**Exit criteria met:** the four checks are correct against synthetic fixtures
+covering both Jira project styles (`scripts/test-monitor.mjs`, 54 checks), and
+every finding is one click from Jira. In-app fixing arrives with the write layer
+in M8.
 
 ---
 
 ## M5 — Issue detail *(feature 4)*
 
-**Size: L** · Depends on M4 (shares the drawer/route shell).
+**Size: L** · Depends on M4 (whose rows become deep links into the drawer).
 
 Fields: key, summary, status, type, assignee/reporter, start and end dates, due
 date, story points, sprint, description, linked issues, subtasks, comments, and

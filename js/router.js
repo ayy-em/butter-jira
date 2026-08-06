@@ -64,6 +64,7 @@ async function init() {
     if (e.key === "r" || e.key === "R") location.hash = "#gantt";
     if (e.key === "b" || e.key === "B") location.hash = "#backlog";
     if (e.key === "k" || e.key === "K") location.hash = "#kanban";
+    if (e.key === "m" || e.key === "M") location.hash = "#monitor";
   });
 
   if (!creds || !isConfigured()) {
@@ -107,6 +108,9 @@ async function mountView(creds) {
         break;
       case "#gantt":
         viewModule = await import("./views/gantt.js");
+        break;
+      case "#monitor":
+        viewModule = await import("./views/monitor.js");
         break;
       default:
         viewModule = await import("./views/backlog.js");

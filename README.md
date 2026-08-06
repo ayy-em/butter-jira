@@ -1,7 +1,8 @@
 # ButterJira
 
-A Chrome extension that gives you Gantt (roadmap), Backlog, and Kanban views
-across several Jira boards at once, in one tab, with your own status grouping.
+A Chrome extension that gives you Gantt (roadmap), Backlog, Kanban, and sprint
+hygiene views across several Jira boards at once, in one tab, with your own
+status grouping.
 Because the other one sucks.
 
 Works against any Jira Cloud site — nothing about your instance is baked into
@@ -49,6 +50,7 @@ Everything is editable from the Settings page (⚙ in the nav bar):
 - **Boards in scope** — import from Jira, or add board ID + label + project key manually
 - **Status column grouping** — map your workflow's statuses onto Kanban columns
 - **Team roster** — who is on the team, with display-name overrides and emoji
+- **Monitoring checks** — mute any of the four hygiene checks
 - **Field mapping** — which custom field holds story points, start date, epic link, sprint
 - **Additional fields** — extra field IDs to fetch on every issue query
 - **Branding** — optional org name and logo shown in the nav bar
@@ -109,6 +111,31 @@ other people's personal data. It is never written to synced storage, never
 belongs in `config.local.json`, and is excluded from config exports unless you
 tick the box.
 
+### Monitor tab
+
+Four hygiene checks over the sprint, derived from data the other views already
+fetch — no extra Jira requests:
+
+| Check | Asks |
+|---|---|
+| Unassigned | Who is picking this up? |
+| No epic parent | Which piece of work does this belong to? |
+| No due date | When is this expected to land? |
+| No story points | How big is this? |
+
+Every check skips epics and anything already done. All but "unassigned" also
+skip sub-tasks: a sub-task hangs off a story, so it has no epic of its own and
+inherits its parent's dates and estimate — flagging them all would just be
+noise. The exclusions are printed next to each check rather than left implicit.
+
+Issues that trip more than one check are ranked under **Fix these first**, since
+one edit clears several findings. A check with no field to read (for example
+story points on a site where that field isn't mapped) reports itself as
+unavailable instead of flagging every issue.
+
+Scope defaults to the current sprint; switch to **All Issues** to include the
+backlog. **Team Only** and the scope choice are both remembered.
+
 ### Branding
 
 `assets/brand/` is gitignored apart from its `.gitkeep`. Drop a logo there,
@@ -131,6 +158,7 @@ the product logo stands alone.
 | `b` | Backlog |
 | `r` | Roadmap (Gantt) |
 | `k` | Kanban |
+| `m` | Monitor |
 
 ## Layout
 
@@ -141,6 +169,7 @@ background.js       # service worker: opens the app tab
 js/config.js        # all instance-specific config lives here
 js/credentials.js   # device-local token storage + expiry lifecycle
 js/team.js          # team roster: storage, display names, team-only filter
+js/monitor.js       # sprint hygiene checks (pure derivation)
 js/roster-ui.js     # roster editor for the Settings page
 js/migrations.js    # numbered storage migrations
 js/portable.js      # config export/import
@@ -148,7 +177,7 @@ js/api.js           # Jira REST client (read-only)
 js/utils.js         # board/field/date/theme helpers + response cache
 js/router.js        # hash routing, setup flow, board picker
 js/components/      # nav bar, filter bar, re-auth prompt
-js/views/           # backlog, gantt, kanban
+js/views/           # backlog, gantt, kanban, monitor
 css/                # one stylesheet per view
 libs/               # vendored frappe-gantt
 scripts/            # jira-smoke.js, manual smoke checklist
@@ -164,6 +193,7 @@ Config-layer unit checks — no dependencies, no network, no browser:
 node scripts/test-config.mjs       # config layer, field discovery     (68 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (82 checks)
 node scripts/test-team.mjs         # roster, display names, filtering  (84 checks)
+node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 ```
 
 `test-config.mjs` covers URL normalisation, the defaults → `config.local.json` →
@@ -177,6 +207,10 @@ export/import validation.
 `test-team.mjs` covers roster storage and deduplication, display-name
 resolution, the team-only filter, linking members added by email, and
 roster export/import opt-in.
+
+`test-monitor.mjs` covers each hygiene check's type exclusions, done-detection
+via `statusCategory`, both Jira epic-linking styles, muting, and the
+unavailable-check path.
 
 `scripts/SMOKE-CHECKLIST.md` is the manual pass for anything involving the UI.
 
@@ -243,8 +277,8 @@ change the shape.
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) — issue detail, monitoring, standup mode, sprint
-planner, and dashboards are planned. M0–M3 are done: hygiene, whitelabelling,
-durable identity/config, and the team roster.
+planner, and dashboards are planned. M0–M4 are done: hygiene, whitelabelling,
+durable identity/config, the team roster, and the monitoring tab.
 
 ## Licence
 

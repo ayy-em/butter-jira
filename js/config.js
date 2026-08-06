@@ -79,11 +79,13 @@ const DEFAULTS = {
     sprint: [],
   },
   additionalFields: [], // extra field IDs to request on every issue query
+  // Monitoring checks are on unless explicitly muted — see js/monitor.js.
+  monitorChecks: {},
 };
 
 const STORAGE_KEYS = [
   "configVersion", "site", "brand", "boards",
-  "statusGroups", "fields", "additionalFields",
+  "statusGroups", "fields", "additionalFields", "monitorChecks",
 ];
 
 // Live config object. Mutated in place so modules can hold a reference.

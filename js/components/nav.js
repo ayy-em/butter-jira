@@ -1,10 +1,12 @@
 import { loadTheme, saveTheme } from "../utils.js";
 import { CONFIG, siteHost, wikiUrl } from "../config.js";
+import { getBadgeCount } from "../monitor.js";
 
 const TABS = [
   { hash: "#backlog", label: "BACKLOG", key: "b" },
   { hash: "#gantt", label: "ROADMAP", key: "r" },
   { hash: "#kanban", label: "KANBAN", key: "k" },
+  { hash: "#monitor", label: "MONITOR", key: "m" },
 ];
 
 let lastSync = null;
@@ -99,9 +101,19 @@ export async function renderNav(onRefresh) {
     btn.className = "nav-tab mono";
     btn.textContent = tab.label;
     btn.dataset.hash = tab.hash;
+    if (tab.hash === "#monitor") {
+      const badge = document.createElement("span");
+      badge.className = "nav-tab-badge";
+      badge.id = "monitor-badge";
+      badge.hidden = true;
+      btn.appendChild(badge);
+    }
     leftGroup.appendChild(btn);
   }
   nav.appendChild(leftGroup);
+
+  // Restore a count already computed earlier this session.
+  updateMonitorBadge(getBadgeCount());
 
   const centerGroup = document.createElement("div");
   centerGroup.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;";
@@ -293,6 +305,20 @@ function fireConfetti(cx, cy) {
     container.appendChild(p);
   }
   setTimeout(() => container.remove(), 1600);
+}
+
+// The count comes from the Monitor view's last run — no extra Jira requests
+// are made just to keep this badge fresh.
+export function updateMonitorBadge(count) {
+  const badge = document.getElementById("monitor-badge");
+  if (!badge) return;
+  if (typeof count !== "number" || count <= 0) {
+    badge.hidden = true;
+    badge.textContent = "";
+    return;
+  }
+  badge.hidden = false;
+  badge.textContent = count > 99 ? "99+" : String(count);
 }
 
 export function updateActiveTab() {
