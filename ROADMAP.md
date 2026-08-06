@@ -11,7 +11,7 @@ their own Jira site.
 
 | Aspect | Status |
 |---|---|
-| Views | Gantt, Backlog, Kanban, Monitor, Issue detail (drawer + full page) |
+| Views | Gantt, Backlog, Kanban, Monitor, Standup, Issue detail (drawer + full page) |
 | Data access | HTTP Basic (email + API token), `js/api.js`. Read-only except posting comments |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/agile/1.0/board/*` |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping), overridable via `config.local.json` |
@@ -30,7 +30,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ```
 M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ✔ ─▶ M5 Issue detail ✔
                                                                         │
-                                                                        ├──▶ M6 Standup mode
+                                                                        ├──▶ M6 Standup ✔
                                                                         │
                                                                         └──▶ M7 Dashboard ──▶ M8 Writes + Planner ──┬──▶ M9 Palette + Triage
                                                                                                                     └──▶ M10 Sprint Wrapped
@@ -213,27 +213,32 @@ homebrewed against the GitHub API later.
 
 ---
 
-## M6 — Daily standup mode *(feature 7)*
+## M6 — Daily standup mode ✔ *(feature 7)*
 
-**Size: L** · Depends on M3 (roster) and reuses the Kanban renderer.
+**Size: L** · Done. Depends on M3 (roster) and reuses the Kanban renderer.
 
-Flow: **Start** → pick who is in today → per-person duration (default 2 min) →
-randomise order → 5-second countdown → person's Kanban (current sprint, their
-issues) → audio cue at 3-2-1 → draw next name → "get ready" card with name and
-avatar → fade → next Kanban, timer starts.
+Flow as specified: **Start** → who's in today → per-person duration (default
+2 min) → randomised order → 5-second countdown → that person's sprint board →
+countdown cue before time is up → "get ready" card with the next person's name
+and avatar → their board, timer running.
 
-- Attendance picker prefilled from `activeMembers()`; remembers yesterday's selection.
-- Per-person duration with a bulk "set all" and a visible total ("14 min for 7 people").
-- Seeded shuffle so an interrupted session can resume the same order.
-- State machine — `idle → countdown → speaking → handoff → done` — held in one place. Timer drift matters here: use timestamp deltas, not accumulated `setInterval` ticks.
-- Audio: bundle short cue files in `assets/sfx/` (CSP and `host_permissions` rule out fetching them remotely). Mute toggle, and pre-warm the audio element so the first cue is not swallowed by autoplay policy.
-- Per-person Kanban = existing Kanban filtered to assignee + active sprint. Reuse, do not fork, `js/views/kanban.js`.
-- Overrun handling: keep counting up in red rather than cutting someone off mid-sentence.
-- Parking-lot notes pane, cleared per session, exportable as plain text.
-- Full-screen presentation mode, readable from across a room, keyboard-only controls (space = pause, → = next).
+**What was built**
 
-**Exit criteria:** a real standup runs end to end without anyone touching a
-mouse, and a mid-session browser reload does not lose the order.
+- **Session logic** (`js/standup.js`) — DOM-free and audio-free, so the awkward parts are unit-testable: phase machine (`countdown → speaking → handoff → speaking → … → done`), pause arithmetic, overrun, and resume.
+- **Timing from timestamps, never accumulated ticks.** A background tab throttles `setInterval` to once a second or worse; a counter built from ticks would silently fall behind the wall clock exactly when someone tabs away mid-standup. Every displayed value is derived from `Date.now()` deltas minus paused stretches.
+- **Seeded shuffle** (mulberry32 + Fisher–Yates). A reload offers "Resume — same order as before", and the order is reproducible from the stored seed alone.
+- **Attendance** prefilled from `activeMembers()`, remembering yesterday's selection, with "All in" / "None", per-person minutes, a bulk "set all", each person's sprint issue count (so an empty board is visible before the meeting), and both speaking and wall-clock totals — the latter including the lead-in and hand-offs.
+- **Audio** (`js/sfx.js`) — the two supplied cues, bundled under `assets/sfx/`. `dun-dun-dun` fires as the standup starts; the countdown cue is scheduled from its own measured duration so it *finishes* exactly as the clock hits zero, rather than starting at a hardcoded 3 seconds. `unlock()` runs inside the Start button's click handler to satisfy the autoplay policy and warm the buffers, so the first real cue isn't swallowed. Mute toggle, persisted.
+- **Board reuse, not a fork.** The card and column rendering moved out of `js/views/kanban.js` into `js/components/board.js` (Kanban dropped from 507 to ~300 lines) and standup renders the same cards, with drag-reorder opt-in so the stage gets a read-only board and assignee avatars suppressed (the whole board is one person's).
+- **Overrun** counts up in red with the progress bar turning red, rather than cutting anyone off. `+1 min` extends the current person without disturbing the elapsed clock.
+- **Presentation mode**: full-screen on start, nav and footer hidden, type scaled for reading across a room, and keyboard-only control — Space pauses, → advances, Esc ends. The router yields the keyboard while a session is live, so `b`/`r`/`k` can't navigate away and lose the standup.
+- **Parking lot** per session, saved as you type, shown in the summary with copy-to-clipboard and download-as-txt.
+- **Summary** after the last person: actual vs planned time each, overruns flagged, people never reached marked as such.
+
+**Exit criteria met:** the flow runs mouse-free, and a mid-session reload
+resumes the same order at the same person. Verified by
+`scripts/test-standup.mjs` (105 checks) covering pause arithmetic, overrun,
+transitions, resume, and the shared board grouping.
 
 ---
 
