@@ -1,9 +1,18 @@
 /* ── Drawer shell ─────────────────────────────────────────────────────────── */
 
+/* The drawer slides in over the *view*, not over the whole window: the app's
+   own chrome — nav and footer, or standup's bar and parking lot — keeps its
+   band and stays readable and clickable behind the dimmed backdrop. The offsets
+   are measured against whatever chrome is on screen when the drawer opens (see
+   drawerBounds in js/components/issue-detail.js); the z-index is belt and
+   braces, sitting under #nav and #app-footer at 100. */
 .issue-drawer-overlay {
   position: fixed;
-  inset: 0;
-  z-index: 250;
+  left: 0;
+  right: 0;
+  top: var(--drawer-top, 0px);
+  bottom: var(--drawer-bottom, 0px);
+  z-index: 90;
   display: flex;
   justify-content: flex-end;
   background: rgba(13, 15, 18, 0.6);
@@ -18,13 +27,23 @@
   background: var(--bg);
   border-left: 1px solid var(--border);
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
-  animation: drawer-in 0.2s ease;
+  /* Decelerating, so it reads as arriving from off-screen right rather than
+     appearing and settling. */
+  animation: drawer-in 0.24s cubic-bezier(0.22, 1, 0.36, 1);
   display: flex;
   flex-direction: column;
 }
 @keyframes drawer-in {
-  from { transform: translateX(24px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.issue-drawer-overlay { animation: drawer-fade 0.24s ease; }
+@keyframes drawer-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .issue-drawer, .issue-drawer-overlay { animation: none; }
 }
 
 .issue-drawer-close {

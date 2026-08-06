@@ -166,8 +166,22 @@ check("bare handle kept", team.normalizeSlackHandle("ada") === "ada");
 check("leading @ stripped", team.normalizeSlackHandle("@ada") === "ada");
 check("repeated @ stripped", team.normalizeSlackHandle("@@ada") === "ada");
 check("dots, dashes, underscores kept", team.normalizeSlackHandle("ada.lovelace_x-1") === "ada.lovelace_x-1");
-check("spaces and junk dropped", team.normalizeSlackHandle(" ada love!ace ") === "adaloveace");
+// Slack display names carry spaces and accents — the digest has to reproduce
+// them verbatim or the @-mention matches nobody.
+check("spaces kept", team.normalizeSlackHandle("Ada Lovelace") === "Ada Lovelace");
+check("leading @ stripped from a spaced name", team.normalizeSlackHandle("@Ada Lovelace") === "Ada Lovelace");
+check("space after the @ tolerated", team.normalizeSlackHandle("@ Ada Lovelace") === "Ada Lovelace");
+check("non-ascii kept", team.normalizeSlackHandle("Renée Örn") === "Renée Örn");
+check("outer whitespace trimmed", team.normalizeSlackHandle("  ada  ") === "ada");
+check("runs of whitespace collapsed", team.normalizeSlackHandle("Ada   Lovelace") === "Ada Lovelace");
+check("newlines flattened", team.normalizeSlackHandle("Ada\nLovelace") === "Ada Lovelace");
+check("tabs flattened", team.normalizeSlackHandle("Ada\tLovelace") === "Ada Lovelace");
+check("no trailing space after truncation", (() => {
+  const out = team.normalizeSlackHandle(`${"a".repeat(79)} bcd`);
+  return out.length === 79 && !/\s$/.test(out);
+})());
 check("empty stays empty", team.normalizeSlackHandle("") === "");
+check("only-@ stays empty", team.normalizeSlackHandle("@") === "");
 check("undefined stays empty", team.normalizeSlackHandle(undefined) === "");
 check("mention uses handle",
   (await (async () => {

@@ -39,6 +39,31 @@ export function attachIssueOpener(anchor, issueKey, creds) {
 
 let openDrawer = null;
 
+// The drawer occupies the band between whatever the current view has pinned to
+// the top and bottom of the window, so the chrome stays visible while an issue
+// is open. Views with their own frame opt in with data-drawer-top /
+// data-drawer-bottom — standup does, so its clock and parking lot survive a
+// card being opened mid-turn.
+const TOP_CHROME = ["[data-drawer-top]", "#nav"];
+const BOTTOM_CHROME = ["[data-drawer-bottom]", "#app-footer", ".expiry-banner"];
+
+// Largest inset from `edge` across the visible chrome. Height rather than
+// offsetParent as the visibility test: offsetParent is null for position:fixed
+// elements, which is exactly what the nav and footer are.
+function chromeInset(selectors, edge) {
+  let inset = 0;
+  for (const selector of selectors) {
+    for (const el of document.querySelectorAll(selector)) {
+      const rect = el.getBoundingClientRect();
+      if (rect.height <= 0) continue;
+      inset = Math.max(inset, edge === "top" ? rect.bottom : window.innerHeight - rect.top);
+    }
+  }
+  // A view whose chrome fills the window would otherwise collapse the drawer to
+  // nothing; leave it at least half the height to land in.
+  return Math.min(Math.max(0, Math.round(inset)), Math.round(window.innerHeight / 4));
+}
+
 export async function openIssueDrawer(issueKey, creds) {
   openDrawer?.close();
 
@@ -63,15 +88,29 @@ export async function openIssueDrawer(issueKey, creds) {
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
+  // Re-measured on resize because standup's top bar wraps its controls onto a
+  // second row at narrow widths, which moves the band.
+  function applyBounds() {
+    overlay.style.setProperty("--drawer-top", `${chromeInset(TOP_CHROME, "top")}px`);
+    overlay.style.setProperty("--drawer-bottom", `${chromeInset(BOTTOM_CHROME, "bottom")}px`);
+  }
+  applyBounds();
+  window.addEventListener("resize", applyBounds);
+
   function close() {
     overlay.remove();
     document.removeEventListener("keydown", onKey);
+    window.removeEventListener("resize", applyBounds);
+    window.removeEventListener("hashchange", close);
     openDrawer = null;
   }
   function onKey(e) {
     if (e.key === "Escape") close();
   }
   document.addEventListener("keydown", onKey);
+  // The nav stays clickable behind the drawer now, so a view change has to take
+  // the drawer with it rather than leaving it floating over the new view.
+  window.addEventListener("hashchange", close);
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close();
   });

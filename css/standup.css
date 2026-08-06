@@ -218,16 +218,22 @@
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
+/* This is the announcement screen — read from across the room, for the two
+   seconds before someone starts talking. Sized off vmin rather than vw so a
+   short, wide meeting-room display scales it down instead of overflowing. */
 .standup-handoff-avatar {
-  width: clamp(96px, 14vw, 168px);
-  height: clamp(96px, 14vw, 168px);
+  width: clamp(140px, 30vmin, 320px);
+  height: clamp(140px, 30vmin, 320px);
   border-radius: 50%;
   object-fit: cover;
-  border: 3px solid var(--accent-primary);
+  border: 4px solid var(--accent-primary);
 }
 .standup-handoff-name {
-  font-size: clamp(30px, 5vw, 56px);
+  font-size: clamp(42px, 9vmin, 104px);
   font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.5px;
+  text-align: center;
   color: var(--text);
 }
 .standup-handoff-clock { font-size: 22px; color: var(--muted); }

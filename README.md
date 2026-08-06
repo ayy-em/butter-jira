@@ -98,8 +98,14 @@ a Jira profile URL) always works. Adding by **email** stores the person as
 account ID is filled in, which happens automatically on the next harvest.
 
 Per member you can set a display-name override (used everywhere in place of the
-Jira name), an emoji, an avatar override, and an active flag. Inactive members
-are kept but ignored by filters.
+Jira name), an emoji, an avatar override, a Slack handle, and an active flag.
+Inactive members are kept but ignored by filters.
+
+The Slack handle is only used to address people in the standup parking-lot
+digest, so type it exactly as Slack's @-autocomplete shows it — **spaces and
+accents included**. The old `@lowercase-no-spaces` rule belonged to Slack's
+legacy *username*, retired in 2017; what mentions match now is the display name,
+which in directory-provisioned workspaces is usually someone's full name.
 
 **Team Only** in the filter bar hides work assigned outside the roster. It keeps
 unassigned issues visible on purpose — those are usually the team's problem too.
@@ -114,9 +120,13 @@ tick the box.
 ### Issue detail
 
 Click any issue key (or a Kanban card, or a Gantt child bar) to open the issue in
-a slide-over drawer. **⌘/Ctrl-click, middle-click, or "open link in new tab"**
-opens the same detail as a full page instead — that page is linkable and
-reloadable, the drawer is not.
+a drawer that slides in from the right. **⌘/Ctrl-click, middle-click, or "open
+link in new tab"** opens the same detail as a full page instead — that page is
+linkable and reloadable, the drawer is not.
+
+The drawer covers the view, not the window: the nav and footer keep their bands
+and stay usable, and in standup so do the speaker's clock and the parking lot.
+Escape closes it, as does clicking the dimmed area or navigating away.
 
 Shows the header (key, status, type, parent, project, links out to Jira),
 assignee and reporter, description, start/due dates, story points, sprint,
@@ -179,6 +189,9 @@ board in a randomised order, one at a time, full-screen.
   time without disturbing the clock.
 - Reload mid-standup and you get "Resume — same order as before": the order
   comes from a stored seed, so it's reproducible.
+- Cards drag between columns on the speaker's board, exactly as they do on
+  Kanban — "that one's actually done" gets fixed in the meeting rather than
+  after it.
 - A parking-lot box is saved as you type and appears in the end summary, with
   copy and download buttons.
 - The summary shows actual vs planned time per person and who never got reached.

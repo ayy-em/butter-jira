@@ -8,6 +8,7 @@ import {
   slackMentionFor,
 } from "../team.js";
 import { renderColumns } from "../components/board.js";
+import { createIssueMover } from "../issue-move.js";
 import * as sfx from "../sfx.js";
 import {
   DEFAULT_DURATION_SEC,
@@ -53,6 +54,10 @@ export async function mount(container, creds) {
   let session = null;
   let ticker = null;
   let countdownCuePlayed = false;
+  // The board element of the person currently speaking, so a card drop can
+  // repaint just the columns. Re-rendering the whole stage would blow away the
+  // parking-lot textarea mid-sentence.
+  let speakingBoard = null;
 
   const wrap = document.createElement("div");
   wrap.className = "standup-wrap";
@@ -527,26 +532,27 @@ export async function mount(container, creds) {
 
     const progress = document.createElement("div");
     progress.className = "standup-progress";
+    // Bottom edge of the stage's top chrome: the issue drawer opens below it so
+    // the speaker's name and clock stay on screen.
+    progress.dataset.drawerTop = "";
     const fill = document.createElement("div");
     fill.className = "standup-progress-fill";
     fill.id = "standup-progress-fill";
     progress.appendChild(fill);
     el.appendChild(progress);
 
-    const boardWrap = document.createElement("div");
-    boardWrap.className = "standup-board kanban-board";
     const mine = issuesFor(id);
     if (!mine.length) {
+      speakingBoard = null;
       const empty = document.createElement("div");
       empty.className = "standup-empty";
       empty.textContent = "Nothing assigned in the current sprint.";
       el.appendChild(empty);
     } else {
-      renderColumns(boardWrap, mine, statusGroups, {
-        creds,
-        showAssignee: false,
-        emptyLabel: "—",
-      });
+      const boardWrap = document.createElement("div");
+      boardWrap.className = "standup-board kanban-board";
+      speakingBoard = boardWrap;
+      paintSpeakingBoard(id);
       el.appendChild(boardWrap);
     }
 
@@ -554,6 +560,8 @@ export async function mount(container, creds) {
     // the next person and the end screen can address each note to someone.
     const notes = document.createElement("div");
     notes.className = "standup-parking";
+    // …and its bottom chrome, so a note can still be typed with an issue open.
+    notes.dataset.drawerBottom = "";
     const notesLabel = document.createElement("label");
     notesLabel.className = "standup-parking-label mono";
     notesLabel.textContent = `Parking lot — ${labelFor(id)}`;
@@ -573,6 +581,28 @@ export async function mount(container, creds) {
     el.appendChild(notes);
 
     return el;
+  }
+
+  // Standup is where a card's status is most often wrong — someone says "that's
+  // actually done" while their board is on screen. The same drag-between-columns
+  // the Kanban view has, so the fix happens in the meeting rather than after it.
+  const moveIssue = createIssueMover({
+    creds,
+    getGroups: () => statusGroups,
+    repaint: () => paintSpeakingBoard(),
+  });
+
+  // Called with an id from the initial render, and without one from a card drop
+  // — where the session may already have moved on, or ended while the write was
+  // in flight, so the current speaker is looked up rather than captured.
+  function paintSpeakingBoard(id = session ? currentId(session) : null) {
+    if (!speakingBoard || !id) return;
+    renderColumns(speakingBoard, issuesFor(id), statusGroups, {
+      creds,
+      showAssignee: false,
+      emptyLabel: "—",
+      onIssueMove: moveIssue,
+    });
   }
 
   function ctrlBtn(label, onClick, extra = "") {
