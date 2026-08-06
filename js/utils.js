@@ -27,6 +27,17 @@ export async function loadBoards() {
   return syncBoardsFromConfig();
 }
 
+// Points the live board list at an explicit set. The Settings page needs this:
+// it stages board edits in its own array and never calls loadBoards(), so
+// without it every Jira call made from Settings sees no boards at all.
+export function setBoardList(boards) {
+  BOARDS.length = 0;
+  (boards || []).forEach((board, i) => {
+    BOARDS.push({ ...board, color: board.color || boardPaletteColor(i) });
+  });
+  return BOARDS;
+}
+
 export async function saveBoards(boards) {
   await saveConfig({ boards });
   return syncBoardsFromConfig();
@@ -148,6 +159,26 @@ export async function saveStatusGroups(groups) {
   await saveConfig({ statusGroups: groups });
 }
 
+// Today as YYYY-MM-DD in local time. Jira due dates are date-only strings, and
+// ISO dates compare lexicographically, so string comparison is both correct and
+// free of timezone drift.
+export function todayIso(now = new Date()) {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Past its due date and still not finished. "Finished" comes from Jira's own
+// status category rather than a column name, so a renamed or regrouped Done
+// column still counts as done. Due *today* is not overdue.
+export function isOverdue(issue, now = new Date()) {
+  const due = issue?.fields?.duedate;
+  if (!due) return false;
+  if (issue.fields?.status?.statusCategory?.key === "done") return false;
+  return String(due).slice(0, 10) < todayIso(now);
+}
+
 export function resolveStatusGroup(statusName, groups) {
   if (!statusName) return "To Do";
   for (const g of groups) {
@@ -192,4 +223,26 @@ export const cache = {
     const keys = Object.keys(all).filter((k) => k.startsWith("cache_"));
     if (keys.length) await chrome.storage.local.remove(keys);
   },
+  // Targeted invalidation after a write, so changing one issue's status doesn't
+  // cost a refetch of every board's sprints, backlog and epics.
+  async dropBoard(boardId) {
+    const all = await chrome.storage.local.get(null);
+    const keys = Object.keys(all).filter(
+      (k) =>
+        k.startsWith(`cache_sprintIssues_${boardId}_`) ||
+        k === `cache_backlog_${boardId}`
+    );
+    if (keys.length) await chrome.storage.local.remove(keys);
+  },
 };
+
+// Shared by the router and any view that needs to report a one-off outcome.
+export function showToast(message, isError = false) {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.className = "visible" + (isError ? " error" : "");
+  setTimeout(() => {
+    toast.className = "";
+  }, 5000);
+}

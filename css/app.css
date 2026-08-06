@@ -400,6 +400,13 @@ html, body {
   white-space: nowrap;
 }
 .nav-jira-link:hover { color: var(--text); border-color: var(--muted); }
+/* No site URL configured — the link opens Settings, and says so. */
+.nav-jira-link.unset {
+  color: var(--accent-warning);
+  border-color: var(--accent-warning);
+  border-style: dashed;
+}
+.nav-jira-link.unset:hover { color: var(--accent-warning); border-color: var(--accent-warning); }
 
 /* ── Token expiry banner ─────────────────────────────────────────────────── */
 .expiry-banner {

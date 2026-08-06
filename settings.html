@@ -238,7 +238,8 @@
     .inline-row { display: flex; gap: 6px; margin-bottom: 8px; }
     .inline-row input { margin-bottom: 0; }
     .inline-btn { width: auto; flex: 0 0 auto; padding: 8px 12px; margin-bottom: 0; }
-    .roster-row { gap: 6px; }
+    /* Five fields per person: wrap rather than squeeze them to nothing. */
+    .roster-row { gap: 6px; flex-wrap: wrap; row-gap: 5px; }
     .roster-avatar {
       width: 22px; height: 22px; border-radius: 50%; flex: 0 0 22px;
       object-fit: cover; background: var(--border);
@@ -251,7 +252,16 @@
       flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--muted);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
+    .roster-avatar-slot { display: flex; align-items: center; flex: 0 0 22px; }
     .roster-row input.roster-override { flex: 1 1 96px; min-width: 0; }
+    .roster-row input.roster-avatar-path {
+      flex: 1 1 120px; min-width: 0; font-size: 10px;
+    }
+    .roster-row input.roster-avatar-path.invalid,
+    .roster-row input.roster-avatar-path.missing {
+      border-color: var(--accent-warning); color: var(--accent-warning);
+    }
+    .roster-row input.roster-slack { flex: 1 1 92px; min-width: 0; font-size: 10px; }
     .roster-row input.roster-emoji { flex: 0 0 44px; text-align: center; }
     .roster-badge {
       font-family: 'IBM Plex Mono', monospace; font-size: 9px;
@@ -351,6 +361,17 @@
       config export unless you tick the box below.
     </div>
     <div class="board-list" id="rosterList"></div>
+    <div class="hint">
+      Each row: display-name override, an optional picture path, then an optional
+      Slack username — standup uses that to build a copy-pastable parking-lot
+      message at the end. Drop image
+      files into <code>assets/avatars/</code> in the extension folder and point a
+      row at one (e.g. <code>assets/avatars/sam.png</code>) to replace that
+      person's Jira profile picture everywhere in the app. The path is relative
+      to the extension folder — URLs are not accepted. That folder is
+      git-ignored, since photos of colleagues are personal data. Reload the
+      extension after adding files.
+    </div>
     <div class="hint" id="rosterNote"></div>
 
     <div class="btn-row">

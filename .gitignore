@@ -8,6 +8,12 @@ config.local.json
 assets/brand/*
 !assets/brand/.gitkeep
 
+# ── Team avatars ────────────────────────────────────────────────────────────
+# Roster picture overrides. Photos of colleagues are personal data: they belong
+# on the device, next to the roster in local storage, not in the repo.
+assets/avatars/*
+!assets/avatars/.gitkeep
+
 # ── Secrets ─────────────────────────────────────────────────────────────────
 # API tokens live in browser storage, never on disk. These patterns exist so a
 # stray file can't be committed by accident.
@@ -17,6 +23,10 @@ key.pem
 .env.*
 !.env.example
 secrets.json
+
+# Config exported from the Settings page. Normally lands in ~/Downloads, but if
+# one is saved here it can carry a live API token and roster names/emails.
+butterjira-config-*.json
 
 # ── Packaging output ────────────────────────────────────────────────────────
 *.zip

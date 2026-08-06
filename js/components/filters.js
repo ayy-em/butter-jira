@@ -48,6 +48,21 @@ export function applyFilters(issues, state) {
   });
 }
 
+// One-shot filter intent: the command palette sets this just before navigating
+// to a view, and the next renderFilters() consumes it. Deliberately not sticky —
+// jumping to a person once should not silently filter the view forever.
+let pendingAssigneeIds = null;
+
+export function requestAssigneeFilter(accountIds) {
+  pendingAssigneeIds = Array.isArray(accountIds) ? accountIds.filter(Boolean) : null;
+}
+
+function takePendingAssignees() {
+  const pending = pendingAssigneeIds;
+  pendingAssigneeIds = null;
+  return pending && pending.length ? pending : null;
+}
+
 export function renderFilters(container, config, onChange) {
   container.innerHTML = "";
   container.className = "filter-bar";
@@ -55,7 +70,7 @@ export function renderFilters(container, config, onChange) {
   const state = {
     boards: BOARDS.map((b) => b.id),
     types: [...TYPE_OPTIONS],
-    assigneeIds: [],
+    assigneeIds: takePendingAssignees() || [],
     statuses: [],
     search: "",
     currentSprintOnly: config.sprints ? true : false,
@@ -116,7 +131,7 @@ export function renderFilters(container, config, onChange) {
             label: a.displayName,
           })),
         ],
-        "__all__",
+        state.assigneeIds[0] || "__all__",
         (val) => {
           state.assigneeIds = val === "__all__" ? [] : [val];
           emit();
@@ -130,7 +145,7 @@ export function renderFilters(container, config, onChange) {
           value: a.accountId,
           label: assigneeOptionLabel(a),
         })),
-        [],
+        state.assigneeIds,
         (sel) => {
           state.assigneeIds = sel;
           emit();

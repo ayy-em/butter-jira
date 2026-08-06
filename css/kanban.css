@@ -204,6 +204,61 @@
   outline-offset: -2px;
 }
 
+/* ── Card drag: status change ────────────────────────────────────────────── */
+
+/* Distinct from column reorder above: solid ring and a tinted body, so it reads
+   as "this card lands here" rather than "these columns swap". */
+.kanban-col-drop-target {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent-primary) 8%, var(--surface));
+}
+.kanban-col-drop-target .kanban-col-header { color: var(--accent-primary); }
+
+/* ── Overdue and unfinished ──────────────────────────────────────────────── */
+
+/* Past due and not in a done state: red edge, red wash, and a pulsing pool of
+   red light under the card. Loud on purpose — in standup this is the thing the
+   room should stop and look at. */
+.kanban-card-overdue {
+  border-color: var(--accent-danger);
+  background: color-mix(in srgb, var(--accent-danger) 12%, var(--bg));
+}
+.kanban-card-overdue:hover { border-color: var(--accent-danger); }
+.kanban-card-overdue::after {
+  content: "";
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: -9px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(239, 68, 68, 0.65),
+    rgba(239, 68, 68, 0) 72%
+  );
+  pointer-events: none;
+  animation: kanban-overdue-pulse 1.9s ease-in-out infinite;
+}
+@keyframes kanban-overdue-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.85, 0.65); }
+  50%      { opacity: 1;   transform: scale(1.05, 1.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kanban-card-overdue::after { animation: none; opacity: 0.7; }
+}
+
+/* Leaves room for the last card's glow instead of clipping it. */
+.kanban-col-cards { padding-bottom: 18px; }
+
+.kanban-card[draggable="true"] { cursor: grab; }
+.kanban-card[draggable="true"]:active { cursor: grabbing; }
+.kanban-card-dragging {
+  opacity: 0.4;
+  border-color: var(--accent-primary);
+}
+
 .kanban-group-btn {
   background: transparent;
   border: 1px solid var(--border);

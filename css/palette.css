@@ -1,0 +1,162 @@
+/* Command palette (Cmd/Ctrl+K) */
+
+.palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400; /* above the issue drawer and the expiry banner */
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 16px 16px;
+  animation: palette-fade 0.12s ease;
+}
+@keyframes palette-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.palette-panel {
+  width: 100%;
+  max-width: 640px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.palette-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.palette-input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 16px;
+}
+.palette-input::placeholder { color: var(--muted); }
+
+.palette-status {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.palette-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.palette-group {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  padding: 8px 16px 4px;
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 16px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.palette-row.active {
+  background: rgba(79, 142, 247, 0.12);
+  border-left-color: var(--accent-primary);
+}
+
+.palette-key {
+  font-size: 11px;
+  font-weight: 600;
+  flex: 0 0 auto;
+  color: var(--accent-primary);
+}
+.palette-icon {
+  flex: 0 0 14px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+.palette-avatar {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--border);
+}
+
+.palette-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-meta {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--muted);
+  max-width: 30%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.palette-badge.overdue {
+  color: var(--accent-danger);
+  border: 1px solid var(--accent-danger);
+}
+
+.palette-hint {
+  padding: 18px 16px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.palette-footer {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette-overlay { animation: none; }
+}

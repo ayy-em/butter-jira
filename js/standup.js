@@ -18,7 +18,7 @@ export const PHASES = {
 
 export const DEFAULT_DURATION_SEC = 120;
 export const LEAD_IN_SEC = 5;   // "5 seconds countdown" before the first person
-export const HANDOFF_SEC = 4;   // "get ready" card between people
+export const HANDOFF_SEC = 3;   // "get ready" card between people
 export const MIN_DURATION_SEC = 15;
 export const MAX_DURATION_SEC = 3600;
 
@@ -72,7 +72,10 @@ export function createSession({ participants, durations = {}, seed, now = 0 }) {
     phaseStartedAt: now,
     pausedAt: null,
     pauseAccumMs: 0,
-    notes: "",
+    // Parking-lot notes are per speaker, keyed by accountId: the box belongs to
+    // whoever is on screen, so it empties as the standup moves on and the end
+    // screen can attribute every note to a person.
+    notesByPerson: {},
     startedAt: now,
     // Actual speaking time per person, filled in as the session progresses.
     actualMs: {},
@@ -263,7 +266,28 @@ export async function loadSession() {
   const session = stored[SESSION_KEY];
   if (!session || !Array.isArray(session.order) || !session.order.length) return null;
   if (session.phase === PHASES.DONE) return null;
-  return session;
+  return migrateSessionNotes(session);
+}
+
+// Parking-lot notes used to be one string for the whole standup. An interrupted
+// session saved under that shape is attributed to whoever was on screen when it
+// was interrupted — the only speaker it could plausibly belong to.
+export function migrateSessionNotes(session) {
+  if (session.notesByPerson && typeof session.notesByPerson === "object") return session;
+  const legacy = typeof session.notes === "string" ? session.notes.trim() : "";
+  const owner = session.order[session.index];
+  return {
+    ...session,
+    notesByPerson: legacy && owner ? { [owner]: legacy } : {},
+  };
+}
+
+// Notes in speaking order, skipping people nobody wrote anything for.
+export function notesEntries(session) {
+  const byPerson = session?.notesByPerson || {};
+  return (session?.order || [])
+    .map((id) => ({ id, note: String(byPerson[id] ?? "").trim() }))
+    .filter((entry) => entry.note);
 }
 
 export async function clearSession() {

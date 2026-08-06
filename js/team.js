@@ -37,6 +37,41 @@ function emptyStructure() {
 // Live structure, mutated in place so modules can hold a reference.
 export const TEAMS = emptyStructure();
 
+// An avatar override names a file inside the extension folder, so it is stored
+// as a package-relative path rather than a URL: the extension ID differs
+// between installs, and a stored chrome-extension:// URL would rot. Anything
+// carrying a scheme, or climbing out of the package, is dropped rather than
+// quietly pointed somewhere unexpected.
+export function normalizeAvatarPath(input) {
+  const raw = String(input ?? "").trim().replace(/^\/+/, "");
+  if (!raw) return "";
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) return "";
+  if (raw.split("/").includes("..")) return "";
+  return raw;
+}
+
+// Package-relative path -> a URL this install can actually load.
+export function avatarAssetUrl(path) {
+  const clean = normalizeAvatarPath(path);
+  if (!clean) return "";
+  try {
+    return chrome.runtime.getURL(clean);
+  } catch {
+    return clean; // non-extension context
+  }
+}
+
+// Handles get pasted in with or without the leading @, and Slack allows only
+// letters, digits, periods, hyphens and underscores. Stored bare; the @ is added
+// at render time, so one stored form works in mentions and in plain text.
+export function normalizeSlackHandle(input) {
+  return String(input ?? "")
+    .trim()
+    .replace(/^@+/, "")
+    .replace(/[^A-Za-z0-9._-]/g, "")
+    .slice(0, 40);
+}
+
 export function normalizeMember(raw = {}) {
   const accountId = typeof raw.accountId === "string" && raw.accountId.trim() ? raw.accountId.trim() : null;
   return {
@@ -46,7 +81,13 @@ export function normalizeMember(raw = {}) {
     jiraName: typeof raw.jiraName === "string" ? raw.jiraName : (typeof raw.displayName === "string" ? raw.displayName : ""),
     nameOverride: typeof raw.nameOverride === "string" ? raw.nameOverride.trim() : "",
     emoji: typeof raw.emoji === "string" ? raw.emoji.trim().slice(0, 4) : "",
+    // Used to address people in the standup parking-lot digest.
+    slackHandle: normalizeSlackHandle(raw.slackHandle),
+    // What Jira reports. Kept as the fallback, so clearing an override restores
+    // the real profile picture instead of an initials placeholder.
     avatarUrl: typeof raw.avatarUrl === "string" ? raw.avatarUrl : "",
+    // Optional local replacement, e.g. "assets/avatars/sam.png".
+    avatarOverride: normalizeAvatarPath(raw.avatarOverride),
     active: raw.active !== false,
     // Reserved for the sprint planner (M8); carried through untouched.
     capacity: raw.capacity && typeof raw.capacity === "object" ? { ...raw.capacity } : {},
@@ -97,7 +138,9 @@ function dedupeMembers(members) {
     existing.jiraName = existing.jiraName || member.jiraName;
     existing.nameOverride = existing.nameOverride || member.nameOverride;
     existing.emoji = existing.emoji || member.emoji;
+    existing.slackHandle = existing.slackHandle || member.slackHandle;
     existing.avatarUrl = existing.avatarUrl || member.avatarUrl;
+    existing.avatarOverride = existing.avatarOverride || member.avatarOverride;
     for (const key of keysFor(existing)) {
       if (!index.has(key)) index.set(key, index.get(hitKey));
     }
@@ -221,8 +264,19 @@ export function memberLabel(member) {
   return member.emoji ? `${member.emoji} ${base}` : base;
 }
 
+// The locally-served picture for a person, when the roster sets one. Jira's own
+// avatar is not an override — getAvatarUrl() falls back to it.
+// How to address someone in a message pasted into Slack. Without a handle the
+// display name is used, so nobody silently drops out of a digest.
+export function slackMentionFor(accountId) {
+  const member = memberFor(accountId);
+  if (member?.slackHandle) return `@${member.slackHandle}`;
+  return member ? memberLabel(member) : accountId;
+}
+
 export function avatarOverrideFor(accountId) {
-  return memberFor(accountId)?.avatarUrl || null;
+  const member = memberFor(accountId);
+  return member?.avatarOverride ? avatarAssetUrl(member.avatarOverride) : null;
 }
 
 // ── "Team only" view preference ──────────────────────────────────────────────

@@ -229,6 +229,45 @@ check("empty order not resumable", (await su.loadSession()) === null);
 local = { [su.SESSION_KEY]: { junk: true } };
 check("malformed session ignored", (await su.loadSession()) === null);
 
+section("per-person parking lot");
+let notesSession = su.createSession({ participants: people(3), seed: 5, now: T0 });
+check("starts with no notes", JSON.stringify(notesSession.notesByPerson) === "{}");
+const [p1, p2] = notesSession.order;
+notesSession = {
+  ...notesSession,
+  notesByPerson: { [p1]: "  chase the vendor  ", [p2]: "" },
+};
+check("blank notes are skipped", su.notesEntries(notesSession).length === 1);
+check("note is trimmed", su.notesEntries(notesSession)[0].note === "chase the vendor");
+check("entry carries the person", su.notesEntries(notesSession)[0].id === p1);
+notesSession = {
+  ...notesSession,
+  notesByPerson: { ...notesSession.notesByPerson, [p2]: "needs review" },
+};
+check("entries follow speaking order",
+  su.notesEntries(notesSession).map((e) => e.id).join() === `${p1},${p2}`);
+check("no notes -> no entries", su.notesEntries(su.createSession({ participants: people(2), seed: 1, now: T0 })).length === 0);
+check("missing notesByPerson tolerated", su.notesEntries({ order: ["a"] }).length === 0);
+
+// A session saved before notes were per-person carries one string for everyone.
+local = {
+  [su.SESSION_KEY]: {
+    order: ["acc-1", "acc-2", "acc-3"],
+    index: 1,
+    phase: su.PHASES.SPEAKING,
+    notes: "legacy note",
+  },
+};
+const migrated = await su.loadSession();
+check("legacy notes attributed to the current speaker",
+  migrated.notesByPerson["acc-2"] === "legacy note");
+check("legacy notes not spread to others",
+  Object.keys(migrated.notesByPerson).length === 1);
+check("legacy empty notes -> no entries",
+  Object.keys(su.migrateSessionNotes({ order: ["a"], index: 0, notes: "   " }).notesByPerson).length === 0);
+check("existing per-person notes left alone",
+  su.migrateSessionNotes({ order: ["a"], index: 0, notesByPerson: { a: "keep" } }).notesByPerson.a === "keep");
+
 section("attendance prefs");
 local = {};
 check("no prefs -> empty defaults",

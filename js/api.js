@@ -47,7 +47,9 @@ async function jiraPost(path, creds, body = {}) {
     const text = await resp.text().catch(() => "");
     throw new Error(`Jira API ${resp.status}: ${url.pathname} — ${text.slice(0, 120)}`);
   }
-  return resp.json();
+  // Transitions answer 204 with no body; comments answer 201 with one.
+  const text = await resp.text();
+  return text ? JSON.parse(text) : null;
 }
 
 async function searchAllPages(creds, jql, fields) {
@@ -187,6 +189,31 @@ export async function getAllBacklogIssues(creds) {
   return results.flat();
 }
 
+// Raw JQL, for the command palette's escape hatch. Capped rather than paged:
+// this backs a type-as-you-go list, and nobody reads past the first screenful.
+export async function searchIssuesByJql(jql, creds, maxResults = 50) {
+  const data = await jiraPost("/rest/api/3/search/jql", creds, {
+    jql,
+    fields: issueFields(),
+    maxResults,
+  });
+  return tagByProject(data?.issues || []);
+}
+
+// JQL results aren't scoped to a board, so board colour and name are resolved
+// from the project key the same way getAllEpics does it.
+function tagByProject(issues) {
+  for (const issue of issues) {
+    const projectKey = String(issue.key || "").split("-")[0];
+    const board = BOARDS.find((b) => (b.projectKey || b.name) === projectKey);
+    if (board) {
+      issue.boardId = board.id;
+      issue.boardName = board.name;
+    }
+  }
+  return issues;
+}
+
 // ── Setup helpers ───────────────────────────────────────────────────────────
 
 export async function verifyCredentials(creds) {
@@ -274,6 +301,35 @@ export async function addIssueComment(issueKey, adfBody, creds) {
   );
 }
 
+// ── Transitions ─────────────────────────────────────────────────────────────
+
+// Jira does not let you write `status` directly: an issue moves through named
+// workflow transitions, and which ones exist depends on the issue's current
+// status, its project's workflow, and the caller's permissions. So the list has
+// to be read per issue at the moment of the move — it is never cached.
+export async function getIssueTransitions(issueKey, creds) {
+  const data = await jiraFetch(
+    `/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`,
+    creds
+  );
+  return (data.transitions || []).map((t) => ({
+    id: t.id,
+    name: t.name || "",
+    // The full status object, so callers can drop it straight into the issue
+    // and keep statusCategory (which drives badge colour) intact.
+    to: t.to || null,
+    toStatus: t.to?.name || "",
+  }));
+}
+
+export async function transitionIssue(issueKey, transitionId, creds) {
+  await jiraPost(
+    `/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`,
+    creds,
+    { transition: { id: String(transitionId) } }
+  );
+}
+
 // ── People ──────────────────────────────────────────────────────────────────
 
 function toPerson(user) {
@@ -303,17 +359,27 @@ export async function searchUsers(query, creds) {
     .filter((u) => u.active);
 }
 
-// Everyone currently carrying work on the configured boards. Needs no extra
+// Everyone currently carrying work on the given boards. Needs no extra
 // permission, which is why it is the default way to build a roster — but it
 // only finds people with an assigned issue right now.
-export async function harvestTeamCandidates(creds) {
-  const [sprintIssues, backlogIssues] = await Promise.all([
-    getAllSprintIssues(creds),
-    getAllBacklogIssues(creds),
-  ]);
+//
+// The board list is a parameter rather than the module-level BOARDS because the
+// Settings page never populates that array, and because boards staged there but
+// not yet saved should still be harvested.
+export async function harvestTeamCandidates(creds, boards = BOARDS) {
+  const perBoard = await Promise.all(
+    boards.map(async (board) => {
+      const sprints = await getActiveSprint(board.id, creds);
+      const [sprintIssues, backlog] = await Promise.all([
+        Promise.all(sprints.map((s) => getSprintIssues(board.id, s.id, creds))),
+        getBoardBacklog(board.id, creds),
+      ]);
+      return [...sprintIssues.flat(), ...backlog];
+    })
+  );
 
   const byAccount = new Map();
-  for (const issue of [...sprintIssues, ...backlogIssues]) {
+  for (const issue of perBoard.flat()) {
     const assignee = issue.fields?.assignee;
     if (!assignee?.accountId) continue;
     const existing = byAccount.get(assignee.accountId);
