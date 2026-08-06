@@ -11,7 +11,7 @@ their own Jira site.
 
 | Aspect | Status |
 |---|---|
-| Views | Gantt, Backlog, Kanban, Monitor, Standup, Issue detail (drawer + full page) |
+| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Issue detail (drawer + full page) |
 | Data access | HTTP Basic (email + API token), `js/api.js`. Read-only except posting comments |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/agile/1.0/board/*` |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping), overridable via `config.local.json` |
@@ -32,7 +32,7 @@ M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 P
                                                                         │
                                                                         ├──▶ M6 Standup ✔
                                                                         │
-                                                                        └──▶ M7 Dashboard ──▶ M8 Writes + Planner ──┬──▶ M9 Palette + Triage
+                                                                        └──▶ M7 Dashboard ✔ ─▶ M8 Writes + Planner ──┬──▶ M9 Palette + Triage
                                                                                                                     └──▶ M10 Sprint Wrapped
 ```
 
@@ -242,20 +242,62 @@ transitions, resume, and the shared board grouping.
 
 ---
 
-## M7 — Sprint overview dashboard *(feature 5)*
+## M7 — Sprint overview dashboard ✔ *(feature 5)*
 
-**Size: L** · Depends on M3.
+**Size: L** · Done. Depends on M3.
 
-- Header: sprint name, goal, dates, days remaining (working days).
-- Points and issue counts by status group, by board, by assignee.
-- Completion rate, scope change (added/removed after sprint start), carryover in and projected carryover out.
-- Hygiene score fed by the M4 checks.
-- Charts. Pick one small footprint approach and stay consistent — inline SVG is enough here, and the CSP means no CDN chart library anyway.
-- **Spike: burndown history.** Point-in-time history needs either `expand=changelog` per issue (accurate, N requests, expensive) or the greenhopper sprint report (`/rest/greenhopper/1.0/rapid/charts/sprintreport?rapidViewId=…&sprintId=…`, one request, undocumented). Prototype both; if neither is acceptable, ship the daily snapshot alternative: persist a small aggregate to `chrome.storage.local` once per day and build history forward from first use.
-- Watch request volume — `getAllSprintIssues` (`js/api.js:165`) already fans out across boards; the dashboard should reuse that data, not re-fetch it. The 5-minute cache TTL (`js/utils.js:174`) may need to be per-resource.
+**What was built**
 
-**Exit criteria:** the dashboard answers "are we going to make it?" without
-opening Jira, and adds no more than one extra request per board.
+- **Aggregation** (`js/dashboard.js`) — one pass over the sprint issues the other views already cached, producing points and issue counts by status group, by board and by person, completion by both points and issues, carry-in, scope change, projected carry-out, and working-day arithmetic. Zero extra requests in the normal case: `getAllSprintIssues` and `getActiveSprint` are both already cached by Kanban and Monitor.
+- **Sub-tasks excluded from totals** — their points duplicate the parent story's and would inflate the sprint total. The count of excluded sub-tasks is stated rather than hidden.
+- **Working days, not calendar days.** A burndown that counts weekends makes every team look behind on Monday morning.
+- **Carry-in is detected properly** from the issue's sprint field listing a closed (or non-active) sprint, including the older serialised `state=CLOSED` blob format. **Scope-added is honestly approximate** — it compares issue creation against sprint start, so an older issue dragged in mid-sprint isn't caught. The tile says so in a tooltip rather than implying precision.
+- **Hygiene score** wired to the M4 checks, as a share of issues with no finding, and the tile links through to the Monitor tab.
+
+**Burndown — the history problem, resolved**
+
+Neither documented route was acceptable: `expand=changelog` costs one request per
+issue (a 60-issue sprint = 60 requests every time the tab opens), and the chart
+Jira itself draws comes from `/rest/greenhopper/1.0/rapid/charts/sprintreport`,
+which is the same class of undocumented, unsupported endpoint the development-links
+feature was deferred over. Shipping against it would have contradicted that
+decision one milestone later.
+
+So the app **records its own daily snapshot** (`js/snapshots.js`): one small
+aggregate per day per sprint, from data already in hand, building history forward.
+Honest costs, stated in the UI rather than papered over: the burndown appears on
+the second day of use, and sprints that ran before install have no history. The
+empty state explains why instead of drawing a line the data can't support.
+Storage is bounded (8 sprints × 60 days) and same-day writes overwrite.
+
+**Charts** (`js/charts.js`) — inline SVG, no library (the CSP forbids remote
+script, and three chart forms don't justify vendoring one). Built to fixed mark
+specs rather than per-chart taste: bars ≤24px with a 4px rounded data-end, 2px
+lines with round caps, ≥8px markers carrying a 2px surface ring, hairline
+recessive gridlines, and a 2px surface gap between stacked segments instead of
+strokes. Form was chosen per data job:
+
+| Data | Form | Colour job |
+|---|---|---|
+| Headline numbers | KPI row of stat tiles; completion is the single hero figure | none |
+| Sprint progression | one horizontal stacked bar | **ordinal** — To Do → Done is a sequence, so one hue in monotone lightness steps |
+| By board | horizontal bars, uniform hue + board-colour dot beside the label | nominal — colouring bars by board would spend the identity channel on what the label already says |
+| By person | bar-in-table with meters | doubles as the table view, so every value is readable as text |
+
+Palettes were **validated, not eyeballed** — both ordinal ramps pass monotone
+lightness, adjacent ΔL ≥ 0.06, light-end contrast ≥ 2:1 and single-hue; every
+mark clears 3:1 against its own surface (4.42:1 light, 5.89:1 dark). Light and
+dark are each selected against their own surface rather than one being a flip of
+the other. The progression ramp is deliberately **not** the app's status badge
+colours — those are reserved status tokens, and reusing them would have a status
+colour impersonating a series. Status tiles always pair colour with an icon and a
+word.
+
+**Exit criteria met:** the dashboard answers "are we going to make it?" without
+opening Jira, and adds no requests at all when the other views have already run.
+Verified by `scripts/test-dashboard.mjs` (123 checks), which includes a DOM shim
+asserting chart geometry — no NaN coordinates, nothing drawn outside the viewBox,
+no inline label on a segment too narrow to hold it.
 
 ---
 
@@ -366,8 +408,8 @@ produce false positives in commit messages).
 | ~~`/rest/dev-status/1.0/` is undocumented~~ | M5 → deferred | Avoided entirely: dev links move to the GitHub API in the deferred backlog |
 | Untrusted Jira HTML reaching the DOM | M5 ✔ | Allowlist sanitiser with the element walk unit-tested; CSP as defence in depth |
 | First write path (comments) misfiring | M5 ✔ | Single narrow endpoint, comment re-rendered from Jira's response, explicit 403 handling |
-| greenhopper sprint report is undocumented | M7 | Two prototypes plus a daily-snapshot fallback that depends on nothing private |
 | ~~Hardcoded `customfield_*` IDs are instance-specific~~ | M1 ✔ | Resolved: discovery via `/rest/api/3/field` + manual override per role |
+| ~~greenhopper sprint report is undocumented~~ | M7 ✔ | Avoided: daily local snapshots instead, with the trade-off stated in the UI |
 | Request fan-out across boards hits rate limits | M7, M8 | Reuse cached aggregates, per-resource TTLs, batch where the API allows |
 | ~~Token expiry mistaken for a broken app~~ | M2 ✔ | Resolved: expiry tracking, T-14 banner, token-only re-auth prompt |
 | Writes corrupt real sprint data | M8 | Draft mode, batch confirmation, undo window, isolated write helpers |

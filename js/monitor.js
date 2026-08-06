@@ -31,7 +31,9 @@ export function isEpic(issue) {
   return /^epic$/i.test(type.name || "");
 }
 
-function isDone(issue) {
+// Shared with the dashboard: prefer the status category over the status name,
+// so a workflow with a custom done status ("Shipped") is handled.
+export function isDone(issue) {
   const category = issue?.fields?.status?.statusCategory?.key;
   if (category) return category === "done";
   return /^(done|closed|resolved|rejected)$/i.test(issue?.fields?.status?.name || "");

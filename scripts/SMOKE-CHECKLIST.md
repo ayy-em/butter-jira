@@ -1,7 +1,8 @@
 # Manual smoke checklist
 
 Run `node scripts/test-config.mjs`, `test-credentials.mjs`, `test-team.mjs`,
-`test-monitor.mjs`, `test-issue.mjs` and `test-standup.mjs` first — they cover the config layer, field mapping,
+`test-monitor.mjs`, `test-issue.mjs`, `test-standup.mjs` and
+`test-dashboard.mjs` first — they cover the config layer, field mapping,
 storage migrations, the token lifecycle and the roster automatically. This checklist is for everything it cannot reach: the UI,
 the browser APIs, and real Jira data. Run it after touching config,
 API, or view code. `chrome://extensions` → reload the extension first, and keep
@@ -38,6 +39,27 @@ override file. Anything else is a finding.
 - [ ] Kanban: cards grouped into the configured columns; click opens Jira
 - [ ] Filters: board and assignee filters apply across all three views
 - [ ] `b` / `r` / `k` / `m` switch views; typing in an input does not trigger them
+
+## 3a. Sprint dashboard
+- [ ] `d` or the SPRINT tab opens it; sprint name, goal and dates match Jira
+- [ ] Working days left is right (weekends not counted); a finished sprint reads "ended …" in red
+- [ ] Points complete matches Jira's own sprint total, sub-tasks excluded
+- [ ] A sprint with no estimates shows "—" for points, not 0%
+- [ ] Carried in matches the issues that were in a previous sprint
+- [ ] Added after start looks plausible; the "?" tooltip explains the caveat
+- [ ] Hygiene tile shows an icon AND a word; clicking it goes to Monitor
+- [ ] First visit → burndown says it is collecting history and explains why
+- [ ] Second day → burndown draws, with the ideal line dashed and a legend present
+- [ ] Hovering the burndown moves the crosshair and updates the readout
+- [ ] Readout says ahead/behind and matches the line position
+- [ ] Progression bar segments sum to the whole; hovering shows each share
+- [ ] Narrow segments have no clipped inline label (the legend carries them)
+- [ ] By board: bars share one hue, board colours appear as dots in the key
+- [ ] By person: roster display-name overrides used; outsiders labelled
+- [ ] Light theme: charts re-pick colours, everything still readable
+- [ ] Opening the tab straight after Kanban issues no new Jira requests (check the Network tab)
+- [ ] Opening it twice in a day does not add a second snapshot row (Storage → `sprintSnapshots`)
+- [ ] No console errors; no chart drawn outside its card
 
 ## 3b. Monitor tab
 - [ ] Opens with `m` or the MONITOR tab; nav badge shows the total, hidden at zero

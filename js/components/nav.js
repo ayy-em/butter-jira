@@ -3,6 +3,7 @@ import { CONFIG, siteHost, wikiUrl } from "../config.js";
 import { getBadgeCount } from "../monitor.js";
 
 const TABS = [
+  { hash: "#dashboard", label: "SPRINT", key: "d" },
   { hash: "#backlog", label: "BACKLOG", key: "b" },
   { hash: "#gantt", label: "ROADMAP", key: "r" },
   { hash: "#kanban", label: "KANBAN", key: "k" },

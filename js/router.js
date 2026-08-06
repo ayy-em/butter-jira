@@ -69,6 +69,7 @@ async function init() {
     if (e.key === "k" || e.key === "K") location.hash = "#kanban";
     if (e.key === "m" || e.key === "M") location.hash = "#monitor";
     if (e.key === "s" || e.key === "S") location.hash = "#standup";
+    if (e.key === "d" || e.key === "D") location.hash = "#dashboard";
   });
 
   if (!creds || !isConfigured()) {
@@ -118,6 +119,9 @@ async function mountView(creds) {
         break;
       case "#standup":
         viewModule = await import("./views/standup.js");
+        break;
+      case "#dashboard":
+        viewModule = await import("./views/dashboard.js");
         break;
       default:
         viewModule = await import("./views/backlog.js");
