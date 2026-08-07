@@ -92,6 +92,7 @@ const githubTestResults = el("githubTestResults");
 const forgetGithubTokenBtn = el("forgetGithubTokenBtn");
 const matchGithubBtn = el("matchGithubBtn");
 const includeTokenBox = el("includeToken");
+const includeGithubTokenBox = el("includeGithubToken");
 const includeRosterBox = el("includeRoster");
 const exportBtn = el("exportBtn");
 const importBtn = el("importBtn");
@@ -427,11 +428,24 @@ forgetTokenBtn.addEventListener("click", async () => {
 
 exportBtn.addEventListener("click", async () => {
   const includeToken = includeTokenBox.checked;
+  const includeGithubToken = includeGithubTokenBox.checked;
   const includeRoster = includeRosterBox.checked;
+
+  // One confirm per sensitive thing, each naming what it actually exposes.
+  // A single "this file has secrets in it" prompt teaches people to click past
+  // it without reading which secret they just agreed to.
   if (includeToken) {
     const proceed = confirm(
-      "The exported file will contain your API token in plaintext.\n\n" +
+      "The exported file will contain your Jira API token in plaintext.\n\n" +
         "Anyone who opens the file can act as you in Jira. Continue?"
+    );
+    if (!proceed) return;
+  }
+  if (includeGithubToken) {
+    const proceed = confirm(
+      "The exported file will contain your GitHub token in plaintext.\n\n" +
+        "A fine-grained token can read every repository it was scoped to — not " +
+        "just the ones listed here. Continue?"
     );
     if (!proceed) return;
   }
@@ -442,15 +456,23 @@ exportBtn.addEventListener("click", async () => {
     );
     if (!proceed) return;
   }
+
   const credentials = await loadCredentials();
   const payload = buildExport({
     credentials,
     includeToken,
     includeRoster,
+    includeGithubToken,
+    githubToken: includeGithubToken ? await getGithubToken() : null,
     members: roster ? roster.getMembers() : allMembers(),
   });
   downloadJson(exportFilename(), payload);
-  const caveats = [includeToken && "a live token", includeRoster && "personal data"].filter(Boolean);
+
+  const tokenCount = [includeToken, includeGithubToken].filter(Boolean).length;
+  const caveats = [
+    tokenCount === 2 ? "two live tokens" : tokenCount === 1 ? "a live token" : null,
+    includeRoster && "personal data",
+  ].filter(Boolean);
   flash(
     caveats.length ? `Exported — file contains ${caveats.join(" and ")}, store it carefully` : "Exported",
     caveats.length ? "warning" : "success"
@@ -480,7 +502,8 @@ importFile.addEventListener("change", async () => {
     result.config.statusGroups && `${result.config.statusGroups.length} status groups`,
     result.members && `${result.members.length} roster members`,
     result.account?.email && `account ${result.account.email}`,
-    result.account?.token && "an API token",
+    result.account?.token && "a Jira API token",
+    result.githubAccount?.token && "a GitHub token",
   ].filter(Boolean);
 
   if (!confirm(`Import will replace:\n\n${summary.join("\n")}\n\nContinue?`)) return;
@@ -493,6 +516,12 @@ importFile.addEventListener("change", async () => {
       token: result.account.token,
       tokenExpiresAt: result.account.tokenExpiresAt || defaultExpiry(),
     });
+  }
+  // No expiry carried across: GitHub reports the real one on the first
+  // authenticated call, so an imported token starts as "unknown" and corrects
+  // itself rather than inheriting a stale date from the exporting machine.
+  if (result.githubAccount?.token) {
+    await saveGithubToken(result.githubAccount.token);
   }
 
   await init();

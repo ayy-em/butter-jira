@@ -12,13 +12,16 @@ import { normalizeMember } from "./team.js";
 export const EXPORT_FORMAT = "butterjira-config";
 export const EXPORT_VERSION = 1;
 
-// `now`, `credentials` and `members` are injected so this stays pure and testable.
+// `now`, `credentials`, `githubToken` and `members` are injected so this stays
+// pure and testable.
 export function buildExport({
   now = new Date(),
   credentials = null,
   includeToken = false,
   includeRoster = false,
   members = [],
+  githubToken = null,
+  includeGithubToken = false,
 } = {}) {
   const payload = {
     format: EXPORT_FORMAT,
@@ -34,9 +37,8 @@ export function buildExport({
         Object.entries(CONFIG.fields || {}).map(([role, ids]) => [role, [...(ids || [])]])
       ),
       additionalFields: [...(CONFIG.additionalFields || [])],
-      // Host, org and the declared repo list travel; the GitHub token never
-      // does, under any checkbox. It is a second credential with its own
-      // lifecycle, and one plaintext token in a shared file is enough.
+      // Host, org and the declared repo list. The token is a credential and
+      // lives outside `config`, next to the Jira one — see githubAccount below.
       github: {
         enabled: Boolean(CONFIG.github?.enabled),
         host: String(CONFIG.github?.host || "github.com"),
@@ -53,6 +55,16 @@ export function buildExport({
       payload.account.tokenExpiresAt = credentials.tokenExpiresAt || null;
       payload.containsSecret = true;
     }
+  }
+
+  // The GitHub token gets its own top-level block rather than being folded into
+  // `account`: it authenticates a different service, has its own lifecycle, and
+  // must stay independently opt-out. Opt-in only, same as the Jira token —
+  // note that a fine-grained org PAT in a file grants read across every repo it
+  // was scoped to, not just this app's view of them.
+  if (includeGithubToken && githubToken) {
+    payload.githubAccount = { token: githubToken };
+    payload.containsSecret = true;
   }
 
   // Roster is other people's personal data, so it ships only when asked for.
@@ -195,11 +207,22 @@ export function parseImport(text) {
     warnings.push("File contains an API token — it will be stored on this device.");
   }
 
-  if (!Object.keys(config).length && !Object.keys(account).length && !members?.length) {
+  const githubAccount = {};
+  if (typeof raw.githubAccount?.token === "string" && raw.githubAccount.token.trim()) {
+    githubAccount.token = raw.githubAccount.token.trim();
+    warnings.push("File contains a GitHub token — it will be stored on this device.");
+  }
+
+  if (
+    !Object.keys(config).length &&
+    !Object.keys(account).length &&
+    !Object.keys(githubAccount).length &&
+    !members?.length
+  ) {
     return { ok: false, error: "File contained nothing importable" };
   }
 
-  return { ok: true, config, account, members, warnings };
+  return { ok: true, config, account, githubAccount, members, warnings };
 }
 
 // Triggers a file download from an extension page. No `downloads` permission

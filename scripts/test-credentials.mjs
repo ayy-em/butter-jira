@@ -216,7 +216,41 @@ check("non-string brand value dropped", parsed.config.brand.productName === unde
 check("brand string kept", parsed.config.brand.orgName === "ExampleCo");
 check("token import warns loudly", parsed.warnings.some((w) => w.includes("API token")));
 
-section("export/import: GitHub block travels, GitHub token never does");
+section("export/import: the GitHub token, opt-in");
+reset({}, { schemaVersion: 2 });
+await cfg.loadConfig();
+await creds.saveGithubToken("gh-secret-token");
+payload = portable.buildExport({ now: at("2026-08-05"), credentials, githubToken: "gh-secret-token" });
+check("withheld by default", payload.githubAccount === undefined);
+check("not anywhere in the file", !JSON.stringify(payload).includes("gh-secret-token"));
+
+payload = portable.buildExport({
+  now: at("2026-08-05"), credentials, githubToken: "gh-secret-token", includeGithubToken: true,
+});
+check("present when asked for", payload.githubAccount.token === "gh-secret-token");
+check("flagged as containing a secret", payload.containsSecret === true);
+check("kept out of `account`, which is the Jira one", payload.account.token === undefined);
+check("the two tokens are independently opt-in",
+  portable.buildExport({ credentials, githubToken: "gh-secret-token", includeToken: true })
+    .githubAccount === undefined);
+check("ticking GitHub alone does not smuggle the Jira token",
+  payload.account.token === undefined && payload.githubAccount.token === "gh-secret-token");
+check("no token, ticked anyway → no empty block",
+  portable.buildExport({ credentials, includeGithubToken: true }).githubAccount === undefined);
+
+parsed = portable.parseImport(JSON.stringify(payload));
+check("round-trips", parsed.githubAccount.token === "gh-secret-token");
+check("import warns loudly", parsed.warnings.some((w) => w.includes("GitHub token")));
+check("a file with only a GitHub token is still importable",
+  portable.parseImport(JSON.stringify({
+    format: portable.EXPORT_FORMAT, githubAccount: { token: "t" },
+  })).ok === true);
+check("blank token is not treated as a token",
+  portable.parseImport(JSON.stringify({
+    format: portable.EXPORT_FORMAT, config: { boards: [] }, githubAccount: { token: "   " },
+  })).githubAccount.token === undefined);
+
+section("export/import: the GitHub config block");
 reset({}, { schemaVersion: 2 });
 await cfg.loadConfig();
 await cfg.saveConfig({
@@ -224,13 +258,15 @@ await cfg.saveConfig({
   github: { enabled: true, host: "github.com", org: "acme", repos: ["acme/api", "acme/web"] },
 });
 await creds.saveGithubToken("gh-secret-token");
-payload = portable.buildExport({ now: at("2026-08-05"), credentials, includeToken: true });
+payload = portable.buildExport({
+  now: at("2026-08-05"), credentials, includeToken: true, githubToken: "gh-secret-token",
+});
 check("github block exported", payload.config.github.org === "acme");
 check("repo allowlist exported", payload.config.github.repos.length === 2);
-check(
-  "GitHub token absent even with includeToken",
-  !JSON.stringify(payload).includes("gh-secret-token")
-);
+check("host, org and repos are config, not a credential",
+  payload.config.github.host === "github.com" && payload.githubAccount === undefined);
+check("the Jira checkbox does not carry the GitHub token",
+  !JSON.stringify(payload).includes("gh-secret-token"));
 
 parsed = portable.parseImport(JSON.stringify(payload));
 check("github block round-trips", parsed.config.github.repos.join() === "acme/api,acme/web");

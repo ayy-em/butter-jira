@@ -776,13 +776,22 @@
       <div class="section-body">
         <div class="hint">
           Export writes a JSON file with your site, boards, status groups, field
-          mapping, branding and the GitHub host, org and repo list. Import merges a
-          file back in. The Jira token is only in the file if you tick the box
-          below; the GitHub token is never in it at all.
+          mapping, branding and the GitHub host, org and repo list. Import merges
+          a file back in. The file is browser-neutral — an export from Chrome
+          imports into Firefox or Edge and vice versa.
+        </div>
+        <div class="hint">
+          Neither token is included unless you tick its box below. Both are
+          plaintext in the file: treat an export containing one the way you would
+          treat the token itself, and delete it once the other browser has it.
         </div>
         <label class="checkbox-row">
           <input type="checkbox" id="includeToken">
-          <span>Include the Jira API token in the export <strong>(plaintext credential in a file)</strong></span>
+          <span>Include the Jira API token <strong>(plaintext credential in a file)</strong></span>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="includeGithubToken">
+          <span>Include the GitHub token <strong>(plaintext credential — a fine-grained PAT reads every repo it was scoped to)</strong></span>
         </label>
         <label class="checkbox-row">
           <input type="checkbox" id="includeRoster">

@@ -101,6 +101,59 @@ check("credentials read back", (await creds.getCredentials()).email === "you@exa
 check("migrations stamped the schema version", gecko.stores.local.schemaVersion !== undefined);
 check("nothing leaked into sync", !("token" in gecko.stores.sync));
 
+section("a Chrome export imports into Firefox");
+// The migration path people actually take. Nothing in the payload should be
+// browser-specific, so a file written under one namespace must apply cleanly
+// under the other — including both credentials.
+const portable = await import(new URL("../js/portable.js", import.meta.url));
+const cfg = await import(new URL("../js/config.js", import.meta.url));
+
+// Write a full setup into the *chrome* namespace and export it from there.
+globalThis.chrome = blink;
+delete globalThis.browser;
+await cfg.loadConfig();
+await cfg.saveConfig({
+  site: { baseUrl: "https://acme.atlassian.net" },
+  boards: [{ id: 9, name: "ABC", projectKey: "ABC", color: "#4F8EF7" }],
+  github: { enabled: true, host: "github.com", org: "acme", repos: ["acme/api"] },
+});
+await creds.saveCredentials({ email: "you@example.com", token: "jira-token" });
+await creds.saveGithubToken("gh-token");
+const exported = portable.buildExport({
+  credentials: await creds.loadCredentials(),
+  includeToken: true,
+  includeGithubToken: true,
+  githubToken: await creds.getGithubToken(),
+  includeRoster: true,
+  members: [{ accountId: "a1", jiraName: "Sam Okafor", githubLogin: "sokafor" }],
+});
+const file = JSON.stringify(exported);
+check("the file names no browser", !/\bchrome\b|\bmoz-extension\b|chrome-extension/i.test(file));
+
+// Now switch to a clean Firefox namespace and import it.
+const fresh = makeNamespace("moz2");
+globalThis.browser = fresh;
+delete globalThis.chrome;
+const imported = portable.parseImport(file);
+check("parses under Firefox", imported.ok === true);
+await cfg.saveConfig(imported.config);
+await creds.saveCredentials({
+  email: imported.account.email,
+  token: imported.account.token,
+  tokenExpiresAt: imported.account.tokenExpiresAt,
+});
+await creds.saveGithubToken(imported.githubAccount.token);
+
+check("site landed in the gecko sync store", fresh.stores.sync.site.baseUrl === "https://acme.atlassian.net");
+check("boards landed", fresh.stores.sync.boards[0].projectKey === "ABC");
+check("github config landed", fresh.stores.sync.github.repos[0] === "acme/api");
+check("jira token landed device-local", fresh.stores.local.token === "jira-token");
+check("github token landed device-local", fresh.stores.local.githubToken === "gh-token");
+check("no credential leaked into sync",
+  !("token" in fresh.stores.sync) && !("githubToken" in fresh.stores.sync));
+check("roster came across", imported.members[0].githubLogin === "sokafor");
+check("the roster is not put in sync either", !("teams" in fresh.stores.sync));
+
 section("Chrome / Edge: chrome global only");
 delete globalThis.browser;
 globalThis.chrome = blink;

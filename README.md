@@ -22,15 +22,42 @@ custom field IDs, and branding all come from configuration you supply at setup.
 Chrome's in ways one file cannot hold — see [Browser targets](#browser-targets).
 
 ```bash
-node scripts/build.mjs            # writes dist/chrome, dist/firefox, dist/edge
-node scripts/build.mjs --zip      # …and a zip per target, for store uploads
+node scripts/build.mjs                  # writes dist/chrome, dist/firefox, dist/edge
+node scripts/build.mjs --zip            # …and a zip per target, for store uploads
+node scripts/build.mjs --local-assets   # …including your own avatars and brand marks
 ```
+
+`--local-assets` is for an install on your own machine. It refuses to combine
+with `--zip`: a store package must not carry colleagues' photographs.
 
 - **Firefox**: `about:debugging` → *This Firefox* → **Load Temporary Add-on** →
   pick `dist/firefox/manifest.json`. Temporary add-ons go away when Firefox
   closes; a permanent install needs a signed build from addons.mozilla.org.
 - **Edge**: `edge://extensions` → **Developer mode** → **Load unpacked** →
   select `dist/edge`.
+
+## Moving between browsers
+
+**A config export is browser-neutral.** Nothing in the file names Chrome,
+Firefox or Edge, so an export from one imports into any of the others —
+Settings → Backup & transfer → Export, then Import on the far side. Both tokens
+travel if you tick their boxes; neither does otherwise.
+
+Two things to know before you rely on it:
+
+- **Avatar overrides are paths, not images.** A roster entry pointing at
+  `assets/avatars/sam.png` needs that file to exist in the *target* install.
+  Chrome loaded unpacked from the repo has them; a built package does not, since
+  `scripts/build.mjs` excludes `assets/avatars/` and `assets/brand/` so a store
+  upload cannot carry photographs of colleagues. For a personal Firefox or Edge
+  install, build with `--local-assets` and they come along. Without it, those
+  members fall back to their Jira picture — nothing breaks, but nobody tells you.
+- **Firefox's `storage.sync` needs a Firefox Account** to actually sync between
+  machines. Without one it still works, just as device-local storage. That
+  affects syncing, not importing.
+
+Delete the export file once the other browser has it. It is a plaintext
+credential if you ticked either token box.
 
 ## Browser targets
 
@@ -304,10 +331,13 @@ anything — until then private repos answer `404`, not `403`. **Test connection
 checks each repo separately and names the ones that fail, because listing a repo
 in Settings does not grant the token access to it.
 
-The token is stored in `chrome.storage.local` on that device only, is never in
-synced storage, and is **never** in a config export — not even with the "include
-the API token" box ticked. Its expiry is real rather than guessed: GitHub reports
-it on every authenticated call, and the app records what it is told.
+The token is stored device-local, is never in synced storage, and is in a config
+export only when you tick **Include the GitHub token** — a separate box from the
+Jira one, because they authenticate different services and a fine-grained PAT
+reads every repo it was scoped to, not just the ones listed here. Its expiry is
+real rather than guessed: GitHub reports it on every authenticated call, so an
+imported token starts as "unknown" and corrects itself on first use rather than
+inheriting a stale date from the machine that exported it.
 
 **People are matched by GitHub login**, set per person in the roster. *Match
 logins from GitHub org* proposes mappings from the org member list and fills in
@@ -520,8 +550,9 @@ names, emails and account IDs, so it never goes into synced storage and is
 excluded from exports unless you opt in.
 
 The GitHub token, when GitHub sync is used, is a second credential with its own
-keys and its own lifecycle: device-local, never synced, and **never**
-exported under any checkbox. **Forget GitHub token** removes it on its own. A
+keys and its own lifecycle: device-local, never synced, and excluded from an
+export unless you tick **its own** box — ticking the Jira one does not carry it.
+**Forget GitHub token** removes it on its own. A
 GitHub login on a roster member is one more identifier attached to a named
 colleague, so it rides in the roster record and inherits its treatment.
 
