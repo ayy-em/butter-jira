@@ -9,14 +9,30 @@ import {
 } from "./js/config.js";
 import { discoverFieldMappings, listBoards } from "./js/api.js";
 import {
+  clearGithubToken,
   clearToken,
   defaultExpiry,
+  describeGithubTokenStatus,
   describeTokenStatus,
+  getGithubToken,
+  githubTokenStatus,
   loadCredentials,
   saveCredentials,
+  saveGithubToken,
   saveTokenExpiry,
   tokenStatus,
 } from "./js/credentials.js";
+import {
+  checkRepoAccess,
+  githubOrigin,
+  listOrgMembers,
+  normalizeGithubHost,
+  normalizeGithubOrg,
+  parseRepoList,
+  proposeGithubMatches,
+  repoSlug,
+  verifyGithubToken,
+} from "./js/github.js";
 import {
   buildExport,
   downloadJson,
@@ -51,6 +67,19 @@ const themeToggle = el("themeToggle");
 const tokenExpiryInput = el("tokenExpiry");
 const tokenStatusNote = el("tokenStatusNote");
 const forgetTokenBtn = el("forgetTokenBtn");
+const brandLink = el("brandLink");
+const githubEnabledBox = el("githubEnabled");
+const githubHostInput = el("githubHost");
+const githubOrgInput = el("githubOrg");
+const githubReposInput = el("githubRepos");
+const githubRepoNote = el("githubRepoNote");
+const githubTokenInput = el("githubToken");
+const toggleGithubTokenBtn = el("toggleGithubToken");
+const githubTokenNote = el("githubTokenNote");
+const githubTestBtn = el("githubTestBtn");
+const githubTestResults = el("githubTestResults");
+const forgetGithubTokenBtn = el("forgetGithubTokenBtn");
+const matchGithubBtn = el("matchGithubBtn");
 const includeTokenBox = el("includeToken");
 const includeRosterBox = el("includeRoster");
 const exportBtn = el("exportBtn");
@@ -79,6 +108,37 @@ toggleBtn.addEventListener("click", () => {
   const isPassword = tokenInput.type === "password";
   tokenInput.type = isPassword ? "text" : "password";
   toggleBtn.textContent = isPassword ? "Hide" : "Show";
+});
+
+// The logo goes back to the board. Settings is usually opened in its own tab
+// from an app tab that is still sitting there, so an already-open app is
+// focused and pointed at Kanban rather than being opened a second time —
+// which also leaves any unsaved edits on this page where they are.
+//
+// The href is real, so ⌘/Ctrl-click and "open in new tab" work natively; only
+// an unmodified left-click is intercepted. Same shape as the issue links.
+brandLink.addEventListener("click", async (e) => {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  const appUrl = chrome.runtime.getURL("app.html");
+  try {
+    const [existing] = await chrome.tabs.query({ url: appUrl });
+    if (existing) {
+      // The hash change is what moves the app to Kanban: same document, so the
+      // router's hashchange handler mounts the view without a reload.
+      await chrome.tabs.update(existing.id, { active: true, url: `${appUrl}#kanban` });
+      try {
+        await chrome.windows.update(existing.windowId, { focused: true });
+      } catch {
+        // The tab is active either way; raising its window is a nicety.
+      }
+      return;
+    }
+    await chrome.tabs.create({ url: `${appUrl}#kanban` });
+  } catch {
+    // No tabs access for some reason — plain navigation still gets there.
+    location.href = `${appUrl}#kanban`;
+  }
 });
 
 function flash(message, kind = "success") {
@@ -449,6 +509,13 @@ async function ensureHostPermission(baseUrl) {
   } catch {
     return false;
   }
+  return ensureOrigin(origin);
+}
+
+// Chrome only honours a permission prompt while the click gesture is live, so
+// every caller of this runs from a button handler rather than from init().
+async function ensureOrigin(origin) {
+  if (!origin) return false;
   if (await chrome.permissions.contains({ origins: [origin] })) return true;
   try {
     return await chrome.permissions.request({ origins: [origin] });
@@ -456,6 +523,182 @@ async function ensureHostPermission(baseUrl) {
     return false;
   }
 }
+
+// ── GitHub sync ──────────────────────────────────────────────────────────────
+
+// Everything the GitHub section knows, read straight from the form — the same
+// approach the Jira actions take, so Test connection works before Save.
+function githubFormState() {
+  const host = normalizeGithubHost(githubHostInput.value) || "github.com";
+  const org = normalizeGithubOrg(githubOrgInput.value);
+  const { repos, invalid } = parseRepoList(githubReposInput.value, org);
+  return { enabled: githubEnabledBox.checked, host, org, repos, invalid };
+}
+
+function renderGithubRepoNote() {
+  const { repos, invalid, enabled, org } = githubFormState();
+  const parts = [];
+  if (repos.length) {
+    parts.push(`${repos.length} repo${repos.length === 1 ? "" : "s"} in scope: ${repos.map(repoSlug).join(", ")}`);
+  }
+  if (invalid.length) {
+    parts.push(`Not readable as a repo, will be dropped: ${invalid.join(", ")}`);
+  }
+  if (enabled && !org) parts.push("Set the organisation before saving.");
+  if (enabled && org && !repos.length) {
+    parts.push("No repos listed — nothing will be fetched until you add at least one.");
+  }
+  githubRepoNote.textContent = parts.join(" · ");
+  githubRepoNote.classList.toggle(
+    "token-status-soon",
+    Boolean(invalid.length || (enabled && (!org || !repos.length)))
+  );
+}
+
+async function renderGithubTokenStatus() {
+  const status = await githubTokenStatus();
+  githubTokenNote.textContent = describeGithubTokenStatus(status);
+  githubTokenNote.classList.toggle("token-status-expired", status.expired);
+  githubTokenNote.classList.toggle("token-status-soon", status.expiringSoon);
+  // The org matcher needs a token and an org; offering it without either just
+  // produces a confusing failure.
+  const { org } = githubFormState();
+  matchGithubBtn.hidden = !(status.hasToken && org);
+}
+
+toggleGithubTokenBtn.addEventListener("click", () => {
+  const hidden = githubTokenInput.type === "password";
+  githubTokenInput.type = hidden ? "text" : "password";
+  toggleGithubTokenBtn.textContent = hidden ? "Hide" : "Show";
+});
+
+for (const input of [githubHostInput, githubOrgInput, githubReposInput]) {
+  input.addEventListener("input", renderGithubRepoNote);
+}
+githubEnabledBox.addEventListener("change", renderGithubRepoNote);
+githubOrgInput.addEventListener("change", renderGithubTokenStatus);
+
+function repoResultRow(name, ok, detail) {
+  const row = document.createElement("div");
+  row.className = "board-row repo-row";
+  const label = document.createElement("span");
+  label.className = "repo-name";
+  label.textContent = name;
+  const verdict = document.createElement("span");
+  verdict.className = `repo-verdict ${ok ? "ok" : "bad"}`;
+  verdict.textContent = detail;
+  row.append(label, verdict);
+  return row;
+}
+
+githubTestBtn.addEventListener("click", async () => {
+  const { host, org, repos, invalid } = githubFormState();
+  const token = githubTokenInput.value.trim() || (await getGithubToken());
+
+  if (!org) return flash("Set the GitHub organisation first", "warning");
+  if (!token) return flash("Paste a GitHub token first", "warning");
+  // The repo list lives in its own section, so say where rather than just
+  // refusing at someone looking at a different part of the page.
+  if (!repos.length) {
+    return flash("Add at least one repo under GitHub settings — the list is the scope", "warning");
+  }
+
+  const granted = await ensureOrigin(githubOrigin(host));
+  if (!granted) return flash(`Access to ${host} was not granted`, "error");
+
+  githubTestBtn.disabled = true;
+  githubTestBtn.textContent = "Testing...";
+  githubTestResults.innerHTML = "";
+
+  try {
+    const identity = await verifyGithubToken({ host, org }, token);
+    // Per repo, because access is granted per repo: listing one here does not
+    // give the token access to it, and a 404 is what that looks like.
+    const results = await checkRepoAccess(repos, { host }, token);
+
+    githubTestResults.appendChild(
+      repoResultRow(`authenticated as ${identity.login || "?"}`, true, "ok")
+    );
+    for (const result of results) {
+      githubTestResults.appendChild(
+        repoResultRow(
+          result.repo,
+          result.ok,
+          result.ok ? (result.private ? "private · ok" : "public · ok") : result.error
+        )
+      );
+    }
+    for (const line of invalid) {
+      githubTestResults.appendChild(repoResultRow(line, false, "unreadable — will be dropped"));
+    }
+
+    const unreachable = results.filter((r) => !r.ok);
+    if (unreachable.length) {
+      flash(
+        `${unreachable.length} of ${results.length} repos unreachable — check the token's repository access and org approval`,
+        "warning"
+      );
+    } else {
+      flash(`Connected as ${identity.login} — all ${results.length} repos reachable`, "success");
+    }
+    await renderGithubTokenStatus();
+  } catch (err) {
+    const msg = String(err.message || err);
+    githubTestResults.appendChild(repoResultRow("connection", false, msg));
+    flash(`GitHub test failed: ${msg}`, "error");
+  } finally {
+    githubTestBtn.disabled = false;
+    githubTestBtn.textContent = "✓ Test connection";
+  }
+});
+
+forgetGithubTokenBtn.addEventListener("click", async () => {
+  if (!confirm("Remove the stored GitHub token from this device?\n\nYour Jira setup and the repo list are kept. Standup simply loses its GitHub panel.")) {
+    return;
+  }
+  await clearGithubToken();
+  githubTokenInput.value = "";
+  await renderGithubTokenStatus();
+  flash("GitHub token removed from this device", "warning");
+  await notifyApp();
+});
+
+matchGithubBtn.addEventListener("click", async () => {
+  const { host, org } = githubFormState();
+  const token = githubTokenInput.value.trim() || (await getGithubToken());
+  if (!org || !token) return flash("Set the GitHub org and token first", "warning");
+
+  const granted = await ensureOrigin(githubOrigin(host));
+  if (!granted) return flash(`Access to ${host} was not granted`, "error");
+
+  matchGithubBtn.disabled = true;
+  matchGithubBtn.textContent = "Matching...";
+  try {
+    const orgMembers = await listOrgMembers({ host, org }, token);
+    const proposal = proposeGithubMatches(roster.getMembers(), orgMembers);
+    const applied = roster.applyGithubLogins(proposal.matches);
+    const bits = [`${orgMembers.length} org members`];
+    if (applied) bits.push(`matched ${applied}`);
+    if (proposal.ambiguous.length) bits.push(`${proposal.ambiguous.length} ambiguous, left blank`);
+    const missing = roster.countMissingGithubLogins();
+    if (missing) bits.push(`${missing} still without a login`);
+    flash(
+      `${bits.join(" · ")}${applied ? " — review and press Save" : ""}`,
+      applied ? "success" : "warning"
+    );
+  } catch (err) {
+    const msg = String(err.message || err);
+    flash(
+      msg.includes("403")
+        ? "GitHub refused the member list (403) — the token needs org 'Members: read'. Fill logins in by hand instead."
+        : `Match failed: ${msg}`,
+      "error"
+    );
+  } finally {
+    matchGithubBtn.disabled = false;
+    matchGithubBtn.textContent = "⇄ Match logins from GitHub org";
+  }
+});
 
 saveBtn.addEventListener("click", async () => {
   const baseUrl = normalizeBaseUrl(baseUrlInput.value);
@@ -475,6 +718,20 @@ saveBtn.addEventListener("click", async () => {
     .map((s) => s.trim())
     .filter(Boolean);
 
+  const github = githubFormState();
+  if (github.enabled) {
+    if (!github.org) return flash("GitHub sync needs an organisation", "warning");
+    if (!github.repos.length) {
+      return flash(
+        "GitHub sync needs at least one repo under GitHub settings — the list is the scope",
+        "warning"
+      );
+    }
+    // Requested from inside the Save click, which is the gesture Chrome wants.
+    const ghGranted = await ensureOrigin(githubOrigin(github.host));
+    if (!ghGranted) return flash(`Access to ${github.host} was not granted`, "error");
+  }
+
   await saveConfig({
     site: { baseUrl },
     brand: {
@@ -486,7 +743,18 @@ saveBtn.addEventListener("click", async () => {
     fields,
     additionalFields: extraFields,
     monitorChecks,
+    github: {
+      enabled: github.enabled,
+      host: github.host,
+      org: github.org,
+      repos: github.repos.map(repoSlug),
+    },
   });
+
+  // Saved separately from the config, on this device only, with no expiry
+  // guess — GitHub reports the real date on the first authenticated call.
+  const githubToken = githubTokenInput.value.trim();
+  if (githubToken) await saveGithubToken(githubToken);
   await saveCredentials({
     email,
     token,
@@ -497,9 +765,12 @@ saveBtn.addEventListener("click", async () => {
 
   baseUrlInput.value = CONFIG.site.baseUrl;
   boards = validBoards;
+  githubReposInput.value = github.repos.map(repoSlug).join("\n");
   renderBoards();
   renderLocalFieldsNote();
+  renderGithubRepoNote();
   await renderTokenStatus();
+  await renderGithubTokenStatus();
   flash("Saved");
 
   await notifyApp();
@@ -525,10 +796,17 @@ async function init() {
   additionalFieldsInput.value = (CONFIG.additionalFields || []).join(", ");
   monitorChecks = { ...(CONFIG.monitorChecks || {}) };
 
+  const gh = CONFIG.github || {};
+  githubEnabledBox.checked = gh.enabled === true;
+  githubHostInput.value = gh.host || "github.com";
+  githubOrgInput.value = gh.org || "";
+  githubReposInput.value = (gh.repos || []).join("\n");
+
   const stored = await loadCredentials();
   if (stored?.email) emailInput.value = stored.email;
   if (stored?.token) tokenInput.value = stored.token;
   tokenExpiryInput.value = stored?.tokenExpiresAt?.slice(0, 10) || "";
+  githubTokenInput.value = await getGithubToken();
 
   if (!roster) {
     roster = initRoster({
@@ -544,7 +822,9 @@ async function init() {
   renderFieldRoles();
   renderMonitorChecks();
   renderLocalFieldsNote();
+  renderGithubRepoNote();
   await renderTokenStatus();
+  await renderGithubTokenStatus();
 }
 
 init();

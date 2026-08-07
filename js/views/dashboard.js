@@ -295,7 +295,7 @@ function renderBurndown(summary, burndown, snapshots) {
     note.className = "chart-empty dash-burndown-empty";
     note.textContent =
       snapshots.length <= 1
-        ? "Collecting history. Jira has no public API for past sprint state, so ButterJira records one snapshot a day from data it already has — the burndown appears tomorrow."
+        ? `Collecting history. Jira has no public API for past sprint state, so ${CONFIG.brand.productName} records one snapshot a day from data it already has — the burndown appears tomorrow.`
         : `Collecting history — ${burndown.have} of ${burndown.need} days recorded so far.`;
     card.appendChild(note);
     return card;

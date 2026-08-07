@@ -45,6 +45,50 @@ export function shuffleWithSeed(items, seed) {
   return out;
 }
 
+// What the hand-off card says above the next person's name. Some are complete
+// sentences, some are lead-ins that the name underneath finishes ("Time for…"
+// / "Alex Rivera") — both read correctly because the name is always the line
+// below.
+export const HANDOFF_PHRASES = [
+  "Get ready!",
+  "Time for…",
+  "Your time has come!",
+  "Next up",
+  "You're on",
+  "The stage is yours",
+  "Over to you",
+  "Take it away",
+  "All eyes on",
+  "Warm up the mic",
+  "Deep breath…",
+];
+
+// Deterministic, not random-per-render. renderRunning() fires again on pause,
+// on resume, and when the GitHub fetch lands — a phrase that changed under
+// someone mid-hand-off would read as a glitch rather than as variety. Derived
+// from the session seed and position, so it also survives a resume unchanged.
+export function handoffPhrase(session, phrases = HANDOFF_PHRASES) {
+  if (!phrases.length) return "";
+  if (phrases.length === 1) return phrases[0];
+
+  const seed = Number(session?.seed) || 0;
+  // Capped so a corrupt index cannot spin here; no standup has 500 hand-offs.
+  const index = Math.min(500, Math.max(0, Math.floor(session?.index ?? 0)));
+
+  // Resolved forward from the first hand-off rather than computed for this one
+  // alone. The no-repeat rule has to compare against what the previous position
+  // actually *showed*, and that may itself have been bumped — comparing raw
+  // draws lets a bumped value collide with the next raw one.
+  let previous = -1;
+  let chosen = 0;
+  for (let position = 0; position <= index; position++) {
+    chosen = Math.floor(makeRandom(seed + position * 7919)() * phrases.length);
+    if (chosen === previous) chosen = (chosen + 1) % phrases.length;
+    previous = chosen;
+  }
+  return phrases[chosen];
+}
+
 export function clampDuration(seconds) {
   const n = Math.round(Number(seconds));
   if (!Number.isFinite(n)) return DEFAULT_DURATION_SEC;

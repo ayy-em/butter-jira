@@ -346,6 +346,31 @@ function renderFooter() {
   productLogo.title = CONFIG.brand.productName;
   productLogo.style.cssText = "height:14px;opacity:0.3;";
   footer.appendChild(productLogo);
+
+  footer.appendChild(sourceLink());
+}
+
+// The project's own source, not the user's org — so the label names the repo
+// literally rather than following CONFIG.brand.productName, which a whitelabel
+// install will have changed. Absolutely positioned like the sync label on the
+// left, so neither pushes the centred logo off centre.
+// Hyphen, not underscore: the local directory is butter_jira but the repo —
+// and this checkout's origin — is butter-jira. The underscore form 404s.
+export const SOURCE_URL = "https://github.com/ayy-em/butter-jira";
+
+function sourceLink() {
+  const link = document.createElement("a");
+  link.className = "mono footer-source";
+  link.href = SOURCE_URL;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = "butter_jira on GitHub";
+  link.title = SOURCE_URL;
+  link.style.cssText =
+    "font-size:11px;color:var(--muted);position:absolute;right:16px;text-decoration:none;";
+  link.addEventListener("mouseenter", () => { link.style.color = "var(--text)"; });
+  link.addEventListener("mouseleave", () => { link.style.color = "var(--muted)"; });
+  return link;
 }
 
 function fireConfetti(cx, cy) {

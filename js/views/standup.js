@@ -1,5 +1,5 @@
 import { getAllSprintIssues } from "../api.js";
-import { loadStatusGroups } from "../utils.js";
+import { fmtDate, loadStatusGroups } from "../utils.js";
 import {
   activeMembers,
   avatarOverrideFor,
@@ -7,6 +7,13 @@ import {
   memberFor,
   slackMentionFor,
 } from "../team.js";
+import {
+  PR_STATE_LABELS,
+  activityFor,
+  getTeamActivity,
+  isGithubConfigured,
+} from "../github.js";
+import * as confetti from "../confetti.js";
 import { renderColumns } from "../components/board.js";
 import { createIssueMover } from "../issue-move.js";
 import * as sfx from "../sfx.js";
@@ -22,6 +29,7 @@ import {
   estimatedWallSec,
   finish,
   formatClock,
+  handoffPhrase,
   isOverrun,
   isPaused,
   loadPrefs,
@@ -54,6 +62,33 @@ export async function mount(container, creds) {
   let session = null;
   let ticker = null;
   let countdownCuePlayed = false;
+
+  // GitHub is a second, optional source and is never on the critical path: the
+  // fetch is kicked off when the setup screen appears, the standup starts
+  // whether or not it has landed, and any failure leaves the panel absent
+  // rather than blocking a view. `github.state` is what the setup chip reports.
+  const github = { state: "off", activity: null, error: "" };
+  let githubPending = null;
+
+  function startGithubFetch() {
+    if (!isGithubConfigured()) {
+      github.state = "off";
+      return null;
+    }
+    github.state = "loading";
+    githubPending = getTeamActivity()
+      .then((activity) => {
+        github.activity = activity;
+        github.state = activity.failures.length ? "partial" : "ready";
+        return activity;
+      })
+      .catch((err) => {
+        github.state = "error";
+        github.error = String(err?.message || err);
+        return null;
+      });
+    return githubPending;
+  }
   // The board element of the person currently speaking, so a card drop can
   // repaint just the columns. Re-rendering the whole stage would blow away the
   // parking-lot textarea mid-sentence.
@@ -214,8 +249,38 @@ export async function mount(container, creds) {
     hint.textContent = "Space pauses · → next person · Esc ends";
     card.appendChild(hint);
 
+    if (github.state !== "off") card.appendChild(githubChip());
     card.appendChild(muteToggle());
     wrap.appendChild(card);
+  }
+
+  // Says which of the four things happened to the GitHub fetch, so a missing
+  // panel is explained on the setup card rather than being a silent absence.
+  function githubChip() {
+    const chip = document.createElement("div");
+    chip.className = "standup-github-chip mono";
+    chip.id = "standup-github-chip";
+    paintGithubChip(chip);
+    return chip;
+  }
+
+  function paintGithubChip(target = document.getElementById("standup-github-chip")) {
+    if (!target) return;
+    const counts = github.activity;
+    const text = {
+      off: "",
+      loading: "GitHub — loading pull requests…",
+      ready: counts
+        ? `GitHub — ${counts.pullRequests.length} open PR${counts.pullRequests.length === 1 ? "" : "s"} across ${counts.reached.length} repo${counts.reached.length === 1 ? "" : "s"}`
+        : "GitHub — ready",
+      partial: counts
+        ? `GitHub — ${counts.pullRequests.length} open PRs, ${counts.failures.length} repo${counts.failures.length === 1 ? "" : "s"} unreachable`
+        : "GitHub — partial",
+      error: `GitHub unavailable — ${github.error}. Standup runs without it.`,
+    }[github.state];
+    target.textContent = text || "";
+    target.classList.toggle("warn", github.state === "partial");
+    target.classList.toggle("bad", github.state === "error");
   }
 
   function renderResumeBanner() {
@@ -453,8 +518,8 @@ export async function mount(container, creds) {
     el.className = "standup-interstitial standup-handoff";
 
     const label = document.createElement("div");
-    label.className = "standup-interstitial-label mono";
-    label.textContent = "GET READY";
+    label.className = "standup-interstitial-label mono handoff";
+    label.textContent = handoffPhrase(session);
     el.appendChild(label);
 
     const avatarUrl = avatarFor(upcoming);
@@ -541,20 +606,30 @@ export async function mount(container, creds) {
     progress.appendChild(fill);
     el.appendChild(progress);
 
+    // The board and the GitHub panel share the stage: tickets on the left,
+    // "what have you got in review" on the right, which is the half of the
+    // answer the board cannot give.
+    const work = document.createElement("div");
+    work.className = "standup-work";
+
     const mine = issuesFor(id);
     if (!mine.length) {
       speakingBoard = null;
       const empty = document.createElement("div");
       empty.className = "standup-empty";
       empty.textContent = "Nothing assigned in the current sprint.";
-      el.appendChild(empty);
+      work.appendChild(empty);
     } else {
       const boardWrap = document.createElement("div");
       boardWrap.className = "standup-board kanban-board";
       speakingBoard = boardWrap;
       paintSpeakingBoard(id);
-      el.appendChild(boardWrap);
+      work.appendChild(boardWrap);
     }
+
+    const panel = renderGithubPanel(id);
+    if (panel) work.appendChild(panel);
+    el.appendChild(work);
 
     // One parking lot per speaker: the box is theirs, so it comes up empty for
     // the next person and the end screen can address each note to someone.
@@ -603,6 +678,108 @@ export async function mount(container, creds) {
       emptyLabel: "—",
       onIssueMove: moveIssue,
     });
+  }
+
+  // ── GitHub panel ───────────────────────────────────────────────────────────
+
+  // Absent rather than apologetic: with GitHub off, still loading, or failed,
+  // this returns null and the stage is exactly what it was before M11.
+  function renderGithubPanel(accountId) {
+    if (github.state === "off" || github.state === "error") return null;
+
+    const panel = document.createElement("aside");
+    panel.className = "standup-github";
+
+    const title = document.createElement("div");
+    title.className = "standup-github-title mono";
+    title.textContent = "GITHUB";
+    panel.appendChild(title);
+
+    if (github.state === "loading" || !github.activity) {
+      const loading = document.createElement("div");
+      loading.className = "standup-github-note";
+      loading.textContent = "Loading…";
+      panel.appendChild(loading);
+      return panel;
+    }
+
+    const login = memberFor(accountId)?.githubLogin || "";
+    if (!login) {
+      // Sayable in one line, and fixable in Settings — better than a panel
+      // that is silently empty for one person and full for everyone else.
+      const note = document.createElement("div");
+      note.className = "standup-github-note";
+      note.textContent = "No GitHub login on the roster for this person.";
+      panel.appendChild(note);
+      return panel;
+    }
+
+    const mine = activityFor(github.activity, login);
+    const sections = [
+      ["Open PRs", mine.open, prRow],
+      ["Waiting on you", mine.reviewRequests, prRow],
+      ["Merged", mine.merged, mergedRow],
+      ["Issues", mine.issues, issueRow],
+    ].filter(([, items]) => items.length);
+
+    if (!sections.length) {
+      const note = document.createElement("div");
+      note.className = "standup-github-note";
+      note.textContent = "Nothing open on GitHub.";
+      panel.appendChild(note);
+      return panel;
+    }
+
+    for (const [label, items, rowFn] of sections) {
+      const heading = document.createElement("div");
+      heading.className = "standup-github-heading mono";
+      heading.textContent = `${label} · ${items.length}`;
+      panel.appendChild(heading);
+      for (const item of items) panel.appendChild(rowFn(item));
+    }
+    return panel;
+  }
+
+  function githubRow(item) {
+    const row = document.createElement("a");
+    row.className = "standup-github-row";
+    row.href = item.url || "#";
+    row.target = "_blank";
+    row.rel = "noopener noreferrer";
+
+    const summary = document.createElement("span");
+    summary.className = "standup-github-summary";
+    summary.textContent = item.title;
+    row.appendChild(summary);
+
+    const meta = document.createElement("span");
+    meta.className = "standup-github-meta mono";
+    row.appendChild(meta);
+    return { row, meta };
+  }
+
+  function prRow(pr) {
+    const { row, meta } = githubRow(pr);
+    const state = document.createElement("span");
+    state.className = `standup-github-state ${pr.state}`;
+    state.textContent = PR_STATE_LABELS[pr.state] || pr.state;
+    meta.append(
+      state,
+      document.createTextNode(` ${pr.repo.split("/")[1] || pr.repo} #${pr.number} · ${pr.ageDays}d`)
+    );
+    return row;
+  }
+
+  function mergedRow(pr) {
+    const { row, meta } = githubRow(pr);
+    meta.textContent = `${pr.repo.split("/")[1] || pr.repo} #${pr.number} · merged`;
+    return row;
+  }
+
+  function issueRow(issue) {
+    const { row, meta } = githubRow(issue);
+    meta.textContent = `${issue.repo.split("/")[1] || issue.repo} #${issue.number} · ${issue.ageDays}d`;
+    return row;
   }
 
   function ctrlBtn(label, onClick, extra = "") {
@@ -657,8 +834,8 @@ export async function mount(container, creds) {
     card.className = "standup-setup";
 
     const title = document.createElement("h1");
-    title.className = "standup-title mono";
-    title.textContent = "STANDUP DONE";
+    title.className = "standup-title mono done";
+    title.textContent = "STANDUP = DONE";
     card.appendChild(title);
 
     const total = Object.values(session.actualMs || {}).reduce((a, b) => a + b, 0);
@@ -696,7 +873,7 @@ export async function mount(container, creds) {
     const entries = notesEntries(session);
     if (entries.length) {
       const notesTitle = document.createElement("div");
-      notesTitle.className = "standup-parking-label mono";
+      notesTitle.className = "standup-parking-label mono summary";
       notesTitle.textContent = "Parking lot — paste into Slack";
       card.appendChild(notesTitle);
 
@@ -704,7 +881,8 @@ export async function mount(container, creds) {
       // it stays editable so the facilitator can tidy wording before pasting.
       const digestBox = document.createElement("textarea");
       digestBox.className = "standup-digest";
-      digestBox.rows = Math.min(12, entries.length + 1);
+      // +3 for the dated title and the blank line under it.
+      digestBox.rows = Math.min(14, entries.length + 3);
       digestBox.value = slackDigest(session);
       digestBox.spellcheck = false;
       card.appendChild(digestBox);
@@ -746,11 +924,21 @@ export async function mount(container, creds) {
     card.appendChild(again);
 
     wrap.appendChild(card);
+
+    // After the card is in the DOM, so the bursts land on the finished screen
+    // rather than on the one being torn down.
+    confetti.celebrate();
+  }
+
+  // Dated heading for the pasted message, so a channel full of these is
+  // scannable and nobody has to work out which day one refers to.
+  function digestTitle(now = new Date()) {
+    return `Daily Standup Action Points - ${fmtDate(now)}`;
   }
 
   // "@handle - note" per person, one line each, ready to paste into Slack.
   // Multi-line notes are joined with "; " so one person is always one line.
-  function slackDigest(finished) {
+  function digestBody(finished) {
     return notesEntries(finished)
       .map(({ id, note }) => {
         const who = memberFor(id) ? slackMentionFor(id) : labelFor(id);
@@ -759,14 +947,23 @@ export async function mount(container, creds) {
       .join("\n");
   }
 
+  // The title is part of the digest rather than something added at copy time:
+  // the textarea is editable, and what it shows has to be what lands on the
+  // clipboard.
+  function slackDigest(finished) {
+    return `${digestTitle()}\n\n${digestBody(finished)}`;
+  }
+
   function downloadNotes(finished) {
+    // digestBody, not slackDigest: the title is already the first line here, and
+    // printing the date twice in one file reads as a bug.
     const lines = [
-      `Standup notes — ${new Date().toISOString().slice(0, 10)}`,
+      digestTitle(),
       "",
       ...finished.order.map((id) => `- ${labelFor(id)}`),
       "",
       "Parking lot:",
-      slackDigest(finished),
+      digestBody(finished),
       "",
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
@@ -806,6 +1003,9 @@ export async function mount(container, creds) {
     if (!wrap.isConnected) {
       stopTicker();
       sfx.stopAll();
+      // The canvas is on document.body, not inside the view, so it does not go
+      // with the container — it has to be torn down by hand.
+      confetti.stop();
       document.body.dataset.standupActive = "";
       document.removeEventListener("keydown", onKeydown);
       observer.disconnect();
@@ -813,5 +1013,16 @@ export async function mount(container, creds) {
   });
   observer.observe(container, { childList: true });
 
+  // Kicked off before the first paint — the state flips to "loading"
+  // synchronously, so the setup card renders with its status line already
+  // there — but never awaited. Whatever has landed by the time someone presses
+  // Start is what the panel shows, and the rest fills in behind.
+  const githubFetch = startGithubFetch();
   renderSetup();
+  githubFetch?.then(() => {
+    paintGithubChip();
+    // A person already on screen when the fetch lands gets their panel without
+    // waiting for the next hand-off.
+    if (session?.phase === PHASES.SPEAKING) renderRunning();
+  });
 }

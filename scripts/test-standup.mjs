@@ -311,5 +311,31 @@ check("issue without a status lands in To Do",
 check("no issues -> all groups empty",
   board.groupIssues([], GROUPS).every((c) => c.issues.length === 0));
 
+section("hand-off phrases");
+const phraseSession = (seed, index) => ({ seed, index });
+check("returns one of the phrases",
+  su.HANDOFF_PHRASES.includes(su.handoffPhrase(phraseSession(1, 0))));
+check("stable across re-renders — pause and resume must not reshuffle it",
+  su.handoffPhrase(phraseSession(42, 3)) === su.handoffPhrase(phraseSession(42, 3)));
+check("varies by position",
+  new Set([0, 1, 2, 3, 4].map((i) => su.handoffPhrase(phraseSession(42, i)))).size > 1);
+check("varies by seed — two standups do not read identically",
+  new Set([1, 2, 3, 4, 5].map((s) => su.handoffPhrase(phraseSession(s, 0)))).size > 1);
+check("never repeats between consecutive speakers",
+  [7, 42, 99, 12345, 2 ** 30].every((seed) =>
+    Array.from({ length: 15 }, (_, i) => su.handoffPhrase(phraseSession(seed, i)))
+      .every((phrase, i, all) => i === 0 || phrase !== all[i - 1])));
+check("every phrase is reachable",
+  new Set(
+    [...Array(400).keys()].map((i) => su.handoffPhrase(phraseSession(i, i % 9)))
+  ).size === su.HANDOFF_PHRASES.length);
+check("a missing session does not throw",
+  su.HANDOFF_PHRASES.includes(su.handoffPhrase(undefined)));
+check("single-phrase list degrades to that phrase",
+  su.handoffPhrase(phraseSession(1, 4), ["Only one"]) === "Only one");
+check("empty list yields empty string, not undefined",
+  su.handoffPhrase(phraseSession(1, 0), []) === "");
+check("no phrase is blank", su.HANDOFF_PHRASES.every((p) => p.trim().length > 0));
+
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

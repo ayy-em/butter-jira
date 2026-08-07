@@ -153,6 +153,18 @@ override file. Anything else is a finding.
 - [ ] Set organisation name with no logo → text label appears
 - [ ] Toggle light/dark on app and settings → both readable, org wordmark inverts
 
+## 4b. Settings page layout
+- [ ] Every section is collapsed on load, including GitHub with sync enabled
+- [ ] Opening one section leaves the others shut; state is per-visit, not persisted
+- [ ] Save writes fields inside **collapsed** sections too — collapse everything, change the org name, Save, reload
+- [ ] Logo click with an app tab already open → that tab is focused and lands on Kanban; this page keeps its unsaved edits
+- [ ] Logo click with no app tab open → a new tab opens on Kanban
+- [ ] ⌘/Ctrl-click and middle-click on the logo open a new tab natively
+- [ ] "What token do I need?" starts collapsed and does not push the token field around when opened
+- [ ] Narrow the window below ~900px → Personal settings drops from two columns to one, nothing overlaps
+- [ ] Board rows: the colour swatch stays a 28px square, not a stripe
+- [ ] Light theme: every section accent, header and hint is legible
+
 ## 5. Identity, credentials, expiry
 - [ ] Note the ID at `chrome://extensions`, remove the extension, load unpacked again → **same ID**, and settings are still there
 - [ ] DevTools → Application → Storage: token is in `chrome.storage.local`, **not** in `sync`
@@ -194,8 +206,44 @@ override file. Anything else is a finding.
 - [ ] Export without the roster box → `grep` the file for a colleague's email: no match
 - [ ] Export with the roster box → confirm dialog, then roster present in the file
 
+## 5d. GitHub sync
+- [ ] Section starts collapsed on a fresh profile; opens already-expanded once enabled
+- [ ] Every screen behaves identically with GitHub sync off — standup shows no chip, no panel
+- [ ] Enable + org + repos, no token → Test connection says "paste a token first", no request fired
+- [ ] Enable + token, empty repo list → Save refuses; the allowlist is the scope
+- [ ] Paste a repo three ways (bare name, `owner/name`, browser URL) → all three normalise to the same row
+- [ ] Paste nonsense on its own line → flagged as unreadable in the note, dropped on save, not silently kept
+- [ ] Test connection → one row per repo, each marked reachable or not, plus the authenticated login
+- [ ] List a repo the token cannot see → that row alone fails with a 404, the others still pass
+- [ ] Save with GHES host → Chrome prompts for that origin; declining leaves the setting unsaved
+- [ ] DevTools → Storage: `githubToken` in `local`, **not** in `sync`, and not in `github` config
+- [ ] Export config **with** "include the API token" ticked → `grep` the file for the GitHub token: no match
+- [ ] Export → `github` block present with host, org and repos
+- [ ] Forget GitHub token → Jira views keep working, repo list retained
+- [ ] Roster: Match logins from GitHub org → fills blanks only, never overwrites a typed login
+- [ ] Match with a token lacking org Members:read → clean 403 note pointing at manual entry
+- [ ] Standup setup card shows the GitHub line; it settles to a repo/PR count
+- [ ] Start standup before the fetch lands → standup starts anyway; panel fills in behind
+- [ ] A speaker with a GitHub login → panel shows open PRs most-stuck-first, then waiting-on-you, merged, issues
+- [ ] A speaker with no GitHub login → one-line note, not an empty panel and not a broken layout
+- [ ] Revoke the token mid-session → panel absent next standup, chip explains, no app-wide auth prompt
+- [ ] Summary screen shows the copyable digest and confetti — and no GitHub coverage block
+- [ ] Confetti: three bursts half a second apart from three different positions, one canvas, clears itself
+- [ ] The Copy button stays clickable the whole time it falls
+- [ ] Hand-off card: the phrase differs between speakers and never repeats back to back
+- [ ] Pause and resume during a hand-off → the phrase does not change under you
+- [ ] Resume an interrupted standup → the same phrases come back in the same order
+- [ ] Hand-off countdown digit is large and carries the animated gradient, in both themes
+- [ ] Footer bottom-right: "butter_jira on GitHub" opens the repo in a new tab
+- [ ] With OS "reduce motion" on → no confetti, everything else identical
+- [ ] Leave the standup mid-confetti → the canvas goes with the view, no stray overlay on the next tab
+- [ ] Copied message starts `Daily Standup Action Points - DD.MM.YYYY`, and the textarea shows exactly what is copied
+- [ ] Downloaded .txt carries the same dated heading once, not twice
+- [ ] Re-enter standup within five minutes → no second GitHub request (Network tab)
+- [ ] Change the repo list → next standup does fetch again (the cache is keyed by the list)
+
 ## 6. Repo hygiene (before pushing)
-- [ ] `node scripts/test-config.mjs`, `test-credentials.mjs` and `test-team.mjs` pass
+- [ ] `node scripts/test-config.mjs`, `test-credentials.mjs`, `test-team.mjs` and `test-github.mjs` pass
 - [ ] `grep -ri` for your org name, site host, and internal project keys → no hits in tracked files
 - [ ] `git status --ignored` → `config.local.json` and `assets/brand/*` are ignored
 - [ ] `node scripts/jira-smoke.js` passes with env vars set

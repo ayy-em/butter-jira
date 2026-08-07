@@ -24,14 +24,34 @@
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 6px;
-  margin: auto;
+  /* Centred, and capped: past about this width a single-line summary stops
+     being a line and starts being a paragraph laid end to end. */
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
 .backlog-table {
   border-collapse: collapse;
   font-size: 13px;
-  margin: 0 auto;
+  width: 100%;
+  /* Fixed layout is what makes "all the slack goes to Summary" true: every
+     other column is pinned below, so whatever the window has left over lands on
+     the one column that can use it. Below min-width the wrapper scrolls
+     sideways rather than crushing the text. */
+  table-layout: fixed;
+  min-width: 1180px;
 }
+
+/* Widths are on the header cells, which is where fixed layout reads them.
+   Summary is deliberately absent — it takes what is left. */
+.backlog-table .col-board { width: 96px; }
+.backlog-table .col-key { width: 112px; }
+.backlog-table .col-epic { width: 180px; }
+.backlog-table .col-status { width: 150px; }
+.backlog-table .col-assignee { width: 190px; }
+.backlog-table .col-sp { width: 68px; }
+.backlog-table .col-due { width: 110px; }
 
 .backlog-table thead {
   position: sticky;
@@ -63,6 +83,10 @@
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
   vertical-align: middle;
+  /* Fixed layout does not shrink a cell to fit, so anything over its column's
+     width has to be clipped here rather than spilling into the next one. */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .backlog-table tr {
@@ -107,6 +131,14 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  /* Without this a flex item refuses to shrink below its content, and a long
+     name pushes the avatar out of its own column. */
+  min-width: 0;
+}
+.assignee-cell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .avatar {
@@ -131,8 +163,28 @@
 
 /* due date colors now in app.css (.due-overdue, .due-7, .due-14, .due-normal) */
 
+/* The one column with no fixed width, so it absorbs everything the others do
+   not take. Truncation is the browser's job here, at the real edge — the view
+   no longer cuts the text at a guessed character count. */
 .summary-cell {
-  max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* An epic reads as a name now rather than as a key, so it gets body type
+   instead of the mono treatment the issue keys keep. */
+.epic-name {
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+.epic-name:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.cell-empty {
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
 }

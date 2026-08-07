@@ -80,6 +80,22 @@ export function normalizeSlackHandle(input) {
     .trimEnd();
 }
 
+// A GitHub login is one more identifier attached to a named colleague, so it
+// lives here and inherits the roster's treatment: device-local, and out of a
+// config export unless the personal-data box is ticked. Normalisation is
+// GitHub's own rule — alphanumerics and single inner hyphens, 39 max — and it
+// tolerates the two forms people paste: "@octocat" and a profile URL.
+export function normalizeGithubLogin(input) {
+  let raw = String(input ?? "").trim();
+  if (!raw) return "";
+  if (raw.includes("/")) {
+    const fromUrl = raw.match(/^(?:https?:\/\/)?(?:[\w.-]+)\/([^/?#]+)/);
+    if (fromUrl) raw = fromUrl[1];
+  }
+  raw = raw.replace(/^@+/, "").trim();
+  return /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/.test(raw) ? raw : "";
+}
+
 export function normalizeMember(raw = {}) {
   const accountId = typeof raw.accountId === "string" && raw.accountId.trim() ? raw.accountId.trim() : null;
   return {
@@ -91,6 +107,9 @@ export function normalizeMember(raw = {}) {
     emoji: typeof raw.emoji === "string" ? raw.emoji.trim().slice(0, 4) : "",
     // Used to address people in the standup parking-lot digest.
     slackHandle: normalizeSlackHandle(raw.slackHandle),
+    // Ties this person to their pull requests. Without it they simply get no
+    // GitHub panel — nothing else in the app depends on it.
+    githubLogin: normalizeGithubLogin(raw.githubLogin),
     // What Jira reports. Kept as the fallback, so clearing an override restores
     // the real profile picture instead of an initials placeholder.
     avatarUrl: typeof raw.avatarUrl === "string" ? raw.avatarUrl : "",
@@ -147,6 +166,7 @@ function dedupeMembers(members) {
     existing.nameOverride = existing.nameOverride || member.nameOverride;
     existing.emoji = existing.emoji || member.emoji;
     existing.slackHandle = existing.slackHandle || member.slackHandle;
+    existing.githubLogin = existing.githubLogin || member.githubLogin;
     existing.avatarUrl = existing.avatarUrl || member.avatarUrl;
     existing.avatarOverride = existing.avatarOverride || member.avatarOverride;
     for (const key of keysFor(existing)) {
@@ -280,6 +300,20 @@ export function slackMentionFor(accountId) {
   const member = memberFor(accountId);
   if (member?.slackHandle) return `@${member.slackHandle}`;
   return member ? memberLabel(member) : accountId;
+}
+
+export function githubLoginFor(accountId) {
+  return memberFor(accountId)?.githubLogin || "";
+}
+
+// Login -> roster member, for attributing a pull request to a person. Logins
+// are case-insensitive on GitHub, so the index is lowercased.
+export function memberByGithubLogin(login) {
+  const needle = normalizeGithubLogin(login).toLowerCase();
+  if (!needle) return null;
+  return (
+    allMembers().find((m) => m.githubLogin.toLowerCase() === needle) || null
+  );
 }
 
 export function avatarOverrideFor(accountId) {

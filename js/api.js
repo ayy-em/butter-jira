@@ -1,5 +1,12 @@
 import { BOARDS, cache } from "./utils.js";
-import { FIELD_ROLES, detailIssueFields, issueFields, jiraUrl } from "./config.js";
+import {
+  FIELD_ROLES,
+  detailIssueFields,
+  fieldIds,
+  fieldValue,
+  issueFields,
+  jiraUrl,
+} from "./config.js";
 
 function authHeader(email, token) {
   return "Basic " + btoa(`${email}:${token}`);
@@ -166,6 +173,36 @@ export async function getAllEpics(creds) {
     }
   }
   return map;
+}
+
+// Epic key -> the label to show for it: Jira's own "Epic Name" where the site
+// has one, else the epic's summary.
+//
+// Deliberately not getAllEpics(): that clears the entire response cache as its
+// first act, which is the Gantt view's refresh gesture and has no business
+// firing because the Backlog wants to print a name. This asks for two fields
+// and caches like everything else, so the column costs one request every five
+// minutes.
+export async function getEpicNames(creds) {
+  return cached("cache_epicNames", async () => {
+    const projectKeys = BOARDS.map((b) => b.projectKey || b.name).filter(Boolean);
+    if (!projectKeys.length) return {};
+
+    const epics = await searchAllPages(
+      creds,
+      `issuetype = Epic AND project in (${projectKeys.join(",")})`,
+      ["summary", ...fieldIds("epicName")]
+    );
+
+    const names = {};
+    for (const epic of epics) {
+      // Trimmed before the fallback decision: a whitespace-only Epic Name is a
+      // real thing on old boards, and it should read as absent, not as blank.
+      const short = String(fieldValue(epic, "epicName") || "").trim();
+      names[epic.key] = short || String(epic.fields?.summary || "").trim();
+    }
+    return names;
+  });
 }
 
 export async function getAllSprintIssues(creds) {

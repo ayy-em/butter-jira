@@ -9,6 +9,12 @@
 // a user-editable reminder: recorded at setup as creation + DEFAULT_LIFETIME,
 // correctable in Settings. It exists so an expired token reads as "expired"
 // instead of an unexplained 401.
+//
+// The GitHub token (M11) is a *second* credential with its own keys and its own
+// lifecycle, deliberately not folded into the record above: a dead GitHub token
+// must never make the Jira views look broken, and forgetting one must not
+// forget the other. It is also the one token whose expiry is real rather than
+// assumed — GitHub reports it on every authenticated call.
 
 import { runMigrations } from "./migrations.js";
 
@@ -16,6 +22,7 @@ export const DEFAULT_TOKEN_LIFETIME_DAYS = 365;
 export const EXPIRY_WARNING_DAYS = 14;
 
 const KEYS = ["email", "token", "tokenCreatedAt", "tokenExpiresAt"];
+const GITHUB_KEYS = ["githubToken", "githubTokenCreatedAt", "githubTokenExpiresAt"];
 
 function localGet(keys) {
   return new Promise((resolve) => {
@@ -119,6 +126,75 @@ export async function tokenStatus(now = new Date()) {
     expired: days !== null && days < 0,
     expiringSoon: days !== null && days >= 0 && days <= EXPIRY_WARNING_DAYS,
   };
+}
+
+// ── GitHub token ─────────────────────────────────────────────────────────────
+// Same storage, separate keys, separate lifecycle. Never exported with the
+// config: a second credential in a shared file is a second thing to leak.
+
+export async function getGithubToken() {
+  await runMigrations();
+  const stored = await localGet(GITHUB_KEYS);
+  return stored.githubToken || "";
+}
+
+export async function saveGithubToken(token, { expiresAt } = {}) {
+  await runMigrations();
+  const existing = await localGet(GITHUB_KEYS);
+  const rotated = existing.githubToken !== token;
+  const patch = {
+    githubToken: token,
+    githubTokenCreatedAt:
+      rotated || !existing.githubTokenCreatedAt
+        ? new Date().toISOString()
+        : existing.githubTokenCreatedAt,
+    // Unlike Atlassian, the real date arrives on the first authenticated call —
+    // so an unknown expiry stays unknown rather than being guessed at a year.
+    githubTokenExpiresAt: expiresAt ?? (rotated ? null : existing.githubTokenExpiresAt ?? null),
+  };
+  await localSet(patch);
+  return patch;
+}
+
+// Called from the response header on every authenticated GitHub call. Writes
+// only on a change, so a fetch does not touch storage on every request.
+export async function recordGithubTokenExpiry(expiresAt) {
+  if (!expiresAt) return;
+  const stored = await localGet(GITHUB_KEYS);
+  if (!stored.githubToken) return;
+  if (stored.githubTokenExpiresAt === expiresAt) return;
+  await localSet({ githubTokenExpiresAt: expiresAt });
+}
+
+export async function clearGithubToken() {
+  await localRemove(GITHUB_KEYS);
+}
+
+export async function githubTokenStatus(now = new Date()) {
+  const stored = await localGet(GITHUB_KEYS);
+  const expiresAt = stored.githubTokenExpiresAt || null;
+  const days = daysUntil(expiresAt, now);
+  return {
+    hasToken: Boolean(stored.githubToken),
+    createdAt: stored.githubTokenCreatedAt || null,
+    expiresAt,
+    daysLeft: days,
+    expired: days !== null && days < 0,
+    expiringSoon: days !== null && days >= 0 && days <= EXPIRY_WARNING_DAYS,
+  };
+}
+
+export function describeGithubTokenStatus(status) {
+  if (!status.hasToken) return "No GitHub token stored";
+  if (!status.expiresAt) {
+    return "GitHub token stored — expiry unknown until the first call";
+  }
+  if (status.expired) {
+    const ago = Math.abs(status.daysLeft);
+    return `GitHub token expired ${status.expiresAt} (${ago} day${ago === 1 ? "" : "s"} ago)`;
+  }
+  if (status.daysLeft === 0) return `GitHub token expires today (${status.expiresAt})`;
+  return `GitHub token expires ${status.expiresAt} (in ${status.daysLeft} day${status.daysLeft === 1 ? "" : "s"})`;
 }
 
 export function describeTokenStatus(status) {

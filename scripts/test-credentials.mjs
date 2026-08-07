@@ -219,5 +219,32 @@ check("non-string brand value dropped", parsed.config.brand.productName === unde
 check("brand string kept", parsed.config.brand.orgName === "ExampleCo");
 check("token import warns loudly", parsed.warnings.some((w) => w.includes("API token")));
 
+section("export/import: GitHub block travels, GitHub token never does");
+reset({}, { schemaVersion: 2 });
+await cfg.loadConfig();
+await cfg.saveConfig({
+  site: { baseUrl: "https://x.atlassian.net" },
+  github: { enabled: true, host: "github.com", org: "acme", repos: ["acme/api", "acme/web"] },
+});
+await creds.saveGithubToken("gh-secret-token");
+payload = portable.buildExport({ now: at("2026-08-05"), credentials, includeToken: true });
+check("github block exported", payload.config.github.org === "acme");
+check("repo allowlist exported", payload.config.github.repos.length === 2);
+check(
+  "GitHub token absent even with includeToken",
+  !JSON.stringify(payload).includes("gh-secret-token")
+);
+
+parsed = portable.parseImport(JSON.stringify(payload));
+check("github block round-trips", parsed.config.github.repos.join() === "acme/api,acme/web");
+check("repo list import is announced", parsed.warnings.some((w) => w.includes("GitHub repositor")));
+
+parsed = portable.parseImport(JSON.stringify({
+  format: portable.EXPORT_FORMAT,
+  config: { github: { enabled: true, org: "acme", repos: [] } },
+}));
+check("enabled with no repos is switched off on import", parsed.config.github.enabled === false);
+check("and says so", parsed.warnings.some((w) => w.includes("no repositories")));
+
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

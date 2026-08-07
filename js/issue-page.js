@@ -36,7 +36,7 @@ async function init() {
   const creds = await getCredentials();
   if (!creds || !isConfigured()) {
     root.innerHTML =
-      '<div class="issue-error">Not configured yet — open ButterJira and connect to Jira first.</div>';
+      '<div class="issue-error">Not configured yet — open the app and connect to Jira first.</div>';
     return;
   }
 
