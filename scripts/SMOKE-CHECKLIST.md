@@ -263,6 +263,12 @@ override file. Anything else is a finding.
 - [ ] Firefox: standup runs — sound cues play, confetti fires, drag-and-drop works
 - [ ] Edge: edge://extensions → Load unpacked → `dist/edge` loads with no warning, app opens
 - [ ] Chrome: the repo directory still loads unpacked with no build step
+- [ ] Chrome: load `dist/chrome` unpacked → loads with no manifest warning
+- [ ] Edge: load `dist/edge` unpacked → loads with no manifest warning
+      (these two are manual on purpose: headless Chromium refuses to open a
+       chrome-extension:// page from the CLI, so nothing automated covers them)
+- [ ] **Click every nav tab after any refactor** — Sprint, Backlog, Roadmap, Kanban, Monitor, Standup.
+      A missing import only shows up on the view that has it, and the console is where it shows.
 - [ ] `git diff manifest.json` after a build is empty — the root manifest has not drifted from the base
 - [ ] Chrome → export config (both token boxes ticked) → import into Firefox → app works with no re-typing
 - [ ] Same file imported into Edge → works

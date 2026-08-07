@@ -461,10 +461,11 @@ No build step — plain ES modules, loaded directly by Chrome.
 Config-layer unit checks — no dependencies, no network, no browser:
 
 ```bash
-node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (30 checks)
+node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (39 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (49 checks)
 node scripts/test-config.mjs       # config layer, field discovery      (76 checks)
-node scripts/test-credentials.mjs  # migrations, tokens, export/import (89 checks)
+node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
 node scripts/test-team.mjs         # roster, display names, filtering (127 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
@@ -510,6 +511,12 @@ the aliased query, review-state and staleness derivation, per-person slicing,
 and the roster matcher. It also asserts the two
 behaviours that only show up in the transport — one repo failing degrades to
 that one repo, and the real token expiry is read off the response header.
+
+`test-imports.mjs` exists because a mechanical rename across twenty files once
+missed two imports and shipped: `node --check` parses without resolving
+identifiers, and the unit suites do not import the DOM-heavy view modules. It
+flags any identifier a module calls that another module exports and this one
+never imported.
 
 `test-browser.mjs` is the one that matters for the port: it runs the real
 modules against a Firefox-shaped `browser` global with **no `chrome` global at

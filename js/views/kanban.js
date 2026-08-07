@@ -1,3 +1,4 @@
+import { syncGet, syncSet } from "../browser.js";
 import { getAllSprintIssues, getAllBacklogIssues } from "../api.js";
 import {
   extractAssignees,

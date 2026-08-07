@@ -1,4 +1,4 @@
-import { runtimeUrl } from "../browser.js";
+import { localGet, localSet, runtimeUrl } from "../browser.js";
 import { getAllBacklogIssues, getAllSprintIssues } from "../api.js";
 import { assigneeLabel, boardColor, boardName, fmtDate, getStoryPoints } from "../utils.js";
 import { CONFIG } from "../config.js";
