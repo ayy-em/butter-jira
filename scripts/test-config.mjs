@@ -25,17 +25,14 @@ globalThis.chrome = {
   runtime: { getURL: (p) => `chrome-extension://test/${p}` },
   storage: {
     sync: {
-      get: (keys, cb) => cb(pick(storage, keys)),
-      set: (obj, cb) => { Object.assign(storage, obj); cb?.(); return Promise.resolve(); },
-      remove: (keys, cb) => { for (const k of [].concat(keys)) delete storage[k]; cb?.(); return Promise.resolve(); },
+      get: (keys) => Promise.resolve(pick(storage, keys)),
+      set: (obj) => { Object.assign(storage, obj); return Promise.resolve(); },
+      remove: (keys) => { for (const k of [].concat(keys)) delete storage[k]; return Promise.resolve(); },
     },
     local: {
-      get: (keys, cb) => {
-        const out = keys == null ? { ...localStore } : pick(localStore, keys);
-        return cb ? cb(out) : Promise.resolve(out);
-      },
-      set: (obj, cb) => { Object.assign(localStore, obj); cb?.(); return Promise.resolve(); },
-      remove: (keys, cb) => { for (const k of [].concat(keys)) delete localStore[k]; cb?.(); return Promise.resolve(); },
+      get: (keys) => Promise.resolve(keys == null ? { ...localStore } : pick(localStore, keys)),
+      set: (obj) => { Object.assign(localStore, obj); return Promise.resolve(); },
+      remove: (keys) => { for (const k of [].concat(keys)) delete localStore[k]; return Promise.resolve(); },
     },
   },
 };

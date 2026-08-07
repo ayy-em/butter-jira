@@ -9,6 +9,8 @@
 // would swallow exactly the cue you care about. unlock() is called from the
 // Start button's click handler to get both out of the way up front.
 
+import { localGet, localSet, runtimeUrl } from "./browser.js";
+
 export const SOUNDS = {
   start: "assets/sfx/dun-dun-dun.mp3",
   countdown: "assets/sfx/countdown.mp3",
@@ -25,7 +27,7 @@ function elementFor(name) {
   if (!elements.has(name)) {
     const path = SOUNDS[name];
     if (!path) return null;
-    const audio = new Audio(chrome.runtime.getURL(path));
+    const audio = new Audio(runtimeUrl(path));
     audio.preload = "auto";
     elements.set(name, audio);
   }
@@ -103,9 +105,7 @@ export function isMuted() {
 }
 
 export async function loadMuted() {
-  const stored = await new Promise((resolve) =>
-    chrome.storage.local.get([MUTE_KEY], (r) => resolve(r || {}))
-  );
+  const stored = await localGet([MUTE_KEY]);
   muted = Boolean(stored[MUTE_KEY]);
   return muted;
 }
@@ -113,8 +113,6 @@ export async function loadMuted() {
 export async function setMuted(value) {
   muted = Boolean(value);
   if (muted) stopAll();
-  await new Promise((resolve) =>
-    chrome.storage.local.set({ [MUTE_KEY]: muted }, () => resolve())
-  );
+  await localSet({ [MUTE_KEY]: muted });
   return muted;
 }

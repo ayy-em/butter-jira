@@ -9,12 +9,12 @@ import { makePlaceholder, renderColumns } from "../components/board.js";
 import { createIssueMover } from "../issue-move.js";
 
 async function loadColumnOrder() {
-  const result = await chrome.storage.sync.get("kanbanColumnOrder");
+  const result = await syncGet("kanbanColumnOrder");
   return result.kanbanColumnOrder || null;
 }
 
 async function saveColumnOrder(order) {
-  await chrome.storage.sync.set({ kanbanColumnOrder: order });
+  await syncSet({ kanbanColumnOrder: order });
 }
 
 export async function mount(container, creds) {

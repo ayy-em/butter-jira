@@ -22,14 +22,14 @@ globalThis.chrome = {
   runtime: { getURL: (p) => `chrome-extension://test/${p}` },
   storage: {
     local: {
-      get: (keys, cb) => cb(keys == null ? { ...local } : pick(local, keys)),
-      set: (obj, cb) => { Object.assign(local, obj); cb?.(); },
-      remove: (keys, cb) => { for (const k of [].concat(keys)) delete local[k]; cb?.(); },
+      get: (keys) => Promise.resolve(keys == null ? { ...local } : pick(local, keys)),
+      set: (obj) => { Object.assign(local, obj); return Promise.resolve(); },
+      remove: (keys) => { for (const k of [].concat(keys)) delete local[k]; return Promise.resolve(); },
     },
     sync: {
-      get: (keys, cb) => cb(keys == null ? { ...sync } : pick(sync, keys)),
-      set: (obj, cb) => { Object.assign(sync, obj); cb?.(); },
-      remove: (keys, cb) => { for (const k of [].concat(keys)) delete sync[k]; cb?.(); },
+      get: (keys) => Promise.resolve(keys == null ? { ...sync } : pick(sync, keys)),
+      set: (obj) => { Object.assign(sync, obj); return Promise.resolve(); },
+      remove: (keys) => { for (const k of [].concat(keys)) delete sync[k]; return Promise.resolve(); },
     },
   },
 };

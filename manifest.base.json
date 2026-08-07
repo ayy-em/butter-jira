@@ -1,4 +1,12 @@
 {
+  "_comment": [
+    "Everything the three targets agree on. scripts/build.mjs merges this with",
+    "the per-target overlay in manifest.<target>.json and writes the result to",
+    "dist/<target>/manifest.json. Edit this file, not the generated ones.",
+    "",
+    "manifest.json at the repo root is the Chrome build, kept in place so the",
+    "repo still loads unpacked with no build step — see the README."
+  ],
   "manifest_version": 3,
   "name": "butter_jira",
   "version": "0.2.0",
@@ -22,11 +30,5 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com"
-  },
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmyJjmoPXNmEBxXDD9jn8IwofHuEDjzO5N2i6hc8JvOdnqXZcuyfwW1B/JPLG0W5fue/U1KzxjPrqQrtIjY0r4TYaodt55EEDdOlN6waXzsuVZ/OPQfevIu/Y0davOUKV2nTJ6GnZ+PjNhC8r0sbe97MKVYUItaRxCpQi/y4Wzg4F0+Z07OxyzlDXLWD7cega8qRNY4JxPxThnB8U86VGY7t5B1h2oT712EQcqpavPWyy2Wju/udQrRNPKKPZjraw3ua1eVx7qbcVjS7jgqECrM2aLCDed0YtrpoT49ei8c/ZBi8GtSmEITewEejhDwF9KNGBLTGstdY5I1MbG6gzcQIDAQAB",
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
-  "minimum_chrome_version": "111"
+  }
 }

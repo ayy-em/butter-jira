@@ -1,9 +1,9 @@
-# ButterJira — Roadmap
+# butter_jira — Roadmap
 
 Last updated: 2026-08-07
 
-A Chrome MV3 extension giving Gantt, Backlog, and Kanban views over Jira Cloud
-boards. This roadmap takes it from an internal single-tenant tool to a
+An MV3 browser extension for Chrome, Firefox and Edge, giving Gantt, Backlog,
+and Kanban views over Jira Cloud boards. This roadmap takes it from an internal single-tenant tool to a
 configurable, team-facing sprint cockpit that any org can clone and point at
 their own Jira site.
 
@@ -16,15 +16,16 @@ built the way it is, which is the part that gets forgotten.
 
 | Aspect | Status |
 |---|---|
+| Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
 | Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Issue detail (drawer + full page) |
 | Data access | HTTP Basic (email + API token), `js/api.js`. Read-only except posting comments |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/agile/1.0/board/*` |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping, GitHub block), overridable via `config.local.json` |
-| Storage | `chrome.storage.sync` for config; `chrome.storage.local` for both tokens, the roster, view prefs, schema version, and a 5-minute response cache |
-| Build step | None — plain ES modules, one vendored lib (`libs/frappe-gantt`) |
+| Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, and a 5-minute response cache. One accessor module (`js/browser.js`) |
+| Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
 | Version control | Git, `.gitignore` in place |
-| Tests | Nine `scripts/test-*.mjs` suites (858 checks) + a manual smoke checklist |
+| Tests | Eleven `scripts/test-*.mjs` suites (942 checks) + a manual smoke checklist |
 
 ## Sizing
 
@@ -36,7 +37,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ```
 M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ✔ ─▶ M5 Issue detail ✔
                                                                         │
-                                                                        ├──▶ M6 Standup ✔ ─▶ M11 GitHub sync ✔
+                                                                        ├──▶ M6 Standup ✔ ─▶ M11 GitHub sync ✔ ─▶ M12 Firefox + Edge ✔
                                                                         │
                                                                         └──▶ M7 Dashboard ✔ ─▶ M8 Writes + Planner ──┬──▶ M9 Palette + Triage ✔
                                                                                                                      └──▶ M10 Sprint Wrapped
@@ -49,6 +50,10 @@ and planning. Monitoring (M4) lands early — it is pure client-side derivation
 over data already being fetched, so it is the cheapest real feature in the list.
 The write layer is deliberately deferred to M8 and isolated in one milestone;
 everything before it stays read-only.
+
+M12 (the Firefox and Edge port) came out of the icebox on 2026-08-07 and is
+orthogonal to the feature chain — it changes how every module reaches storage
+without changing what any of them do.
 
 M11 was taken **out of order, ahead of M8**, on 2026-08-07. It hangs off standup
 rather than the M8 chain, is read-only against a second API, and shares nothing
@@ -168,8 +173,8 @@ plumbing.
 - **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. Pairs naturally with the M7 daily snapshots.
 - WIP limits and blocked-chain visualisation on the Kanban.
 - Multi-site support (several Jira Cloud instances in one install).
+- Self-hosted IBM Plex, replacing the Google Fonts link on all three pages — removes the last remote origin, makes the app work offline, and drops two hosts from the CSP. Deferred out of M12 as a fonts decision rather than a portability one.
 - Multi-org GitHub sync — one fine-grained token has exactly one resource owner, so a second org means a second credential. The config block and the credential keys would both become maps; deliberately not built until someone actually needs it.
-- Firefox/Edge port — MV3 is mostly portable; `chrome.*` namespace and the manifest `key` are the friction points.
 - OOO import from a calendar feed to prefill planner absences.
 - Confluence export of standup notes and Wrapped cards.
 - Slack integration (press a button -> bot posts standup's recap on Slack via webhook)
@@ -180,6 +185,79 @@ plumbing.
 # Completed
 
 Newest first.
+
+## M12 — Firefox and Edge ✔
+
+**Size: M** · Done 2026-08-07. Promoted out of the icebox at the user's request.
+Depends on nothing; touches almost everything.
+
+The icebox entry read: *"MV3 is mostly portable; `chrome.*` namespace and the
+manifest `key` are the friction points."* Half right. The namespace and the key
+were both real, but the blocker nobody had written down was the **background**:
+Firefox MV3 has no service-worker background at all, and no amount of namespace
+aliasing papers over a manifest key that does not exist on the target.
+
+**The namespace: one module, not a polyfill**
+
+`js/browser.js` resolves `browser` (Firefox, promise-native) or `chrome`
+(Chromium) once and exposes a single promise-shaped surface. Every one of the 19
+modules that touched `chrome.*` now imports from it; the only remaining mentions
+of `chrome.` in the tree are in prose comments.
+
+Deliberately **not** `webextension-polyfill`: it would have been this project's
+first dependency, for a shim that is 140 lines and that we want to be able to
+read. And deliberately **no callback fallback** — every API used here returns a
+promise on every supported target, so a "retry with a callback" path would be
+machinery for a browser we do not support, and after a failed promise call it
+would issue side-effecting writes twice.
+
+A side effect worth having: the `localGet`/`localSet`/`localRemove` trio had
+been copy-pasted into seven modules, each hand-wrapping the callback form. They
+are now defined once.
+
+**Three manifests, generated**
+
+`manifest.base.json` plus `manifest.{chrome,firefox,edge}.json` overlays, merged
+by `scripts/build.mjs` into `dist/<target>/`. The differences are not cosmetic:
+
+| | Chrome | Firefox | Edge |
+|---|---|---|---|
+| Background | `service_worker` | `scripts` (event page) | `service_worker` |
+| Extension ID | pinned via `key` | `gecko.id` | assigned by the store |
+
+- **No service worker on Gecko.** Firefox MV3 runs a non-persistent event page.
+- **`key` is Chrome-only**, and both Firefox and the Edge store reject a package
+  carrying one. The build strips it from both.
+- **`gecko.id` is required for `storage.sync` to function.** Without a stable
+  add-on ID there is nothing to sync against and every config write goes quietly
+  nowhere — the worst kind of failure, because nothing errors.
+
+`scripts/build.mjs` is a copy step, not a bundler: same source files, one
+generated manifest. It uses an **allowlist** of what ships rather than an ignore
+list, because a deny list silently starts shipping whatever is added next — and
+this package is otherwise one careless commit from containing `assets/avatars/`,
+which is photographs of colleagues. The repo-root `manifest.json` is the Chrome
+output, regenerated by the build, so loading the repo unpacked still needs no
+build step and cannot drift from the base.
+
+**Verification, because "it compiles" is not a port**
+
+- `scripts/test-browser.mjs` (30 checks) runs the real modules against a Firefox-shaped `browser` global with **no `chrome` global present at all** — including a full `credentials.js` round-trip. A stray `chrome.` reference fails there instead of in front of a user. It also covers both-present (browser wins), aliased namespaces, no namespace (fails loudly), and the degradation paths.
+- `scripts/test-manifests.mjs` (49 checks) encodes the rules that otherwise only bite at submission: no `key` on Firefox or Edge, exactly one background form per target, gecko id present and well-formed, versions in lockstep, no `_comment` keys shipped, CSP still forbidding remote script.
+- **The built package was installed into a real Firefox 153** over WebDriver BiDi. It installed clean with zero warnings, and the profile's extension IndexedDB came back holding `schemaVersion` — which only `background.js` writes, via `runMigrations()`, through the shim. That is the event page loading as an ES module and the `browser.*` path working end to end, not an inference.
+- Both Chromium builds were loaded into real Chrome and real Edge with no manifest complaint.
+
+**Not done, and deliberately:** the pages still pull IBM Plex from Google Fonts,
+which is a remote request the CSP happens to allow. Self-hosting it would make
+the extension work offline and remove a third-party origin — worth doing, but it
+is a fonts decision rather than a portability one, and every font stack already
+falls back cleanly. It is in the icebox.
+
+**Exit criteria met:** one codebase produces working Chrome, Firefox and Edge
+packages; no application module names a browser; and the differences between
+targets are three declared manifest keys rather than branching code.
+
+---
 
 ## M11 — GitHub sync ✔ *(feature 11)*
 

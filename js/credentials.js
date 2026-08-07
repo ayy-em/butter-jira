@@ -16,6 +16,7 @@
 // forget the other. It is also the one token whose expiry is real rather than
 // assumed — GitHub reports it on every authenticated call.
 
+import { localGet, localRemove, localSet } from "./browser.js";
 import { runMigrations } from "./migrations.js";
 
 export const DEFAULT_TOKEN_LIFETIME_DAYS = 365;
@@ -23,24 +24,6 @@ export const EXPIRY_WARNING_DAYS = 14;
 
 const KEYS = ["email", "token", "tokenCreatedAt", "tokenExpiresAt"];
 const GITHUB_KEYS = ["githubToken", "githubTokenCreatedAt", "githubTokenExpiresAt"];
-
-function localGet(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(keys, (result) => resolve(result || {}));
-  });
-}
-
-function localSet(obj) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(obj, () => resolve());
-  });
-}
-
-function localRemove(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.local.remove(keys, () => resolve());
-  });
-}
 
 export function isoDate(date) {
   return date.toISOString().slice(0, 10);

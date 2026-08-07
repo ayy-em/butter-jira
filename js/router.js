@@ -1,3 +1,4 @@
+import { onMessage, requestOrigin } from "./browser.js";
 import {
   discoverFieldMappings,
   listBoards,
@@ -69,10 +70,8 @@ async function init() {
     else if (isConfigured() && !isReauthOpen()) openPalette(await getCredentials());
   });
 
-  chrome.runtime.onMessage?.addListener((msg) => {
-    if (msg.type === "credentials-updated") {
-      init();
-    }
+  onMessage((msg) => {
+    if (msg.type === "credentials-updated") init();
   });
 
   document.addEventListener("keydown", async (e) => {
@@ -174,15 +173,8 @@ async function mountView(creds) {
 // The manifest grants *.atlassian.net up front; anything else (Jira Data
 // Center on a custom domain) is requested at setup time as an optional origin.
 async function ensureHostPermission(baseUrl) {
-  let origin;
   try {
-    origin = `${new URL(baseUrl).origin}/*`;
-  } catch {
-    return false;
-  }
-  if (await chrome.permissions.contains({ origins: [origin] })) return true;
-  try {
-    return await chrome.permissions.request({ origins: [origin] });
+    return await requestOrigin(`${new URL(baseUrl).origin}/*`);
   } catch {
     return false;
   }

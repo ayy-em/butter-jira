@@ -8,6 +8,8 @@
 // a counter built from ticks would drift behind the wall clock exactly when
 // someone tabs away mid-standup.
 
+import { localGet, localRemove, localSet } from "./browser.js";
+
 export const PHASES = {
   SETUP: "setup",
   COUNTDOWN: "countdown",
@@ -282,24 +284,6 @@ export function formatClock(ms) {
 
 export const SESSION_KEY = "standupSession";
 export const PREFS_KEY = "standupPrefs";
-
-function localGet(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(keys, (result) => resolve(result || {}));
-  });
-}
-
-function localSet(obj) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(obj, () => resolve());
-  });
-}
-
-function localRemove(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.local.remove(keys, () => resolve());
-  });
-}
 
 export async function saveSession(session) {
   await localSet({ [SESSION_KEY]: session });

@@ -1,4 +1,15 @@
 import {
+  createTab,
+  queryTabs,
+  requestOrigin,
+  runtimeUrl,
+  sendTabMessage,
+  syncGet,
+  syncSet,
+  updateTab,
+  focusWindow,
+} from "./js/browser.js";
+import {
   CONFIG,
   DEFAULT_STATUS_GROUPS,
   FIELD_ROLES,
@@ -93,7 +104,7 @@ let currentTheme = "dark";
 let roster = null;   // roster editor, created once on first init
 let monitorChecks = {};
 
-chrome.storage.sync.get("theme", (result) => {
+syncGet("theme").then((result) => {
   currentTheme = result.theme || "dark";
   document.documentElement.setAttribute("data-theme", currentTheme);
 });
@@ -101,7 +112,7 @@ chrome.storage.sync.get("theme", (result) => {
 themeToggle.addEventListener("click", () => {
   currentTheme = currentTheme === "dark" ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", currentTheme);
-  chrome.storage.sync.set({ theme: currentTheme });
+  syncSet({ theme: currentTheme });
 });
 
 toggleBtn.addEventListener("click", () => {
@@ -120,21 +131,17 @@ toggleBtn.addEventListener("click", () => {
 brandLink.addEventListener("click", async (e) => {
   if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   e.preventDefault();
-  const appUrl = chrome.runtime.getURL("app.html");
+  const appUrl = runtimeUrl("app.html");
   try {
-    const [existing] = await chrome.tabs.query({ url: appUrl });
+    const [existing] = await queryTabs({ url: appUrl });
     if (existing) {
       // The hash change is what moves the app to Kanban: same document, so the
       // router's hashchange handler mounts the view without a reload.
-      await chrome.tabs.update(existing.id, { active: true, url: `${appUrl}#kanban` });
-      try {
-        await chrome.windows.update(existing.windowId, { focused: true });
-      } catch {
-        // The tab is active either way; raising its window is a nicety.
-      }
+      await updateTab(existing.id, { active: true, url: `${appUrl}#kanban` });
+      await focusWindow(existing.windowId);
       return;
     }
-    await chrome.tabs.create({ url: `${appUrl}#kanban` });
+    await createTab({ url: `${appUrl}#kanban` });
   } catch {
     // No tabs access for some reason — plain navigation still gets there.
     location.href = `${appUrl}#kanban`;
@@ -495,10 +502,9 @@ importFile.addEventListener("change", async () => {
 });
 
 async function notifyApp() {
-  const appUrl = chrome.runtime.getURL("app.html");
-  const tabs = await chrome.tabs.query({ url: appUrl });
-  for (const tab of tabs) {
-    chrome.tabs.sendMessage(tab.id, { type: "credentials-updated" });
+  const appUrl = runtimeUrl("app.html");
+  for (const tab of await queryTabs({ url: appUrl })) {
+    sendTabMessage(tab.id, { type: "credentials-updated" });
   }
 }
 
@@ -515,13 +521,7 @@ async function ensureHostPermission(baseUrl) {
 // Chrome only honours a permission prompt while the click gesture is live, so
 // every caller of this runs from a button handler rather than from init().
 async function ensureOrigin(origin) {
-  if (!origin) return false;
-  if (await chrome.permissions.contains({ origins: [origin] })) return true;
-  try {
-    return await chrome.permissions.request({ origins: [origin] });
-  } catch {
-    return false;
-  }
+  return requestOrigin(origin);
 }
 
 // ── GitHub sync ──────────────────────────────────────────────────────────────

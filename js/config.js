@@ -10,6 +10,7 @@
 // `additionalFields` is the exception: it is the union of the local file and
 // storage, so a local override can always add fields without fighting the UI.
 
+import { runtimeUrl, syncGet, syncSet } from "./browser.js";
 import { runMigrations } from "./migrations.js";
 
 const LOCAL_OVERRIDE_FILE = "config.local.json";
@@ -131,7 +132,7 @@ function mergeInto(target, patch) {
 async function readLocalOverrides() {
   // Untracked and usually absent — a 404 here is the normal case, not an error.
   try {
-    const resp = await fetch(chrome.runtime.getURL(LOCAL_OVERRIDE_FILE));
+    const resp = await fetch(runtimeUrl(LOCAL_OVERRIDE_FILE));
     if (!resp.ok) return null;
     const parsed = await resp.json();
     if (!isPlainObject(parsed)) return null;
@@ -144,18 +145,12 @@ async function readLocalOverrides() {
   }
 }
 
-function readStorage(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(keys, (result) => resolve(result || {}));
-  });
-}
-
 export async function loadConfig() {
   // Storage shape is brought up to date before anything reads it.
   await runMigrations();
 
   const local = await readLocalOverrides();
-  const stored = await readStorage(STORAGE_KEYS);
+  const stored = await syncGet(STORAGE_KEYS);
 
   Object.assign(CONFIG, structuredClone(DEFAULTS));
   mergeInto(CONFIG, local);
@@ -179,7 +174,7 @@ export async function saveConfig(patch) {
   }
   const toStore = {};
   for (const key of STORAGE_KEYS) toStore[key] = CONFIG[key];
-  await chrome.storage.sync.set(toStore);
+  await syncSet(toStore);
   return CONFIG;
 }
 

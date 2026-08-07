@@ -4,6 +4,7 @@
 // app forgot everything". Boards, field mappings, branding and email are all
 // still valid — only the token is dead — so ask for exactly that one field.
 
+import { localGet, localSet, runtimeUrl } from "../browser.js";
 import { verifyCredentials } from "../api.js";
 import { CONFIG, siteHost } from "../config.js";
 import {
@@ -146,7 +147,7 @@ export async function renderExpiryBanner() {
   if (!status.hasToken || (!status.expiringSoon && !status.expired)) return;
 
   const today = new Date().toISOString().slice(0, 10);
-  const { expiryBannerDismissedOn } = await chrome.storage.local.get("expiryBannerDismissedOn");
+  const { expiryBannerDismissedOn } = await localGet("expiryBannerDismissedOn");
   if (expiryBannerDismissedOn === today) return;
 
   document.getElementById("token-expiry-banner")?.remove();
@@ -176,7 +177,7 @@ export async function renderExpiryBanner() {
   dismiss.textContent = "Dismiss";
   dismiss.title = `Hidden until ${CONFIG.brand.productName} is next opened tomorrow`;
   dismiss.addEventListener("click", async () => {
-    await chrome.storage.local.set({ expiryBannerDismissedOn: today });
+    await localSet({ expiryBannerDismissedOn: today });
     banner.remove();
   });
 
@@ -196,7 +197,7 @@ export async function renderGithubExpiryBanner() {
   if (!status.hasToken || (!status.expiringSoon && !status.expired)) return;
 
   const today = new Date().toISOString().slice(0, 10);
-  const { githubBannerDismissedOn } = await chrome.storage.local.get("githubBannerDismissedOn");
+  const { githubBannerDismissedOn } = await localGet("githubBannerDismissedOn");
   if (githubBannerDismissedOn === today) return;
 
   document.getElementById("github-expiry-banner")?.remove();
@@ -214,7 +215,7 @@ export async function renderGithubExpiryBanner() {
   open.className = "expiry-banner-btn";
   open.textContent = "Open Settings";
   open.addEventListener("click", () => {
-    window.open(chrome.runtime.getURL("settings.html"));
+    window.open(runtimeUrl("settings.html"));
   });
 
   const dismiss = document.createElement("button");
@@ -222,7 +223,7 @@ export async function renderGithubExpiryBanner() {
   dismiss.textContent = "Dismiss";
   dismiss.title = `Hidden until ${CONFIG.brand.productName} is next opened tomorrow`;
   dismiss.addEventListener("click", async () => {
-    await chrome.storage.local.set({ githubBannerDismissedOn: today });
+    await localSet({ githubBannerDismissedOn: today });
     banner.remove();
   });
 

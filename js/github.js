@@ -21,6 +21,7 @@
 //      cannot reach is reported as that one repo failing rather than as the
 //      whole fetch failing.
 
+import { localGet, localSet } from "./browser.js";
 import { CONFIG } from "./config.js";
 import { getGithubToken, recordGithubTokenExpiry } from "./credentials.js";
 // Login normalisation lives with the roster, since that is where a login is
@@ -754,7 +755,7 @@ export async function getTeamActivity({ config = CONFIG, now = new Date(), force
   const key = activityCacheKey(config);
   if (!force) {
     try {
-      const stored = await chrome.storage.local.get(key);
+      const stored = await localGet(key);
       const entry = stored?.[key];
       if (entry && Date.now() - entry.ts <= ACTIVITY_TTL_MS) return entry.value;
     } catch {
@@ -763,7 +764,7 @@ export async function getTeamActivity({ config = CONFIG, now = new Date(), force
   }
   const activity = await fetchTeamActivity({ config, now });
   try {
-    await chrome.storage.local.set({ [key]: { value: activity, ts: Date.now() } });
+    await localSet({ [key]: { value: activity, ts: Date.now() } });
   } catch {
     // Quota errors must not lose the data we just fetched.
   }
