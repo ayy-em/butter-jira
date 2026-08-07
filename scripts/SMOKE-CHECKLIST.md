@@ -45,6 +45,27 @@ override file. Anything else is a finding.
 - [ ] Filters: board and assignee filters apply across all three views
 - [ ] `b` / `r` / `k` / `m` switch views; typing in an input does not trigger them
 
+## 3z. Backlog screen
+- [ ] Header shows the icon, title, subtitle, and one tile per configured status group
+- [ ] Tiles recount as filters change; Total always matches the unfiltered count
+- [ ] Compact / Default / Cozy visibly change row height and survive a reload
+- [ ] `/` focuses search from anywhere; typing in a field does not steal the key
+- [ ] Search narrows the list and the "N total · M visible" counter follows
+- [ ] Sidebar: each filter group shows "All" or a count; Clear all resets everything
+- [ ] Assignee filter search box narrows the option list
+- [ ] Group by Epic / Assignee / Board / Status → sticky group headers, collapsible, counts right
+- [ ] Grouped view shows no pager and says grouped views are not paginated
+- [ ] Ungrouped: pager works, page size persists, page clamps when a filter shrinks the list
+- [ ] Row checkbox and header checkbox select; count appears in the pager bar
+- [ ] Left accent bar colour matches the board; Board column is off by default
+- [ ] Column menu toggles columns, persists across a reload; Key and Summary cannot be hidden
+- [ ] Summary text opens the issue, same as the key; ⌘/Ctrl-click opens the full page
+- [ ] Save view stores filters + sort + grouping + columns; reopening it restores all four
+- [ ] Filter to nothing → empty state with a working Clear filters button
+- [ ] Reload with a slow connection → skeleton rows, not a spinner, and no layout jump
+- [ ] Command palette → jump to a person → Backlog opens filtered to them, and only once
+- [ ] Light theme: tiles, status chips, SP badges and the accent bar all legible
+
 ## 3a. Sprint dashboard
 - [ ] `d` or the SPRINT tab opens it; sprint name, goal and dates match Jira
 - [ ] Working days left is right (weekends not counted); a finished sprint reads "ended …" in red

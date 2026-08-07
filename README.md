@@ -461,6 +461,7 @@ No build step — plain ES modules, loaded directly by Chrome.
 Config-layer unit checks — no dependencies, no network, no browser:
 
 ```bash
+node scripts/test-backlog.mjs      # grouping, paging, tones, views    (103 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
 node scripts/test-imports.mjs      # every module imports what it calls  (39 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (49 checks)
