@@ -9,6 +9,8 @@
 // per-device storage and must not be replayed on, or skipped because of, a
 // sibling device's state.
 
+import { localGet, localSet, syncGet, syncRemove } from "./browser.js";
+
 export const SCHEMA_VERSION = 2;
 
 const VERSION_KEY = "schemaVersion";
@@ -33,30 +35,6 @@ const MIGRATIONS = {
     }
   },
 };
-
-function syncGet(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(keys, (result) => resolve(result || {}));
-  });
-}
-
-function syncRemove(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.sync.remove(keys, () => resolve());
-  });
-}
-
-function localGet(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(keys, (result) => resolve(result || {}));
-  });
-}
-
-function localSet(obj) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(obj, () => resolve());
-  });
-}
 
 // Memoised: concurrent callers share one run, and repeat calls are free.
 let inFlight = null;

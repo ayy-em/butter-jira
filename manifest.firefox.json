@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Firefox overlay. Merged over manifest.base.json by scripts/build.mjs.",
+    "",
+    "Three things differ from Chrome, and all three are hard requirements:",
+    "",
+    "1. No `key`. It is a Chrome mechanism; Firefox identifies an add-on by",
+    "   browser_specific_settings.gecko.id instead. The build strips it.",
+    "2. `background.scripts`, not `service_worker`. Firefox MV3 runs a",
+    "   non-persistent event page; it has no service-worker background. `type:",
+    "   module` still applies, so background.js keeps its imports.",
+    "3. `browser_specific_settings.gecko.id` is required for storage.sync to",
+    "   work at all — without a stable add-on ID Firefox has nothing to sync",
+    "   against, and every configuration write would silently go nowhere.",
+    "",
+    "strict_min_version 115: MV3 with optional_host_permissions and a promise-",
+    "based `browser.*` across the APIs this uses."
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "butter-jira@ayy-em.github.io",
+      "strict_min_version": "115.0"
+    }
+  }
+}

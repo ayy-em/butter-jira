@@ -1,3 +1,4 @@
+import { localGet, localRemove, localSet, syncGet, syncSet } from "./browser.js";
 import {
   CONFIG,
   DEFAULT_STATUS_GROUPS,
@@ -190,7 +191,7 @@ export function resolveStatusGroup(statusName, groups) {
 }
 
 export async function loadTheme() {
-  const result = await chrome.storage.sync.get("theme");
+  const result = await syncGet("theme");
   const theme = result.theme || "dark";
   applyTheme(theme);
   return theme;
@@ -201,7 +202,7 @@ export function applyTheme(theme) {
 }
 
 export async function saveTheme(theme) {
-  await chrome.storage.sync.set({ theme });
+  await syncSet({ theme });
   applyTheme(theme);
 }
 
@@ -209,30 +210,30 @@ const CACHE_TTL = 5 * 60 * 1000;
 
 export const cache = {
   async get(key) {
-    const result = await chrome.storage.local.get(key);
+    const result = await localGet(key);
     const entry = result[key];
     if (!entry) return null;
     if (Date.now() - entry.ts > CACHE_TTL) return null;
     return entry.value;
   },
   async set(key, value) {
-    await chrome.storage.local.set({ [key]: { value, ts: Date.now() } });
+    await localSet({ [key]: { value, ts: Date.now() } });
   },
   async clear() {
-    const all = await chrome.storage.local.get(null);
+    const all = await localGet(null);
     const keys = Object.keys(all).filter((k) => k.startsWith("cache_"));
-    if (keys.length) await chrome.storage.local.remove(keys);
+    if (keys.length) await localRemove(keys);
   },
   // Targeted invalidation after a write, so changing one issue's status doesn't
   // cost a refetch of every board's sprints, backlog and epics.
   async dropBoard(boardId) {
-    const all = await chrome.storage.local.get(null);
+    const all = await localGet(null);
     const keys = Object.keys(all).filter(
       (k) =>
         k.startsWith(`cache_sprintIssues_${boardId}_`) ||
         k === `cache_backlog_${boardId}`
     );
-    if (keys.length) await chrome.storage.local.remove(keys);
+    if (keys.length) await localRemove(keys);
   },
 };
 

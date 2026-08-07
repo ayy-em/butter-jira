@@ -6,6 +6,7 @@
 // keys off the hash, and writing an issue key into it would remount the
 // underlying view. The full page is the linkable, reloadable form.
 
+import { runtimeUrl } from "../browser.js";
 import { addIssueComment, getIssue, getIssueComments } from "../api.js";
 import { CONFIG, browseUrl, fieldValue } from "../config.js";
 import { assigneeLabel, fmtDate, getStartDate, getStoryPoints, relDate } from "../utils.js";
@@ -20,7 +21,7 @@ const STATUS_CATEGORY_COLORS = {
 };
 
 export function issuePageUrl(issueKey) {
-  return chrome.runtime.getURL(`issue.html?key=${encodeURIComponent(issueKey)}`);
+  return runtimeUrl(`issue.html?key=${encodeURIComponent(issueKey)}`);
 }
 
 // Wires an anchor so the browser handles "open in new tab" natively (cmd/ctrl

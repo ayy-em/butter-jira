@@ -1,3 +1,4 @@
+import { runtimeUrl } from "../browser.js";
 import { loadTheme, saveTheme } from "../utils.js";
 import { CONFIG, jiraHomeUrl, siteHost, wikiUrl } from "../config.js";
 import { getBadgeCount } from "../monitor.js";
@@ -174,7 +175,7 @@ export async function renderNav(onRefresh) {
   settingsBtn.textContent = "⚙";
   settingsBtn.title = "Settings";
   settingsBtn.addEventListener("click", () => {
-    window.open(chrome.runtime.getURL("settings.html"));
+    window.open(runtimeUrl("settings.html"));
   });
   rightGroup.appendChild(settingsBtn);
 
@@ -303,7 +304,7 @@ function createSiteLink(label, url, title) {
     link.href = url;
     link.title = title || `Open ${label.toLowerCase()}`;
   } else {
-    link.href = chrome.runtime.getURL("settings.html");
+    link.href = runtimeUrl("settings.html");
     link.classList.add("unset");
     link.title = "No Jira site URL configured — open Settings to set one";
   }

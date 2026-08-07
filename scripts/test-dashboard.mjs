@@ -17,14 +17,14 @@ globalThis.chrome = {
   runtime: { getURL: (p) => `chrome-extension://test/${p}` },
   storage: {
     sync: {
-      get: (keys, cb) => cb(keys == null ? { ...sync } : pick(sync, keys)),
-      set: (obj, cb) => { Object.assign(sync, obj); cb?.(); },
-      remove: (keys, cb) => { for (const k of [].concat(keys)) delete sync[k]; cb?.(); },
+      get: (keys) => Promise.resolve(keys == null ? { ...sync } : pick(sync, keys)),
+      set: (obj) => { Object.assign(sync, obj); return Promise.resolve(); },
+      remove: (keys) => { for (const k of [].concat(keys)) delete sync[k]; return Promise.resolve(); },
     },
     local: {
-      get: (keys, cb) => cb(keys == null ? { ...local } : pick(local, keys)),
-      set: (obj, cb) => { Object.assign(local, obj); cb?.(); },
-      remove: (keys, cb) => { for (const k of [].concat(keys)) delete local[k]; cb?.(); },
+      get: (keys) => Promise.resolve(keys == null ? { ...local } : pick(local, keys)),
+      set: (obj) => { Object.assign(local, obj); return Promise.resolve(); },
+      remove: (keys) => { for (const k of [].concat(keys)) delete local[k]; return Promise.resolve(); },
     },
   },
 };
@@ -314,7 +314,7 @@ local = {};
 for (let i = 0; i < 12; i++) {
   await snap.recordSnapshot(`sprint-${i}`, { date: `2026-07-${String(i + 1).padStart(2, "0")}`, openPoints: 1 });
 }
-const all = (await new Promise((r) => chrome.storage.local.get(["sprintSnapshots"], r))).sprintSnapshots;
+const all = (await chrome.storage.local.get(["sprintSnapshots"])).sprintSnapshots;
 check("old sprints pruned", Object.keys(all).length === 8);
 check("most recent sprint kept", Boolean(all["sprint-11"]));
 check("oldest sprint dropped", !all["sprint-0"]);

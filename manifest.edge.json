@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Edge overlay. Merged over manifest.base.json by scripts/build.mjs.",
+    "",
+    "Edge is Chromium, so it runs the Chrome build essentially unchanged — the",
+    "only reason it gets its own target is `key`. Edge Add-ons assigns its own",
+    "extension ID and rejects a package carrying one, and an ID pinned for",
+    "Chrome is meaningless in a different browser's storage namespace anyway.",
+    "So this overlay is the Chrome one minus the key.",
+    "",
+    "If Edge ever needs more than this, it belongs here rather than as a",
+    "conditional inside the Chrome overlay."
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "minimum_chrome_version": "111"
+}

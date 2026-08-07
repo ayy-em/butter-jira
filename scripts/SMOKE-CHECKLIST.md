@@ -1,12 +1,17 @@
 # Manual smoke checklist
 
-Run `node scripts/test-config.mjs`, `test-credentials.mjs`, `test-team.mjs`,
-`test-monitor.mjs`, `test-issue.mjs`, `test-standup.mjs` and
-`test-dashboard.mjs` first — they cover the config layer, field mapping,
-storage migrations, the token lifecycle and the roster automatically. This checklist is for everything it cannot reach: the UI,
-the browser APIs, and real Jira data. Run it after touching config,
-API, or view code. `chrome://extensions` → reload the extension first, and keep
-DevTools open on the app tab: a clean console is part of every pass.
+Run the automated suites first — they cover the config layer, field mapping,
+storage migrations, the token lifecycle, the roster, GitHub sync, the
+cross-browser shim and the per-target manifests:
+
+```bash
+for f in scripts/test-*.mjs; do node "$f" >/dev/null || echo "FAIL $f"; done
+```
+
+This checklist is for everything they cannot reach: the UI, the browser APIs,
+and real Jira data. Run it after touching config, API, or view code. Reload the
+extension first, and keep DevTools open on the app tab — a clean console is part
+of every pass.
 
 One expected console line: a 404 for `config.local.json` when you have no local
 override file. Anything else is a finding.
@@ -242,8 +247,20 @@ override file. Anything else is a finding.
 - [ ] Re-enter standup within five minutes → no second GitHub request (Network tab)
 - [ ] Change the repo list → next standup does fetch again (the cache is keyed by the list)
 
+## 5e. Cross-browser (M12)
+- [ ] `node scripts/build.mjs` → three dist/ folders, each with its own manifest.json
+- [ ] `grep -r "assets/avatars\|assets/brand\|config.local" dist/` → no hits; personal data never ships
+- [ ] Firefox: about:debugging → Load Temporary Add-on → `dist/firefox/manifest.json` loads with no warning
+- [ ] Firefox: toolbar icon opens the app; a second click raises the same tab rather than opening another
+- [ ] Firefox: complete first-run setup, reload → settings survived (proves storage.sync works, i.e. the gecko id is right)
+- [ ] Firefox: Settings → save a non-Atlassian Jira host → the origin prompt appears and is honoured
+- [ ] Firefox: standup runs — sound cues play, confetti fires, drag-and-drop works
+- [ ] Edge: edge://extensions → Load unpacked → `dist/edge` loads with no warning, app opens
+- [ ] Chrome: the repo directory still loads unpacked with no build step
+- [ ] `git diff manifest.json` after a build is empty — the root manifest has not drifted from the base
+
 ## 6. Repo hygiene (before pushing)
-- [ ] `node scripts/test-config.mjs`, `test-credentials.mjs`, `test-team.mjs` and `test-github.mjs` pass
+- [ ] every `scripts/test-*.mjs` passes (`for f in scripts/test-*.mjs; do node "$f" >/dev/null || echo "FAIL $f"; done`)
 - [ ] `grep -ri` for your org name, site host, and internal project keys → no hits in tracked files
 - [ ] `git status --ignored` → `config.local.json` and `assets/brand/*` are ignored
 - [ ] `node scripts/jira-smoke.js` passes with env vars set

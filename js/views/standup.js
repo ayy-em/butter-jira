@@ -1,3 +1,4 @@
+import { runtimeUrl } from "../browser.js";
 import { getAllSprintIssues } from "../api.js";
 import { fmtDate, loadStatusGroups } from "../utils.js";
 import {
@@ -156,7 +157,7 @@ export async function mount(container, creds) {
       openSettings.className = "standup-btn";
       openSettings.textContent = "Open Settings";
       openSettings.addEventListener("click", () =>
-        window.open(chrome.runtime.getURL("settings.html"))
+        window.open(runtimeUrl("settings.html"))
       );
       card.appendChild(openSettings);
       wrap.appendChild(card);

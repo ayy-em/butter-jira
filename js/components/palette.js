@@ -11,6 +11,7 @@
 // Scoring and ranking live in js/palette.js; this file is only presentation and
 // wiring.
 
+import { localGet, localSet, runtimeUrl } from "../browser.js";
 import { getAllBacklogIssues, getAllSprintIssues, searchIssuesByJql } from "../api.js";
 import { boardColor, cache, isOverdue, showToast } from "../utils.js";
 import { allMembers, avatarOverrideFor, memberLabel } from "../team.js";
@@ -64,9 +65,7 @@ export function invalidatePaletteIndex() {
 
 async function loadRecents() {
   if (recentsLoaded) return recents;
-  const stored = await new Promise((resolve) =>
-    chrome.storage.local.get(RECENTS_KEY, (r) => resolve(r || {}))
-  );
+  const stored = await localGet(RECENTS_KEY);
   recents = normalizeRecents(stored[RECENTS_KEY]);
   recentsLoaded = true;
   return recents;
@@ -74,7 +73,7 @@ async function loadRecents() {
 
 async function rememberRecent(entry) {
   recents = addRecent(recents, entry);
-  await chrome.storage.local.set({ [RECENTS_KEY]: recents });
+  await localSet({ [RECENTS_KEY]: recents });
 }
 
 // Both sprint and backlog: "jump to any issue" is the promise, and both calls
@@ -160,7 +159,7 @@ export async function openPalette(creds) {
         id: "settings",
         label: "Open Settings",
         keywords: ["config", "roster", "boards", "fields"],
-        run: () => window.open(chrome.runtime.getURL("settings.html")),
+        run: () => window.open(runtimeUrl("settings.html")),
       },
       {
         kind: "action",

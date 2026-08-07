@@ -1,3 +1,4 @@
+import { runtimeUrl } from "../browser.js";
 import { getAllBacklogIssues, getAllSprintIssues } from "../api.js";
 import { assigneeLabel, boardColor, boardName, fmtDate, getStoryPoints } from "../utils.js";
 import { CONFIG } from "../config.js";
@@ -14,12 +15,12 @@ import { updateMonitorBadge } from "../components/nav.js";
 const SCOPE_KEY = "monitorScope";
 
 async function loadScope() {
-  const stored = await chrome.storage.local.get(SCOPE_KEY);
+  const stored = await localGet(SCOPE_KEY);
   return stored[SCOPE_KEY] === "all" ? "all" : "sprint";
 }
 
 async function saveScope(scope) {
-  await chrome.storage.local.set({ [SCOPE_KEY]: scope });
+  await localSet({ [SCOPE_KEY]: scope });
 }
 
 export async function mount(container, creds) {
@@ -126,7 +127,7 @@ export async function mount(container, creds) {
   settingsLink.textContent = "Configure checks";
   settingsLink.title = "Mute individual checks in Settings";
   settingsLink.addEventListener("click", () => {
-    window.open(chrome.runtime.getURL("settings.html"));
+    window.open(runtimeUrl("settings.html"));
   });
   controlsRight.appendChild(settingsLink);
 

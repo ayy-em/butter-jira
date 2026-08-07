@@ -1,0 +1,21 @@
+{
+  "_comment": [
+    "Chrome overlay. Merged over manifest.base.json by scripts/build.mjs.",
+    "",
+    "`key` pins the extension ID so removing and re-adding an unpacked build",
+    "keeps its chrome.storage namespace (M2). It is the public half of a",
+    "generated keypair — the private half was never written to disk, because",
+    "unpacked loading does not need it. It MUST be deleted before a Chrome Web",
+    "Store upload: the store assigns its own identity and rejects the field.",
+    "",
+    "`background.service_worker` is Chrome's MV3 background. Firefox has no",
+    "service-worker background in MV3 and uses `scripts` instead, which is why",
+    "these two manifests differ at all."
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmyJjmoPXNmEBxXDD9jn8IwofHuEDjzO5N2i6hc8JvOdnqXZcuyfwW1B/JPLG0W5fue/U1KzxjPrqQrtIjY0r4TYaodt55EEDdOlN6waXzsuVZ/OPQfevIu/Y0davOUKV2nTJ6GnZ+PjNhC8r0sbe97MKVYUItaRxCpQi/y4Wzg4F0+Z07OxyzlDXLWD7cega8qRNY4JxPxThnB8U86VGY7t5B1h2oT712EQcqpavPWyy2Wju/udQrRNPKKPZjraw3ua1eVx7qbcVjS7jgqECrM2aLCDed0YtrpoT49ei8c/ZBi8GtSmEITewEejhDwF9KNGBLTGstdY5I1MbG6gzcQIDAQAB",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "minimum_chrome_version": "111"
+}

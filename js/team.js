@@ -10,22 +10,12 @@
 // switcher can be added later without a storage migration. For now there is
 // exactly one team.
 
+import { localGet, localSet, runtimeUrl } from "./browser.js";
+
 export const TEAMS_KEY = "teams";
 export const TEAM_ONLY_KEY = "teamOnly";
 export const DEFAULT_TEAM_ID = "default";
 export const DEFAULT_TEAM_NAME = "My team";
-
-function localGet(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(keys, (result) => resolve(result || {}));
-  });
-}
-
-function localSet(obj) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(obj, () => resolve());
-  });
-}
 
 function emptyStructure() {
   return {
@@ -55,7 +45,7 @@ export function avatarAssetUrl(path) {
   const clean = normalizeAvatarPath(path);
   if (!clean) return "";
   try {
-    return chrome.runtime.getURL(clean);
+    return runtimeUrl(clean);
   } catch {
     return clean; // non-extension context
   }

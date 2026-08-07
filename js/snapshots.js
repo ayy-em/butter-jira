@@ -19,21 +19,11 @@
 // Stored device-local. It is small — a few numbers per day — and pruned to the
 // most recent sprints.
 
+import { localGet, localSet } from "./browser.js";
+
 const SNAPSHOT_KEY = "sprintSnapshots";
 const MAX_SPRINTS_KEPT = 8;
 const MAX_DAYS_PER_SPRINT = 60;
-
-function localGet(keys) {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(keys, (result) => resolve(result || {}));
-  });
-}
-
-function localSet(obj) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(obj, () => resolve());
-  });
-}
 
 // Sprints are keyed by their Jira ids so a re-planned sprint doesn't inherit
 // another one's history.
