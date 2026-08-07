@@ -7,6 +7,7 @@ config.local.json
 # Logos and wordmarks belong to whoever owns them, not to this repo.
 assets/brand/*
 !assets/brand/.gitkeep
+!assets/logo.png
 
 # ── Team avatars ────────────────────────────────────────────────────────────
 # Roster picture overrides. Photos of colleagues are personal data: they belong
