@@ -210,6 +210,12 @@ override file. Anything else is a finding.
 - [ ] Assignee filter labels non-roster people `· outside team`
 - [ ] Export without the roster box → `grep` the file for a colleague's email: no match
 - [ ] Export with the roster box → confirm dialog, then roster present in the file
+- [ ] Export with neither token box → `grep` the file for both tokens: no match
+- [ ] Export with only the Jira box → the GitHub token is still absent, and vice versa
+- [ ] Each token box raises its own confirm, naming what that token exposes
+- [ ] Export with both → one warning line mentioning "two live tokens"
+- [ ] Import a file carrying a GitHub token → Settings shows it, expiry reads "unknown until the first call"
+- [ ] …then Test connection → expiry fills in from the response header
 
 ## 5d. GitHub sync
 - [ ] Section starts collapsed on a fresh profile; opens already-expanded once enabled
@@ -258,6 +264,10 @@ override file. Anything else is a finding.
 - [ ] Edge: edge://extensions → Load unpacked → `dist/edge` loads with no warning, app opens
 - [ ] Chrome: the repo directory still loads unpacked with no build step
 - [ ] `git diff manifest.json` after a build is empty — the root manifest has not drifted from the base
+- [ ] Chrome → export config (both token boxes ticked) → import into Firefox → app works with no re-typing
+- [ ] Same file imported into Edge → works
+- [ ] Roster avatars after that import: present with a `--local-assets` build, fall back to Jira pictures without one
+- [ ] `node scripts/build.mjs --local-assets --zip` refuses rather than producing a zip
 
 ## 6. Repo hygiene (before pushing)
 - [ ] every `scripts/test-*.mjs` passes (`for f in scripts/test-*.mjs; do node "$f" >/dev/null || echo "FAIL $f"; done`)

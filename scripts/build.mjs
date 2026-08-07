@@ -17,6 +17,7 @@
 //   node scripts/build.mjs                 # all targets
 //   node scripts/build.mjs firefox         # one target
 //   node scripts/build.mjs --zip           # also produce dist/<target>.zip
+//   node scripts/build.mjs --local-assets  # include assets/brand + assets/avatars
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -43,19 +44,28 @@ const INCLUDE_FILES = [
 ];
 const INCLUDE_DIRS = ["js", "css", "libs", "assets"];
 
-// Inside those directories, these never ship. assets/brand and assets/avatars
-// are gitignored working folders holding org marks and photographs of
-// colleagues — personal data that has no business in a store upload.
+// Never ship, ever.
 const EXCLUDE_PATTERNS = [
   /(^|\/)\.DS_Store$/,
   /(^|\/)\.gitkeep$/,
-  /^assets\/brand\//,
-  /^assets\/avatars\//,
   /^config\.local\.json$/,
 ];
 
-function isExcluded(relativePath) {
-  return EXCLUDE_PATTERNS.some((re) => re.test(relativePath));
+// assets/brand and assets/avatars are gitignored working folders holding org
+// marks and photographs of colleagues. They are excluded by default because
+// personal data has no business in a store upload.
+//
+// But they are also what a roster's `avatarOverride` points at, so a build
+// without them silently drops everyone's picture — which is exactly what
+// happens when someone exports their config from Chrome (running unpacked from
+// the repo, where the files exist) and imports it into a packaged Firefox
+// build. --local-assets is for that case: a build for your own machine.
+const LOCAL_ASSET_PATTERNS = [/^assets\/brand\//, /^assets\/avatars\//];
+
+function isExcluded(relativePath, { localAssets = false } = {}) {
+  if (EXCLUDE_PATTERNS.some((re) => re.test(relativePath))) return true;
+  if (!localAssets && LOCAL_ASSET_PATTERNS.some((re) => re.test(relativePath))) return true;
+  return false;
 }
 
 // Deep merge, overlay wins. Objects merge key by key; anything else replaces,
@@ -100,7 +110,7 @@ export async function buildManifest(target) {
   return stripComments(mergeManifest(base, overlay));
 }
 
-async function copyInto(targetDir) {
+async function copyInto(targetDir, { localAssets = false } = {}) {
   for (const file of INCLUDE_FILES) {
     await fs.copyFile(path.join(ROOT, file), path.join(targetDir, file));
   }
@@ -113,7 +123,7 @@ async function copyInto(targetDir) {
       if (!entry.isFile()) continue;
       const abs = path.join(entry.parentPath ?? entry.path, entry.name);
       const rel = path.relative(ROOT, abs);
-      if (isExcluded(rel)) continue;
+      if (isExcluded(rel, { localAssets })) continue;
       const dest = path.join(targetDir, rel);
       await fs.mkdir(path.dirname(dest), { recursive: true });
       await fs.copyFile(abs, dest);
@@ -121,12 +131,12 @@ async function copyInto(targetDir) {
   }
 }
 
-export async function build(target, { zip = false } = {}) {
+export async function build(target, { zip = false, localAssets = false } = {}) {
   const targetDir = path.join(DIST, target);
   await fs.rm(targetDir, { recursive: true, force: true });
   await fs.mkdir(targetDir, { recursive: true });
 
-  await copyInto(targetDir);
+  await copyInto(targetDir, { localAssets });
   const manifest = await buildManifest(target);
   await fs.writeFile(
     path.join(targetDir, "manifest.json"),
@@ -135,6 +145,11 @@ export async function build(target, { zip = false } = {}) {
 
   let zipPath = null;
   if (zip) {
+    if (localAssets) {
+      // Refused rather than warned: a zip is a thing you upload, and a zip of
+      // colleagues' photographs uploaded to a store is not recoverable.
+      throw new Error("--zip and --local-assets are mutually exclusive: a store package must not carry personal assets");
+    }
     zipPath = path.join(DIST, `${target}-${manifest.version}.zip`);
     await fs.rm(zipPath, { force: true });
     // Shelling out to zip rather than vendoring an archiver: it is present on
@@ -150,6 +165,7 @@ export async function build(target, { zip = false } = {}) {
 async function main() {
   const args = process.argv.slice(2);
   const zip = args.includes("--zip");
+  const localAssets = args.includes("--local-assets");
   const named = args.filter((a) => !a.startsWith("-"));
   const targets = named.length ? named : TARGETS;
 
@@ -161,11 +177,14 @@ async function main() {
   }
 
   for (const target of targets) {
-    const result = await build(target, { zip });
+    const result = await build(target, { zip, localAssets });
     console.log(
       `  ✓ ${result.target.padEnd(8)} v${result.version}  ${String(result.fileCount).padStart(3)} files  ${path.relative(ROOT, result.dir)}` +
         (result.zipPath ? `  +${path.relative(ROOT, result.zipPath)}` : "")
     );
+  }
+  if (localAssets) {
+    console.log("  ! includes assets/brand and assets/avatars — local install only, do not upload");
   }
 
   // The root manifest.json is the Chrome one, regenerated here so that "load
