@@ -8,6 +8,7 @@ config.local.json
 assets/brand/*
 !assets/brand/.gitkeep
 !assets/logo.png
+ux-mockup-backlog.png
 
 # ── Team avatars ────────────────────────────────────────────────────────────
 # Roster picture overrides. Photos of colleagues are personal data: they belong

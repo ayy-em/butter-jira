@@ -37,7 +37,7 @@
   gap: 14px;
   font-size: 12px;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
 }
 .dash-header-meta .dash-overdue { color: var(--accent-danger); }
 .dash-goal {
@@ -77,7 +77,7 @@
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   margin-bottom: 7px;
 }
 .dash-hint-mark {
@@ -135,7 +135,7 @@
   text-transform: uppercase;
   letter-spacing: 1.2px;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   margin-bottom: 12px;
 }
 .dash-readout {
@@ -160,23 +160,23 @@
 .chart { display: block; overflow: visible; }
 
 /* Text wears text tokens; the marks carry the colour. */
-.chart-label { fill: var(--muted); font-size: 11px; font-family: 'IBM Plex Sans', sans-serif; }
+.chart-label { fill: var(--muted); font-size: 11px; font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif; }
 .chart-value {
   fill: var(--text);
   font-size: 11px;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 .chart-tick {
   fill: var(--muted);
   font-size: 10px;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 .chart-inline-label {
   font-size: 10px;
   font-weight: 600;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
 }
 
 /* Recessive chrome: hairline, solid, one step off the surface. */
@@ -229,7 +229,7 @@
 .dash-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .dash-table th {
   text-align: left;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.8px;

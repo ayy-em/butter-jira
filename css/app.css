@@ -1,3 +1,24 @@
+/* Bundled locally rather than fetched: the extension CSP would have to name two
+   remote origins, an offline start-up would fall back to system fonts, and every
+   page load would tell Google when someone opened their backlog. Two variable
+   files cover every weight the app uses. See assets/fonts/README.md for the
+   Ubuntu Font Licence obligations that come with shipping these. */
+@font-face {
+  font-family: 'Ubuntu Sans';
+  src: url('../assets/fonts/UbuntuSans-Variable.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Ubuntu Sans Mono';
+  src: url('../assets/fonts/UbuntuSansMono-Variable.woff2') format('woff2-variations');
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root,
 [data-theme="dark"] {
   --bg: #0D0F12;
@@ -29,7 +50,7 @@ html, body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: 'IBM Plex Sans', sans-serif;
+  font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   overflow: hidden;
@@ -67,7 +88,7 @@ html, body {
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 13px;
   padding: 10px 20px;
   border-radius: 6px;
@@ -102,7 +123,7 @@ html, body {
   to { opacity: 1; transform: translateY(0); }
 }
 .setup-title {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 18px;
   font-weight: 600;
   letter-spacing: 2px;
@@ -117,7 +138,7 @@ html, body {
 }
 .setup-label {
   display: block;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -131,7 +152,7 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 13px;
   margin-bottom: 14px;
   outline: none;
@@ -151,7 +172,7 @@ html, body {
   background: var(--border);
   border: none;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 10px;
   padding: 4px 8px;
   border-radius: 3px;
@@ -166,7 +187,7 @@ html, body {
   border: none;
   border-radius: 5px;
   color: #fff;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
@@ -180,7 +201,7 @@ html, body {
 .setup-status {
   text-align: center;
   margin-top: 12px;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 12px;
   min-height: 18px;
 }
@@ -208,11 +229,11 @@ html, body {
   justify-content: center;
   height: 100%;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 14px;
 }
 
-.mono { font-family: 'IBM Plex Mono', monospace; }
+.mono { font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
@@ -390,7 +411,7 @@ html, body {
   justify-content: center;
   text-decoration: none;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 11px;
   font-weight: 500;
   border: 1px solid var(--border);
@@ -430,7 +451,7 @@ html, body {
   background: none;
   border: 1px solid var(--accent-warning);
   color: var(--accent-warning);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -470,7 +491,7 @@ html, body {
 }
 .reauth-help {
   display: block;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 11px;
   color: var(--accent-primary);
   text-decoration: none;
@@ -483,7 +504,7 @@ html, body {
   background: none;
   border: none;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;

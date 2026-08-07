@@ -131,7 +131,7 @@ body.issue-page-body {
 .issue-detail-key:hover { text-decoration: underline; }
 
 .issue-status-badge {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -248,7 +248,7 @@ body.issue-page-body {
 .rich-text li { margin-bottom: 4px; }
 .rich-text a { color: var(--accent-primary); }
 .rich-text code {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -328,7 +328,7 @@ body.issue-page-body {
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text);
-  font-family: 'IBM Plex Sans', sans-serif;
+  font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.5;
   padding: 10px 12px;

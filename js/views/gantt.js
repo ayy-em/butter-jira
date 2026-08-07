@@ -467,7 +467,7 @@ export async function mount(container, creds) {
       date_format: "YYYY-MM-DD",
       language: "en",
       custom_popup_html: task => `
-        <div class="gantt-popup" style="padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:12px;">
+        <div class="gantt-popup" style="padding:8px 12px;font-family:'Ubuntu Sans Mono',ui-monospace,monospace;font-size:12px;">
           <div style="color:#E8EAF0;margin-bottom:4px;">${task.name}</div>
           <div style="color:#6B7280;font-size:11px;">${task._isChild ? "Click for issue details" : "Click to expand children"}</div>
         </div>`,

@@ -173,7 +173,6 @@ plumbing.
 - **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. Pairs naturally with the M7 daily snapshots.
 - WIP limits and blocked-chain visualisation on the Kanban.
 - Multi-site support (several Jira Cloud instances in one install).
-- Self-hosted IBM Plex, replacing the Google Fonts link on all three pages — removes the last remote origin, makes the app work offline, and drops two hosts from the CSP. Deferred out of M12 as a fonts decision rather than a portability one.
 - Multi-org GitHub sync — one fine-grained token has exactly one resource owner, so a second org means a second credential. The config block and the credential keys would both become maps; deliberately not built until someone actually needs it.
 - OOO import from a calendar feed to prefill planner absences.
 - Confluence export of standup notes and Wrapped cards.
@@ -256,11 +255,15 @@ a failure. It reproduces all four missing imports when the bug is reintroduced.
 - **The built package was installed into a real Firefox 153** over WebDriver BiDi. It installed clean with zero warnings, and the profile's extension IndexedDB came back holding `schemaVersion` — which only `background.js` writes, via `runMigrations()`, through the shim. That is the event page loading as an ES module and the `browser.*` path working end to end, not an inference.
 - **Not** verified by loading: the Chromium packages. Headless Chrome and Edge refuse to navigate to a `chrome-extension://` page from the command line, and the CLI check originally run here used a `timeout` binary that does not exist on this machine — it produced no output, which was misread as success. What is actually known: the repo-root Chrome manifest is generated from the same base, its `key` is unchanged so the extension ID and storage namespace are preserved, and `dist/chrome` and `dist/edge` carry byte-identical source. Loading those two by hand is on the smoke checklist.
 
-**Not done, and deliberately:** the pages still pull IBM Plex from Google Fonts,
-which is a remote request the CSP happens to allow. Self-hosting it would make
-the extension work offline and remove a third-party origin — worth doing, but it
-is a fonts decision rather than a portability one, and every font stack already
-falls back cleanly. It is in the icebox.
+**Follow-up, done 2026-08-07:** the pages used to pull IBM Plex from Google
+Fonts. They now ship **Ubuntu Sans** and **Ubuntu Sans Mono** locally —
+Canonical's own pre-built variable webfonts, unmodified, under the Ubuntu Font
+Licence 1.0, which expressly permits bundling and embedding. Two files, every
+weight, full character coverage including the accented and Cyrillic names a real
+roster contains. The CSP lost both remote origins and is now
+`style-src 'self' 'unsafe-inline'; font-src 'self'` — no third-party request on
+any page load, and the app renders correctly offline. Obligations and their
+handling are in `assets/fonts/README.md`.
 
 **Exit criteria met:** one codebase produces working Chrome, Firefox and Edge
 packages; no application module names a browser; and the differences between
