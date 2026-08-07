@@ -116,7 +116,7 @@
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--text);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 12px;
   padding: 4px 6px;
   text-align: center;
@@ -134,7 +134,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 12px;
   padding: 9px 14px;
   border-radius: 5px;
@@ -179,7 +179,7 @@
 }
 
 .standup-notes-out {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 12px;
   white-space: pre-wrap;
   background: var(--bg);
@@ -229,7 +229,7 @@
    the flat colour stays as the fallback for anything that cannot clip. */
 .standup-bigcount,
 .standup-handoff-clock {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-weight: 600;
   line-height: 1;
   color: var(--accent-primary);
@@ -478,7 +478,7 @@
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text);
-  font-family: 'IBM Plex Sans', sans-serif;
+  font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.45;
   padding: 10px 12px;
@@ -496,7 +496,7 @@
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--text);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 12px;
   line-height: 1.6;
   padding: 10px 12px;

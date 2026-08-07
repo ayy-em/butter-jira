@@ -203,7 +203,7 @@ function showSetup() {
           <button type="button" class="setup-token-toggle" id="setup-toggle">Show</button>
         </div>
         <a href="${TOKEN_HELP_URL}" target="_blank" rel="noopener"
-           style="display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent-primary);margin-bottom:14px;text-decoration:none;">
+           style="display:block;font-family:'Ubuntu Sans Mono',ui-monospace,monospace;font-size:11px;color:var(--accent-primary);margin-bottom:14px;text-decoration:none;">
           Need an API token? Create one here</a>
         <button type="submit" class="setup-save" id="setup-save">Connect</button>
         </form>

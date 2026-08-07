@@ -28,7 +28,7 @@
   border-radius: 16px;
   background: transparent;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 12px;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
@@ -62,7 +62,7 @@
   background: transparent;
   border: none;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 11px;
   text-transform: uppercase;
   padding: 5px 12px;
@@ -100,7 +100,7 @@
   justify-content: space-between;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -151,7 +151,7 @@
 .kanban-card-type {
   font-size: 10px;
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   padding: 1px 5px;
   border: 1px solid var(--border);
   border-radius: 3px;
@@ -179,7 +179,7 @@
 }
 
 .kanban-card-footer .sp {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   margin-left: auto;
 }
 

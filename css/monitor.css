@@ -186,7 +186,7 @@
 }
 
 .monitor-count {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 11px;
   font-weight: 600;
   min-width: 22px;
@@ -233,7 +233,7 @@
 }
 .monitor-cell-muted {
   color: var(--muted);
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 11px;
   white-space: nowrap;
 }
@@ -248,7 +248,7 @@
   border-radius: 8px;
   background: var(--accent-warning);
   color: #0D0F12;
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 10px;
   font-weight: 600;
   line-height: 16px;

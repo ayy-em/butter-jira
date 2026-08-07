@@ -290,7 +290,7 @@ export async function mount(container, creds) {
 
     // Story Points
     const tdSP = document.createElement("td");
-    tdSP.style.fontFamily = "'IBM Plex Mono', monospace";
+    tdSP.style.fontFamily = "'Ubuntu Sans Mono', ui-monospace, monospace";
     tdSP.style.fontSize = "12px";
     const sp = getStoryPoints(issue);
     if (sp !== null) {
@@ -313,7 +313,7 @@ export async function mount(container, creds) {
 
     // Due
     const tdDue = document.createElement("td");
-    tdDue.style.fontFamily = "'IBM Plex Mono', monospace";
+    tdDue.style.fontFamily = "'Ubuntu Sans Mono', ui-monospace, monospace";
     tdDue.style.fontSize = "12px";
     if (f.duedate) {
       tdDue.textContent = fmtDate(f.duedate);
