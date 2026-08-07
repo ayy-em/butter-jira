@@ -51,7 +51,8 @@ Everything is editable from the Settings page (⚙ in the nav bar):
 - **Status column grouping** — map your workflow's statuses onto Kanban columns
 - **Team roster** — who is on the team, with display-name overrides and emoji
 - **Monitoring checks** — mute any of the four hygiene checks
-- **Field mapping** — which custom field holds story points, start date, epic link, sprint
+- **GitHub sync** — optional; host, org, and the explicit list of team repos
+- **Field mapping** — which custom field holds story points, start date, epic link, epic name, sprint
 - **Additional fields** — extra field IDs to fetch on every issue query
 - **Branding** — optional org name and logo shown in the nav bar
 
@@ -69,6 +70,10 @@ cp config.local.example.json config.local.json
 the exception: local file entries and Settings entries are merged, so a field
 listed there is always requested.
 
+Credentials are not configurable here, by design — neither the Jira token nor
+the GitHub one. `config.local.json` is a file in the repo directory; tokens
+belong in device-local browser storage.
+
 Reload the extension at `chrome://extensions` after editing it.
 
 ### Field mapping, and why it matters
@@ -78,6 +83,12 @@ on one instance and something else entirely on the next. Nothing here hardcodes
 those IDs: the app resolves them by field name (Settings → Field mapping →
 **Discover from Jira**) and falls back to manual entry when a site uses unusual
 names. An unresolved role means the related column simply shows no value.
+
+**Epic name** is the one role that is optional by design. Company-managed Jira
+gives an epic a short label of its own — "Checkout rewrite" rather than the full
+summary — and that is what the Backlog's Epic column shows. Team-managed
+projects have no such field, so the column falls back to the epic's summary, and
+then to its key.
 
 ### Team roster
 
@@ -98,8 +109,8 @@ a Jira profile URL) always works. Adding by **email** stores the person as
 account ID is filled in, which happens automatically on the next harvest.
 
 Per member you can set a display-name override (used everywhere in place of the
-Jira name), an emoji, an avatar override, a Slack handle, and an active flag.
-Inactive members are kept but ignored by filters.
+Jira name), an emoji, an avatar override, a Slack handle, a GitHub login, and an
+active flag. Inactive members are kept but ignored by filters.
 
 The Slack handle is only used to address people in the standup parking-lot
 digest, so type it exactly as Slack's @-autocomplete shows it — **spaces and
@@ -143,9 +154,10 @@ comment on the issue, so everything passes through an allowlist sanitiser
 (`js/sanitize.js`) before it reaches the page — scripts, iframes, forms, event
 handlers, inline styles and non-http(s) URLs are all removed.
 
-Pull requests, branches and commits are **not** shown: Jira has no public API
-for them. That's tracked in the roadmap's deferred backlog, to be built against
-the GitHub API instead.
+Pull requests, branches and commits are **not** shown *on the issue*: Jira has
+no public API for them, and correlating GitHub work back to an issue key is its
+own problem — that's still in the roadmap's deferred backlog. GitHub sync does
+show pull requests per *person* during standup; see below.
 
 ### Sprint dashboard
 
@@ -205,6 +217,67 @@ start button mutes them.
 Needs a team roster (Settings → Team roster) — that's where the participant list
 comes from.
 
+### GitHub sync (optional)
+
+The board answers "what is assigned to you". It cannot answer "what have you got
+in review", which is where half the day usually went. Turn on **Settings →
+GitHub sync** and each speaker's board gains a panel beside it: their open pull
+requests, pull requests waiting on *their* review, what they merged since the
+last working day, and any GitHub issues assigned to them.
+
+**You list the repos. Nothing else is read.** The repo list in Settings is an
+allowlist, not a filter — the queries are built from exactly those repos, so a
+token with access to fifty repos still only ever pulls the ones you typed in. An
+empty list means the feature is off, whatever the enable checkbox says. Paste a
+bare name (read as belonging to the configured org), `owner/name`, or a repo URL;
+one per line.
+
+**Token.** Create a **fine-grained personal access token**, owned by the
+organisation, with repository access set to *only* the repos you listed, and
+these read-only permissions:
+
+| Permission | Level | Needed for |
+|---|---|---|
+| Repository → Metadata | Read | Mandatory; implied by any other repo permission |
+| Repository → Pull requests | Read | Open PRs, review state, merged PRs |
+| Repository → Issues | Read | Open issues assigned to someone |
+| Repository → Checks | Read | The "checks failing" state — optional |
+| Organisation → Members | Read | The "Match logins from GitHub org" button — optional |
+
+Classic tokens work too (`repo` + `read:org`), but `repo` also grants **write**
+access to every private repo you can see, which is a poor thing to leave sitting
+in browser storage. Prefer fine-grained. If your org requires approval for
+fine-grained tokens, an org owner has to approve yours before it can see
+anything — until then private repos answer `404`, not `403`. **Test connection**
+checks each repo separately and names the ones that fail, because listing a repo
+in Settings does not grant the token access to it.
+
+The token is stored in `chrome.storage.local` on that device only, is never in
+synced storage, and is **never** in a config export — not even with the "include
+the API token" box ticked. Its expiry is real rather than guessed: GitHub reports
+it on every authenticated call, and the app records what it is told.
+
+**People are matched by GitHub login**, set per person in the roster. *Match
+logins from GitHub org* proposes mappings from the org member list and fills in
+only the blanks — every row stays editable, and an ambiguous match is left empty
+rather than guessed. Someone with no login simply gets no panel.
+
+**It is never on the critical path.** The fetch starts when you open the standup
+tab, in parallel with the sprint issues, and the standup begins whether or not it
+has landed. If it is slow the panel fills in behind; if it fails, or the token is
+dead, or GitHub sync is off, the panel is absent and the standup is exactly what
+it was before. A line on the setup card says which of those happened, including
+how many of the declared repos could not be read.
+
+Note the gap that leaves: pull requests by people who aren't on the roster, and
+roster members with no GitHub login, are simply not shown and are not counted
+anywhere. The panel shows what it can attribute, not everything that exists.
+
+One GraphQL request covers every declared repo, cached for five minutes and keyed
+by the repo list, so leaving and re-entering standup does not re-query. Pull
+requests are **not** correlated to Jira issue keys; that is a separate problem
+and is in the roadmap's deferred backlog.
+
 ### Monitor tab
 
 Four hygiene checks over the sprint, derived from data the other views already
@@ -242,8 +315,11 @@ the product logo stands alone.
 
 - `storage` — configuration and cached Jira responses
 - `https://*.atlassian.net/*` — granted up front, covers any Jira Cloud site
+- `https://api.github.com/*` — granted up front, used only when GitHub sync is
+  switched on and only for the repos you list
 - `optional_host_permissions` — any other host (Jira Data Center on a custom
-  domain) is requested at setup time, only for the origin you enter
+  domain, or a GitHub Enterprise Server host) is requested at setup time, only
+  for the origin you enter
 
 ## Keyboard shortcuts
 
@@ -300,13 +376,15 @@ No build step — plain ES modules, loaded directly by Chrome.
 Config-layer unit checks — no dependencies, no network, no browser:
 
 ```bash
-node scripts/test-config.mjs       # config layer, field discovery     (68 checks)
-node scripts/test-credentials.mjs  # migrations, tokens, export/import (82 checks)
-node scripts/test-team.mjs         # roster, display names, filtering  (84 checks)
+node scripts/test-config.mjs       # config layer, field discovery     (76 checks)
+node scripts/test-credentials.mjs  # migrations, tokens, export/import (89 checks)
+node scripts/test-team.mjs         # roster, display names, filtering (127 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
-node scripts/test-standup.mjs      # session timing, order, resume    (105 checks)
+node scripts/test-standup.mjs      # session timing, order, resume    (116 checks)
 node scripts/test-dashboard.mjs    # aggregation, burndown, geometry  (123 checks)
+node scripts/test-palette.mjs      # command palette matching          (47 checks)
+node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (140 checks)
 ```
 
 `test-config.mjs` covers URL normalisation, the defaults → `config.local.json` →
@@ -337,6 +415,14 @@ overrun, resume-after-reload, and the board grouping shared with Kanban.
 detection, the per-status/board/person buckets, snapshot storage and pruning, and
 the burndown series — plus chart geometry against a DOM shim, so a NaN coordinate
 or a label placed outside the viewBox fails the suite rather than the eye.
+
+`test-github.mjs` covers the parts of GitHub sync that can be wrong quietly:
+repo-reference parsing (including the injection cases the GraphQL document would
+otherwise interpolate), API base derivation for github.com vs Enterprise Server,
+the aliased query, review-state and staleness derivation, per-person slicing,
+and the roster matcher. It also asserts the two
+behaviours that only show up in the transport — one repo failing degrades to
+that one repo, and the real token expiry is read off the response header.
 
 `scripts/SMOKE-CHECKLIST.md` is the manual pass for anything involving the UI.
 
@@ -369,8 +455,15 @@ The team roster is also `chrome.storage.local` only — it holds colleagues'
 names, emails and account IDs, so it never goes into synced storage and is
 excluded from exports unless you opt in.
 
+The GitHub token, when GitHub sync is used, is a second credential with its own
+keys and its own lifecycle: `chrome.storage.local`, never synced, and **never**
+exported under any checkbox. **Forget GitHub token** removes it on its own. A
+GitHub login on a roster member is one more identifier attached to a named
+colleague, so it rides in the roster record and inherits its treatment.
+
 Jira responses are cached in `chrome.storage.local` for five minutes. Nothing is
-sent anywhere except your own Jira site.
+sent anywhere except your own Jira site, and — if you switch GitHub sync on —
+your GitHub host, for the repos you listed.
 
 ### Token expiry
 
@@ -379,6 +472,11 @@ one at setup (creation + 365 days) and treats it as a reminder you can correct i
 Settings. From 14 days out you get a once-a-day banner. If a token dies anyway,
 a 401 opens a prompt asking for the new token alone — boards, field mapping and
 branding are untouched.
+
+GitHub does report a real expiry, on every authenticated call, so that date is
+recorded rather than assumed. Its banner is deliberately separate from the Jira
+one and says what actually breaks: standup loses its pull-request panel, and
+nothing else changes.
 
 ## Extension identity
 

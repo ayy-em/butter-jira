@@ -18,6 +18,7 @@ import {
   linkPendingMembers,
   memberLabel,
   normalizeAvatarPath,
+  normalizeGithubLogin,
   normalizeMember,
   normalizeSlackHandle,
   removeMember,
@@ -141,6 +142,29 @@ export function initRoster({ flash, requireLiveJira, getBoards }) {
         slack.value = members[i].slackHandle ? `@${members[i].slackHandle}` : "";
       });
       row.appendChild(slack);
+
+      const github = document.createElement("input");
+      github.type = "text";
+      github.className = "roster-github mono";
+      github.value = member.githubLogin;
+      github.placeholder = "gh-login";
+      github.title =
+        "GitHub login, used to attribute pull requests to this person during " +
+        "standup. Leave empty and they simply get no GitHub panel. A profile " +
+        "URL or a leading @ are both accepted.";
+      github.addEventListener("input", () => {
+        const typed = github.value.trim();
+        const clean = normalizeGithubLogin(typed);
+        members[i].githubLogin = clean;
+        // Typed something that is not a GitHub login — an email, or a name
+        // with spaces. Flagged rather than silently discarded on save.
+        github.classList.toggle("invalid", Boolean(typed) && !clean);
+      });
+      github.addEventListener("blur", () => {
+        github.value = members[i].githubLogin;
+        github.classList.remove("invalid");
+      });
+      row.appendChild(github);
 
       const emoji = document.createElement("input");
       emoji.type = "text";
@@ -415,8 +439,28 @@ export function initRoster({ flash, requireLiveJira, getBoards }) {
     flash("Added — press Save", "success");
   });
 
+  // Fills in GitHub logins proposed by the org matcher. Only ever writes into
+  // an empty field — a login someone typed by hand is never overwritten by a
+  // guess — and the rows stay editable, so this is a starting point rather
+  // than a decision.
+  function applyGithubLogins(assignments) {
+    let applied = 0;
+    for (const { accountId, login } of assignments) {
+      const member = members.find((m) => m.accountId === accountId);
+      const clean = normalizeGithubLogin(login);
+      if (!member || !clean || member.githubLogin) continue;
+      member.githubLogin = clean;
+      applied++;
+    }
+    if (applied) render();
+    return applied;
+  }
+
   return {
     setMembers,
     getMembers: () => members.map(normalizeMember),
+    applyGithubLogins,
+    countMissingGithubLogins: () =>
+      members.filter((m) => m.accountId && m.active && !m.githubLogin).length,
   };
 }

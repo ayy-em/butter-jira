@@ -194,6 +194,25 @@ check("mention falls back to display name",
     return team.slackMentionFor("acc-1");
   })()) === "Ada Lovelace");
 
+section("github login on the roster");
+check("stored normalised", team.normalizeMember({ githubLogin: "@Sam-Lee" }).githubLogin === "Sam-Lee");
+check("unusable login stored as empty rather than as junk",
+  team.normalizeMember({ githubLogin: "sam lee" }).githubLogin === "");
+check("absent login is empty, not undefined",
+  team.normalizeMember({}).githubLogin === "");
+check("login survives a save/load round trip",
+  (await (async () => {
+    await team.saveMembers([{ ...person("acc-1", "Sam Lee"), githubLogin: "samlee" }]);
+    await team.loadTeam();
+    return team.githubLoginFor("acc-1");
+  })()) === "samlee");
+check("lookup by login is case-insensitive",
+  team.memberByGithubLogin("SAMLEE")?.accountId === "acc-1");
+check("unknown login resolves to nobody", team.memberByGithubLogin("stranger") === null);
+check("empty login resolves to nobody, not to the first member",
+  team.memberByGithubLogin("") === null);
+check("no login means no login", team.githubLoginFor("acc-nope") === "");
+
 section("overdue detection");
 const overdueIssue = (duedate, statusKey) => ({
   fields: { duedate, status: { statusCategory: { key: statusKey } } },

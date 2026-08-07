@@ -41,7 +41,28 @@
     "storyPoints": ["customfield_10016"],
     "startDate": ["customfield_10015"],
     "epicLink": ["customfield_10014"],
+    "epicName": ["customfield_10011"],
     "sprint": ["customfield_10020"]
+  },
+
+  "_githubComment": [
+    "Optional second source: each person's open pull requests, recent merges",
+    "and assigned issues, shown beside their board during standup.",
+    "",
+    "`repos` is an allowlist, not a filter. Nothing is read from a repo that is",
+    "not listed here, however much access the token happens to have — so an",
+    "empty list means the feature is off whatever `enabled` says. Entries may be",
+    "a bare name (read as belonging to `org`), owner/name, or a repo URL.",
+    "",
+    "`host` is github.com unless you are on GitHub Enterprise Server.",
+    "The token is NOT configured here: it is a credential, so it lives in",
+    "device-local storage via Settings > GitHub sync and never in a repo file."
+  ],
+  "github": {
+    "enabled": false,
+    "host": "github.com",
+    "org": "your-org",
+    "repos": ["platform-api", "your-org/web-ui"]
   },
 
   "_additionalFieldsComment": [

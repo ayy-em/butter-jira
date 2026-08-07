@@ -8,11 +8,14 @@ import { verifyCredentials } from "../api.js";
 import { CONFIG, siteHost } from "../config.js";
 import {
   defaultExpiry,
+  describeGithubTokenStatus,
   describeTokenStatus,
+  githubTokenStatus,
   loadCredentials,
   saveCredentials,
   tokenStatus,
 } from "../credentials.js";
+import { isGithubConfigured } from "../github.js";
 
 const TOKEN_HELP_URL = "https://id.atlassian.com/manage-profile/security/api-tokens";
 
@@ -178,5 +181,51 @@ export async function renderExpiryBanner() {
   });
 
   banner.append(text, renew, dismiss);
+  document.body.appendChild(banner);
+}
+
+// The same heads-up for the GitHub token, deliberately kept as its own banner
+// rather than folded into the one above. A dead GitHub token costs you one
+// optional panel in standup; presenting that as an app-wide auth failure would
+// be a lie, and the wording has to make the difference obvious. There is no
+// inline re-auth here either — a GitHub token is created against an org and a
+// repo list, which is a Settings-shaped job, not a one-field prompt.
+export async function renderGithubExpiryBanner() {
+  if (!isGithubConfigured()) return;
+  const status = await githubTokenStatus();
+  if (!status.hasToken || (!status.expiringSoon && !status.expired)) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { githubBannerDismissedOn } = await chrome.storage.local.get("githubBannerDismissedOn");
+  if (githubBannerDismissedOn === today) return;
+
+  document.getElementById("github-expiry-banner")?.remove();
+
+  const banner = document.createElement("div");
+  banner.id = "github-expiry-banner";
+  banner.className = status.expired ? "expiry-banner expired" : "expiry-banner";
+
+  const text = document.createElement("span");
+  text.textContent = status.expired
+    ? `${describeGithubTokenStatus(status)} — standup loses its pull-request panel. Everything else is unaffected.`
+    : `${describeGithubTokenStatus(status)}. Rotate it before standup starts missing pull requests.`;
+
+  const open = document.createElement("button");
+  open.className = "expiry-banner-btn";
+  open.textContent = "Open Settings";
+  open.addEventListener("click", () => {
+    window.open(chrome.runtime.getURL("settings.html"));
+  });
+
+  const dismiss = document.createElement("button");
+  dismiss.className = "expiry-banner-btn subtle";
+  dismiss.textContent = "Dismiss";
+  dismiss.title = `Hidden until ${CONFIG.brand.productName} is next opened tomorrow`;
+  dismiss.addEventListener("click", async () => {
+    await chrome.storage.local.set({ githubBannerDismissedOn: today });
+    banner.remove();
+  });
+
+  banner.append(text, open, dismiss);
   document.body.appendChild(banner);
 }

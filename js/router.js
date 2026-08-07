@@ -4,7 +4,12 @@ import {
   verifyCredentials,
 } from "./api.js";
 import { getCredentials, saveCredentials, defaultExpiry } from "./credentials.js";
-import { isReauthOpen, promptReauth, renderExpiryBanner } from "./components/reauth.js";
+import {
+  isReauthOpen,
+  promptReauth,
+  renderExpiryBanner,
+  renderGithubExpiryBanner,
+} from "./components/reauth.js";
 import { cache, loadBoards, loadTheme, saveBoards, showToast } from "./utils.js";
 import { loadTeam, loadTeamOnly } from "./team.js";
 import {
@@ -110,6 +115,9 @@ async function init() {
   }
 
   renderExpiryBanner();
+  // Separate banner, separate failure mode: GitHub lapsing costs one optional
+  // panel, not the app.
+  renderGithubExpiryBanner();
   mountView(creds);
 }
 

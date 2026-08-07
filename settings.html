@@ -2,7 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <title>ButterJira — Settings</title>
+  <title>butter_jira — Settings</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -13,48 +13,160 @@
       min-height: 100vh;
       overflow: auto;
     }
+    /* Block flow, not a centred flex child: the page is taller than the
+       viewport, and centring it vertically clips the top out of reach. */
     body {
+      display: block;
+      padding: 28px 0 72px;
+    }
+
+    /* Capped for line length, gutters kept so nothing touches the edge on a
+       narrow window, centred once the cap bites. */
+    .settings-page {
+      width: calc(100% - 2rem);
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* ── Page header ──────────────────────────────────────────────────────── */
+
+    .page-header {
       display: flex;
-      justify-content: center;
       align-items: center;
-      min-height: 100vh;
+      gap: 16px;
+      margin-bottom: 28px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
     }
-    .settings-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 32px;
-      width: 460px;
+    .brand-link {
+      display: flex;
+      flex: 0 0 auto;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: transform 0.12s, opacity 0.12s;
     }
-    .logo-area {
-      text-align: center;
-      margin-bottom: 6px;
-    }
-    .logo-area img { width: 48px; height: 48px; }
+    .brand-link img { width: 72px; height: 72px; display: block; }
+    .brand-link:hover { transform: translateY(-1px); opacity: 0.85; }
+    .brand-link:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+
+    .brand-text { flex: 1; min-width: 0; }
     h1 {
       font-family: 'IBM Plex Mono', monospace;
-      font-size: 18px;
+      font-size: 22px;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      text-align: center;
-      margin-bottom: 2px;
+      letter-spacing: 1px;
+      margin-bottom: 3px;
       color: var(--text);
     }
     .tagline {
-      text-align: center;
       color: var(--muted);
-      font-size: 12px;
-      margin-bottom: 24px;
+      font-size: 13px;
       font-style: italic;
     }
-    .settings-header {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-bottom: 16px;
-      gap: 16px;
+    .back-hint {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-top: 6px;
     }
+
+    .settings-theme-toggle {
+      flex: 0 0 auto;
+      transform: scale(1.4);
+      transform-origin: center;
+      margin-right: 12px;
+    }
+
+    /* ── Sections ─────────────────────────────────────────────────────────── */
+
+    /* Each area of settings is its own bordered card with its own accent, so
+       "where am I" is answerable at a glance and a collapsed section still
+       reads as a distinct thing rather than as a list item. */
+    .settings-section {
+      --section-accent: var(--accent-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      margin-bottom: 22px;
+      overflow: hidden;
+    }
+    .settings-section[open] {
+      border-color: color-mix(in srgb, var(--section-accent) 40%, var(--border));
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 15px 20px;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text);
+      /* The fat colourful rule is what separates one section from the next. */
+      border-bottom: 3px solid var(--section-accent);
+      background: var(--bg);
+    }
+    .section-head::-webkit-details-marker { display: none; }
+    .section-head:hover { background: color-mix(in srgb, var(--section-accent) 10%, var(--bg)); }
+    .section-head::before {
+      content: "▸";
+      color: var(--section-accent);
+      font-size: 11px;
+      transition: transform 0.15s;
+    }
+    .settings-section[open] > .section-head::before { transform: rotate(90deg); }
+    .section-note {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.3px;
+      text-transform: none;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .section-body { padding: 18px 20px 22px; }
+
+    /* Accents double as the section's identity, drawn from the board palette so
+       they belong to the same visual language as everything else. */
+    #section-personal { --section-accent: #4F8EF7; }
+    #section-org      { --section-accent: #A855F7; }
+    #section-team     { --section-accent: #4FCF8E; }
+    #section-jira     { --section-accent: #EAB308; }
+    #section-github   { --section-accent: #14B8A6; }
+    #section-backup   { --section-accent: #F7914F; }
+
+    /* ── Sub-headings inside a section ────────────────────────────────────── */
+
+    .section-title {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin: 26px 0 10px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    /* The section's own header is separation enough for the first block — and
+       inside a two-column split, both columns start at the top. */
+    .section-body > .section-title:first-child,
+    .two-col > div > .section-title:first-child {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+
+    /* ── Form controls ────────────────────────────────────────────────────── */
+
     label {
       display: block;
       font-size: 12px;
@@ -67,7 +179,10 @@
     input[type="text"],
     input[type="password"],
     input[type="email"],
-    input[type="number"] {
+    input[type="date"],
+    input[type="number"],
+    input[type="search"],
+    textarea {
       width: 100%;
       padding: 10px 12px;
       background: var(--bg);
@@ -80,9 +195,23 @@
       outline: none;
       transition: border-color 0.15s;
     }
-    input:focus { border-color: var(--accent-primary); }
+    textarea { line-height: 1.5; font-size: 13px; resize: vertical; }
+    input:focus, textarea:focus { border-color: var(--accent-primary); }
     input[readonly] { color: var(--muted); cursor: not-allowed; }
-    .field-group { margin-bottom: 14px; }
+
+    /* A single input stretched across 1280px is unusable; list rows are not,
+       so only the standalone fields are capped. */
+    .field-group { margin-bottom: 16px; max-width: 620px; }
+
+    /* Paired blocks of standalone fields sit side by side rather than leaving
+       half the page empty — and collapse back to one column when there isn't
+       room for two. */
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+      gap: 0 44px;
+    }
+
     .token-wrap { position: relative; }
     .token-wrap input { padding-right: 60px; }
     .token-toggle {
@@ -106,19 +235,62 @@
       font-size: 11px;
       color: var(--accent-primary);
       text-decoration: none;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
     .helper-link:hover { text-decoration: underline; }
-    .section-title {
+
+    .hint {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 2px 0 10px;
+      max-width: 860px;
+    }
+    .hint code {
+      font-family: 'IBM Plex Mono', monospace;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0 3px;
+    }
+
+    /* Reference material nobody needs twice: present, one click away, and out
+       of the way of the field it describes. */
+    .help-toggle {
+      border: 1px dashed var(--border);
+      border-radius: 4px;
+      margin: 0 0 12px;
+      max-width: 860px;
+    }
+    .help-toggle > summary {
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+      padding: 7px 10px;
       font-family: 'IBM Plex Mono', monospace;
       font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--muted);
-      margin: 20px 0 10px;
-      padding-top: 16px;
-      border-top: 1px solid var(--border);
+      color: var(--accent-primary);
     }
+    .help-toggle > summary::-webkit-details-marker { display: none; }
+    .help-toggle > summary::before { content: "? "; opacity: 0.6; }
+    .help-toggle > summary:hover { text-decoration: underline; }
+    .help-toggle[open] > summary { border-bottom: 1px solid var(--border); }
+    .help-toggle .hint { margin: 10px; }
+    .help-toggle table {
+      width: calc(100% - 20px);
+      margin: 0 10px 10px;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .help-toggle th, .help-toggle td {
+      text-align: left;
+      padding: 4px 8px 4px 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: top;
+    }
+    .help-toggle th { color: var(--text); font-weight: 500; }
+
     .board-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
     .board-row {
       display: flex;
@@ -135,7 +307,10 @@
     }
     .board-row input[type="number"] { width: 80px; flex: 0 0 80px; }
     .board-row input[type="text"] { flex: 1; }
+    /* flex-basis, not width: `.board-row input` above sets flex:1, which grows
+       a colour swatch into a stripe the width of the card. */
     .board-row input[type="color"] {
+      flex: 0 0 28px;
       width: 28px; height: 28px; border: none; background: none; cursor: pointer; padding: 0;
     }
     .board-row .remove-board {
@@ -143,6 +318,7 @@
       font-size: 16px; padding: 2px 6px; border-radius: 3px;
     }
     .board-row .remove-board:hover { background: rgba(239,68,68,0.15); }
+
     .add-board-btn {
       background: transparent;
       border: 1px dashed var(--border);
@@ -157,9 +333,18 @@
       margin-bottom: 14px;
     }
     .add-board-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+
+    /* Save is global — it writes every section, including collapsed ones — so
+       it lives outside them and stays put at the bottom of the page. */
+    .save-bar {
+      position: sticky;
+      bottom: 0;
+      padding: 16px 0 8px;
+      background: linear-gradient(to top, var(--bg) 70%, transparent);
+    }
     .btn-save {
       width: 100%;
-      padding: 10px;
+      padding: 12px;
       background: var(--accent-primary);
       border: none;
       border-radius: 4px;
@@ -170,44 +355,26 @@
       text-transform: uppercase;
       letter-spacing: 1px;
       cursor: pointer;
-      margin-top: 8px;
       transition: opacity 0.15s;
     }
     .btn-save:hover { opacity: 0.85; }
     .status {
       text-align: center;
-      margin-top: 12px;
+      margin-top: 10px;
       font-size: 13px;
       color: var(--accent-success);
       font-family: 'IBM Plex Mono', monospace;
       opacity: 0;
       transition: opacity 0.3s;
+      min-height: 18px;
     }
     .status.visible { opacity: 1; }
 
-    .settings-theme-toggle {
-      transform: scale(1.4);
-      transform-origin: center;
-    }
-
-    .hint {
-      font-size: 11px;
-      color: var(--muted);
-      line-height: 1.45;
-      margin: 2px 0 10px;
-    }
-    .hint code {
-      font-family: 'IBM Plex Mono', monospace;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      padding: 0 3px;
-    }
     .btn-row { display: flex; gap: 8px; }
     .btn-row .add-board-btn { flex: 1; }
     .field-role-row { flex-wrap: wrap; }
     .field-role-row .role-label {
-      flex: 0 0 96px;
+      flex: 0 0 110px;
       font-family: 'IBM Plex Mono', monospace;
       font-size: 11px;
       text-transform: uppercase;
@@ -221,24 +388,25 @@
       gap: 8px;
       font-size: 11px;
       color: var(--muted);
-      line-height: 1.45;
+      line-height: 1.5;
       margin-bottom: 10px;
       cursor: pointer;
       text-transform: none;
       letter-spacing: 0;
       font-family: 'IBM Plex Sans', sans-serif;
+      max-width: 860px;
     }
     .checkbox-row input { margin-top: 2px; flex: 0 0 auto; }
     .checkbox-row strong { color: var(--accent-warning); font-weight: 600; }
     /* Checkbox rows inside a list get their spacing from the list's gap. */
-    .board-row.checkbox-row { margin-bottom: 0; align-items: center; }
+    .board-row.checkbox-row { margin-bottom: 0; align-items: center; max-width: 100%; }
     .token-status-expired { color: var(--accent-danger); }
     .token-status-soon { color: var(--accent-warning); }
 
     .inline-row { display: flex; gap: 6px; margin-bottom: 8px; }
     .inline-row input { margin-bottom: 0; }
     .inline-btn { width: auto; flex: 0 0 auto; padding: 8px 12px; margin-bottom: 0; }
-    /* Five fields per person: wrap rather than squeeze them to nothing. */
+    /* Six fields per person: wrap rather than squeeze them to nothing. */
     .roster-row { gap: 6px; flex-wrap: wrap; row-gap: 5px; }
     .roster-avatar {
       width: 22px; height: 22px; border-radius: 50%; flex: 0 0 22px;
@@ -262,6 +430,8 @@
       border-color: var(--accent-warning); color: var(--accent-warning);
     }
     .roster-row input.roster-slack { flex: 1 1 92px; min-width: 0; font-size: 10px; }
+    .roster-row input.roster-github { flex: 1 1 92px; min-width: 0; font-size: 10px; }
+    .roster-row input.roster-github.invalid { border-color: var(--accent-warning); color: var(--accent-warning); }
     .roster-row input.roster-emoji { flex: 0 0 44px; text-align: center; }
     .roster-badge {
       font-family: 'IBM Plex Mono', monospace; font-size: 9px;
@@ -279,17 +449,26 @@
       border-radius: 3px; cursor: pointer; flex: 0 0 auto;
     }
     .result-add:disabled { border-color: var(--border); color: var(--muted); cursor: default; }
+
+    .repo-row { justify-content: space-between; font-size: 11px; }
+    .repo-row .repo-name { font-family: 'IBM Plex Mono', monospace; color: var(--text); }
+    .repo-row .repo-verdict { font-family: 'IBM Plex Mono', monospace; font-size: 10px; }
+    .repo-row .repo-verdict.ok { color: var(--accent-success); }
+    .repo-row .repo-verdict.bad { color: var(--accent-danger); }
   </style>
 </head>
 <body>
-  <div class="settings-card">
-    <div class="logo-area">
-      <img src="assets/logo.png" alt="">
-    </div>
-    <h1 id="productName">ButterJira</h1>
-    <div class="tagline" id="productTagline">Because the other one sucks.</div>
+  <div class="settings-page">
 
-    <div class="settings-header">
+    <header class="page-header">
+      <a class="brand-link" id="brandLink" href="app.html#kanban" title="Back to the board">
+        <img src="assets/logo.png" alt="">
+      </a>
+      <div class="brand-text">
+        <h1 id="productName">butter_jira</h1>
+        <div class="tagline" id="productTagline">Because the other one sucks.</div>
+        <div class="back-hint">Settings · click the logo to go back to the board</div>
+      </div>
       <button class="theme-toggle settings-theme-toggle" id="themeToggle" title="Toggle theme">
         <span class="toggle-track">
           <span class="toggle-stars">
@@ -310,154 +489,317 @@
           <span class="toggle-crater"></span>
         </span>
       </button>
-    </div>
+    </header>
 
-    <div class="field-group">
-      <label for="baseUrl">Jira Site URL</label>
-      <input type="text" id="baseUrl" placeholder="your-org.atlassian.net">
-      <div class="hint">Jira Cloud site or Data Center host. Non-Atlassian hosts prompt for access on save.</div>
-    </div>
+    <!-- ── Personal ─────────────────────────────────────────────────────── -->
+    <details class="settings-section" id="section-personal">
+      <summary class="section-head">
+        Personal settings
+        <span class="section-note">Your connections and credentials · this device only</span>
+      </summary>
+      <div class="section-body two-col">
+        <div>
+        <div class="section-title">Jira instance</div>
 
-    <div class="field-group">
-      <label for="email">Email</label>
-      <input type="email" id="email" placeholder="you@example.com">
-    </div>
+        <div class="field-group">
+          <label for="baseUrl">Jira site URL</label>
+          <input type="text" id="baseUrl" placeholder="your-org.atlassian.net">
+          <div class="hint">Jira Cloud site or Data Center host. Non-Atlassian hosts prompt for access on save.</div>
+        </div>
 
-    <div class="field-group">
-      <label for="token">API Token</label>
-      <div class="token-wrap">
-        <input type="password" id="token" placeholder="Paste Jira API token">
-        <button class="token-toggle" id="toggleToken">Show</button>
+        <div class="field-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="you@example.com">
+        </div>
+
+        <div class="field-group">
+          <label for="token">API token</label>
+          <div class="token-wrap">
+            <input type="password" id="token" placeholder="Paste Jira API token">
+            <button class="token-toggle" id="toggleToken">Show</button>
+          </div>
+          <a class="helper-link" href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener">
+            Need an API token? Create one here
+          </a>
+          <div class="hint">Stored on this device only — never in synced browser storage.</div>
+        </div>
+
+        <div class="field-group">
+          <label for="tokenExpiry">Token expires on</label>
+          <input type="date" id="tokenExpiry">
+          <div class="hint" id="tokenStatusNote"></div>
+          <button class="add-board-btn" id="forgetTokenBtn">✕ Forget token on this device</button>
+        </div>
+        </div>
+
+        <div>
+        <div class="section-title">GitHub instance</div>
+        <div class="hint">
+          Optional. Adds each person's open pull requests, recent merges and
+          assigned issues beside their board during standup. Which repos are read
+          is set under <strong>GitHub settings</strong>; nothing is fetched from a
+          repo that is not listed there.
+        </div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="githubEnabled">
+          <span>Enable GitHub sync</span>
+        </label>
+
+        <div class="field-group">
+          <label for="githubHost">Host</label>
+          <input type="text" id="githubHost" placeholder="github.com">
+          <div class="hint">
+            Leave as <code>github.com</code> unless you are on GitHub Enterprise
+            Server, in which case use your own host — access to it is requested
+            when you save.
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="githubOrg">Organisation</label>
+          <input type="text" id="githubOrg" placeholder="your-org">
+        </div>
+
+        <div class="field-group">
+          <label for="githubToken">Personal access token</label>
+          <div class="token-wrap">
+            <input type="password" id="githubToken" placeholder="github_pat_… or ghp_…">
+            <button class="token-toggle" id="toggleGithubToken">Show</button>
+          </div>
+          <div class="hint">
+            Stored on this device only, and never included in a config export.
+          </div>
+
+          <details class="help-toggle">
+            <summary>What token do I need?</summary>
+            <div class="hint">
+              A <strong>fine-grained</strong> token owned by the organisation,
+              with repository access set to <em>only</em> the repos listed under
+              GitHub settings, and these read-only permissions:
+            </div>
+            <table>
+              <tr><th>Permission</th><th>Needed for</th></tr>
+              <tr><td>Repository → Metadata</td><td>Mandatory; implied by any other repo permission</td></tr>
+              <tr><td>Repository → Pull requests</td><td>Open PRs, review state, merged PRs</td></tr>
+              <tr><td>Repository → Issues</td><td>Open issues assigned to someone</td></tr>
+              <tr><td>Repository → Checks</td><td>The "checks failing" state — optional</td></tr>
+              <tr><td>Organisation → Members</td><td>The "Match logins from GitHub org" button — optional</td></tr>
+            </table>
+            <div class="hint">
+              Org owners may have to approve the token before it works; until
+              they do, private repos answer <code>404</code> rather than
+              <code>403</code>. A classic token needs <code>repo</code> +
+              <code>read:org</code>, but <code>repo</code> also grants write
+              access to every private repo you can see — prefer fine-grained.
+            </div>
+            <div class="hint">
+              <a class="helper-link" href="https://github.com/settings/personal-access-tokens" target="_blank" rel="noopener">
+                Create a fine-grained token
+              </a>
+            </div>
+          </details>
+
+          <div class="hint" id="githubTokenNote"></div>
+        </div>
+
+        <div class="btn-row">
+          <button class="add-board-btn" id="githubTestBtn">✓ Test connection</button>
+          <button class="add-board-btn" id="forgetGithubTokenBtn">✕ Forget GitHub token</button>
+        </div>
+        <div class="board-list" id="githubTestResults"></div>
+        </div>
       </div>
-      <a class="helper-link" href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" rel="noopener">
-        Need an API token? Create one here
-      </a>
-      <div class="hint">Stored on this device only — never in synced browser storage.</div>
-    </div>
+    </details>
 
-    <div class="field-group">
-      <label for="tokenExpiry">Token expires on</label>
-      <input type="date" id="tokenExpiry">
-      <div class="hint" id="tokenStatusNote"></div>
-      <button class="add-board-btn" id="forgetTokenBtn">✕ Forget token on this device</button>
-    </div>
-
-    <div class="section-title">Boards in scope</div>
-    <div class="board-list" id="boardList"></div>
-    <div class="btn-row">
-      <button class="add-board-btn" id="addBoardBtn">+ Add board</button>
-      <button class="add-board-btn" id="importBoardsBtn">↓ Import from Jira</button>
-    </div>
-
-    <div class="section-title">Status Column Grouping (Kanban)</div>
-    <div class="board-list" id="statusGroupList"></div>
-    <button class="add-board-btn" id="addGroupBtn">+ Add group</button>
-
-    <div class="section-title">Team roster</div>
-    <div class="hint">
-      Who counts as "the team": drives the Team Only filter, display-name
-      overrides, and later standup and planning. Stored on this device only —
-      it holds colleagues' details, so it never goes into synced storage or a
-      config export unless you tick the box below.
-    </div>
-    <div class="board-list" id="rosterList"></div>
-    <div class="hint">
-      Each row: display-name override, an optional picture path, then an optional
-      Slack display name — standup uses that to build a copy-pastable
-      parking-lot message at the end. Type it exactly as Slack's @-autocomplete
-      shows it; spaces are fine. Drop image
-      files into <code>assets/avatars/</code> in the extension folder and point a
-      row at one (e.g. <code>assets/avatars/sam.png</code>) to replace that
-      person's Jira profile picture everywhere in the app. The path is relative
-      to the extension folder — URLs are not accepted. That folder is
-      git-ignored, since photos of colleagues are personal data. Reload the
-      extension after adding files.
-    </div>
-    <div class="hint" id="rosterNote"></div>
-
-    <div class="btn-row">
-      <button class="add-board-btn" id="harvestRosterBtn">↓ Harvest from boards</button>
-      <button class="add-board-btn" id="toggleAddPersonBtn">+ Add a person</button>
-    </div>
-
-    <div id="addPersonPanel" hidden>
-      <div class="hint">
-        Search needs the "Browse users" permission in Jira. If your account
-        doesn't have it, add people by <strong>account ID</strong> (from the
-        Jira profile URL) or by email — an email is linked automatically the
-        next time that person shows up in a harvest.
+    <!-- ── Organisation ─────────────────────────────────────────────────── -->
+    <details class="settings-section" id="section-org">
+      <summary class="section-head">
+        Org settings
+        <span class="section-note">Branding shown across the app</span>
+      </summary>
+      <div class="section-body">
+        <div class="field-group">
+          <label for="orgName">Organisation name</label>
+          <input type="text" id="orgName" placeholder="Shown in the nav bar">
+        </div>
+        <div class="field-group">
+          <label for="orgLogo">Organisation logo path</label>
+          <input type="text" id="orgLogo" placeholder="assets/brand/org-logo.png">
+          <div class="hint">
+            Files under <code>assets/brand/</code> are untracked by git. Drop a
+            logo there and point this at it; single-colour wordmarks are inverted
+            automatically in light theme.
+          </div>
+        </div>
       </div>
-      <div class="inline-row">
-        <input type="search" id="userSearchInput" placeholder="Search Jira directory by name or email">
-        <button class="add-board-btn inline-btn" id="userSearchBtn">Search</button>
+    </details>
+
+    <!-- ── Team ─────────────────────────────────────────────────────────── -->
+    <details class="settings-section" id="section-team">
+      <summary class="section-head">
+        Team settings
+        <span class="section-note">Who counts as the team</span>
+      </summary>
+      <div class="section-body">
+        <div class="hint">
+          Drives the Team Only filter, display-name overrides, standup, and
+          pull-request attribution. Stored on this device only — it holds
+          colleagues' details, so it never goes into synced storage or a config
+          export unless you tick the box under Backup &amp; transfer.
+        </div>
+        <div class="board-list" id="rosterList"></div>
+        <div class="hint">
+          Each row: display-name override, an optional picture path, an optional
+          Slack display name — standup uses that to build a copy-pastable
+          parking-lot message at the end; type it exactly as Slack's
+          @-autocomplete shows it, spaces are fine — and an optional GitHub
+          login, which is what attributes pull requests to a person when GitHub
+          sync is on. Drop image files into <code>assets/avatars/</code> in the
+          extension folder and point a row at one (e.g.
+          <code>assets/avatars/sam.png</code>) to replace that person's Jira
+          profile picture everywhere in the app. The path is relative to the
+          extension folder — URLs are not accepted. That folder is git-ignored,
+          since photos of colleagues are personal data. Reload the extension
+          after adding files.
+        </div>
+        <div class="hint" id="rosterNote"></div>
+
+        <div class="btn-row">
+          <button class="add-board-btn" id="harvestRosterBtn">↓ Harvest from boards</button>
+          <button class="add-board-btn" id="toggleAddPersonBtn">+ Add a person</button>
+        </div>
+        <button class="add-board-btn" id="matchGithubBtn" hidden>⇄ Match logins from GitHub org</button>
+
+        <div id="addPersonPanel" hidden>
+          <div class="hint">
+            Search needs the "Browse users" permission in Jira. If your account
+            doesn't have it, add people by <strong>account ID</strong> (from the
+            Jira profile URL) or by email — an email is linked automatically the
+            next time that person shows up in a harvest.
+          </div>
+          <div class="inline-row">
+            <input type="search" id="userSearchInput" placeholder="Search Jira directory by name or email">
+            <button class="add-board-btn inline-btn" id="userSearchBtn">Search</button>
+          </div>
+          <div class="board-list" id="userSearchResults"></div>
+          <div class="inline-row">
+            <input type="text" id="manualIdentifier" placeholder="Account ID or email">
+            <input type="text" id="manualName" placeholder="Display name (optional)">
+            <button class="add-board-btn inline-btn" id="addManualBtn">Add</button>
+          </div>
+        </div>
       </div>
-      <div class="board-list" id="userSearchResults"></div>
-      <div class="inline-row">
-        <input type="text" id="manualIdentifier" placeholder="Account ID or email">
-        <input type="text" id="manualName" placeholder="Display name (optional)">
-        <button class="add-board-btn inline-btn" id="addManualBtn">Add</button>
+    </details>
+
+    <!-- ── Jira boards and fields ───────────────────────────────────────── -->
+    <details class="settings-section" id="section-jira">
+      <summary class="section-head">
+        Jira boards and fields
+        <span class="section-note">Scope, columns, field mapping, hygiene checks</span>
+      </summary>
+      <div class="section-body">
+
+        <div class="section-title">Boards in scope</div>
+        <div class="board-list" id="boardList"></div>
+        <div class="btn-row">
+          <button class="add-board-btn" id="addBoardBtn">+ Add board</button>
+          <button class="add-board-btn" id="importBoardsBtn">↓ Import from Jira</button>
+        </div>
+
+        <div class="section-title">Status column grouping (Kanban)</div>
+        <div class="board-list" id="statusGroupList"></div>
+        <button class="add-board-btn" id="addGroupBtn">+ Add group</button>
+
+        <div class="section-title">Field mapping</div>
+        <div class="hint">
+          Custom field IDs differ per Jira site. Discover resolves them by field
+          name; override manually if your site uses different names. Epic name is
+          optional — company-managed projects give an epic a short label of its
+          own, and team-managed ones fall back to the epic's summary.
+        </div>
+        <div class="board-list" id="fieldRoleList"></div>
+        <button class="add-board-btn" id="discoverFieldsBtn">⟳ Discover from Jira</button>
+
+        <div class="section-title">Additional fields</div>
+        <div class="hint">
+          Extra field IDs requested on every issue query, comma-separated
+          (e.g. <code>customfield_10050, timetracking</code>). Entries from
+          <code>config.local.json</code> are merged in and shown below.
+        </div>
+        <div class="field-group">
+          <input type="text" id="additionalFields" placeholder="customfield_10050, ...">
+          <div class="hint" id="localFieldsNote"></div>
+        </div>
+
+        <div class="section-title">Monitoring checks</div>
+        <div class="hint">
+          Hygiene checks shown on the Monitor tab. All are on by default; untick to
+          mute one. Every check skips epics and anything already done, and all but
+          "unassigned" also skip sub-tasks — a sub-task hangs off a story, so it has
+          no epic of its own and inherits its parent's dates and estimate.
+        </div>
+        <div class="board-list" id="monitorCheckList"></div>
       </div>
-    </div>
+    </details>
 
-    <div class="section-title">Field mapping</div>
-    <div class="hint">
-      Custom field IDs differ per Jira site. Discover resolves them by field name;
-      override manually if your site uses different names.
-    </div>
-    <div class="board-list" id="fieldRoleList"></div>
-    <button class="add-board-btn" id="discoverFieldsBtn">⟳ Discover from Jira</button>
+    <!-- ── GitHub ───────────────────────────────────────────────────────── -->
+    <details class="settings-section" id="section-github">
+      <summary class="section-head">
+        GitHub settings
+        <span class="section-note">Repos in scope</span>
+      </summary>
+      <div class="section-body">
+        <div class="field-group">
+          <label for="githubRepos">Team repos</label>
+          <textarea id="githubRepos" rows="6" spellcheck="false"
+                    placeholder="platform-api&#10;org/web-ui&#10;https://github.com/org/reporting"></textarea>
+          <div class="hint">
+            <strong>One repo per line — nothing is fetched from a repo that is not
+            listed here.</strong> A bare name is read as belonging to the
+            organisation set under Personal settings; <code>owner/name</code> and a
+            pasted repo URL both work too. This is the whole scope of the GitHub
+            queries: a token with access to other repos will not pull them in, and
+            an empty list means GitHub sync is off however the enable box is set.
+          </div>
+          <div class="hint" id="githubRepoNote"></div>
+        </div>
+      </div>
+    </details>
 
-    <div class="section-title">Monitoring checks</div>
-    <div class="hint">
-      Hygiene checks shown on the Monitor tab. All are on by default; untick to
-      mute one. Every check skips epics and anything already done, and all but
-      "unassigned" also skip sub-tasks — a sub-task hangs off a story, so it has
-      no epic of its own and inherits its parent's dates and estimate.
-    </div>
-    <div class="board-list" id="monitorCheckList"></div>
+    <!-- ── Backup ───────────────────────────────────────────────────────── -->
+    <details class="settings-section" id="section-backup">
+      <summary class="section-head">
+        Backup &amp; transfer
+        <span class="section-note">Move a working setup to another browser</span>
+      </summary>
+      <div class="section-body">
+        <div class="hint">
+          Export writes a JSON file with your site, boards, status groups, field
+          mapping, branding and the GitHub host, org and repo list. Import merges a
+          file back in. The Jira token is only in the file if you tick the box
+          below; the GitHub token is never in it at all.
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="includeToken">
+          <span>Include the Jira API token in the export <strong>(plaintext credential in a file)</strong></span>
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="includeRoster">
+          <span>Include the team roster <strong>(colleagues' names and emails in a file)</strong></span>
+        </label>
+        <div class="btn-row">
+          <button class="add-board-btn" id="exportBtn">↑ Export config</button>
+          <button class="add-board-btn" id="importBtn">↓ Import config</button>
+        </div>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+    </details>
 
-    <div class="section-title">Additional fields</div>
-    <div class="hint">
-      Extra field IDs requested on every issue query, comma-separated
-      (e.g. <code>customfield_10050, timetracking</code>). Entries from
-      <code>config.local.json</code> are merged in and shown below.
+    <div class="save-bar">
+      <button class="btn-save" id="saveBtn">Save all settings</button>
+      <div class="status" id="status">Saved</div>
     </div>
-    <input type="text" id="additionalFields" placeholder="customfield_10050, ...">
-    <div class="hint" id="localFieldsNote"></div>
-
-    <div class="section-title">Branding (optional)</div>
-    <div class="field-group">
-      <label for="orgName">Organisation name</label>
-      <input type="text" id="orgName" placeholder="Shown in the nav bar">
-    </div>
-    <div class="field-group">
-      <label for="orgLogo">Organisation logo path</label>
-      <input type="text" id="orgLogo" placeholder="assets/brand/org-logo.png">
-      <div class="hint">Files under <code>assets/brand/</code> are untracked by git.</div>
-    </div>
-
-    <div class="section-title">Backup &amp; transfer</div>
-    <div class="hint">
-      Export writes a JSON file with your site, boards, status groups, field
-      mapping and branding. Import merges a file back in — use it to move to
-      another browser or hand a working setup to a teammate.
-    </div>
-    <label class="checkbox-row">
-      <input type="checkbox" id="includeToken">
-      <span>Include the API token in the export <strong>(plaintext credential in a file)</strong></span>
-    </label>
-    <label class="checkbox-row">
-      <input type="checkbox" id="includeRoster">
-      <span>Include the team roster <strong>(colleagues' names and emails in a file)</strong></span>
-    </label>
-    <div class="btn-row">
-      <button class="add-board-btn" id="exportBtn">↑ Export config</button>
-      <button class="add-board-btn" id="importBtn">↓ Import config</button>
-    </div>
-    <input type="file" id="importFile" accept="application/json,.json" hidden>
-
-    <button class="btn-save" id="saveBtn">Save</button>
-    <div class="status" id="status">Saved</div>
   </div>
   <script type="module" src="settings.js"></script>
 </body>

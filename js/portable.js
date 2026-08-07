@@ -34,6 +34,15 @@ export function buildExport({
         Object.entries(CONFIG.fields || {}).map(([role, ids]) => [role, [...(ids || [])]])
       ),
       additionalFields: [...(CONFIG.additionalFields || [])],
+      // Host, org and the declared repo list travel; the GitHub token never
+      // does, under any checkbox. It is a second credential with its own
+      // lifecycle, and one plaintext token in a shared file is enough.
+      github: {
+        enabled: Boolean(CONFIG.github?.enabled),
+        host: String(CONFIG.github?.host || "github.com"),
+        org: String(CONFIG.github?.org || ""),
+        repos: [...(CONFIG.github?.repos || [])],
+      },
     },
   };
 
@@ -136,6 +145,31 @@ export function parseImport(text) {
     config.additionalFields = [
       ...new Set(src.additionalFields.filter((f) => typeof f === "string" && f.trim()).map((f) => f.trim())),
     ];
+  }
+
+  if (src.github && typeof src.github === "object") {
+    const repos = Array.isArray(src.github.repos)
+      ? src.github.repos.filter((r) => typeof r === "string" && r.trim()).map((r) => r.trim())
+      : [];
+    config.github = {
+      enabled: src.github.enabled === true,
+      host: typeof src.github.host === "string" && src.github.host.trim()
+        ? src.github.host.trim()
+        : "github.com",
+      org: typeof src.github.org === "string" ? src.github.org.trim() : "",
+      repos: [...new Set(repos)],
+    };
+    // Enabled with no repos would look configured while fetching nothing; the
+    // allowlist is the scope, so an empty one means off.
+    if (config.github.enabled && !config.github.repos.length) {
+      config.github.enabled = false;
+      warnings.push("GitHub sync in the file had no repositories listed; left switched off.");
+    }
+    if (config.github.repos.length) {
+      warnings.push(
+        `File lists ${config.github.repos.length} GitHub repositor${config.github.repos.length === 1 ? "y" : "ies"} — you will still need your own token.`
+      );
+    }
   }
 
   // Roster only when the file actually carries one — `undefined` means "leave

@@ -1,6 +1,7 @@
 import {
   getAllBacklogIssues,
   getAllSprintIssues,
+  getEpicNames,
 } from "../api.js";
 import {
   hashColor,
@@ -68,10 +69,21 @@ function spColor(sp) {
 export async function mount(container, creds) {
   container.innerHTML = '<div class="spinner"></div>';
 
-  const [backlog, sprint] = await Promise.all([
+  const [backlog, sprint, epicNames] = await Promise.all([
     getAllBacklogIssues(creds),
     getAllSprintIssues(creds),
+    // Cosmetic: without it the Epic column falls back to keys, which is what it
+    // showed before. Not worth failing the whole view over.
+    getEpicNames(creds).catch(() => ({})),
   ]);
+
+  // The label for an issue's epic — its short name where Jira has one, else the
+  // key, which is always available and always resolves.
+  function epicLabelFor(issue) {
+    const key = getEpicKey(issue);
+    if (!key) return null;
+    return { key, label: epicNames[key] || key };
+  }
 
   const deduped = new Map();
   for (const issue of [...sprint, ...backlog]) {
@@ -122,7 +134,11 @@ export async function mount(container, creds) {
   });
 
   function renderTable() {
-    const sorted = sortIssues(filtered, sortCol, sortDir);
+    // Sorting on the epic column follows what the column shows, not the key
+    // behind it — a list that reads out of alphabetical order is a bug report.
+    const sorted = sortIssues(filtered, sortCol, sortDir, {
+      epicLabel: (issue) => epicLabelFor(issue)?.label || "",
+    });
     countEl.textContent = `Showing ${sorted.length} of ${allIssues.length} issues`;
 
     tableWrap.innerHTML = "";
@@ -136,7 +152,7 @@ export async function mount(container, creds) {
       { key: "summary", label: "Summary" },
       { key: "status", label: "Status" },
       { key: "assignee", label: "Assignee" },
-      { key: "sp", label: "Story Points" },
+      { key: "sp", label: "SP", title: "Story points" },
       { key: "due", label: "Due" },
     ];
 
@@ -144,7 +160,11 @@ export async function mount(container, creds) {
     const headRow = document.createElement("tr");
     for (const col of cols) {
       const th = document.createElement("th");
+      // The column widths live in CSS, keyed off these classes: the table is
+      // fixed-layout so that every column but Summary holds still.
+      th.className = `col-${col.key}`;
       th.textContent = col.label;
+      if (col.title) th.title = col.title;
       if (sortCol === col.key) {
         const arrow = document.createElement("span");
         arrow.className = "sort-arrow";
@@ -199,30 +219,30 @@ export async function mount(container, creds) {
     tdKey.appendChild(keyLink);
     tr.appendChild(tdKey);
 
-    // Epic
+    // Epic — the name, not the key. The key is still what the link opens and
+    // still in the tooltip, since that is what anyone quoting it needs.
     const tdEpic = document.createElement("td");
-    const epicKey = getEpicKey(issue);
-    if (epicKey) {
+    const epic = epicLabelFor(issue);
+    if (epic) {
       const epicLink = document.createElement("a");
-      epicLink.className = "issue-key";
-      epicLink.style.color = "var(--muted)";
-      epicLink.style.fontSize = "11px";
-      epicLink.textContent = epicKey;
-      attachIssueOpener(epicLink, epicKey, creds);
+      epicLink.className = "epic-name";
+      epicLink.textContent = epic.label;
+      epicLink.title = epic.label === epic.key ? epic.key : `${epic.label} · ${epic.key}`;
+      attachIssueOpener(epicLink, epic.key, creds);
       tdEpic.appendChild(epicLink);
     } else {
+      tdEpic.className = "cell-empty";
       tdEpic.textContent = "—";
-      tdEpic.style.color = "var(--muted)";
-      tdEpic.style.fontFamily = "'IBM Plex Mono', monospace";
-      tdEpic.style.fontSize = "12px";
     }
     tr.appendChild(tdEpic);
 
-    // Summary
+    // Summary. Not truncated here: the column takes whatever width is going, so
+    // how much fits is a question for the layout, and CSS answers it with an
+    // ellipsis at the real edge rather than at a guessed character count.
     const tdSummary = document.createElement("td");
     tdSummary.className = "summary-cell";
-    const sum = f.summary || "";
-    tdSummary.textContent = sum.length > 60 ? sum.slice(0, 60) + "…" : sum;
+    tdSummary.textContent = f.summary || "";
+    tdSummary.title = f.summary || "";
     tr.appendChild(tdSummary);
 
     // Status
@@ -322,7 +342,7 @@ function makeAvatarPlaceholder(name) {
   return el;
 }
 
-function sortIssues(issues, col, dir) {
+function sortIssues(issues, col, dir, { epicLabel = () => "" } = {}) {
   const sorted = [...issues];
   const m = dir === "asc" ? 1 : -1;
 
@@ -351,8 +371,11 @@ function sortIssues(issues, col, dir) {
         return (fa.status?.name || "").localeCompare(fb.status?.name || "") * m;
       }
       case "epic": {
-        va = getEpicKey(a) || "zzz";
-        vb = getEpicKey(b) || "zzz";
+        // No epic sorts last in both directions is wrong, but sorting it under
+        // "—" is worse; the existing "zzz" sentinel is kept for consistency
+        // with the other nullable columns.
+        va = epicLabel(a) || "zzz";
+        vb = epicLabel(b) || "zzz";
         return va.localeCompare(vb) * m;
       }
       case "priority": {

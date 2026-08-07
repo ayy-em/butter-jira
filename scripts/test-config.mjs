@@ -48,7 +48,16 @@ globalThis.fetch = async (url) => {
     return localFile ? { ok: true, json: async () => localFile } : { ok: false, status: 404 };
   }
   for (const [fragment, body] of Object.entries(routes)) {
-    if (u.includes(fragment)) return { ok: true, status: 200, json: async () => body };
+    if (u.includes(fragment)) {
+      // `text` as well as `json`: jiraPost reads the body as text first, so a
+      // json-only stub cannot exercise any POST-backed call.
+      return {
+        ok: true,
+        status: 200,
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      };
+    }
   }
   return { ok: false, status: 404, text: async () => "not found" };
 };
@@ -101,7 +110,7 @@ check("underscore keys dropped", !("_comment" in cfg.CONFIG));
 check("baseUrl normalised on load", cfg.CONFIG.site.baseUrl === "https://local-org.atlassian.net");
 check("field mapping applied", cfg.CONFIG.fields.storyPoints[0] === "customfield_1");
 check("unset roles keep defaults", cfg.CONFIG.fields.sprint.length === 0);
-check("partial brand merge", cfg.CONFIG.brand.productName === "ButterJira" && cfg.CONFIG.brand.orgName === "ExampleCo");
+check("partial brand merge", cfg.CONFIG.brand.productName === "butter_jira" && cfg.CONFIG.brand.orgName === "ExampleCo");
 check("additionalFields applied", cfg.CONFIG.additionalFields.includes("from_local"));
 
 section("storage wins over local file; additionalFields merge");
@@ -204,6 +213,48 @@ check("base fields present", fields.includes("summary") && fields.includes("dued
 check("discovered fields present", fields.includes("customfield_10016") && fields.includes("customfield_10015"));
 check("additional fields present", fields.includes("customfield_10050"));
 check("no duplicates", new Set(fields).size === fields.length);
+
+section("epic names");
+routes["/rest/api/3/field"] = [
+  { id: "customfield_10014", name: "Epic Link" },
+  { id: "customfield_10011", name: "Epic Name" },
+];
+map = await api.discoverFieldMappings(creds);
+check("epic name role discovered", map.epicName[0] === "customfield_10011");
+
+storage = {
+  site: { baseUrl: "https://x.atlassian.net" },
+  boards: [{ id: 7, name: "ABC", projectKey: "ABC" }],
+  fields: { epicLink: ["customfield_10014"], epicName: ["customfield_10011"] },
+};
+localFile = null;
+await cfg.loadConfig();
+await utils.loadBoards();
+check("epicName kept out of the field list every issue query carries",
+  !cfg.issueFields().includes("customfield_10011"));
+check("epicLink is still in it", cfg.issueFields().includes("customfield_10014"));
+
+routes["/rest/api/3/search/jql"] = {
+  issues: [
+    { key: "ABC-1", fields: { summary: "Rewrite the checkout flow", customfield_10011: "Checkout" } },
+    { key: "ABC-2", fields: { summary: "Billing hardening" } },
+    { key: "ABC-3", fields: { summary: "Ignored", customfield_10011: "   " } },
+  ],
+  isLast: true,
+};
+delete localStore.cache_epicNames;
+let epicNames = await api.getEpicNames(creds);
+check("short epic name preferred over the summary", epicNames["ABC-1"] === "Checkout");
+check("summary used where the site has no epic name", epicNames["ABC-2"] === "Billing hardening");
+check("blank epic name falls back rather than showing whitespace", epicNames["ABC-3"] === "Ignored");
+check("result cached", Boolean(localStore.cache_epicNames));
+
+storage.boards = [];
+await cfg.loadConfig();
+await utils.loadBoards();
+delete localStore.cache_epicNames;
+epicNames = await api.getEpicNames(creds);
+check("no boards means no query and no names", Object.keys(epicNames).length === 0);
 
 section("listBoards");
 routes["/rest/agile/1.0/board"] = {

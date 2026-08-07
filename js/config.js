@@ -32,6 +32,14 @@ export const FIELD_ROLES = {
     label: "Epic link",
     names: ["Epic Link", "Parent Link"],
   },
+  // Company-managed Jira gives an epic a short label of its own, separate from
+  // its summary — "Checkout rewrite" rather than "Rewrite the checkout flow to
+  // support split payments". That is what belongs in a narrow column. Team-
+  // managed projects have no such field, so callers fall back to the summary.
+  epicName: {
+    label: "Epic name",
+    names: ["Epic Name"],
+  },
   sprint: {
     label: "Sprint",
     names: ["Sprint"],
@@ -65,7 +73,7 @@ const DEFAULTS = {
     wikiPath: "/wiki",
   },
   brand: {
-    productName: "ButterJira",
+    productName: "butter_jira",
     tagline: "Because the other one sucks.",
     orgName: "",      // shown next to the nav logo when set
     orgLogo: "",      // path to an untracked file, e.g. assets/brand/logo.png
@@ -76,16 +84,27 @@ const DEFAULTS = {
     storyPoints: [],
     startDate: [],
     epicLink: [],
+    epicName: [],
     sprint: [],
   },
   additionalFields: [], // extra field IDs to request on every issue query
   // Monitoring checks are on unless explicitly muted — see js/monitor.js.
   monitorChecks: {},
+  // Optional second data source (M11). `repos` is an allowlist, not a filter:
+  // nothing is fetched from GitHub unless it is named here, so an empty list
+  // means the feature is off however the other keys are set. Non-secret, so it
+  // syncs — the token does not (see js/credentials.js).
+  github: {
+    enabled: false,
+    host: "github.com",  // anything else is GitHub Enterprise Server
+    org: "",
+    repos: [],           // ["org/repo", ...] — typed in by the user, never discovered
+  },
 };
 
 const STORAGE_KEYS = [
   "configVersion", "site", "brand", "boards",
-  "statusGroups", "fields", "additionalFields", "monitorChecks",
+  "statusGroups", "fields", "additionalFields", "monitorChecks", "github",
 ];
 
 // Live config object. Mutated in place so modules can hold a reference.
@@ -229,10 +248,17 @@ export function fieldIds(role) {
   return Array.isArray(ids) ? ids.filter(Boolean) : [];
 }
 
+// Roles that only one narrow query needs, and so are kept out of the field list
+// every board-wide query carries. `epicName` exists on epics alone — asking for
+// it on every story would be one more field on every row for nothing.
+const NARROW_FIELD_ROLES = new Set(["epicName"]);
+
 // Full field list for issue queries: base fields, every discovered role field,
 // and anything the user added via additionalFields.
 export function issueFields() {
-  const roleFields = Object.keys(FIELD_ROLES).flatMap((role) => fieldIds(role));
+  const roleFields = Object.keys(FIELD_ROLES)
+    .filter((role) => !NARROW_FIELD_ROLES.has(role))
+    .flatMap((role) => fieldIds(role));
   return [...new Set([...BASE_ISSUE_FIELDS, ...roleFields, ...CONFIG.additionalFields])];
 }
 
