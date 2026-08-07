@@ -25,7 +25,7 @@ built the way it is, which is the part that gets forgotten.
 | Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, and a 5-minute response cache. One accessor module (`js/browser.js`) |
 | Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
 | Version control | Git, `.gitignore` in place |
-| Tests | Twelve `scripts/test-*.mjs` suites (1004 checks) + a manual smoke checklist |
+| Tests | Thirteen `scripts/test-*.mjs` suites (1108 checks) + a manual smoke checklist |
 
 ## Sizing
 
@@ -184,6 +184,47 @@ plumbing.
 # Completed
 
 Newest first.
+
+## Backlog UX refresh ✔ *(ad-hoc, 2026-08-07)*
+
+**Size: L** · Done. A brief and a mockup, delivered against after four
+clarifying questions.
+
+The Backlog went from a bare table under the nav to a proper screen: page
+header with an inline SVG mark, live summary tiles, a density selector, a
+promoted search, a filter sidebar, grouping, pagination, row selection, column
+visibility, saved views, skeleton loading and an empty state.
+
+**The logic moved out of the view.** `js/backlog.js` now owns grouping,
+sorting, pagination, density, columns, saved views, status tones and relative
+time — DOM-free, the same split as `monitor.js` and `dashboard.js`, and
+covered by `scripts/test-backlog.mjs` (103 checks). This view's failures are
+arithmetic ones that a screenshot will not catch: landing on page 9 when a
+filter cuts the list to 12 issues, an ellipsis window that repeats a page,
+"no due date" sorting as though it were a date.
+
+**Four decisions worth keeping:**
+
+- **No PR column.** The brief assumed GitHub sync could supply per-issue pull requests. It cannot: M11 fetches PRs per *person* from the repo allowlist and deliberately does not correlate them to Jira keys. That correlation is the deferred *development links* item, with an open accuracy risk on short keys. Raised, and the user chose to omit the column rather than smuggle the spike into a UI pass.
+- **Pagination only when ungrouped.** A group split across a page boundary reads as missing data. Grouped views show everything and say so in the pager.
+- **The sidebar is Backlog-only.** `js/components/filters.js` is shared with Kanban, Gantt and Monitor; the sidebar reuses its `applyFilters` so the two can never disagree about what a filter means, but the other three views keep their bar and take no regression risk.
+- **Tiles and status tones follow `CONFIG.statusGroups`,** not the five names in the mockup. Hardcoding "On Hold" would have read zero for any site whose workflow differs — this app is whitelabel, and the tiles had to be too.
+
+**A regression caught before it shipped:** the command palette's "jump to this
+person" hands the Backlog a one-shot assignee filter that only the old
+`renderFilters` consumed. With the sidebar in place it would have silently done
+nothing. `takePendingAssignees` is now exported and consumed by the new view.
+
+Verified by rendering the real view against 277 synthetic issues in four modes
+— default, grouped, empty and light — with page errors surfaced on screen: zero
+in all four. That also caught a live layout bug, a grid item defaulting to
+`min-height: auto` and pushing the pager off the bottom of the viewport.
+
+**Not built, per the brief's own out-of-scope list:** inline editing, bulk
+operations (row selection is UI only, ready for them), drag-to-prioritise,
+timeline and analytics views.
+
+---
 
 ## M12 — Firefox and Edge ✔
 

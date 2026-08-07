@@ -57,7 +57,11 @@ export function requestAssigneeFilter(accountIds) {
   pendingAssigneeIds = Array.isArray(accountIds) ? accountIds.filter(Boolean) : null;
 }
 
-function takePendingAssignees() {
+// Exported because the Backlog no longer renders this component — it has its
+// own filter sidebar — but it is still the destination the palette jumps to,
+// so it has to be the one that consumes the pending selection. One-shot either
+// way: whoever reads it first clears it.
+export function takePendingAssignees() {
   const pending = pendingAssigneeIds;
   pendingAssigneeIds = null;
   return pending && pending.length ? pending : null;

@@ -1,190 +1,577 @@
-.backlog-wrap {
-  padding: 16px;
+/* Backlog.
+   Fewer borders, more spacing — the layout leans on whitespace and one accent
+   per row instead of a grid of lines. Only two rules survive from the old
+   table: the outer container edge and the horizontal row separators. */
+
+.bl-wrap {
   height: 100%;
   display: flex;
   flex-direction: column;
+  padding: 18px 20px 0;
+  gap: 14px;
+  min-height: 0;
 }
 
-.backlog-header {
+/* Density is one custom property read by every rule that needs it, so adding a
+   mode later means one more line here rather than a parallel set of classes. */
+.bl-wrap[data-density="compact"] { --row-y: 6px; --row-font: 13px; --summary-font: 13px; }
+.bl-wrap[data-density="default"] { --row-y: 10px; --row-font: 13px; --summary-font: 14px; }
+.bl-wrap[data-density="cozy"]    { --row-y: 15px; --row-font: 14px; --summary-font: 15px; }
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.bl-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
-  padding: 0 4px;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.bl-header-left { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.bl-header-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; flex: 0 0 42px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--accent-primary);
+}
+.bl-title {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text);
+  line-height: 1.15;
+}
+.bl-subtitle { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+.bl-tiles {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.bl-tile {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0 7px;
+  padding: 10px 18px;
+  border-left: 1px solid var(--border);
+}
+.bl-tile:first-child { border-left: none; padding-left: 20px; }
+.bl-tile-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--tone, var(--muted));
+  grid-row: 1;
+}
+.bl-tile-num {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 19px; font-weight: 600; color: var(--text); line-height: 1.1;
+}
+.bl-tile-label {
+  grid-column: 1 / -1;
+  font-size: 10.5px; color: var(--muted); white-space: nowrap;
+}
+/* The total is the headline figure, so it loses the dot and gains an underline
+   — colour would make it look like just another status. */
+.bl-tile.tone-total .bl-tile-dot { display: none; }
+.bl-tile.tone-total .bl-tile-num {
+  grid-column: 1 / -1;
+  font-size: 22px;
+  border-bottom: 2px solid var(--accent-primary);
+  padding-bottom: 1px;
+  justify-self: start;
+}
+.bl-tile.tone-gray   { --tone: #6B7280; }
+.bl-tile.tone-blue   { --tone: #4F8EF7; }
+.bl-tile.tone-green  { --tone: #4FCF8E; }
+.bl-tile.tone-orange { --tone: #F7914F; }
+.bl-tile.tone-red    { --tone: #EF4444; }
+.bl-tile.tone-purple { --tone: #A855F7; }
+
+/* ── Toolbar ────────────────────────────────────────────────────────────── */
+
+.bl-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.backlog-count {
+.bl-segmented {
+  display: flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 2px;
+  gap: 2px;
+}
+.bl-seg {
+  background: none; border: none; cursor: pointer;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: 11px; letter-spacing: 0.3px;
+  color: var(--muted);
+  padding: 5px 11px; border-radius: 5px;
+  transition: background 0.12s, color 0.12s;
+}
+.bl-seg:hover { color: var(--text); }
+.bl-seg.on { background: var(--accent-primary); color: #fff; }
+
+/* Search is the primary control, so it takes the slack in the row. */
+.bl-search {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1 1 260px; min-width: 200px; max-width: 520px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--muted);
+  transition: border-color 0.12s;
+}
+.bl-search:focus-within { border-color: var(--accent-primary); }
+.bl-search-input {
+  flex: 1; min-width: 0;
+  background: none; border: none; outline: none;
+  color: var(--text); font-size: 13px; padding: 8px 0;
+}
+.bl-search-input::placeholder { color: var(--muted); }
+.bl-search-input::-webkit-search-cancel-button { filter: grayscale(1) opacity(0.5); }
+.bl-kbd {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 10px; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 1px 5px; background: var(--bg);
+}
+
+.bl-select {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 8px 0 10px;
+  height: 34px;
+}
+.bl-select-label {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
   color: var(--muted);
 }
+.bl-select select {
+  background: none; border: none; outline: none; cursor: pointer;
+  color: var(--text); font-size: 12.5px; padding: 6px 2px;
+}
+.bl-select select option { background: var(--surface); color: var(--text); }
 
-.backlog-table-wrap {
+.bl-icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex: 0 0 34px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+  font-size: 13px;
+  list-style: none;
+}
+.bl-icon-btn:hover { color: var(--text); border-color: var(--muted); }
+.bl-icon-btn::-webkit-details-marker { display: none; }
+
+.bl-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 12.5px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.bl-btn:hover { border-color: var(--muted); }
+.bl-btn.primary {
+  background: var(--accent-primary); border-color: var(--accent-primary); color: #fff;
+}
+.bl-btn.primary:hover { filter: brightness(1.08); }
+
+.bl-counts {
+  margin-left: auto;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.bl-counts strong { color: var(--text); font-weight: 600; }
+.bl-counts-sep { margin: 0 6px; opacity: 0.5; }
+
+.bl-menu { position: relative; }
+.bl-menu-body {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30;
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.35);
+}
+.bl-menu-title {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--muted); padding: 2px 6px 7px;
+}
+.bl-menu-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px; border-radius: 5px;
+  font-size: 12.5px; color: var(--text); cursor: pointer;
+}
+.bl-menu-row:hover { background: var(--bg); }
+
+/* ── Body: sidebar + table ──────────────────────────────────────────────── */
+
+.bl-body {
   flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 18px;
+  overflow: hidden;
+  transition: grid-template-columns 0.16s ease;
+}
+.bl-body.collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+.bl-body.collapsed .bl-sidebar { opacity: 0; pointer-events: none; }
+
+.bl-sidebar {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+  transition: opacity 0.16s ease;
+}
+.bl-side-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.bl-side-title {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--muted);
+}
+.bl-link {
+  background: none; border: none; cursor: pointer; padding: 0;
+  color: var(--accent-primary); font-size: 11.5px; text-align: left;
+}
+.bl-link:hover { text-decoration: underline; }
+
+.bl-side-toggle {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--text);
+  padding: 7px 0 11px; cursor: pointer;
+}
+
+.bl-filter { border-top: 1px solid var(--border); }
+.bl-filter-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 2px; cursor: pointer; list-style: none;
+  font-size: 12.5px; color: var(--text);
+}
+.bl-filter-head::-webkit-details-marker { display: none; }
+.bl-filter-head:hover { color: var(--accent-primary); }
+.bl-filter-count {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 10px; color: var(--muted);
+  background: var(--surface); border-radius: 10px; padding: 1px 7px;
+}
+.bl-filter-body { padding: 0 0 9px; max-height: 230px; overflow-y: auto; }
+.bl-filter-search {
+  width: 100%;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); font-size: 11.5px; padding: 5px 7px; margin-bottom: 6px;
+  outline: none;
+}
+.bl-opt {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 4px; border-radius: 5px;
+  font-size: 12px; color: var(--text); cursor: pointer;
+}
+.bl-opt:hover { background: var(--surface); }
+.bl-opt-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-opt-avatar { width: 17px; height: 17px; border-radius: 50%; flex: 0 0 17px; }
+.bl-dot { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 8px; }
+
+.bl-views { border-top: 1px solid var(--border); padding-top: 11px; margin-top: 4px; }
+.bl-side-empty { font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 6px; }
+.bl-view-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+.bl-view-row .bl-link { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-view-remove {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 15px; line-height: 1; padding: 0 3px;
+}
+.bl-view-remove:hover { color: var(--accent-danger); }
+
+/* min-height:0 on both: a grid item defaults to min-height:auto, so without it
+   the column grows to fit all 277 rows and the pager gets pushed off the
+   bottom of the viewport instead of the table scrolling inside its box. */
+.bl-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.bl-table-wrap {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  /* Centred, and capped: past about this width a single-line summary stops
-     being a line and starts being a paragraph laid end to end. */
-  width: 100%;
-  max-width: 1600px;
-  margin: 0 auto;
+  border-radius: 10px;
+  background: var(--surface);
 }
 
-.backlog-table {
-  border-collapse: collapse;
-  font-size: 13px;
+/* ── Table ──────────────────────────────────────────────────────────────── */
+
+.bl-table {
   width: 100%;
-  /* Fixed layout is what makes "all the slack goes to Summary" true: every
-     other column is pinned below, so whatever the window has left over lands on
-     the one column that can use it. Below min-width the wrapper scrolls
-     sideways rather than crushing the text. */
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--row-font, 13px);
   table-layout: fixed;
-  min-width: 1180px;
+  min-width: 940px;
 }
 
-/* Widths are on the header cells, which is where fixed layout reads them.
-   Summary is deliberately absent — it takes what is left. */
-.backlog-table .col-board { width: 96px; }
-.backlog-table .col-key { width: 112px; }
-.backlog-table .col-epic { width: 180px; }
-.backlog-table .col-status { width: 150px; }
-.backlog-table .col-assignee { width: 190px; }
-.backlog-table .col-sp { width: 68px; }
-.backlog-table .col-due { width: 110px; }
-
-.backlog-table thead {
+.bl-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-}
-
-.backlog-table th {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 8px 14px;
+  padding: 10px 12px;
   text-align: left;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.7px;
   color: var(--muted);
-  cursor: pointer;
+  white-space: nowrap;
   user-select: none;
+}
+.bl-table thead th.sortable { cursor: pointer; }
+.bl-table thead th.sortable:hover { color: var(--text); }
+.bl-sort { margin-left: 5px; font-size: 8px; color: var(--accent-primary); }
+
+.bl-col-select { width: 38px; }
+.bl-col-key { width: 104px; }
+.bl-col-type { width: 88px; }
+.bl-col-epic { width: 170px; }
+.bl-col-status { width: 124px; }
+.bl-col-assignee { width: 168px; }
+.bl-col-sp { width: 56px; text-align: center; }
+.bl-col-due { width: 96px; }
+.bl-col-updated { width: 96px; }
+.bl-col-board { width: 84px; }
+/* Summary is deliberately unsized: it takes whatever the others leave. */
+
+.bl-table td {
+  padding: var(--row-y, 6px) 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
+.bl-table tbody tr:last-child td { border-bottom: none; }
 
-.backlog-table th:hover { color: var(--text); }
-.backlog-table th .sort-arrow { margin-left: 4px; font-size: 10px; }
+.bl-row {
+  transition: background 0.12s ease;
+  cursor: default;
+}
+/* The accent is drawn as an inset shadow on the first cell rather than a
+   border, so turning it on cannot shift the row by a pixel. */
+.bl-row td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--row-accent, transparent);
+}
+.bl-row:hover { background: rgba(232,234,240,0.035); }
+[data-theme="light"] .bl-row:hover { background: rgba(17,24,39,0.035); }
+.bl-row.selected { background: rgba(79,142,247,0.10); }
 
-.backlog-table td {
-  padding: 7px 14px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-  vertical-align: middle;
-  /* Fixed layout does not shrink a cell to fit, so anything over its column's
-     width has to be clipped here rather than spilling into the next one. */
+.bl-check { cursor: pointer; accent-color: var(--accent-primary); }
+
+.bl-key {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-weight: 500;
+  font-size: 12px;
+  text-decoration: none;
+}
+.bl-key:hover { text-decoration: underline; }
+
+.bl-summary {
+  color: var(--text);
+  font-size: var(--summary-font, 13px);
+  text-decoration: none;
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.bl-summary:hover { color: var(--accent-primary); }
 
-.backlog-table tr {
-  transition: background 0.1s;
-}
-.backlog-table tbody tr:hover {
-  background: rgba(232,234,240,0.03);
-}
-
-.backlog-row {
-  border-left: 3px solid transparent;
-}
-
-.board-badge {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: 3px;
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.issue-key {
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-weight: 500;
-  text-transform: uppercase;
-  text-decoration: none;
+.bl-type, .bl-epic, .bl-updated, .bl-due, .bl-board, .bl-dash {
+  color: var(--muted);
   font-size: 12px;
 }
-.issue-key:hover { text-decoration: underline; }
-
-.status-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 3px;
+.bl-epic { text-decoration: none; }
+.bl-epic:hover { color: var(--text); text-decoration: underline; }
+.bl-due.overdue { color: var(--accent-danger); }
+.bl-updated, .bl-due, .bl-board {
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 11px;
-  font-weight: 500;
 }
+.bl-board { font-weight: 500; }
 
-.assignee-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  /* Without this a flex item refuses to shrink below its content, and a long
-     name pushes the avatar out of its own column. */
-  min-width: 0;
-}
-.assignee-cell span {
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Softer, rounder, better spaced than the old flat rectangles (item 10). */
+.bl-status {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
   white-space: nowrap;
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+  color: var(--tone);
+  transition: background 0.12s;
 }
+.bl-status.tone-gray   { --tone: #8B91A0; }
+.bl-status.tone-blue   { --tone: #4F8EF7; }
+.bl-status.tone-green  { --tone: #4FCF8E; }
+.bl-status.tone-orange { --tone: #F7914F; }
+.bl-status.tone-red    { --tone: #EF4444; }
+.bl-status.tone-purple { --tone: #A855F7; }
+[data-theme="light"] .bl-status { background: color-mix(in srgb, var(--tone) 15%, #fff); }
 
-.avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.avatar-placeholder {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
+/* Rounded squares, one size, centred (item 11). */
+.bl-sp {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-  flex-shrink: 0;
-  color: #fff;
-}
-
-/* due date colors now in app.css (.due-overdue, .due-7, .due-14, .due-normal) */
-
-/* The one column with no fixed width, so it absorbs everything the others do
-   not take. Truncation is the browser's job here, at the real edge — the view
-   no longer cuts the text at a guessed character count. */
-.summary-cell {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* An epic reads as a name now rather than as a key, so it gets body type
-   instead of the mono treatment the issue keys keep. */
-.epic-name {
-  color: var(--muted);
-  font-size: 12px;
-  text-decoration: none;
-}
-.epic-name:hover {
-  color: var(--text);
-  text-decoration: underline;
-}
-
-.cell-empty {
-  color: var(--muted);
+  width: 24px; height: 22px;
+  border-radius: 6px;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--tone) 18%, transparent);
+  color: var(--tone);
+}
+.bl-sp.tone-low  { --tone: #4FCF8E; }
+.bl-sp.tone-mid  { --tone: #EAB308; }
+.bl-sp.tone-high { --tone: #EF4444; }
+.bl-col-sp { text-align: center; }
+
+.bl-assignee { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.bl-assignee-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-avatar {
+  width: 24px; height: 24px; border-radius: 50%; flex: 0 0 24px;
+  object-fit: cover;
+}
+.bl-avatar-fallback {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600; color: #fff;
+}
+
+/* ── Groups ─────────────────────────────────────────────────────────────── */
+
+.bl-group-row th {
+  position: sticky;
+  top: 34px;
+  z-index: 1;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+.bl-group-toggle {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  background: none; border: none; cursor: pointer;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text);
+}
+.bl-group-caret {
+  width: 0; height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transform: rotate(90deg);
+  transition: transform 0.12s;
+  color: var(--muted);
+}
+.bl-group-caret.closed { transform: rotate(0deg); }
+.bl-group-label {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bl-group-count {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 10px; color: var(--muted);
+  background: var(--surface); border-radius: 10px; padding: 1px 7px;
+}
+
+/* ── Empty and loading ──────────────────────────────────────────────────── */
+
+.bl-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 72px 20px; text-align: center;
+}
+.bl-empty-icon { color: var(--border); }
+[data-theme="light"] .bl-empty-icon { color: var(--muted); opacity: 0.4; }
+.bl-empty-text { color: var(--muted); font-size: 14px; }
+
+.bl-skeleton { padding: 10px 12px; }
+.bl-skeleton-row {
+  height: 30px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface) 0%, var(--border) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: bl-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes bl-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .bl-skeleton-row { animation: none; }
+  .bl-row, .bl-body, .bl-seg, .bl-status { transition: none; }
+}
+
+/* ── Pager ──────────────────────────────────────────────────────────────── */
+
+.bl-pager {
+  display: flex; align-items: center; gap: 14px;
+  padding: 11px 2px 14px;
+  font-size: 12px; color: var(--muted);
+  flex-wrap: wrap;
+}
+.bl-pager-note { font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: 11px; }
+.bl-selected {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  border-radius: 999px; padding: 3px 10px;
+}
+.bl-pages { display: flex; align-items: center; gap: 3px; margin: 0 auto; }
+.bl-page {
+  min-width: 28px; height: 28px;
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  color: var(--muted); cursor: pointer; font-size: 12px;
+  transition: background 0.12s, color 0.12s;
+}
+.bl-page:hover:not(:disabled) { color: var(--text); background: var(--surface); }
+.bl-page.on { background: var(--accent-primary); color: #fff; }
+.bl-page:disabled { opacity: 0.3; cursor: default; }
+.bl-page-gap { color: var(--muted); padding: 0 2px; }
+.bl-perpage { display: flex; align-items: center; gap: 6px; }
+.bl-perpage select {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-size: 12px; padding: 4px 6px; cursor: pointer; outline: none;
+}
+
+@media (max-width: 1000px) {
+  .bl-body { grid-template-columns: minmax(0, 1fr); }
+  .bl-sidebar { display: none; }
+  .bl-tiles { order: 3; width: 100%; }
 }
