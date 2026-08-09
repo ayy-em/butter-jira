@@ -26,6 +26,7 @@ import {
   hashColor,
   isOverdue,
   loadStatusGroups,
+  resolveStatusGroup,
 } from "../utils.js";
 import { hasRoster, isOutsideTeam, isTeamOnly, setTeamOnly } from "../team.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
@@ -47,6 +48,7 @@ import {
   statusTone,
   summaryTiles,
   toggleColumn,
+  typeMeta,
   upsertView,
 } from "../backlog.js";
 
@@ -68,29 +70,42 @@ function el(tag, className, text) {
   return node;
 }
 
-// Inline SVG rather than an asset: two paths, no extra file to ship, and it
-// inherits currentColor so it works in both themes without a second copy.
+// Inline SVG rather than an asset: a path or two each, no extra file to ship,
+// and they inherit currentColor so they work in both themes without a second
+// copy. The type marks are drawn heavier than the chrome ones — they render at
+// 13px inside a pill, where a 1.8 stroke goes muddy.
+const ICON_PATHS = {
+  backlog: "M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm1.5-4h15L21 7H3l1.5-4ZM9 12h6",
+  search: "M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm10 2-4.35-4.35",
+  chevron: "m6 9 6 6 6-6",
+  columns: "M4 4h16v16H4zM10 4v16M16 4v16",
+  check: "m5 13 4 4L19 7",
+  inbox: "M3 13h5l1 3h6l1-3h5M5 5h14l2 8v6H3v-6l2-8Z",
+  // Type marks, distinguished by silhouette so they still read at pill size.
+  epic: "M13.5 2 5 13.5h5.5L10 22l8.5-11.5H13L13.5 2Z",
+  story: "M6.5 3h11v18l-5.5-4.2L6.5 21V3Z",
+  task: "M5 3.5h14a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V5A1.5 1.5 0 0 1 5 3.5Zm3 8.7 2.6 2.6 5.4-6",
+  bug: "M12 20.5a5.5 5.5 0 0 0 5.5-5.5v-3a5.5 5.5 0 0 0-11 0v3a5.5 5.5 0 0 0 5.5 5.5ZM3.5 13H6m12 0h2.5M4.5 7.5 7 9m12.5-1.5L17 9M4.5 19 7 17.5m12.5 1.5L17 17.5M9 5.5 7.5 3M15 5.5 16.5 3",
+  subtask: "M3.5 3.5h9v9h-9zM11.5 11.5h9v9h-9z",
+  generic: "M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17Z",
+};
+
+const HEAVY_ICONS = new Set(["epic", "story", "task", "bug", "subtask", "generic"]);
+
 function icon(name, size = 16) {
-  const paths = {
-    backlog: "M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm1.5-4h15L21 7H3l1.5-4ZM9 12h6",
-    search: "M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm10 2-4.35-4.35",
-    chevron: "m6 9 6 6 6-6",
-    columns: "M4 4h16v16H4zM10 4v16M16 4v16",
-    check: "m5 13 4 4L19 7",
-    inbox: "M3 13h5l1 3h6l1-3h5M5 5h14l2 8v6H3v-6l2-8Z",
-  };
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("width", size);
   svg.setAttribute("height", size);
   svg.setAttribute("fill", "none");
   svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "1.8");
+  svg.setAttribute("stroke-width", HEAVY_ICONS.has(name) ? "2.2" : "1.8");
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
   svg.setAttribute("aria-hidden", "true");
-  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("d", paths[name] || "");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", ICON_PATHS[name] || "");
   svg.appendChild(path);
   return svg;
 }
@@ -592,6 +607,12 @@ export async function mount(container, creds) {
     const tr = el("tr");
     for (const column of activeColumns()) {
       const th = el("th", `bl-col-${column.id}`);
+      // A th stays a table-cell — making it a flex box would take it out of the
+      // table's column sizing. The flex line goes inside it, so the label, the
+      // sort caret and the select-all box centre on each other rather than
+      // sitting on a shared baseline.
+      const inner = el("div", "bl-th-inner");
+      th.appendChild(inner);
       if (column.id === "select") {
         const box = el("input", "bl-check");
         box.type = "checkbox";
@@ -607,13 +628,13 @@ export async function mount(container, creds) {
           renderTable();
           renderPager();
         });
-        th.appendChild(box);
+        inner.appendChild(box);
       } else {
-        th.textContent = column.label;
+        inner.appendChild(el("span", "bl-th-label", column.label));
         if (column.title) th.title = column.title;
         th.classList.add("sortable");
         if (state.sortCol === column.id) {
-          th.appendChild(el("span", "bl-sort", state.sortDir === "asc" ? "▲" : "▼"));
+          inner.appendChild(el("span", "bl-sort", state.sortDir === "asc" ? "▲" : "▼"));
         }
         th.addEventListener("click", () => {
           if (state.sortCol === column.id) {
@@ -716,9 +737,12 @@ export async function mount(container, creds) {
       }
       case "type": {
         const name = f.issuetype?.name || "";
-        const chip = el("span", "bl-type", name);
+        if (!name) { td.appendChild(dash()); break; }
+        const meta = typeMeta(name);
+        const chip = el("span", `bl-type tone-${meta.tone}`);
+        chip.append(icon(meta.icon, 13), el("span", "bl-type-label", name));
         chip.title = name;
-        td.appendChild(name ? chip : dash());
+        td.appendChild(chip);
         break;
       }
       case "epic": {
@@ -731,8 +755,15 @@ export async function mount(container, creds) {
         break;
       }
       case "status": {
-        const name = f.status?.name || "Unknown";
-        td.appendChild(el("span", `bl-status tone-${statusTone(f.status)}`, name));
+        // The configured grouping, not the raw status: a site with six flavours
+        // of "in progress" wants one column value, and Settings → Status groups
+        // is where that decision was already made. The raw name stays in the
+        // tooltip, so nothing is actually hidden.
+        const raw = f.status?.name || "";
+        const name = raw ? resolveStatusGroup(raw, statusGroups) : "Unknown";
+        const chip = el("span", `bl-status tone-${statusTone({ ...f.status, name })}`, name);
+        chip.title = raw && raw !== name ? `${raw} → ${name}` : raw || name;
+        td.appendChild(chip);
         break;
       }
       case "assignee": {

@@ -339,10 +339,12 @@
   position: sticky;
   top: 0;
   z-index: 2;
+  height: 34px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 10px 12px;
+  padding: 0 12px;
   text-align: left;
+  vertical-align: middle;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: 10px;
   font-weight: 500;
@@ -352,13 +354,24 @@
   white-space: nowrap;
   user-select: none;
 }
+/* The label, the sort caret and the select-all checkbox are three different
+   heights; on a shared baseline the header row reads as wobbling. The flex line
+   inside the cell centres them on each other instead. */
+.bl-th-inner {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+}
+.bl-col-select .bl-th-inner,
+.bl-col-sp .bl-th-inner { justify-content: center; }
 .bl-table thead th.sortable { cursor: pointer; }
 .bl-table thead th.sortable:hover { color: var(--text); }
-.bl-sort { margin-left: 5px; font-size: 8px; color: var(--accent-primary); }
+.bl-sort { font-size: 8px; line-height: 1; color: var(--accent-primary); }
 
 .bl-col-select { width: 38px; }
 .bl-col-key { width: 104px; }
-.bl-col-type { width: 88px; }
+.bl-col-type { width: 108px; }
 .bl-col-epic { width: 170px; }
 .bl-col-status { width: 124px; }
 .bl-col-assignee { width: 168px; }
@@ -411,10 +424,38 @@
 }
 .bl-summary:hover { color: var(--accent-primary); }
 
-.bl-type, .bl-epic, .bl-updated, .bl-due, .bl-board, .bl-dash {
+.bl-epic, .bl-updated, .bl-due, .bl-board, .bl-dash {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* Same pill as the status column, plus a mark: colour alone would leave "Task"
+   and "Sub-task" — two blues — telling apart only by shade. */
+.bl-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+  color: var(--tone);
+}
+.bl-type svg { flex: 0 0 auto; }
+.bl-type-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bl-type.tone-gray   { --tone: #8B91A0; }
+.bl-type.tone-blue   { --tone: #4F8EF7; }
+.bl-type.tone-cyan   { --tone: #7DD3FC; }
+.bl-type.tone-green  { --tone: #4FCF8E; }
+.bl-type.tone-red    { --tone: #EF4444; }
+.bl-type.tone-purple { --tone: #A855F7; }
+/* Sky-300 on white is too pale to read, so light mode gets a deeper sub-task
+   blue rather than a paler background behind the same colour. */
+[data-theme="light"] .bl-type { background: color-mix(in srgb, var(--tone) 15%, #fff); }
+[data-theme="light"] .bl-type.tone-cyan { --tone: #0284C7; }
 .bl-epic { text-decoration: none; }
 .bl-epic:hover { color: var(--text); text-decoration: underline; }
 .bl-due.overdue { color: var(--accent-danger); }

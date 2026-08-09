@@ -1,8 +1,9 @@
 import { runtimeUrl } from "../browser.js";
-import { getAllSprintIssues } from "../api.js";
-import { fmtDate, loadStatusGroups } from "../utils.js";
+import { getActiveSprint, getAllSprintIssues } from "../api.js";
+import { BOARDS, fmtDate, isOverdue, loadStatusGroups } from "../utils.js";
 import {
   activeMembers,
+  activeTeam,
   avatarOverrideFor,
   memberLabel,
   memberFor,
@@ -50,7 +51,7 @@ import {
 export async function mount(container, creds) {
   container.innerHTML = '<div class="spinner"></div>';
 
-  const [sprintIssues, statusGroups, prefs, resumable] = await Promise.all([
+  const [sprintIssues, statusGroups, prefs, storedSession] = await Promise.all([
     getAllSprintIssues(creds),
     loadStatusGroups(),
     loadPrefs(),
@@ -59,7 +60,22 @@ export async function mount(container, creds) {
   await sfx.loadMuted();
   sfx.preload();
 
+  // Named for the header line only. getAllSprintIssues has already asked for
+  // these, so every call here is a cache hit rather than a second round trip,
+  // and a board that refuses one is simply left out of the line.
+  const sprintNames = [
+    ...new Set(
+      (await Promise.all(BOARDS.map((b) => getActiveSprint(b.id, creds).catch(() => []))))
+        .flat()
+        .map((s) => s?.name)
+        .filter(Boolean)
+    ),
+  ];
+
   const roster = activeMembers();
+  // A discarded resume has to stick: the banner is hidden by this going null,
+  // not by whichever notice happens to be on screen at the time.
+  let resumable = storedSession;
   let session = null;
   let ticker = null;
   let countdownCuePlayed = false;
@@ -133,185 +149,582 @@ export async function mount(container, creds) {
 
   // ── Setup screen ───────────────────────────────────────────────────────────
 
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  // Inline SVG rather than an icon font or a sprite file: a handful of paths
+  // each, inheriting currentColor so one copy serves both themes. Same approach
+  // as the backlog header.
+  const ICON_PATHS = {
+    calendar: ["M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z", "M3 10h18", "M8 3v4", "M16 3v4"],
+    users: ["M16 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20", "M9 10.5a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z", "M22 20v-1.5a4 4 0 0 0-3-3.87", "M16 3.24a4 4 0 0 1 0 7.52"],
+    mic: ["M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z", "M19 11a7 7 0 0 1-14 0", "M12 18v4", "M8 22h8"],
+    clock: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "M12 7.5V12l3 2"],
+    sprint: ["M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"],
+    check: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "m8.4 12.2 2.4 2.4 4.8-5.4"],
+    alert: ["M10.3 4.4 2.7 17.5A2 2 0 0 0 4.4 20.5h15.2a2 2 0 0 0 1.7-3L13.7 4.4a2 2 0 0 0-3.4 0Z", "M12 9.5v4", "M12 17h.01"],
+    ban: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "m5.9 5.9 12.2 12.2"],
+    sound: ["M11 5 6.5 9H3v6h3.5L11 19V5Z", "M15.4 9.2a4 4 0 0 1 0 5.6", "M18.2 6.4a8 8 0 0 1 0 11.2"],
+    play: ["m8 5.5 11 6.5-11 6.5v-13Z"],
+    arrow: ["M4 12h15", "m13 6 6 6-6 6"],
+  };
+
+  // The octicon mark, on its own 16-unit grid and filled rather than stroked —
+  // GitHub's logo is the one icon here that must not be redrawn by hand.
+  const GITHUB_MARK =
+    "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 " +
+    "0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 " +
+    "1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 " +
+    "0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 " +
+    "1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 " +
+    "3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 " +
+    "8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z";
+
+  function icon(name, size = 16) {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("width", size);
+    svg.setAttribute("height", size);
+    svg.setAttribute("aria-hidden", "true");
+    const path = (d) => {
+      const p = document.createElementNS(ns, "path");
+      p.setAttribute("d", d);
+      svg.appendChild(p);
+    };
+
+    if (name === "github") {
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("fill", "currentColor");
+      path(GITHUB_MARK);
+      return svg;
+    }
+
+    svg.setAttribute("viewBox", "0 0 24 24");
+    // The play triangle is a solid shape; everything else is a line drawing.
+    svg.setAttribute("fill", name === "play" ? "currentColor" : "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.8");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    for (const d of ICON_PATHS[name] || []) path(d);
+    return svg;
+  }
+
+  const plural = (n, one, many = `${one}s`) => (n === 1 ? one : many);
+
+  function attendingIds() {
+    return roster.map((m) => m.accountId).filter((id) => attending.has(id));
+  }
+
+  // "Blocked" is not a field Jira gives every site, so it is read off the
+  // status name — and only used as the row's flag when this sprint actually has
+  // such a status. Otherwise the same slot shows overdue, which every site can
+  // answer. The choice is made once for the whole table so the column means one
+  // thing top to bottom.
+  const BLOCKED_STATUS = /block|impediment|on hold/i;
+  const flagsBlocked = sprintIssues.some((i) =>
+    BLOCKED_STATUS.test(i.fields?.status?.name || "")
+  );
+
+  function flagFor(accountId) {
+    const mine = issuesFor(accountId);
+    const count = flagsBlocked
+      ? mine.filter((i) => BLOCKED_STATUS.test(i.fields?.status?.name || "")).length
+      : mine.filter((i) => isOverdue(i)).length;
+    return { count, label: `${count} ${flagsBlocked ? "blocked" : "overdue"}` };
+  }
+
+  // Open PRs authored by this person, or null when GitHub cannot answer for
+  // them — an absent number and a zero are different facts.
+  function prCountFor(accountId) {
+    if (!github.activity) return null;
+    const login = memberFor(accountId)?.githubLogin;
+    if (!login) return null;
+    return activityFor(github.activity, login).open.length;
+  }
+
+  // The last notice passed to renderSetup, so a repaint triggered by the GitHub
+  // fetch landing does not silently drop the line someone is still reading.
+  let setupNotice = "";
+
   function renderSetup(notice = "") {
+    setupNotice = notice;
     stopTicker();
     document.body.dataset.standupActive = "";
-    wrap.className = "standup-wrap";
+    wrap.className = "standup-wrap su-wrap";
     wrap.innerHTML = "";
 
-    const card = document.createElement("div");
-    card.className = "standup-setup";
-
-    const title = document.createElement("h1");
-    title.className = "standup-title mono";
-    title.textContent = "DAILY STANDUP";
-    card.appendChild(title);
-
     if (!roster.length) {
-      const empty = document.createElement("p");
-      empty.className = "standup-note";
-      empty.textContent =
-        "No team roster yet. Add people in Settings → Team roster, then come back.";
-      card.appendChild(empty);
-      const openSettings = document.createElement("button");
-      openSettings.className = "standup-btn";
-      openSettings.textContent = "Open Settings";
-      openSettings.addEventListener("click", () =>
-        window.open(runtimeUrl("settings.html"))
-      );
-      card.appendChild(openSettings);
-      wrap.appendChild(card);
+      wrap.appendChild(emptyRosterPanel());
       return;
     }
 
-    if (resumable && !notice) {
-      card.appendChild(renderResumeBanner());
-    }
-    if (notice) {
-      const note = document.createElement("div");
-      note.className = "standup-note";
-      note.textContent = notice;
-      card.appendChild(note);
-    }
+    wrap.appendChild(setupHeader());
+    if (resumable) wrap.appendChild(resumeBanner());
+    if (notice) wrap.appendChild(bannerEl("su-banner", notice));
+    wrap.appendChild(participantsPanel());
+    wrap.appendChild(infoRow());
+    wrap.appendChild(startRow());
+  }
 
-    const subtitle = document.createElement("p");
-    subtitle.className = "standup-subtitle";
-    subtitle.textContent = "Who's in today?";
-    card.appendChild(subtitle);
-
-    const bulk = document.createElement("div");
-    bulk.className = "standup-bulk";
-    bulk.append(
-      bulkBtn("All in", () => {
-        attending = new Set(roster.map((m) => m.accountId));
-        renderSetup();
-      }),
-      bulkBtn("None", () => {
-        attending = new Set();
-        renderSetup();
-      })
+  function emptyRosterPanel() {
+    const panel = el("section", "su-panel su-panel-empty");
+    const mark = el("span", "su-header-icon");
+    mark.appendChild(icon("users", 22));
+    panel.append(
+      mark,
+      el("h1", "su-title", "Daily Standup"),
+      el(
+        "p",
+        "su-subtitle",
+        "No team roster yet. Add people in Settings → Team roster, then come back."
+      )
     );
-    const setAllWrap = document.createElement("label");
-    setAllWrap.className = "standup-setall";
-    setAllWrap.append("Set all to ");
-    const setAllInput = document.createElement("input");
-    setAllInput.type = "number";
-    setAllInput.min = "1";
-    setAllInput.value = "2";
-    setAllInput.className = "standup-mins-input";
-    setAllWrap.appendChild(setAllInput);
-    setAllWrap.append(" min");
-    const setAllBtn = bulkBtn("Apply", () => {
-      const secs = clampDuration(Number(setAllInput.value) * 60);
-      for (const id of attending) durations[id] = secs;
-      renderSetup();
-    });
-    bulk.append(setAllWrap, setAllBtn);
-    card.appendChild(bulk);
+    const openSettings = el("button", "su-btn primary", "Open Settings");
+    openSettings.addEventListener("click", () => window.open(runtimeUrl("settings.html")));
+    panel.appendChild(openSettings);
+    return panel;
+  }
 
-    const list = document.createElement("div");
-    list.className = "standup-people";
-    for (const member of roster) {
-      list.appendChild(personRow(member));
+  // ── Header ─────────────────────────────────────────────────────────────────
+
+  function setupHeader() {
+    const header = el("header", "su-header");
+
+    const left = el("div", "su-header-left");
+    const mark = el("span", "su-header-icon");
+    mark.appendChild(icon("calendar", 22));
+    left.appendChild(mark);
+
+    const titles = el("div", "su-titles");
+    titles.append(
+      el("h1", "su-title", "Daily Standup"),
+      el("p", "su-subtitle", "Let's keep it short and focused.")
+    );
+    left.appendChild(titles);
+
+    const meta = el("div", "su-meta");
+    const today = new Date();
+    const weekday = today.toLocaleDateString(undefined, { weekday: "short" });
+    metaItem(meta, "calendar", `${weekday}, ${fmtDate(today.toISOString())}`);
+    const team = activeTeam()?.name;
+    if (team) metaItem(meta, "users", team);
+    if (sprintNames.length) metaItem(meta, "sprint", sprintNames.join(" · "));
+    meta.appendChild(el("span", "su-meta-sep", "·"));
+    const available = el("span", "su-meta-item");
+    available.append(
+      el("i", "su-live-dot"),
+      el("span", null, `${roster.length} ${plural(roster.length, "person", "people")} available`)
+    );
+    meta.appendChild(available);
+    left.appendChild(meta);
+
+    header.append(left, tilesEl());
+    return header;
+  }
+
+  function metaItem(parent, name, text) {
+    if (parent.childElementCount) parent.appendChild(el("span", "su-meta-sep", "·"));
+    const item = el("span", "su-meta-item");
+    item.append(icon(name, 14), el("span", null, text));
+    parent.appendChild(item);
+  }
+
+  function tilesEl() {
+    const ids = attendingIds();
+    const speakMin = Math.round(plannedTotalSec(ids, durations) / 60);
+    const wallMin = Math.ceil(estimatedWallSec(ids, durations) / 60);
+
+    const specs = [
+      { icon: "users", tone: "blue", num: String(ids.length), label: "Attendees" },
+      { icon: "mic", tone: "purple", num: String(speakMin), unit: "min", label: "Speaking time" },
+      { icon: "clock", tone: "green", num: `~${wallMin}`, unit: "min", label: "Total estimated" },
+    ];
+    const openPrs = github.activity?.pullRequests?.length;
+    if (openPrs !== undefined) {
+      specs.push({ icon: "github", tone: "orange", num: String(openPrs), label: "Open PRs" });
     }
-    card.appendChild(list);
 
-    const attendingIds = roster
-      .map((m) => m.accountId)
-      .filter((id) => attending.has(id));
-
-    const totals = document.createElement("div");
-    totals.className = "standup-totals";
-    if (attendingIds.length) {
-      const speakSec = plannedTotalSec(attendingIds, durations);
-      const wallSec = estimatedWallSec(attendingIds, durations);
-      totals.textContent =
-        `${attendingIds.length} ${attendingIds.length === 1 ? "person" : "people"} · ` +
-        `${Math.round(speakSec / 60)} min speaking · ~${Math.ceil(wallSec / 60)} min total`;
-    } else {
-      totals.textContent = "Nobody selected yet.";
+    const tiles = el("div", "su-tiles");
+    for (const spec of specs) {
+      const tile = el("div", `su-tile tone-${spec.tone}`);
+      const mark = el("span", "su-tile-icon");
+      mark.appendChild(icon(spec.icon, 17));
+      const num = el("span", "su-tile-num", spec.num);
+      if (spec.unit) num.appendChild(el("em", "su-tile-unit", spec.unit));
+      tile.append(mark, num, el("span", "su-tile-label", spec.label));
+      tiles.appendChild(tile);
     }
-    card.appendChild(totals);
-
-    const start = document.createElement("button");
-    start.className = "standup-btn standup-start";
-    start.textContent = "Start standup";
-    start.disabled = attendingIds.length === 0;
-    start.addEventListener("click", async () => {
-      // Inside the gesture handler, so the audio policy is satisfied here.
-      await sfx.unlock();
-      await savePrefs({ attendance: attendingIds, durations });
-      beginSession(attendingIds);
-    });
-    card.appendChild(start);
-
-    const hint = document.createElement("div");
-    hint.className = "standup-hint mono";
-    hint.textContent = "Space pauses · → next person · Esc ends";
-    card.appendChild(hint);
-
-    if (github.state !== "off") card.appendChild(githubChip());
-    card.appendChild(muteToggle());
-    wrap.appendChild(card);
+    return tiles;
   }
 
-  // Says which of the four things happened to the GitHub fetch, so a missing
-  // panel is explained on the setup card rather than being a silent absence.
-  function githubChip() {
-    const chip = document.createElement("div");
-    chip.className = "standup-github-chip mono";
-    chip.id = "standup-github-chip";
-    paintGithubChip(chip);
-    return chip;
+  function bannerEl(className, text) {
+    const banner = el("div", className);
+    banner.appendChild(el("span", null, text));
+    return banner;
   }
 
-  function paintGithubChip(target = document.getElementById("standup-github-chip")) {
-    if (!target) return;
-    const counts = github.activity;
-    const text = {
-      off: "",
-      loading: "GitHub — loading pull requests…",
-      ready: counts
-        ? `GitHub — ${counts.pullRequests.length} open PR${counts.pullRequests.length === 1 ? "" : "s"} across ${counts.reached.length} repo${counts.reached.length === 1 ? "" : "s"}`
-        : "GitHub — ready",
-      partial: counts
-        ? `GitHub — ${counts.pullRequests.length} open PRs, ${counts.failures.length} repo${counts.failures.length === 1 ? "" : "s"} unreachable`
-        : "GitHub — partial",
-      error: `GitHub unavailable — ${github.error}. Standup runs without it.`,
-    }[github.state];
-    target.textContent = text || "";
-    target.classList.toggle("warn", github.state === "partial");
-    target.classList.toggle("bad", github.state === "error");
-  }
+  function resumeBanner() {
+    const banner = bannerEl(
+      "su-banner warn",
+      `Unfinished standup: ${resumable.index + 1} of ${resumable.order.length}. Same order as before.`
+    );
 
-  function renderResumeBanner() {
-    const banner = document.createElement("div");
-    banner.className = "standup-resume";
-    const text = document.createElement("span");
-    const done = resumable.index;
-    text.textContent = `Unfinished standup: ${done + 1} of ${resumable.order.length}. Same order as before.`;
-    banner.appendChild(text);
-
-    const resumeBtn = document.createElement("button");
-    resumeBtn.className = "standup-btn small";
-    resumeBtn.textContent = "Resume";
+    const resumeBtn = el("button", "su-btn small primary", "Resume");
     resumeBtn.addEventListener("click", async () => {
       await sfx.unlock();
       session = resumable;
       renderRunning();
       startTicker();
     });
-    banner.appendChild(resumeBtn);
 
-    const discard = document.createElement("button");
-    discard.className = "standup-btn small ghost";
-    discard.textContent = "Discard";
+    const discard = el("button", "su-btn small ghost", "Discard");
     discard.addEventListener("click", async () => {
       await clearSession();
+      resumable = null;
       renderSetup("Previous session discarded.");
     });
-    banner.appendChild(discard);
+
+    banner.append(resumeBtn, discard);
     return banner;
+  }
+
+  // ── 1. Participants ────────────────────────────────────────────────────────
+
+  function panelHead(step, title, hint) {
+    const head = el("div", "su-panel-head");
+    head.append(
+      el("span", "su-step", String(step)),
+      el("h2", "su-panel-title", title),
+      el("span", "su-panel-hint", hint)
+    );
+    return head;
+  }
+
+  function participantsPanel() {
+    const panel = el("section", "su-panel");
+    const head = panelHead(1, "Participants", "Who's in today?");
+
+    const actions = el("div", "su-panel-actions");
+    actions.append(el("span", "su-field-label", "Select:"));
+
+    const segmented = el("div", "su-segmented");
+    segmented.append(
+      segBtn("Everyone", () => {
+        attending = new Set(roster.map((m) => m.accountId));
+        renderSetup(setupNotice);
+      }),
+      segBtn("Nobody", () => {
+        attending = new Set();
+        renderSetup(setupNotice);
+      })
+    );
+    actions.append(segmented, el("span", "su-field-label", "Speaking time per person"), stepperEl());
+    head.appendChild(actions);
+    panel.appendChild(head);
+
+    // The pip bar is relative to the busiest person on the roster, so it reads
+    // as "who is carrying the most" rather than as progress towards a fixed
+    // ceiling nobody agreed on.
+    const busiest = Math.max(1, ...roster.map((m) => issuesFor(m.accountId).length));
+
+    const list = el("div", "su-people");
+    for (const member of roster) list.appendChild(personRow(member, busiest));
+    panel.appendChild(list);
+    return panel;
+  }
+
+  function segBtn(label, onClick) {
+    const btn = el("button", "su-seg", label);
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  // One value when everyone attending is on the same clock, "Mixed" once a row
+  // has been overridden — stating that plainly beats showing one person's
+  // number as if it were everybody's.
+  function commonDurationSec() {
+    const values = attendingIds().map((id) => durations[id] ?? DEFAULT_DURATION_SEC);
+    if (!values.length) return DEFAULT_DURATION_SEC;
+    return values.every((v) => v === values[0]) ? values[0] : null;
+  }
+
+  function stepperEl() {
+    const current = commonDurationSec();
+    const stepper = el("div", "su-stepper");
+
+    // Stepping from a mixed state flattens it, which is the point of a control
+    // labelled "per person" — it is the way back to one number for everyone.
+    const bump = (delta) => {
+      const base = current ?? DEFAULT_DURATION_SEC;
+      const next = clampDuration(base + delta * 60);
+      for (const member of roster) durations[member.accountId] = next;
+      renderSetup(setupNotice);
+    };
+
+    const minus = el("button", "su-step-btn", "−");
+    minus.title = "One minute less for everyone";
+    minus.addEventListener("click", () => bump(-1));
+
+    const plus = el("button", "su-step-btn", "+");
+    plus.title = "One minute more for everyone";
+    plus.addEventListener("click", () => bump(1));
+
+    const value = el(
+      "span",
+      "su-step-value",
+      current === null ? "Mixed" : `${Math.round(current / 60)} min`
+    );
+    stepper.append(minus, value, plus);
+    return stepper;
+  }
+
+  const MIN_OPTIONS = [1, 2, 3, 4, 5, 7, 10, 15, 20];
+
+  function personRow(member, busiest) {
+    const id = member.accountId;
+    const row = el("div", "su-person" + (attending.has(id) ? " in" : ""));
+
+    const box = el("input", "su-check");
+    box.type = "checkbox";
+    box.checked = attending.has(id);
+    box.setAttribute("aria-label", `Include ${memberLabel(member)}`);
+    const toggle = (on) => {
+      if (on) attending.add(id);
+      else attending.delete(id);
+      renderSetup(setupNotice);
+    };
+    box.addEventListener("change", () => toggle(box.checked));
+    // The whole row is the hit target, minus the two controls that own their
+    // own clicks — a <label> wrapper cannot do that, because opening the select
+    // would toggle attendance.
+    row.addEventListener("click", (e) => {
+      if (e.target === box || e.target.closest(".su-mins")) return;
+      toggle(!box.checked);
+    });
+    row.appendChild(box);
+
+    row.appendChild(avatarEl(id, memberLabel(member)));
+    row.appendChild(el("span", "su-person-name", memberLabel(member)));
+
+    const n = issuesFor(id).length;
+    const count = el("span", "su-person-items mono", `${n} sprint ${plural(n, "item")}`);
+    if (!n) count.classList.add("none");
+    row.append(count, pipsEl(n, busiest));
+
+    const prs = prCountFor(id);
+    const prCell = el("span", "su-person-prs mono" + (prs ? " on" : ""));
+    if (prs === null) {
+      prCell.classList.add("absent");
+      prCell.textContent = "—";
+      prCell.title = github.activity
+        ? "No GitHub login on the roster for this person."
+        : { loading: "Still loading pull requests.", error: "GitHub is unavailable." }[
+            github.state
+          ] || "GitHub is not connected.";
+    } else {
+      prCell.append(icon("github", 14), el("span", null, `${prs} ${plural(prs, "PR")}`));
+    }
+    row.appendChild(prCell);
+
+    const flag = flagFor(id);
+    const tone = flag.count === 0 ? "ok" : flag.count === 1 ? "warn" : "bad";
+    const flagCell = el("span", `su-person-flag ${tone}`);
+    const flagIcon = { ok: "check", warn: "alert", bad: "ban" }[tone];
+    flagCell.append(icon(flagIcon, 15), el("span", null, flag.label));
+    row.appendChild(flagCell);
+
+    row.appendChild(minsSelect(id, memberLabel(member)));
+    return row;
+  }
+
+  function avatarEl(accountId, label) {
+    const url = avatarFor(accountId);
+    if (url) {
+      const img = document.createElement("img");
+      img.className = "su-avatar";
+      img.src = url;
+      img.alt = "";
+      // Swapped for initials rather than removed: dropping it would shift every
+      // column on that one row.
+      img.addEventListener("error", () => img.replaceWith(initialsEl(label)));
+      return img;
+    }
+    return initialsEl(label);
+  }
+
+  function initialsEl(label) {
+    const initials = String(label || "?")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0].toUpperCase())
+      .join("");
+    return el("span", "su-avatar su-avatar-fallback", initials || "?");
+  }
+
+  function pipsEl(count, busiest) {
+    const total = 8;
+    // Anyone with work gets at least one pip: a lone item on a busy team must
+    // not render as an empty bar.
+    const filled = count ? Math.max(1, Math.round((count / busiest) * total)) : 0;
+    const bar = el("span", "su-pips");
+    bar.title = `${count} of ${busiest} — busiest person on the roster`;
+    for (let i = 0; i < total; i++) {
+      bar.appendChild(el("i", "su-pip" + (i < filled ? " on" : "")));
+    }
+    return bar;
+  }
+
+  function minsSelect(accountId, label) {
+    const select = el("select", "su-mins");
+    select.title = `Minutes for ${label}`;
+    const current = durations[accountId] ?? DEFAULT_DURATION_SEC;
+    const minutes = Math.round(current / 60);
+    // A duration set before these options existed still has to be selectable,
+    // so the current value joins the list rather than being rounded away.
+    const options = [...new Set([...MIN_OPTIONS, minutes])].sort((a, b) => a - b);
+    for (const m of options) {
+      const opt = el("option", null, `${m} min`);
+      opt.value = String(m);
+      if (m === minutes) opt.selected = true;
+      select.appendChild(opt);
+    }
+    select.addEventListener("change", () => {
+      durations[accountId] = clampDuration(Number(select.value) * 60);
+      renderSetup(setupNotice);
+    });
+    return select;
+  }
+
+  // ── 2 & 3. Quick info and shortcuts ────────────────────────────────────────
+
+  function infoRow() {
+    const row = el("div", "su-info-row");
+    row.append(quickInfoPanel(), shortcutsPanel());
+    return row;
+  }
+
+  // Says which of the five things happened to the GitHub fetch, so an absent
+  // panel during the standup is explained here rather than being a silent gap.
+  function githubStatus() {
+    const counts = github.activity;
+    switch (github.state) {
+      case "loading":
+        return { chip: "Loading…", tone: "", note: "Fetching open pull requests" };
+      case "ready":
+        return {
+          chip: "Connected",
+          tone: "ok",
+          note: counts
+            ? `${counts.pullRequests.length} open ${plural(counts.pullRequests.length, "PR")} across ${counts.reached.length} ${plural(counts.reached.length, "repo")}`
+            : "Ready",
+        };
+      case "partial":
+        return {
+          chip: "Partial",
+          tone: "warn",
+          note: counts
+            ? `${counts.pullRequests.length} open PRs · ${counts.failures.length} ${plural(counts.failures.length, "repo")} unreachable`
+            : "Some repos unreachable",
+        };
+      case "error":
+        return {
+          chip: "Unavailable",
+          tone: "bad",
+          note: `${github.error} — the standup runs without it`,
+        };
+      default:
+        return { chip: "Off", tone: "", note: "Add repos in Settings → GitHub" };
+    }
+  }
+
+  function quickInfoPanel() {
+    const panel = el("section", "su-panel");
+    panel.appendChild(panelHead(2, "Quick info", "Everything you need to know"));
+
+    const cards = el("div", "su-cards");
+
+    const status = githubStatus();
+    const gh = el("div", "su-card");
+    const ghHead = el("div", "su-card-head");
+    const ghMark = el("span", "su-card-icon");
+    ghMark.appendChild(icon("github", 20));
+    ghHead.append(
+      ghMark,
+      el("span", "su-card-title", "GitHub"),
+      el("span", `su-chip ${status.tone}`, status.chip)
+    );
+    gh.append(ghHead, el("div", "su-card-note", status.note));
+    cards.appendChild(gh);
+
+    // A label, so the click target is the whole card rather than a 14px box.
+    const sound = el("label", "su-card");
+    const soundHead = el("div", "su-card-head");
+    const soundMark = el("span", "su-card-icon");
+    soundMark.appendChild(icon("sound", 20));
+    const soundBox = el("input", "su-switch");
+    soundBox.type = "checkbox";
+    soundBox.checked = !sfx.isMuted();
+    const soundNote = el(
+      "div",
+      "su-card-note",
+      soundBox.checked ? "You'll hear a chime on time up" : "Timers run silently"
+    );
+    soundBox.addEventListener("change", async () => {
+      await sfx.setMuted(!soundBox.checked);
+      soundNote.textContent = soundBox.checked
+        ? "You'll hear a chime on time up"
+        : "Timers run silently";
+    });
+    soundHead.append(soundMark, el("span", "su-card-title", "Sound cues"), soundBox);
+    sound.append(soundHead, soundNote);
+    cards.appendChild(sound);
+
+    panel.appendChild(cards);
+    return panel;
+  }
+
+  function shortcutsPanel() {
+    const panel = el("section", "su-panel");
+    panel.appendChild(panelHead(3, "Keyboard shortcuts", "During the standup"));
+
+    const keys = el("div", "su-keys");
+    for (const [key, what] of [["Space", "Pause / Resume"], ["→", "Next speaker"], ["Esc", "End session"]]) {
+      const cell = el("div", "su-key-cell");
+      cell.append(el("kbd", "su-kbd", key), el("span", "su-key-what", what));
+      keys.appendChild(cell);
+    }
+    panel.appendChild(keys);
+    return panel;
+  }
+
+  // ── Start ──────────────────────────────────────────────────────────────────
+
+  function startRow() {
+    const row = el("div", "su-start-row");
+    const start = el("button", "su-start");
+    start.append(icon("play", 18), el("span", null, "Start Standup"));
+    // Enter does the same thing. No caption for it: the disabled state says
+    // "nobody selected" on its own, and a line of chrome under the one button
+    // on the screen was earning nothing.
+    start.disabled = attendingIds().length === 0;
+    start.addEventListener("click", startNow);
+    row.appendChild(start);
+    return row;
+  }
+
+  async function startNow() {
+    const ids = attendingIds();
+    if (!ids.length) return;
+    // Inside the gesture handler, so the audio policy is satisfied here.
+    await sfx.unlock();
+    await savePrefs({ attendance: ids, durations });
+    beginSession(ids);
   }
 
   function bulkBtn(label, onClick) {
@@ -320,72 +733,6 @@ export async function mount(container, creds) {
     btn.textContent = label;
     btn.addEventListener("click", onClick);
     return btn;
-  }
-
-  function personRow(member) {
-    const id = member.accountId;
-    const row = document.createElement("label");
-    row.className = "standup-person" + (attending.has(id) ? " in" : "");
-
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.checked = attending.has(id);
-    box.addEventListener("change", () => {
-      if (box.checked) attending.add(id);
-      else attending.delete(id);
-      renderSetup();
-    });
-    row.appendChild(box);
-
-    const avatarUrl = avatarFor(id);
-    if (avatarUrl) {
-      const img = document.createElement("img");
-      img.className = "standup-avatar";
-      img.src = avatarUrl;
-      img.alt = "";
-      img.addEventListener("error", () => img.remove());
-      row.appendChild(img);
-    }
-
-    const name = document.createElement("span");
-    name.className = "standup-person-name";
-    name.textContent = memberLabel(member);
-    row.appendChild(name);
-
-    const count = document.createElement("span");
-    count.className = "standup-person-count mono";
-    const n = issuesFor(id).length;
-    count.textContent = `${n} in sprint`;
-    if (!n) count.classList.add("none");
-    row.appendChild(count);
-
-    const mins = document.createElement("input");
-    mins.type = "number";
-    mins.min = "1";
-    mins.className = "standup-mins-input";
-    mins.value = Math.round((durations[id] ?? DEFAULT_DURATION_SEC) / 60);
-    mins.title = "Minutes for this person";
-    mins.addEventListener("change", () => {
-      durations[id] = clampDuration(Number(mins.value) * 60);
-      renderSetup();
-    });
-    mins.addEventListener("click", (e) => e.preventDefault());
-    row.appendChild(mins);
-
-    return row;
-  }
-
-  function muteToggle() {
-    const label = document.createElement("label");
-    label.className = "standup-mute";
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.checked = !sfx.isMuted();
-    box.addEventListener("change", async () => {
-      await sfx.setMuted(!box.checked);
-    });
-    label.append(box, document.createTextNode(" Sound cues"));
-    return label;
   }
 
   // ── Running ────────────────────────────────────────────────────────────────
@@ -981,9 +1328,21 @@ export async function mount(container, creds) {
   // ── Keyboard ───────────────────────────────────────────────────────────────
 
   function onKeydown(e) {
-    if (!session || session.phase === PHASES.DONE) return;
     const tag = e.target.tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target.isContentEditable) {
+      return;
+    }
+
+    // On the setup screen Enter is the only key bound, and it does what the
+    // button under the cursor does — the hint under it promises exactly that.
+    if (!session) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        startNow();
+      }
+      return;
+    }
+    if (session.phase === PHASES.DONE) return;
 
     if (e.code === "Space") {
       e.preventDefault();
@@ -1021,9 +1380,12 @@ export async function mount(container, creds) {
   const githubFetch = startGithubFetch();
   renderSetup();
   githubFetch?.then(() => {
-    paintGithubChip();
+    // The setup screen reports GitHub in three places now — the Open PRs tile,
+    // the per-person PR counts and the Quick info card — so it is repainted
+    // wholesale rather than having one chip patched in place.
+    if (!session) renderSetup(setupNotice);
     // A person already on screen when the fetch lands gets their panel without
     // waiting for the next hand-off.
-    if (session?.phase === PHASES.SPEAKING) renderRunning();
+    else if (session.phase === PHASES.SPEAKING) renderRunning();
   });
 }
