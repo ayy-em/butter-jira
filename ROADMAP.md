@@ -185,6 +185,43 @@ plumbing.
 
 Newest first.
 
+## Standup setup UX refresh ✔ *(ad-hoc, 2026-08-07)*
+
+**Size: M** · Done. Same treatment as the Backlog, against a mockup, reusing
+that screen's vocabulary rather than inventing a second one.
+
+The setup card — a 620px box with a monospaced `DAILY STANDUP` heading, a
+checkbox list and a number input per person — became a full-width screen:
+header with an inline SVG mark, a date / team / sprint / availability meta
+line, four live stat tiles (attendees, speaking time, total estimated, open
+PRs), and three numbered panels (participants, quick info, keyboard shortcuts)
+over a full-width start button.
+
+Each participant row now answers, at a glance, what the facilitator would
+otherwise have to ask: sprint items with a relative workload bar, open PRs from
+the GitHub sync, a blocked/overdue flag, and a per-person speaking time.
+
+**Four decisions worth keeping:**
+
+- **The blocked column is decided once, for the whole table.** Jira gives no universal "blocked" field, so it is read off the status name (`block|impediment|on hold`) — but only when this sprint actually *has* such a status. Otherwise the same slot shows overdue, which every site can answer. Per-row fallback would have made one column mean two things.
+- **The pip bar is relative to the busiest person on the roster,** not to a fixed ceiling nobody agreed on. It reads as "who is carrying the most", which is the question a standup asks.
+- **An absent PR count and a zero are different facts.** GitHub off, still loading, or no login on the roster renders `—` with a title explaining which; only a real answer renders a number.
+- **The GitHub status line was promoted, not dropped.** It used to be one chip under the button; GitHub now appears in three places (tile, per-person counts, Quick info card), so the fetch landing repaints the setup screen wholesale instead of patching one node.
+
+Enter now starts the standup, matching the hint under the button. The running
+stage and the summary screen are untouched.
+
+Verified by rendering the real view — `preview-standup.html`, which mounts
+`js/views/standup.js` against stubbed extension storage and a stubbed
+Jira/GitHub network — in seven states: default, light, GitHub off, nobody
+selected, empty roster, resumable session, and narrow (980px). That caught the
+one real layout question, which is what a nine-column row does when the window
+is not wide enough for it: below 1080px the item count and the pip bar are the
+first things dropped, because the name, the flag and the clock are what the
+meeting needs.
+
+---
+
 ## Backlog UX refresh ✔ *(ad-hoc, 2026-08-07)*
 
 **Size: L** · Done. A brief and a mockup, delivered against after four

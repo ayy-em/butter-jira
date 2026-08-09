@@ -273,6 +273,32 @@ export function statusTone(status) {
   }
 }
 
+// Issue types get Jira's own colours — purple epic, green story, blue task, red
+// bug, light blue sub-task — because that is what anyone coming from a Jira tab
+// already reads without thinking.
+//
+// Matched by name and by name only. `issuetype` carries no category the way
+// `status` does, so there is nothing to fall back on: a site's custom type is
+// gray with a neutral mark rather than being given a colour that would imply a
+// meaning nobody declared. `subtask` is checked separately because Jira's own
+// API spells it three ways.
+const TYPE_META = {
+  epic: { tone: "purple", icon: "epic" },
+  story: { tone: "green", icon: "story" },
+  task: { tone: "blue", icon: "task" },
+  issue: { tone: "blue", icon: "task" },
+  improvement: { tone: "blue", icon: "task" },
+  "new feature": { tone: "blue", icon: "task" },
+  bug: { tone: "red", icon: "bug" },
+  defect: { tone: "red", icon: "bug" },
+};
+
+export function typeMeta(name) {
+  const key = String(name || "").toLowerCase().trim();
+  if (/^sub[-\s]?task$/.test(key)) return { tone: "cyan", icon: "subtask" };
+  return TYPE_META[key] || { tone: "gray", icon: "generic" };
+}
+
 // "2h ago" / "Yesterday" / "3d ago". Deliberately coarse: this column exists
 // for grooming ("what has gone stale"), where the hour is noise past a day.
 export function relativeTime(iso, now = new Date()) {

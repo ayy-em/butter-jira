@@ -195,6 +195,24 @@ check("every tone produced is one of the six",
   ["To Do", "In Progress", "In Review", "On Hold", "Blocked", "Done", "Whatever"]
     .every((n) => bl.STATUS_TONES.includes(bl.statusTone({ name: n }))));
 
+section("issue type tones");
+check("bug is red", bl.typeMeta("Bug").tone === "red");
+check("epic is purple", bl.typeMeta("Epic").tone === "purple");
+check("story is green", bl.typeMeta("Story").tone === "green");
+check("task is blue", bl.typeMeta("Task").tone === "blue");
+check("sub-task is its own light blue, not task's blue",
+  bl.typeMeta("Sub-task").tone === "cyan" && bl.typeMeta("Task").tone === "blue");
+check("Jira's three spellings of subtask agree",
+  ["Sub-task", "Subtask", "Sub Task"].every((n) => bl.typeMeta(n).tone === "cyan"));
+check("matching ignores case", bl.typeMeta("bug").tone === "red");
+check("matching ignores surrounding space", bl.typeMeta("  Epic ").tone === "purple");
+check("a site's own type is gray, not miscoloured", bl.typeMeta("Spike").tone === "gray");
+check("nothing at all is gray, not undefined", bl.typeMeta(undefined).tone === "gray");
+check("every type carries an icon name", ["Bug", "Epic", "Story", "Task", "Sub-task", "Spike", ""]
+  .every((n) => typeof bl.typeMeta(n).icon === "string" && bl.typeMeta(n).icon.length > 0));
+check("each known family gets its own mark",
+  new Set(["Bug", "Epic", "Story", "Task", "Sub-task"].map((n) => bl.typeMeta(n).icon)).size === 5);
+
 section("relative time");
 const NOW = new Date("2026-08-07T12:00:00Z");
 const rel = (iso) => bl.relativeTime(iso, NOW);
