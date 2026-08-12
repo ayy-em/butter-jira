@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-08-07
+Last updated: 2026-08-12
 
 An MV3 browser extension for Chrome, Firefox and Edge, giving Gantt, Backlog,
 and Kanban views over Jira Cloud boards. This roadmap takes it from an internal single-tenant tool to a
@@ -25,7 +25,7 @@ built the way it is, which is the part that gets forgotten.
 | Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, and a 5-minute response cache. One accessor module (`js/browser.js`) |
 | Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
 | Version control | Git, `.gitignore` in place |
-| Tests | Thirteen `scripts/test-*.mjs` suites (1108 checks) + a manual smoke checklist |
+| Tests | Thirteen `scripts/test-*.mjs` suites (1159 checks) + a manual smoke checklist |
 
 ## Sizing
 
@@ -39,17 +39,31 @@ M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 P
                                                                         │
                                                                         ├──▶ M6 Standup ✔ ─▶ M11 GitHub sync ✔ ─▶ M12 Firefox + Edge ✔
                                                                         │
-                                                                        └──▶ M7 Dashboard ✔ ─▶ M8 Writes + Planner ──┬──▶ M9 Palette + Triage ✔
-                                                                                                                     └──▶ M10 Sprint Wrapped
+                                                                        ├──▶ M7 Dashboard ✔ ──┬──▶ M9 Palette + Triage ✔
+                                                                        │                     ├──▶ M8 Writes + issue creation ─▶ M13 Sprint planner
+                                                                        │                     ├──▶ M10 Sprint Wrapped
+                                                                        │                     └──▶ M15 Sprint start snapshot (note only)
+                                                                        │
+                                                                        └──▶ M14 Weekly 1:1
 ```
 
 Ordering logic: config plumbing first (M0–M2), because every later feature reads
 from it and because losing your settings on every extension reload makes the
-rest miserable to build. The people layer (M3) is a hard dependency for standup
-and planning. Monitoring (M4) lands early — it is pure client-side derivation
-over data already being fetched, so it is the cheapest real feature in the list.
-The write layer is deliberately deferred to M8 and isolated in one milestone;
+rest miserable to build. The people layer (M3) is a hard dependency for standup,
+planning and the 1:1 screen. Monitoring (M4) lands early — it is pure
+client-side derivation over data already being fetched, so it is the cheapest
+real feature in the list. The write layer is deliberately isolated in M8;
 everything before it stays read-only.
+
+**M8 was split on 2026-08-12.** It had been "write layer + sprint planner", an
+XL carrying two things that share a dependency and nothing else. The write layer
+is a gate — M9's triage mode and M4's in-app fixing both sit behind it, and both
+are otherwise finished — while the planner is a screen that happens to need
+writes at the very end of its flow. Bundled, the gate could not ship until the
+screen did. Split, M8 is a shippable milestone that unblocks two others, and the
+planner (now M13) is honestly sized on its own. Issue and sub-task creation
+joined M8 rather than standing alone: they are the smallest useful thing the
+write layer can carry, and they exercise it end to end.
 
 M12 (the Firefox and Edge port) came out of the icebox on 2026-08-07 and is
 orthogonal to the feature chain — it changes how every module reaches storage
@@ -64,8 +78,10 @@ anything, and the planner keeps its place in the queue rather than losing it.
 
 | Risk | Milestone | Mitigation |
 |---|---|---|
-| Request fan-out across boards hits rate limits | M7, M8 | Reuse cached aggregates, per-resource TTLs, batch where the API allows |
-| Writes corrupt real sprint data | M8 | Draft mode, batch confirmation, undo window, isolated write helpers |
+| Request fan-out across boards hits rate limits | M7, M13 | Reuse cached aggregates, per-resource TTLs, batch where the API allows |
+| Writes corrupt real sprint data | M8, M13 | Draft mode, batch confirmation, undo window, isolated write helpers |
+| A generated create form still 400s on an unfamiliar site | M8 | Fields come from `createmeta` per project and type; the sub-task type is read from `subtask: true`, never matched by name |
+| Notes about a named colleague are the app's most sensitive data | M14 | Device-local, never synced, own export checkbox and confirm, bounded retention, no ranking or evaluation framing |
 | ~~`/rest/dev-status/1.0/` is undocumented~~ | M5 → deferred | Avoided entirely: dev links move to the GitHub API in the deferred backlog |
 | ~~Untrusted Jira HTML reaching the DOM~~ | M5 ✔ | Allowlist sanitiser with the element walk unit-tested; CSP as defence in depth |
 | ~~First write path (comments) misfiring~~ | M5 ✔ | Single narrow endpoint, comment re-rendered from Jira's response, explicit 403 handling |
@@ -80,8 +96,8 @@ anything, and the planner keeps its place in the queue rather than losing it.
 ## Open questions
 
 1. ~~**Distribution**~~ — answered 2026-08-05: unpacked now, possible Web Store listing later. The manifest `key` is in place for unpacked use and must be deleted before any store upload.
-2. **Board-per-project assumption** — `getAllEpics` (`js/api.js:145-169`) maps issue keys to boards via project key. Any org running several boards over one project will need a different mapping before M7's per-board stats are trustworthy. More pressing now that the board picker lets anyone select overlapping boards.
-3. ~~**Velocity source for M8**~~ — answered 2026-08-12: **historical, from the app's own stored history.** Not from closed-sprint data mined out of Jira — same reasoning as the M7 burndown, which is the precedent this follows: build history forward in `js/snapshots.js` rather than lean on `sprintreport`. **Consequence worth acting on before M8 rather than during it:** snapshots currently record team totals only (`snapshotFrom`, `js/snapshots.js:39-48`). Per-person velocity needs a `byPerson` block in the snapshot, and a forward-built history only accrues from the day it starts being written — so adding the field early is what makes the planner have anything to read when it arrives.
+2. ~~**Board-per-project assumption**~~ — answered 2026-08-12: the fix is chosen and written up under *Several boards over one project* in the deferred backlog, but not scheduled. The current deployment is one board per project, so neither of the two bugs is live here; the entry names which half to pull forward first if that changes.
+3. ~~**Velocity source for the planner**~~ (originally "for M8"; the planner is M13 since the split) — answered 2026-08-12: **historical, from the app's own stored history.** Not from closed-sprint data mined out of Jira — same reasoning as the M7 burndown, which is the precedent this follows: build history forward in `js/snapshots.js` rather than lean on `sprintreport`. **Consequence worth acting on before M13 opens rather than during it:** snapshots currently record team totals only (`snapshotFrom`, `js/snapshots.js:39-48`). Per-person velocity needs a `byPerson` block in the snapshot, and a forward-built history only accrues from the day it starts being written — so adding the field early is what makes the planner have anything to read when it arrives. M14 reads the same field.
 4. ~~**Team scope**~~ — answered 2026-08-05: one roster, but stored under a team key from the start so a switcher can be added later without a migration.
 5. ~~**Repo list per board?**~~ — answered 2026-08-12: no, one flat list stays. Revisited only if a real team runs into it. The allowlist is already the only scope, so scoping it per board stays cheap whenever it is actually wanted.
 
@@ -89,36 +105,124 @@ anything, and the planner keeps its place in the queue rather than losing it.
 
 # Open
 
-## M8 — Write layer + sprint planner *(feature 8)*
+## M8 — Write layer + issue creation *(feature 8)*
 
-**Size: XL — split on contact** · Depends on M3 and M7. **Next up.**
+**Size: M** · Depends on M3 and M5. **Next up.**
 
-This is the first milestone that mutates Jira. Keep that boundary explicit.
+This is the first milestone that mutates Jira beyond the single comment endpoint
+M5 pulled forward. Keep that boundary explicit.
 
-Deferred once already, on 2026-08-07, in favour of M11. Nothing about the plan
-changed — it was a sequencing call, not a rethink, and 8a is still the gate that
-everything write-shaped sits behind.
+Deferred once already, on 2026-08-07, in favour of M11 — a sequencing call, not
+a rethink. Split from the planner on 2026-08-12, which is what took it from XL
+to M.
 
 **8a — Write layer (S–M)**
 
 - `jiraPut` mutation helper with per-request error surfacing, alongside the existing read helpers in `js/api.js`. `jiraPost` already exists and carries the comment write from M5.
 - `PUT /rest/api/3/issue/{key}` for assignee, story points, due date, sprint.
-- Optimistic UI + rollback on failure + targeted cache invalidation (`cache.clear()` at `js/api.js:146` is a blunt instrument once writes exist).
+- Optimistic UI + rollback on failure + targeted cache invalidation (`cache.clear()` at `js/api.js:153` is a blunt instrument once writes exist; `cache.dropBoard` at `js/utils.js:229` is the shape to follow).
 - Confirmation for bulk operations; an undo window for single ones.
 - Note for scoped-token setups: writes need `write:jira-work` (or the granular `write:issue:jira`) in addition to the read scopes. Unscoped tokens inherit the user's own Jira permissions and need nothing extra.
 
-**8b — Planner (L)**
+**8b — Create issue modal (M)**
+
+- `POST /rest/api/3/issue`, from a modal in the same drawer idiom the issue detail already uses.
+- **The form is generated, not written.** Required fields are per-project *and* per-issue-type, and they differ between sites — a hardcoded form is a guaranteed 400 on somebody else's Jira, which is exactly the class of bug M1 spent a milestone removing. Read `/rest/api/3/issue/createmeta/{projectIdOrKey}/issuetypes` and `…/issuetypes/{typeId}`, and build the fields from the response.
+- Covers: project (from the configured boards), issue type, summary, description, assignee, story points, sprint, epic/parent, due date — each rendered only when createmeta says the site has it.
+- Description goes through `js/adf.js`, already written for M5's comment write, so the text → Atlassian Document Format conversion is not new work.
+- **Open:** where it launches from. The palette already carries verb actions ("start standup", "clear cache") and is the cheapest place to put it; a Backlog toolbar button is the discoverable place. Assume both unless someone objects — they share one modal.
+
+**8c — Create sub-task modal (S)**
+
+- The same endpoint with `parent` prefilled, launched from the issue detail, which M5 renders into both the drawer and the full page from one `renderIssueInto()` — so this is one launch point, not two.
+- **The sub-task issue type is discovered, not assumed.** `subtask: true` in createmeta identifies it; the *name* varies by site ("Sub-task", "Subtask", localised), and matching on the name would break the whitelabel promise the same way a hardcoded `customfield_*` would.
+- After creation the parent's sub-task list re-renders from Jira's response rather than from the local form, matching how M5 handles a posted comment.
+
+**Exit criteria:** an issue and a sub-task can both be created from inside the
+app against a site whose required fields differ from ours, with no field list
+hardcoded; and any failed write is attributed to the field or the permission
+that caused it rather than silently dropped.
+
+---
+
+## M13 — Sprint planner
+
+**Size: L** · Depends on M8 (write layer), M7 (aggregates) and M3 (roster).
+
+Split out of M8 on 2026-08-12 so the write layer could ship without waiting for
+a screen this size. Referred to as "M8b — Planner" in anything written before
+that date; M8's own sub-parts were renumbered when issue creation joined it, so
+the old label does not point here any more.
 
 - Inputs: sprint length, total working days, per-person OOO days, optional focus factor.
-- Capacity: per-person points capacity derived from historical velocity (open question 3, answered — the app's own snapshot history, not Jira's closed-sprint data), with a manual points-per-day rate as the fallback for a team with no history yet.
+- Capacity: per-person points capacity from historical velocity (open question 3, answered — the app's own snapshot history, not Jira's closed-sprint data), with a manual points-per-day rate as the fallback for a team with no history yet.
 - Carryover: unfinished issues from the previous sprint, with points, listed before you plan anything new.
 - Assignment board: drag issues from backlog to a person; live utilisation bar per member with over-allocation warnings at 100% and 120%.
 - Committed vs planned totals against team capacity, with the delta always visible.
 - Draft mode: plan locally, review the diff, then push all assignments in one confirmed batch. Never write on every drag.
 
+**The dependency that has to be paid early.** Per-person velocity comes from
+snapshot history, and `snapshotFrom` (`js/snapshots.js:39-48`) records team
+totals only. A history built forward accrues from the day the field starts being
+written — so the `byPerson` block wants adding well before this milestone opens,
+or the planner arrives to an empty series and falls back to manual rates for its
+first eight sprints. This is the cheapest thing on the whole roadmap and the one
+with the longest lead time; the same field also feeds M14.
+
 **Exit criteria:** a sprint can be planned in-app and pushed to Jira in one
 reviewed batch, with per-person utilisation visible throughout, and any failed
 write clearly attributed rather than silently dropped.
+
+---
+
+## M14 — Weekly 1:1 screen
+
+**Size: M** · Depends on M3 (roster). Reads M7 aggregates and M11 GitHub
+activity. Independent of the write layer unless it grows follow-up actions.
+
+**Scope below is a first pass, not an agreed spec** — recorded 2026-08-12 from a
+one-line request so the intent is not lost. The open questions at the end are
+the parts that would change the shape of it.
+
+One person, one week: the sheet you would otherwise assemble by hand in the ten
+minutes before a 1:1.
+
+- **Pick a person** from the roster, and a week (defaulting to the one just ending).
+- **What they did** — issues closed and moved this week, PRs opened, merged and reviewed. M11 already fetches per-person GitHub activity; it currently windows on *since the last working day* for standup, so this needs a week window over the same query rather than a new source.
+- **What is stuck** — their blocked and overdue items, and the PRs where they are the blocker or are being blocked, reusing M11's "changes requested → failing checks → approved-and-unmerged → waiting on review" ordering, which already sorts by how stuck rather than how recent.
+- **Load over time** — their points per sprint across stored snapshots. Same `byPerson` field the planner needs (see M13); one addition serves both.
+- **Notes** — free text per person per week, saved as you type, with last week's notes and any open action items pinned at the top. A 1:1 tool that does not remember last week is a status meeting.
+
+**Personal data — the part to get right first.** Everything else in this app
+derives from Jira and GitHub and could be re-fetched. A 1:1 note is *written by
+the user, about a named colleague*, and exists nowhere else. That makes it the
+most sensitive thing the extension would hold, so the roster's treatment is the
+floor and not the ceiling:
+
+- Device-local, never `storage.sync`. The roster is already local for weaker reasons than this.
+- Excluded from config export behind **its own** checkbox and its own confirm naming what the file would contain — the M2 pattern of one prompt per secret, because a single "this file has sensitive stuff in it" dialog teaches people to click past it.
+- Bounded retention with a visible clear action, the way snapshots are pruned. Notes about people should not accumulate silently and forever.
+- **Not a performance dashboard.** Same discipline M10 imposes on Sprint Wrapped: activity is conversation fuel, not a score. No rankings, no per-person trend line framed as evaluation, no comparison between colleagues on one screen.
+
+**Open questions:**
+
+1. **Whose screen is it?** Manager preparing for a report, or each person prepping their own? That decides whether "pick a person" is a roster dropdown or fixed to the logged-in account, and it changes the personal-data answer considerably.
+2. **Do notes ever leave the device?** Confluence export of notes is already in the icebox for standup. If 1:1 notes are ever exportable that needs deciding up front, not retrofitted.
+3. **Week or sprint as the window?** A week matches the meeting's cadence; a sprint matches every other screen in the app and every number already computed.
+4. **Read-only, or does it create follow-ups?** Turning an action item into a Jira issue is a natural ending and would make this depend on M8. Left out of the sketch above deliberately.
+
+---
+
+## M15 — Sprint start state snapshot
+
+**Placeholder, recorded 2026-08-12.** No scope agreed yet — this entry exists so
+the idea is not lost, and should be filled in before any work starts.
+
+The one adjacency worth writing down now: `js/snapshots.js` already records a
+daily aggregate, and M7's scope-added figure is explicitly approximate because
+it compares issue creation against sprint start and therefore misses an older
+issue dragged in mid-sprint. A real start-of-sprint state is what would make
+that number exact rather than caveated.
 
 ---
 
@@ -144,6 +248,46 @@ stay too obviously silly to be mistaken for a performance metric.
 # Deferred backlog
 
 Scoped, wanted, and deliberately not scheduled yet.
+
+### Several boards over one project *(open question 2, resolved on paper)*
+
+An issue's board is inferred from its **project key** — `getAllEpics`
+(`js/api.js:167-168`), `tagByProject` (`js/api.js:242-252`), `getEpicNames` —
+and `.find()` takes the first board that matches. That assumes one board per
+project. Jira does not: a board is a saved filter, and any number of them can
+slice one project by component, team or label.
+
+**It is two bugs, not one.**
+
+- **Duplication, which corrupts totals.** Nothing to do with the inference above. `getAllSprintIssues` (`js/api.js:208-220`) and `getAllBacklogIssues` (`222-227`) fan out per board and concatenate with no dedupe, so an issue matching two boards' filters is counted twice — in dashboard points and completion, in the M4 findings, in backlog tiles, in the standup's per-person counts, and permanently in whatever snapshot gets written that day. The worse of the two: an inflated total looks entirely plausible.
+- **Misattribution, which corrupts the per-board split.** Every epic in a shared project lands on the first configured board. The second board draws an empty Gantt row (`js/views/gantt.js:246`), the board filter hides its own work (`js/components/filters.js:29`), backlog grouping yields one bucket (`js/backlog.js:109`), and `byBoard` reads zero against double (`js/dashboard.js:165`) — the specific reason M7's per-board stats were called untrustworthy.
+
+**Chosen fix (of four considered, 2026-08-12):** dedupe by issue key while
+keeping a `boardIds` **set**, and resolve epic membership from
+`/rest/agile/1.0/board/{id}/epic` instead of from the key prefix. Keep
+`issue.boardId` as a *primary* — lowest configured board index, so colours stay
+stable across reloads — so the ten-odd consumers of `boardId` (card stripes,
+monitor badges, Gantt colours) keep working untouched and only the two that
+should care, the board filter and `byBoard`, learn to read the set. The board
+epic endpoint returns a slim shape without dates or points, so the existing
+single JQL still supplies the epic *data* and the per-board call supplies only
+the *mapping*: one extra cheap request per board, on the Gantt refresh path.
+
+Rejected: resolving each board's saved filter via `/board/{id}/configuration` →
+`/filter/{id}`, which is the most literal reading of what a board is but needs a
+permission many sites restrict and lands on the same data model with two more
+requests per board.
+
+**Why it is here rather than in a milestone:** the current deployment runs one
+board per project, so neither bug is live. Sizing **S–M**, and the dedupe half
+is worth pulling forward on its own the moment a second board over one project
+gets configured, since that is the half that silently produces wrong numbers.
+
+**Carries a migration.** Snapshots already on disk were recorded with the
+duplicated totals, so after a dedupe they are not comparable with new ones. A
+numbered migration (`js/migrations.js`) dropping pre-change snapshots is the
+cheap answer, and is better decided with the fix than discovered later as a kink
+in the burndown.
 
 ### Development links on the issue detail *(was part of M5)*
 
@@ -424,7 +568,8 @@ The keyboard layer that makes this a power tool rather than another dashboard.
 - Card drag-and-drop between Kanban columns, shared with the standup board.
 
 **Triage mode** — walking the M4 queue and fixing each finding by keystroke —
-needs the M8a write layer and moves with it.
+needs the M8a write layer and moves with it. The split on 2026-08-12 shortened
+that wait: it now unblocks with M8 rather than with the planner behind it.
 
 Verified by `scripts/test-palette.mjs` (47 checks).
 
@@ -584,7 +729,7 @@ in M8.
 
 ## M3 — People layer: team mapping ✔ *(feature 3)*
 
-**Size: M** · Done. Depends on M2. Hard dependency for M6, M8, M9, M10, M11.
+**Size: M** · Done. Depends on M2. Hard dependency for M6, M8, M9, M10, M11, M13, M14.
 
 **What was built**
 
@@ -593,7 +738,7 @@ in M8.
   1. **Harvest from boards** — `getAllSprintIssues` + `getAllBacklogIssues`, no extra Jira permission, ranked by issue count. Only finds people with an assigned issue right now, which is why it is not the only path.
   2. **Directory search** — `GET /rest/api/3/user/search`, filtered to human accounts. Needs "Browse users and groups", which many sites restrict to admins, so a 403 degrades to an explanatory note rather than an error.
   3. **Manual entry** — account ID (reliable) or email. An email-only member is stored **unlinked**, flagged in the UI, and gets its accountId filled in automatically the next time that person appears in a harvest.
-- **Per-member**: display-name override, emoji, avatar override, Slack handle, GitHub login (added in M11), active flag, and a `capacity` object carried through untouched for the planner (M8).
+- **Per-member**: display-name override, emoji, avatar override, Slack handle, GitHub login (added in M11), active flag, and a `capacity` object carried through untouched for the planner (M13).
 - **Team Only filter** in the filter bar, persisted, honoured by all three views. It hides work assigned *outside* the roster but keeps unassigned issues — hiding those would make the M4 hygiene checks lie.
 - **Outsiders are marked, not hidden**: the assignee dropdown labels them `· outside team`, and `extractAssignees` sorts roster members first.
 - Display names resolve through the roster everywhere (`assigneeLabel`), falling back to the Jira name shortened to first + last.
