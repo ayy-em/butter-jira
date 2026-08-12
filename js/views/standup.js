@@ -21,6 +21,9 @@ import { createIssueMover } from "../issue-move.js";
 import * as sfx from "../sfx.js";
 import {
   DEFAULT_DURATION_SEC,
+  DIGEST_EMOJI,
+  DIGEST_HEADING,
+  DIGEST_SIGNOFF,
   PHASES,
   addTime,
   advance,
@@ -28,6 +31,8 @@ import {
   clearSession,
   createSession,
   currentId,
+  digestHtml,
+  digestText,
   estimatedWallSec,
   finish,
   formatClock,
@@ -38,6 +43,7 @@ import {
   loadSession,
   nextId,
   notesEntries,
+  overrunScale,
   phaseElapsedMs,
   phaseRemainingMs,
   phaseTotalMs,
@@ -46,6 +52,7 @@ import {
   saveSession,
   shouldAutoAdvance,
   togglePause,
+  trimSprintLabel,
 } from "../standup.js";
 
 export async function mount(container, creds) {
@@ -313,7 +320,12 @@ export async function mount(container, creds) {
     metaItem(meta, "calendar", `${weekday}, ${fmtDate(today.toISOString())}`);
     const team = activeTeam()?.name;
     if (team) metaItem(meta, "users", team);
-    if (sprintNames.length) metaItem(meta, "sprint", sprintNames.join(" · "));
+    // Identifiers only — the descriptive tail Jira carries on a sprint name is
+    // what makes this line wrap. De-duplicated a second time because trimming
+    // collapses "DP-82: Payments" and "DP-82 (carry-over)" onto the same
+    // sprint, and "DP-82 · DP-82" would read as two.
+    const sprintLabels = [...new Set(sprintNames.map(trimSprintLabel))];
+    if (sprintLabels.length) metaItem(meta, "sprint", sprintLabels.join(" · "));
     meta.appendChild(el("span", "su-meta-sep", "·"));
     const available = el("span", "su-meta-item");
     available.append(
@@ -1154,6 +1166,7 @@ export async function mount(container, creds) {
     if (session.phase === PHASES.COUNTDOWN || session.phase === PHASES.HANDOFF) {
       const secs = Math.max(0, Math.ceil(phaseRemainingMs(session, now) / 1000));
       clock.textContent = String(secs);
+      clock.style.removeProperty("--overrun-scale");
       return;
     }
 
@@ -1161,6 +1174,10 @@ export async function mount(container, creds) {
     clock.textContent = formatClock(remaining);
     clock.classList.toggle("overrun", isOverrun(session, now));
     clock.classList.toggle("paused", isPaused(session));
+    // Swells a step every five seconds of overrun. Set on every tick rather
+    // than stepped up on a timer of its own, so it lands back at 1 as soon as
+    // the phase does — no per-person reset to forget.
+    clock.style.setProperty("--overrun-scale", overrunScale(session, now).toFixed(3));
 
     const fill = document.getElementById("standup-progress-fill");
     if (fill) {
@@ -1229,9 +1246,9 @@ export async function mount(container, creds) {
       // it stays editable so the facilitator can tidy wording before pasting.
       const digestBox = document.createElement("textarea");
       digestBox.className = "standup-digest";
-      // +3 for the dated title and the blank line under it.
-      digestBox.rows = Math.min(14, entries.length + 3);
       digestBox.value = slackDigest(session);
+      // Sub-bullets make the line count unpredictable, so measure the text.
+      digestBox.rows = Math.min(18, digestBox.value.split("\n").length + 1);
       digestBox.spellcheck = false;
       card.appendChild(digestBox);
 
@@ -1248,11 +1265,10 @@ export async function mount(container, creds) {
       const actions = document.createElement("div");
       actions.className = "standup-bulk";
       const copyBtn = bulkBtn("Copy message", async () => {
-        try {
-          await navigator.clipboard.writeText(digestBox.value);
+        if (await copyDigest(digestBox.value)) {
           copyBtn.textContent = "Copied";
           setTimeout(() => { copyBtn.textContent = "Copy message"; }, 1500);
-        } catch {
+        } else {
           // Clipboard refused — select it instead so ctrl-C still works.
           digestBox.focus();
           digestBox.select();
@@ -1281,37 +1297,62 @@ export async function mount(container, creds) {
   // Dated heading for the pasted message, so a channel full of these is
   // scannable and nobody has to work out which day one refers to.
   function digestTitle(now = new Date()) {
-    return `Daily Standup Action Points - ${fmtDate(now)}`;
+    return `${DIGEST_EMOJI} ${DIGEST_HEADING} - ${fmtDate(now)}`;
   }
 
-  // "@handle - note" per person, one line each, ready to paste into Slack.
-  // Multi-line notes are joined with "; " so one person is always one line.
-  function digestBody(finished) {
-    return notesEntries(finished)
-      .map(({ id, note }) => {
-        const who = memberFor(id) ? slackMentionFor(id) : labelFor(id);
-        return `${who} - ${note.replace(/\s*\n+\s*/g, "; ")}`;
-      })
-      .join("\n");
+  function digestEntries(finished) {
+    return notesEntries(finished).map(({ id, note }) => ({
+      who: memberFor(id) ? slackMentionFor(id) : labelFor(id),
+      note,
+    }));
   }
 
   // The title is part of the digest rather than something added at copy time:
   // the textarea is editable, and what it shows has to be what lands on the
   // clipboard.
   function slackDigest(finished) {
-    return `${digestTitle()}\n\n${digestBody(finished)}`;
+    return digestText({
+      title: digestTitle(),
+      entries: digestEntries(finished),
+      signoff: DIGEST_SIGNOFF,
+    });
+  }
+
+  // Both flavours in one write: Slack takes the HTML and renders real bullets,
+  // anything plainer takes the text. A browser without ClipboardItem still gets
+  // the text, just without the formatting.
+  async function copyDigest(text) {
+    try {
+      if (navigator.clipboard?.write && typeof ClipboardItem === "function") {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([digestHtml(text)], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" }),
+          }),
+        ]);
+        return true;
+      }
+    } catch {
+      // Rich copy refused (permissions, unsupported flavour) — try plain.
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function downloadNotes(finished) {
-    // digestBody, not slackDigest: the title is already the first line here, and
-    // printing the date twice in one file reads as a bug.
+    // No sign-off and no second date: the title is already the first line here,
+    // and a file is not a Slack message.
     const lines = [
       digestTitle(),
       "",
       ...finished.order.map((id) => `- ${labelFor(id)}`),
       "",
       "Parking lot:",
-      digestBody(finished),
+      digestText({ entries: digestEntries(finished) }),
       "",
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });

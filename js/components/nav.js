@@ -3,18 +3,44 @@ import { loadTheme, saveTheme } from "../utils.js";
 import { CONFIG, jiraHomeUrl, siteHost, wikiUrl } from "../config.js";
 import { getBadgeCount } from "../monitor.js";
 
+// Six flat tabs outgrew the header, so the five board views collapse into two
+// menus by what you're looking at — the whole backlog, or the sprint in flight.
+// Standup stays top level: it's a daily ritual, not somewhere you browse to.
+// The single-view labels inside a menu never repeat their parent ("ALL WORK",
+// not "BACKLOG > BACKLOG"). Shortcut keys are handled in router.js; the letters
+// here are display only.
 const TABS = [
-  { hash: "#dashboard", label: "SPRINT", key: "d" },
-  { hash: "#backlog", label: "BACKLOG", key: "b" },
-  { hash: "#gantt", label: "ROADMAP", key: "r" },
-  { hash: "#kanban", label: "KANBAN", key: "k" },
-  { hash: "#monitor", label: "MONITOR", key: "m" },
-  { hash: "#standup", label: "STANDUP", key: "s", flair: true },
+  {
+    id: "backlog",
+    label: "BACKLOG",
+    items: [
+      { hash: "#backlog", label: "ALL WORK", key: "B" },
+      { hash: "#gantt", label: "ROADMAP", key: "R" },
+    ],
+  },
+  {
+    id: "sprint",
+    label: "SPRINT",
+    items: [
+      { hash: "#dashboard", label: "DASHBOARD", key: "D" },
+      { hash: "#kanban", label: "KANBAN", key: "K" },
+      { hash: "#monitor", label: "MONITOR", key: "M", badge: true },
+    ],
+  },
+  { hash: "#standup", label: "STANDUP", key: "S", flair: true },
+];
+
+// External tools get their own marks rather than text labels — the icons carry
+// their own background plate, so they read in both themes without inversion.
+const SITE_LINKS = [
+  { label: "Jira", icon: "assets/logos/jira.png", url: jiraHomeUrl },
+  { label: "Confluence", icon: "assets/logos/confluence.png", url: wikiUrl },
 ];
 
 let lastSync = null;
 let currentTheme = "dark";
 let clockInterval = null;
+let closeMenusHandler = null;
 
 export function setLastSync(date) {
   lastSync = date;
@@ -103,22 +129,23 @@ export async function renderNav(onRefresh) {
   leftGroup.appendChild(logoArea);
 
   for (const tab of TABS) {
-    const btn = document.createElement("a");
-    btn.href = tab.hash;
-    btn.className = "nav-tab mono";
-    btn.textContent = tab.label;
-    btn.dataset.hash = tab.hash;
-    if (tab.flair) btn.classList.add("flair");
-    if (tab.hash === "#monitor") {
-      const badge = document.createElement("span");
-      badge.className = "nav-tab-badge";
-      badge.id = "monitor-badge";
-      badge.hidden = true;
-      btn.appendChild(badge);
-    }
-    leftGroup.appendChild(btn);
+    leftGroup.appendChild(tab.items ? createTabMenu(tab) : createTabLink(tab));
   }
   nav.appendChild(leftGroup);
+
+  // One document listener for every menu, re-bound on each nav render so a
+  // re-render can't leave a stale closure holding on to detached nodes.
+  if (closeMenusHandler) {
+    document.removeEventListener("click", closeMenusHandler, true);
+    document.removeEventListener("keydown", closeMenusHandler, true);
+  }
+  closeMenusHandler = (e) => {
+    if (e.type === "keydown" && e.key !== "Escape") return;
+    if (e.type === "click" && e.target.closest(".nav-menu")) return;
+    closeAllMenus();
+  };
+  document.addEventListener("click", closeMenusHandler, true);
+  document.addEventListener("keydown", closeMenusHandler, true);
 
   // Restore a count already computed earlier this session.
   updateMonitorBadge(getBadgeCount());
@@ -145,12 +172,11 @@ export async function renderNav(onRefresh) {
   rightGroup.style.cssText = "display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:0.5rem;";
 
   const host = siteHost();
-  rightGroup.appendChild(
-    createSiteLink("JIRA", jiraHomeUrl(), host ? `Open Jira on ${host}` : "")
-  );
-  rightGroup.appendChild(
-    createSiteLink("CONFLUENCE", wikiUrl(), host ? `Open Confluence on ${host}` : "")
-  );
+  for (const site of SITE_LINKS) {
+    rightGroup.appendChild(
+      createSiteLink(site, site.url(), host ? `Open ${site.label} on ${host}` : "")
+    );
+  }
 
   // Discoverability: the palette is a keyboard feature, and nobody finds a
   // keyboard feature without being told it exists.
@@ -228,6 +254,81 @@ export async function renderNav(onRefresh) {
     .nav-tab:hover { color: var(--text); }
     .nav-tab.active { color: var(--text); background: rgba(232,234,240,0.08); }
 
+    /* ── Grouped views ─────────────────────────────────────────────────── */
+    .nav-menu { position: relative; display: flex; align-items: center; }
+    .nav-menu-trigger {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .nav-menu-caret {
+      font-size: 11px;
+      line-height: 1;
+      letter-spacing: 0;
+      opacity: 0.7;
+      transition: transform 0.15s;
+    }
+    .nav-menu.open .nav-menu-trigger { color: var(--text); background: rgba(232,234,240,0.08); }
+    .nav-menu.open .nav-menu-caret { transform: rotate(180deg); }
+    /* The rollup count is only useful while the menu hides the real badge. */
+    .nav-menu.open .nav-tab-badge-rollup { visibility: hidden; }
+
+    .nav-menu-panel {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      min-width: 168px;
+      padding: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      z-index: 210;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-4px);
+      transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
+    }
+    .nav-menu.open .nav-menu-panel {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .nav-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      padding: 7px 10px;
+      border-radius: 4px;
+      white-space: nowrap;
+      transition: color 0.12s, background 0.12s;
+    }
+    .nav-menu-item:hover { color: var(--text); background: rgba(232,234,240,0.08); }
+    .nav-menu-item.active { color: var(--text); background: rgba(79,142,247,0.16); }
+    .nav-menu-key {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0;
+      color: var(--muted);
+      opacity: 0.7;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0 4px;
+    }
+
     /* Standup is a timed, run-once-a-day ritual rather than a view you browse,
        so it gets an animated gradient ring instead of the flat tab treatment. */
     .nav-tab.flair {
@@ -291,22 +392,114 @@ export async function renderNav(onRefresh) {
   nav.appendChild(style);
 }
 
+function createTabLink(tab, { inMenu = false } = {}) {
+  const link = document.createElement("a");
+  link.href = tab.hash;
+  link.className = inMenu ? "nav-menu-item mono" : "nav-tab mono";
+  link.dataset.hash = tab.hash;
+  if (tab.flair) link.classList.add("flair");
+
+  const label = document.createElement("span");
+  label.textContent = tab.label;
+  link.appendChild(label);
+
+  if (tab.badge) link.appendChild(createMonitorBadge());
+  if (inMenu && tab.key) {
+    const hint = document.createElement("span");
+    hint.className = "nav-menu-key";
+    hint.textContent = tab.key;
+    link.appendChild(hint);
+  }
+  return link;
+}
+
+function createTabMenu(group) {
+  const wrap = document.createElement("div");
+  wrap.className = "nav-menu";
+  wrap.dataset.menu = group.id;
+
+  const trigger = document.createElement("button");
+  trigger.className = "nav-tab nav-menu-trigger mono";
+  trigger.type = "button";
+  trigger.setAttribute("aria-haspopup", "true");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.dataset.group = group.items.map((i) => i.hash).join(" ");
+
+  const label = document.createElement("span");
+  label.textContent = group.label;
+  trigger.appendChild(label);
+
+  // A count hidden inside a closed menu is a count nobody sees, so the badge
+  // also rides on the trigger and only shows while the menu is shut.
+  if (group.items.some((i) => i.badge)) {
+    const badge = createMonitorBadge();
+    badge.classList.add("nav-tab-badge-rollup");
+    trigger.appendChild(badge);
+  }
+
+  const caret = document.createElement("span");
+  caret.className = "nav-menu-caret";
+  caret.textContent = "▾";
+  trigger.appendChild(caret);
+
+  const panel = document.createElement("div");
+  panel.className = "nav-menu-panel";
+  for (const item of group.items) panel.appendChild(createTabLink(item, { inMenu: true }));
+
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const open = wrap.classList.contains("open");
+    closeAllMenus();
+    if (!open) {
+      wrap.classList.add("open");
+      trigger.setAttribute("aria-expanded", "true");
+    }
+  });
+  panel.addEventListener("click", (e) => {
+    // Navigation happens through the href; the menu just gets out of the way.
+    if (e.target.closest(".nav-menu-item")) closeAllMenus();
+  });
+
+  wrap.append(trigger, panel);
+  return wrap;
+}
+
+function closeAllMenus() {
+  document.querySelectorAll(".nav-menu.open").forEach((el) => {
+    el.classList.remove("open");
+    el.querySelector(".nav-menu-trigger")?.setAttribute("aria-expanded", "false");
+  });
+}
+
+function createMonitorBadge() {
+  const badge = document.createElement("span");
+  badge.className = "nav-tab-badge";
+  badge.dataset.badge = "monitor";
+  badge.hidden = true;
+  return badge;
+}
+
 // Every external site link goes through here so an unconfigured site URL can
 // never render a link that goes nowhere: it points at Settings instead, which
 // is where the missing URL is entered.
-function createSiteLink(label, url, title) {
+function createSiteLink(site, url, title) {
   const link = document.createElement("a");
-  link.className = "nav-jira-link";
-  link.textContent = label;
+  link.className = "nav-jira-link nav-icon-link";
   link.target = "_blank";
   link.rel = "noopener";
+
+  const icon = document.createElement("img");
+  icon.src = site.icon;
+  icon.alt = site.label;
+  link.appendChild(icon);
+
   if (url) {
     link.href = url;
-    link.title = title || `Open ${label.toLowerCase()}`;
+    link.title = title || `Open ${site.label}`;
   } else {
     link.href = runtimeUrl("settings.html");
     link.classList.add("unset");
-    link.title = "No Jira site URL configured — open Settings to set one";
+    link.title = `No Jira site URL configured — open Settings to set one (${site.label})`;
   }
   return link;
 }
@@ -408,20 +601,22 @@ function fireConfetti(cx, cy) {
 // The count comes from the Monitor view's last run — no extra Jira requests
 // are made just to keep this badge fresh.
 export function updateMonitorBadge(count) {
-  const badge = document.getElementById("monitor-badge");
-  if (!badge) return;
-  if (typeof count !== "number" || count <= 0) {
-    badge.hidden = true;
-    badge.textContent = "";
-    return;
-  }
-  badge.hidden = false;
-  badge.textContent = count > 99 ? "99+" : String(count);
+  // Two badges now: the menu item and the rollup on its closed trigger.
+  const badges = document.querySelectorAll('.nav-tab-badge[data-badge="monitor"]');
+  const empty = typeof count !== "number" || count <= 0;
+  badges.forEach((badge) => {
+    badge.hidden = empty;
+    badge.textContent = empty ? "" : count > 99 ? "99+" : String(count);
+  });
 }
 
 export function updateActiveTab() {
   const hash = location.hash || "#backlog";
-  document.querySelectorAll(".nav-tab").forEach((el) => {
+  document.querySelectorAll(".nav-tab, .nav-menu-item").forEach((el) => {
     el.classList.toggle("active", el.dataset.hash === hash);
+  });
+  // A menu trigger lights up for whichever of its children you're on.
+  document.querySelectorAll(".nav-menu-trigger").forEach((el) => {
+    el.classList.toggle("active", (el.dataset.group || "").split(" ").includes(hash));
   });
 }

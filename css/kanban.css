@@ -5,6 +5,29 @@
   flex-direction: column;
 }
 
+/* Profile pictures on this screen are circles — person pills in the controls
+   and assignee avatars in card footers alike. Scoped to .kanban-wrap rather
+   than set on .avatar globally because board.js renders the same cards for
+   standup, which keeps its own avatar shape.
+   Sizes stay where they are (person-pill below, card footer inline in
+   board.js); this only settles the shape. `object-fit: cover` crops a
+   non-square avatar into the circle instead of squashing it, and the
+   placeholder needs centring because a corner-anchored initial in a round
+   badge reads as broken. */
+.kanban-wrap .avatar,
+.kanban-wrap .avatar-placeholder {
+  border-radius: 50%;
+  flex: none;
+}
+.kanban-wrap img.avatar { object-fit: cover; }
+.kanban-wrap .avatar-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  overflow: hidden;
+}
+
 .kanban-controls {
   display: flex;
   align-items: center;
@@ -29,7 +52,7 @@
   background: transparent;
   color: var(--muted);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
 }
@@ -47,7 +70,7 @@
 .person-pill .avatar-placeholder {
   width: 18px;
   height: 18px;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
 }
 
 .sprint-toggle {
@@ -63,7 +86,7 @@
   border: none;
   color: var(--muted);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   text-transform: uppercase;
   padding: 5px 12px;
   cursor: pointer;
@@ -101,7 +124,7 @@
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--muted);
@@ -111,7 +134,7 @@
 .kanban-col-count {
   background: var(--border);
   color: var(--text);
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   padding: 1px 6px;
   border-radius: 8px;
 }
@@ -145,11 +168,11 @@
 }
 
 .kanban-card .issue-key {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
 }
 
 .kanban-card-type {
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--muted);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   padding: 1px 5px;
@@ -158,7 +181,7 @@
 }
 
 .kanban-card-summary {
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   line-height: 1.4;
   color: var(--text);
   margin-bottom: 8px;
@@ -172,7 +195,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--muted);
   padding-top: 6px;
   border-top: 1px solid var(--border);
@@ -196,7 +219,7 @@
   color: var(--muted);
   text-align: center;
   padding: 24px 0;
-  font-size: 16px;
+  font-size: calc(16px * var(--font-scale));
 }
 
 .kanban-col-drag-over {
@@ -263,7 +286,7 @@
   background: transparent;
   border: 1px solid var(--border);
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 5px 12px;

@@ -49,7 +49,7 @@
     .brand-text { flex: 1; min-width: 0; }
     h1 {
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 22px;
+      font-size: calc(22px * var(--font-scale));
       font-weight: 600;
       letter-spacing: 1px;
       margin-bottom: 3px;
@@ -57,12 +57,12 @@
     }
     .tagline {
       color: var(--muted);
-      font-size: 13px;
+      font-size: calc(13px * var(--font-scale));
       font-style: italic;
     }
     .back-hint {
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 10px;
+      font-size: calc(10px * var(--font-scale));
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--muted);
@@ -102,7 +102,7 @@
       user-select: none;
       list-style: none;
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 13px;
+      font-size: calc(13px * var(--font-scale));
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1.2px;
@@ -116,13 +116,13 @@
     .section-head::before {
       content: "▸";
       color: var(--section-accent);
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       transition: transform 0.15s;
     }
     .settings-section[open] > .section-head::before { transform: rotate(90deg); }
     .section-note {
       margin-left: auto;
-      font-size: 10px;
+      font-size: calc(10px * var(--font-scale));
       font-weight: 400;
       letter-spacing: 0.3px;
       text-transform: none;
@@ -145,7 +145,7 @@
 
     .section-title {
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       text-transform: uppercase;
       letter-spacing: 1px;
       color: var(--muted);
@@ -166,7 +166,7 @@
 
     label {
       display: block;
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -187,12 +187,12 @@
       border-radius: 4px;
       color: var(--text);
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 14px;
+      font-size: calc(14px * var(--font-scale));
       margin-bottom: 4px;
       outline: none;
       transition: border-color 0.15s;
     }
-    textarea { line-height: 1.5; font-size: 13px; resize: vertical; }
+    textarea { line-height: 1.5; font-size: calc(13px * var(--font-scale)); resize: vertical; }
     input:focus, textarea:focus { border-color: var(--accent-primary); }
     input[readonly] { color: var(--muted); cursor: not-allowed; }
 
@@ -219,7 +219,7 @@
       border: none;
       color: var(--muted);
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       padding: 4px 8px;
       border-radius: 3px;
       cursor: pointer;
@@ -229,7 +229,7 @@
     .helper-link {
       display: inline-block;
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: var(--accent-primary);
       text-decoration: none;
       margin-bottom: 10px;
@@ -237,7 +237,7 @@
     .helper-link:hover { text-decoration: underline; }
 
     .hint {
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: var(--muted);
       line-height: 1.5;
       margin: 2px 0 10px;
@@ -265,7 +265,7 @@
       list-style: none;
       padding: 7px 10px;
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: var(--accent-primary);
     }
     .help-toggle > summary::-webkit-details-marker { display: none; }
@@ -277,7 +277,7 @@
       width: calc(100% - 20px);
       margin: 0 10px 10px;
       border-collapse: collapse;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
     }
     .help-toggle th, .help-toggle td {
       text-align: left;
@@ -312,7 +312,7 @@
     }
     .board-row .remove-board {
       background: none; border: none; color: #EF4444; cursor: pointer;
-      font-size: 16px; padding: 2px 6px; border-radius: 3px;
+      font-size: calc(16px * var(--font-scale)); padding: 2px 6px; border-radius: 3px;
     }
     .board-row .remove-board:hover { background: rgba(239,68,68,0.15); }
 
@@ -321,7 +321,7 @@
       border: 1px dashed var(--border);
       color: var(--muted);
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 12px;
+      font-size: calc(12px * var(--font-scale));
       padding: 8px;
       border-radius: 4px;
       cursor: pointer;
@@ -347,7 +347,7 @@
       border-radius: 4px;
       color: #fff;
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 13px;
+      font-size: calc(13px * var(--font-scale));
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -358,7 +358,7 @@
     .status {
       text-align: center;
       margin-top: 10px;
-      font-size: 13px;
+      font-size: calc(13px * var(--font-scale));
       color: var(--accent-success);
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
       opacity: 0;
@@ -373,7 +373,7 @@
     .field-role-row .role-label {
       flex: 0 0 110px;
       font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--muted);
@@ -383,7 +383,7 @@
       display: flex;
       align-items: flex-start;
       gap: 8px;
-      font-size: 11px;
+      font-size: calc(11px * var(--font-scale));
       color: var(--muted);
       line-height: 1.5;
       margin-bottom: 10px;
@@ -411,45 +411,45 @@
     }
     .roster-avatar-placeholder {
       display: flex; align-items: center; justify-content: center;
-      font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: 10px; color: var(--text);
+      font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: calc(10px * var(--font-scale)); color: var(--text);
     }
     .roster-jira-name {
-      flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--muted);
+      flex: 1 1 auto; min-width: 0; font-size: calc(11px * var(--font-scale)); color: var(--muted);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .roster-avatar-slot { display: flex; align-items: center; flex: 0 0 22px; }
     .roster-row input.roster-override { flex: 1 1 96px; min-width: 0; }
     .roster-row input.roster-avatar-path {
-      flex: 1 1 120px; min-width: 0; font-size: 10px;
+      flex: 1 1 120px; min-width: 0; font-size: calc(10px * var(--font-scale));
     }
     .roster-row input.roster-avatar-path.invalid,
     .roster-row input.roster-avatar-path.missing {
       border-color: var(--accent-warning); color: var(--accent-warning);
     }
-    .roster-row input.roster-slack { flex: 1 1 92px; min-width: 0; font-size: 10px; }
-    .roster-row input.roster-github { flex: 1 1 92px; min-width: 0; font-size: 10px; }
+    .roster-row input.roster-slack { flex: 1 1 92px; min-width: 0; font-size: calc(10px * var(--font-scale)); }
+    .roster-row input.roster-github { flex: 1 1 92px; min-width: 0; font-size: calc(10px * var(--font-scale)); }
     .roster-row input.roster-github.invalid { border-color: var(--accent-warning); color: var(--accent-warning); }
     .roster-row input.roster-emoji { flex: 0 0 44px; text-align: center; }
     .roster-badge {
-      font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: 9px;
+      font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: calc(9px * var(--font-scale));
       text-transform: uppercase; letter-spacing: 0.5px;
       border: 1px solid var(--accent-warning); color: var(--accent-warning);
       border-radius: 3px; padding: 1px 4px; flex: 0 0 auto;
     }
     .roster-toggle { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
-    .roster-toggle span { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+    .roster-toggle span { font-size: calc(10px * var(--font-scale)); color: var(--muted); text-transform: uppercase; }
     .result-row { justify-content: space-between; }
     .result-add {
       background: none; border: 1px solid var(--accent-primary);
       color: var(--accent-primary); font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-      font-size: 10px; text-transform: uppercase; padding: 3px 8px;
+      font-size: calc(10px * var(--font-scale)); text-transform: uppercase; padding: 3px 8px;
       border-radius: 3px; cursor: pointer; flex: 0 0 auto;
     }
     .result-add:disabled { border-color: var(--border); color: var(--muted); cursor: default; }
 
-    .repo-row { justify-content: space-between; font-size: 11px; }
+    .repo-row { justify-content: space-between; font-size: calc(11px * var(--font-scale)); }
     .repo-row .repo-name { font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; color: var(--text); }
-    .repo-row .repo-verdict { font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: 10px; }
+    .repo-row .repo-verdict { font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: calc(10px * var(--font-scale)); }
     .repo-row .repo-verdict.ok { color: var(--accent-success); }
     .repo-row .repo-verdict.bad { color: var(--accent-danger); }
   </style>

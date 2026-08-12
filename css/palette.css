@@ -46,12 +46,12 @@
   outline: none;
   color: var(--text);
   font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
-  font-size: 16px;
+  font-size: calc(16px * var(--font-scale));
 }
 .palette-input::placeholder { color: var(--muted); }
 
 .palette-status {
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--muted);
   white-space: nowrap;
   max-width: 45%;
@@ -67,7 +67,7 @@
 }
 
 .palette-group {
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--muted);
@@ -88,7 +88,7 @@
 }
 
 .palette-key {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   font-weight: 600;
   flex: 0 0 auto;
   color: var(--accent-primary);
@@ -96,7 +96,7 @@
 .palette-icon {
   flex: 0 0 14px;
   text-align: center;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--muted);
 }
 .palette-avatar {
@@ -111,7 +111,7 @@
 .palette-label {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -120,7 +120,7 @@
 
 .palette-meta {
   flex: 0 0 auto;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--muted);
   max-width: 30%;
   overflow: hidden;
@@ -130,7 +130,7 @@
 
 .palette-badge {
   flex: 0 0 auto;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 0.5px;
   border-radius: 3px;
@@ -143,7 +143,7 @@
 
 .palette-hint {
   padding: 18px 16px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   color: var(--muted);
   text-align: center;
 }
@@ -152,7 +152,7 @@
   flex: 0 0 auto;
   padding: 8px 16px;
   border-top: 1px solid var(--border);
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--muted);
   letter-spacing: 0.5px;
 }
