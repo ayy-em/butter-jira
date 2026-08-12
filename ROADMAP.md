@@ -81,9 +81,9 @@ anything, and the planner keeps its place in the queue rather than losing it.
 
 1. ~~**Distribution**~~ — answered 2026-08-05: unpacked now, possible Web Store listing later. The manifest `key` is in place for unpacked use and must be deleted before any store upload.
 2. **Board-per-project assumption** — `getAllEpics` (`js/api.js:145-169`) maps issue keys to boards via project key. Any org running several boards over one project will need a different mapping before M7's per-board stats are trustworthy. More pressing now that the board picker lets anyone select overlapping boards.
-3. **Velocity source for M8** — historical (needs closed-sprint data) or hand-entered per person? Historical is better and more work.
+3. ~~**Velocity source for M8**~~ — answered 2026-08-12: **historical, from the app's own stored history.** Not from closed-sprint data mined out of Jira — same reasoning as the M7 burndown, which is the precedent this follows: build history forward in `js/snapshots.js` rather than lean on `sprintreport`. **Consequence worth acting on before M8 rather than during it:** snapshots currently record team totals only (`snapshotFrom`, `js/snapshots.js:39-48`). Per-person velocity needs a `byPerson` block in the snapshot, and a forward-built history only accrues from the day it starts being written — so adding the field early is what makes the planner have anything to read when it arrives.
 4. ~~**Team scope**~~ — answered 2026-08-05: one roster, but stored under a team key from the start so a switcher can be added later without a migration.
-5. **Repo list per board?** — M11 declares one flat repo list for the whole team. An org running two products off two boards may want the panel scoped per board. Cheap to add (the allowlist is already the only scope), deliberately not guessed at.
+5. ~~**Repo list per board?**~~ — answered 2026-08-12: no, one flat list stays. Revisited only if a real team runs into it. The allowlist is already the only scope, so scoping it per board stays cheap whenever it is actually wanted.
 
 ---
 
@@ -110,7 +110,7 @@ everything write-shaped sits behind.
 **8b — Planner (L)**
 
 - Inputs: sprint length, total working days, per-person OOO days, optional focus factor.
-- Capacity: per-person points capacity derived from a configurable historical velocity or a manual points-per-day rate.
+- Capacity: per-person points capacity derived from historical velocity (open question 3, answered — the app's own snapshot history, not Jira's closed-sprint data), with a manual points-per-day rate as the fallback for a team with no history yet.
 - Carryover: unfinished issues from the previous sprint, with points, listed before you plan anything new.
 - Assignment board: drag issues from backlog to a person; live utilisation bar per member with over-allocation warnings at 100% and 120%.
 - Committed vs planned totals against team capacity, with the delta always visible.
