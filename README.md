@@ -603,10 +603,26 @@ change the shape.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) — issue detail, monitoring, standup mode, sprint
-the sprint planner is planned. M0–M7 are done: hygiene, whitelabelling,
-durable identity/config, the team roster, the monitoring tab, issue detail,
-standup mode, and the sprint dashboard.
+See [ROADMAP.md](ROADMAP.md) for the full record, including why each thing is
+built the way it is.
+
+**Done:** hygiene (M0), whitelabelling (M1), durable identity and config (M2),
+the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode
+(M6), the sprint dashboard (M7), the command palette (M9), GitHub sync (M11),
+and the Firefox and Edge ports (M12).
+
+**Open, in the order they unblock things:**
+
+| | | |
+|---|---|---|
+| M8 | Write layer + issue creation | The first real writes. Gates M9's triage mode and M4's in-app fixing, both of which are otherwise finished |
+| M13 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
+| M14 | Weekly 1:1 screen | Per-person prep sheet. Scope is a first pass, not agreed |
+| M10 | Sprint Wrapped | End-of-sprint recap for the retro |
+| M15 | Sprint start state snapshot | Placeholder, no scope yet |
+
+Everything shipped so far is read-only against Jira, with one exception: posting
+a comment from the issue detail, pulled forward from M8 during M5.
 
 ## Licence
 
