@@ -1052,7 +1052,11 @@ export async function mount(container, creds) {
 
     const title = document.createElement("div");
     title.className = "standup-github-title mono";
-    title.textContent = "GITHUB";
+    const mark = document.createElement("img");
+    mark.className = "gh-mark";
+    mark.src = "assets/logos/github.png";
+    mark.alt = "";
+    title.append(mark, document.createTextNode("GITHUB"));
     panel.appendChild(title);
 
     if (github.state === "loading" || !github.activity) {

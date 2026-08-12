@@ -731,10 +731,19 @@ label.su-card { cursor: pointer; }
   background: var(--surface);
 }
 .standup-github-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: calc(11px * var(--font-scale));
   letter-spacing: 1.5px;
   color: var(--muted);
   margin-bottom: 10px;
+}
+/* Sized off the label so the mark keeps pace with the font-scale setting. */
+.standup-github-title .gh-mark {
+  width: calc(14px * var(--font-scale));
+  height: calc(14px * var(--font-scale));
+  flex: none;
 }
 .standup-github-heading {
   font-size: calc(10px * var(--font-scale));

@@ -558,10 +558,19 @@ function sourceLink() {
   link.href = SOURCE_URL;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
-  link.textContent = "butter_jira on GitHub";
   link.title = SOURCE_URL;
   link.style.cssText =
-    "font-size:11px;color:var(--muted);position:absolute;right:16px;text-decoration:none;";
+    "display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);" +
+    "position:absolute;right:16px;text-decoration:none;";
+
+  link.appendChild(document.createTextNode("butter_jira @"));
+  const mark = document.createElement("img");
+  mark.className = "gh-mark";
+  mark.src = "assets/logos/github.png";
+  mark.alt = "GitHub";
+  mark.style.cssText = "height:13px;width:13px;display:block;";
+  link.appendChild(mark);
+
   link.addEventListener("mouseenter", () => { link.style.color = "var(--text)"; });
   link.addEventListener("mouseleave", () => { link.style.color = "var(--muted)"; });
   return link;

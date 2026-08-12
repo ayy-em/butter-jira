@@ -461,6 +461,15 @@ html, body {
 /* An unconfigured tool link keeps the warning frame but reads as inactive. */
 .nav-icon-link.unset img { opacity: 0.45; filter: grayscale(1); }
 
+/* The GitHub mark is a black disc with the cat knocked out of it, so unlike
+   the Jira and Confluence tiles it has no plate of its own to sit on: against
+   a dark surface it is a black shape on near-black. Inverting turns it into
+   the white-disc mark GitHub itself uses on dark, and the knocked-out cat
+   picks up whatever is behind it either way. */
+.gh-mark { opacity: 0.75; transition: opacity 0.15s; }
+[data-theme="dark"] .gh-mark { filter: invert(1); }
+a:hover > .gh-mark, .gh-mark:hover { opacity: 1; }
+
 /* ── Token expiry banner ─────────────────────────────────────────────────── */
 .expiry-banner {
   position: fixed;
