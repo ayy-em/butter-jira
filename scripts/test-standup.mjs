@@ -113,6 +113,46 @@ check("overrun flagged", su.isOverrun(s, overrunAt) === true);
 check("not overrun before the limit", su.isOverrun(s, T0 + 6000) === false);
 check("clock formats negatives", su.formatClock(-7000) === "-0:07");
 
+section("overrun clock growth");
+// `s` is speaking, started at T0 + 5000. overBy(n) is n seconds past the limit.
+const near = (a, b) => Math.abs(a - b) < 1e-9;
+const overBy = (sec) => T0 + 5000 + su.DEFAULT_DURATION_SEC * 1000 + sec * 1000;
+check("normal size while time remains", su.overrunScale(s, T0 + 6000) === 1);
+check("normal size at the moment the limit hits", su.overrunScale(s, overBy(0)) === 1);
+check("holds until the first five seconds are up", su.overrunScale(s, overBy(4.9)) === 1);
+check("first step at five seconds over",
+  near(su.overrunScale(s, overBy(5)), 1 + su.OVERRUN_STEP_GROWTH));
+check("holds between steps", near(su.overrunScale(s, overBy(9)), 1 + su.OVERRUN_STEP_GROWTH));
+check("second step at ten seconds over",
+  near(su.overrunScale(s, overBy(10)), 1 + 2 * su.OVERRUN_STEP_GROWTH));
+check("keeps climbing", su.overrunScale(s, overBy(30)) > su.overrunScale(s, overBy(20)));
+check("capped so the facilitator's controls stay put",
+  su.overrunScale(s, overBy(60 * 60)) === su.OVERRUN_MAX_SCALE);
+check("never below normal size",
+  [-10, 0, 3, 5, 50, 5000].every((n) => su.overrunScale(s, overBy(n)) >= 1));
+// The reset is the whole point: nothing resets this explicitly, so if it did
+// not fall out of the phase timestamps, person two would inherit person one's
+// swollen clock.
+const nextPerson = su.advance(su.advance(s, overBy(20)), overBy(20) + su.HANDOFF_SEC * 1000);
+check("back to normal for the next person",
+  nextPerson.phase === su.PHASES.SPEAKING && su.overrunScale(nextPerson, overBy(21)) === 1);
+const counting = su.createSession({ participants: people(2), seed: 5, now: T0 });
+check("countdown phase never swells", su.overrunScale(counting, T0 + 999999) === 1);
+
+section("sprint label trimming");
+check("drops the descriptive tail", su.trimSprintLabel("DP-82: Blah-blah") === "DP-82");
+check("keeps a bare identifier", su.trimSprintLabel("DP-82") === "DP-82");
+check("cuts at the first number, not the last",
+  su.trimSprintLabel("Sprint 12 — week 3") === "Sprint 12");
+check("multi-digit runs stay whole", su.trimSprintLabel("DP-1234: things") === "DP-1234");
+check("trailing punctuation goes", su.trimSprintLabel("DP-82 (carry-over)") === "DP-82");
+check("a name with no digits is left alone",
+  su.trimSprintLabel("Hardening sprint") === "Hardening sprint");
+check("empty string tolerated", su.trimSprintLabel("") === "");
+check("missing name does not throw", su.trimSprintLabel(undefined) === undefined);
+check("trimming collapses two names for the same sprint",
+  new Set(["DP-82: Payments", "DP-82 (carry-over)"].map(su.trimSprintLabel)).size === 1);
+
 section("pause arithmetic");
 s = su.createSession({ participants: people(2), seed: 5, now: T0 });
 s = su.advance(s, T0);                       // speaking from T0
@@ -267,6 +307,58 @@ check("legacy empty notes -> no entries",
   Object.keys(su.migrateSessionNotes({ order: ["a"], index: 0, notes: "   " }).notesByPerson).length === 0);
 check("existing per-person notes left alone",
   su.migrateSessionNotes({ order: ["a"], index: 0, notesByPerson: { a: "keep" } }).notesByPerson.a === "keep");
+
+section("slack digest — plain text");
+const digestEntries = [
+  { who: "@tulio", note: "TBD re: dbt restructure" },
+  { who: "@ruben", note: "Avro remains king\nbackfill in progress\n" },
+];
+const digest = su.digestText({
+  title: "Standup - 12.08.2026",
+  entries: digestEntries,
+  signoff: su.DIGEST_SIGNOFF,
+});
+check("title first, then a blank line",
+  digest.split("\n").slice(0, 2).join("|") === "Standup - 12.08.2026|");
+check("single-line note shares the bullet with the mention",
+  digest.includes("- @tulio - TBD re: dbt restructure"));
+check("multi-line note becomes sub-bullets under the mention",
+  digest.includes("- @ruben\n    - Avro remains king\n    - backfill in progress"));
+check("sign-off closes the message", digest.endsWith(`\n\n${su.DIGEST_SIGNOFF}`));
+check("blank lines inside a note are dropped",
+  su.digestText({ entries: [{ who: "@a", note: "one\n\n\ntwo" }] })
+    === "- @a\n    - one\n    - two");
+check("hand-typed bullets are not doubled",
+  su.digestText({ entries: [{ who: "@a", note: "- one\n• two" }] })
+    === "- @a\n    - one\n    - two");
+check("a person with no note still gets a bullet",
+  su.digestText({ entries: [{ who: "@a", note: "" }] }) === "- @a");
+check("no title and no sign-off means no stray blank lines",
+  su.digestText({ entries: [{ who: "@a", note: "x" }] }) === "- @a - x");
+check("nothing at all is empty, not a crash", su.digestText() === "");
+
+section("slack digest — clipboard HTML");
+const html = su.digestHtml(digest);
+check("first line is bold", html.startsWith("<p><b>Standup - 12.08.2026</b></p>"));
+check("one list wraps every person",
+  (html.match(/<ul>/g) || []).length === 2 && html.includes("<ul><li>@tulio"));
+check("sub-bullets nest inside their person's item",
+  html.includes("<li>@ruben<ul><li>Avro remains king</li><li>backfill in progress</li></ul></li>"));
+check("sign-off is a plain paragraph, not bold",
+  html.endsWith(`<p>${su.DIGEST_SIGNOFF}</p>`));
+check("html in a note is escaped, not injected",
+  su.digestHtml("- <script>x</script> & co")
+    === "<ul><li>&lt;script&gt;x&lt;/script&gt; &amp; co</li></ul>");
+check("urls become links",
+  su.digestHtml("- see https://x.test/a?b=1&c=2 now")
+    .includes('<a href="https://x.test/a?b=1&amp;c=2">https://x.test/a?b=1&amp;c=2</a>'));
+check("trailing punctuation stays out of the link",
+  su.digestHtml("- see https://x.test/a.").includes("</a>.</li>"));
+check("an edited box with an extra paragraph still parses",
+  su.digestHtml("Title\n\n- a\n\nPS: later").endsWith("<p>PS: later</p>"));
+check("a sub-bullet with no parent is promoted, not dropped",
+  su.digestHtml("    - orphan") === "<ul><li>orphan</li></ul>");
+check("empty text yields empty html", su.digestHtml("") === "");
 
 section("attendance prefs");
 local = {};

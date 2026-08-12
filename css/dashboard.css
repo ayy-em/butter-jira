@@ -26,7 +26,7 @@
 
 .dash-header { margin-bottom: 16px; }
 .dash-title {
-  font-size: 19px;
+  font-size: calc(19px * var(--font-scale));
   font-weight: 600;
   color: var(--text);
   margin-bottom: 4px;
@@ -35,14 +35,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   color: var(--muted);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
 }
 .dash-header-meta .dash-overdue { color: var(--accent-danger); }
 .dash-goal {
   margin-top: 8px;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   color: var(--text);
   border-left: 2px solid var(--border);
   padding-left: 10px;
@@ -73,7 +73,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--muted);
@@ -88,7 +88,7 @@
   height: 13px;
   border: 1px solid var(--border);
   border-radius: 50%;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   cursor: help;
 }
 
@@ -97,17 +97,17 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 26px;
+  font-size: calc(26px * var(--font-scale));
   font-weight: 600;
   line-height: 1.1;
   color: var(--text);
 }
-.dash-tile-hero .dash-tile-value { font-size: 48px; }
-.dash-tile-icon { font-size: 15px; }
+.dash-tile-hero .dash-tile-value { font-size: calc(48px * var(--font-scale)); }
+.dash-tile-icon { font-size: calc(15px * var(--font-scale)); }
 
 .dash-tile-detail {
   margin-top: 5px;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--muted);
   line-height: 1.4;
 }
@@ -131,7 +131,7 @@
 }
 .dash-card-head { display: flex; align-items: baseline; gap: 12px; }
 .dash-card-title {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1.2px;
   color: var(--muted);
@@ -140,12 +140,12 @@
 }
 .dash-readout {
   margin-left: auto;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--muted);
 }
 .dash-readout.behind { color: var(--accent-warning); }
 
-.dash-note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+.dash-note { font-size: calc(11px * var(--font-scale)); color: var(--muted); margin-top: 8px; line-height: 1.5; }
 .dash-burndown-empty { text-align: left; line-height: 1.55; padding: 14px 0; }
 
 .dash-grid {
@@ -160,21 +160,21 @@
 .chart { display: block; overflow: visible; }
 
 /* Text wears text tokens; the marks carry the colour. */
-.chart-label { fill: var(--muted); font-size: 11px; font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif; }
+.chart-label { fill: var(--muted); font-size: calc(11px * var(--font-scale)); font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif; }
 .chart-value {
   fill: var(--text);
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 .chart-tick {
   fill: var(--muted);
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 .chart-inline-label {
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   font-weight: 600;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
 }
@@ -188,7 +188,7 @@
 
 .chart-empty {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   padding: 18px 0;
   text-align: center;
 }
@@ -203,7 +203,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--muted);
 }
 .chart-swatch {
@@ -226,11 +226,11 @@
 
 /* ── Person table ─────────────────────────────────────────────────────────── */
 
-.dash-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.dash-table { width: 100%; border-collapse: collapse; font-size: calc(12px * var(--font-scale)); }
 .dash-table th {
   text-align: left;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 0.8px;
   color: var(--muted);
@@ -247,7 +247,7 @@
 .dash-person-name { color: var(--text); }
 .dash-outside {
   margin-left: 6px;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--muted);
@@ -279,7 +279,7 @@
   border-radius: 4px;
 }
 .dash-meter-value {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--text);
   font-variant-numeric: tabular-nums;
   min-width: 28px;

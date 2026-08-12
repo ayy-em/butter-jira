@@ -22,7 +22,6 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  flex-wrap: wrap;
 }
 /* The meta line starts at the icon's left edge, not the title's, so it reads as
    a caption for the whole header rather than for the subtitle above it. */
@@ -43,13 +42,13 @@
 }
 .su-titles { grid-row: 1; min-width: 0; }
 .su-title {
-  font-size: 21px;
+  font-size: calc(21px * var(--font-scale));
   font-weight: 600;
   letter-spacing: -0.2px;
   color: var(--text);
   line-height: 1.15;
 }
-.su-subtitle { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.su-subtitle { font-size: calc(12.5px * var(--font-scale)); color: var(--muted); margin-top: 2px; }
 
 .su-meta {
   grid-column: 1 / -1;
@@ -58,7 +57,7 @@
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 12px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   color: var(--muted);
 }
 .su-meta-item { display: inline-flex; align-items: center; gap: 6px; }
@@ -91,19 +90,19 @@
 .su-tile-icon { display: flex; color: var(--tone, var(--muted)); grid-row: 1; }
 .su-tile-num {
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 20px; font-weight: 600; color: var(--text); line-height: 1.1;
+  font-size: calc(20px * var(--font-scale)); font-weight: 600; color: var(--text); line-height: 1.1;
   white-space: nowrap;
 }
 .su-tile-unit {
   font-style: normal;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   font-weight: 400;
   color: var(--muted);
   margin-left: 3px;
 }
 .su-tile-label {
   grid-column: 1 / -1;
-  font-size: 10.5px; color: var(--muted); white-space: nowrap;
+  font-size: calc(10.5px * var(--font-scale)); color: var(--muted); white-space: nowrap;
   margin-top: 2px;
 }
 .su-tile.tone-blue   { --tone: #4F8EF7; }
@@ -118,7 +117,7 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--font-scale));
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -163,15 +162,15 @@
   background: color-mix(in srgb, #A855F7 22%, transparent);
   color: #A855F7;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px; font-weight: 600;
+  font-size: calc(12px * var(--font-scale)); font-weight: 600;
 }
-.su-panel-title { font-size: 16px; font-weight: 600; color: var(--text); }
-.su-panel-hint { font-size: 12px; color: var(--muted); }
+.su-panel-title { font-size: calc(16px * var(--font-scale)); font-weight: 600; color: var(--text); }
+.su-panel-hint { font-size: calc(12px * var(--font-scale)); color: var(--muted); }
 .su-panel-actions {
   margin-left: auto;
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
 }
-.su-field-label { font-size: 12px; color: var(--muted); }
+.su-field-label { font-size: calc(12px * var(--font-scale)); color: var(--muted); }
 
 .su-segmented {
   display: flex;
@@ -184,7 +183,7 @@
 .su-seg {
   background: none; border: none; cursor: pointer;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   padding: 5px 13px; border-radius: 5px;
   transition: background 0.12s, color 0.12s;
 }
@@ -200,7 +199,7 @@
 .su-step-btn {
   width: 30px; height: 30px;
   background: none; border: none; cursor: pointer;
-  color: var(--muted); font-size: 15px; line-height: 1;
+  color: var(--muted); font-size: calc(15px * var(--font-scale)); line-height: 1;
   transition: background 0.12s, color 0.12s;
 }
 .su-step-btn:hover { background: var(--surface); color: var(--text); }
@@ -208,7 +207,7 @@
   min-width: 62px;
   text-align: center;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   color: var(--text);
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
@@ -228,7 +227,7 @@
   border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   color: var(--text);
   transition: background 0.12s, border-color 0.12s;
 }
@@ -245,12 +244,12 @@
 }
 .su-avatar-fallback {
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 600; color: var(--text);
+  font-size: calc(11px * var(--font-scale)); font-weight: 600; color: var(--text);
 }
 .su-person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .su-person-items {
-  font-size: 11.5px; color: var(--muted); text-align: right; white-space: nowrap;
+  font-size: calc(11.5px * var(--font-scale)); color: var(--muted); text-align: right; white-space: nowrap;
 }
 .su-person-items.none { color: var(--accent-warning); }
 
@@ -265,14 +264,14 @@
 
 .su-person-prs {
   display: inline-flex; align-items: center; gap: 7px;
-  font-size: 11.5px; color: var(--muted); white-space: nowrap;
+  font-size: calc(11.5px * var(--font-scale)); color: var(--muted); white-space: nowrap;
 }
 .su-person-prs.on { color: var(--accent-success); }
 .su-person-prs.absent { justify-content: center; opacity: 0.5; }
 
 .su-person-flag {
   display: inline-flex; align-items: center; gap: 7px;
-  font-size: 11.5px; white-space: nowrap;
+  font-size: calc(11.5px * var(--font-scale)); white-space: nowrap;
 }
 .su-person-flag.ok { color: var(--muted); }
 .su-person-flag.warn { color: var(--accent-warning); }
@@ -285,7 +284,7 @@
   border-radius: 6px;
   color: var(--text);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   padding: 6px 6px;
   cursor: pointer;
   outline: none;
@@ -316,12 +315,12 @@
 label.su-card { cursor: pointer; }
 .su-card-head { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
 .su-card-icon { display: flex; color: var(--text); }
-.su-card-title { font-size: 14px; font-weight: 600; color: var(--text); }
-.su-card-note { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.su-card-title { font-size: calc(14px * var(--font-scale)); font-weight: 600; color: var(--text); }
+.su-card-note { font-size: calc(12px * var(--font-scale)); color: var(--muted); line-height: 1.45; }
 
 .su-chip {
   margin-left: auto;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--muted);
   white-space: nowrap;
 }
@@ -342,14 +341,14 @@ label.su-card { cursor: pointer; }
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 30px;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 5px 11px;
 }
-.su-key-what { font-size: 12px; color: var(--muted); }
+.su-key-what { font-size: calc(12px * var(--font-scale)); color: var(--muted); }
 
 /* ── Start ────────────────────────────────────────────────────────────────── */
 
@@ -358,13 +357,13 @@ label.su-card { cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: 7px;
   color: var(--text);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--font-scale));
   padding: 8px 14px;
   cursor: pointer;
   transition: border-color 0.12s, filter 0.12s;
 }
 .su-btn:hover { border-color: var(--muted); }
-.su-btn.small { font-size: 11.5px; padding: 5px 11px; }
+.su-btn.small { font-size: calc(11.5px * var(--font-scale)); padding: 5px 11px; }
 .su-btn.ghost { background: none; color: var(--muted); }
 .su-btn.ghost:hover { color: var(--text); }
 .su-btn.primary {
@@ -385,7 +384,7 @@ label.su-card { cursor: pointer; }
   border-radius: 10px;
   color: #fff;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 17px;
+  font-size: calc(17px * var(--font-scale));
   font-weight: 600;
   letter-spacing: 1px;
   padding: 12px;
@@ -419,7 +418,7 @@ label.su-card { cursor: pointer; }
 }
 
 .standup-title {
-  font-size: 17px;
+  font-size: calc(17px * var(--font-scale));
   font-weight: 600;
   letter-spacing: 2px;
   text-align: center;
@@ -430,7 +429,7 @@ label.su-card { cursor: pointer; }
    room, so it gets the room-sized version. Only the summary — the setup card is
    read by one person at a laptop. */
 .standup-title.done {
-  font-size: clamp(34px, 6vmin, 56px);
+  font-size: calc(clamp(34px, 6vmin, 56px) * var(--font-scale));
   letter-spacing: 3px;
   line-height: 1.1;
   margin-bottom: 10px;
@@ -438,7 +437,7 @@ label.su-card { cursor: pointer; }
 .standup-subtitle {
   text-align: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   margin-bottom: 18px;
 }
 .standup-bulk {
@@ -459,7 +458,7 @@ label.su-card { cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: 5px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   color: var(--text);
   text-transform: none;
   letter-spacing: 0;
@@ -467,7 +466,7 @@ label.su-card { cursor: pointer; }
 }
 .standup-person.in { border-color: var(--accent-primary); }
 .standup-person-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.standup-person-count { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.standup-person-count { font-size: calc(10px * var(--font-scale)); color: var(--muted); white-space: nowrap; }
 .standup-person-count.none { color: var(--accent-warning); }
 .standup-person-count.over { color: var(--accent-danger); }
 
@@ -482,14 +481,14 @@ label.su-card { cursor: pointer; }
   border: 1px solid var(--border);
   color: var(--text);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   padding: 9px 14px;
   border-radius: 5px;
   cursor: pointer;
   transition: border-color 0.15s, opacity 0.15s;
 }
 .standup-btn:hover { border-color: var(--muted); }
-.standup-btn.small { font-size: 11px; padding: 5px 10px; }
+.standup-btn.small { font-size: calc(11px * var(--font-scale)); padding: 5px 10px; }
 .standup-btn.ghost { background: none; color: var(--muted); }
 .standup-btn.ghost:hover { color: var(--text); }
 .standup-btn:disabled { opacity: 0.45; cursor: default; }
@@ -507,7 +506,7 @@ label.su-card { cursor: pointer; }
 
 .standup-hint {
   text-align: center;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--muted);
   margin-top: 10px;
   letter-spacing: 0.5px;
@@ -532,7 +531,7 @@ label.su-card { cursor: pointer; }
   text-align: center;
 }
 .standup-interstitial-label {
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   letter-spacing: 4px;
   color: var(--muted);
 }
@@ -540,7 +539,7 @@ label.su-card { cursor: pointer; }
    anyone looks up at when the screen changes. Sized off vmin so a short, wide
    meeting-room display scales it down rather than overflowing. */
 .standup-interstitial-label.handoff {
-  font-size: clamp(26px, 5.5vmin, 60px);
+  font-size: calc(clamp(26px, 5.5vmin, 60px) * var(--font-scale));
   letter-spacing: 3px;
   text-transform: uppercase;
   color: var(--text);
@@ -572,9 +571,9 @@ label.su-card { cursor: pointer; }
 }
 
 .standup-bigcount {
-  font-size: clamp(80px, 18vw, 200px);
+  font-size: calc(clamp(80px, 18vw, 200px) * var(--font-scale));
 }
-.standup-interstitial-name { font-size: 18px; color: var(--muted); }
+.standup-interstitial-name { font-size: calc(18px * var(--font-scale)); color: var(--muted); }
 
 .standup-handoff { animation: handoff-in 0.35s ease; }
 @keyframes handoff-in {
@@ -592,14 +591,14 @@ label.su-card { cursor: pointer; }
   border: 4px solid var(--accent-primary);
 }
 .standup-handoff-name {
-  font-size: clamp(42px, 9vmin, 104px);
+  font-size: calc(clamp(42px, 9vmin, 104px) * var(--font-scale));
   font-weight: 600;
   line-height: 1.05;
   letter-spacing: -0.5px;
   text-align: center;
   color: var(--text);
 }
-.standup-handoff-clock { font-size: clamp(48px, 11vmin, 130px); }
+.standup-handoff-clock { font-size: calc(clamp(48px, 11vmin, 130px) * var(--font-scale)); }
 
 .standup-speaking { display: flex; flex-direction: column; height: 100%; }
 
@@ -614,29 +613,50 @@ label.su-card { cursor: pointer; }
 }
 .standup-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .standup-who-name {
-  font-size: clamp(18px, 2.4vw, 30px);
+  font-size: calc(clamp(18px, 2.4vw, 30px) * var(--font-scale));
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
 }
-.standup-position { font-size: 11px; color: var(--muted); }
+/* "3 / 9" — how far through the round we are. Sized up to be legible from the
+   back of the room and set apart from the name, since the two run together in
+   the same flex row and read as one string when they are only a gap apart.
+   The rem unit is deliberate and must NOT be wrapped in calc(… * --font-scale)
+   like the px sizes elsewhere: rem resolves against the root font-size, which
+   is itself calc(14px * var(--font-scale)), so the scale is already in it.
+   Wrapping it would apply the scale twice. */
+.standup-position {
+  font-size: 1.75rem;
+  margin-left: 18px;
+  color: var(--muted);
+}
 
+/* --overrun-scale is written by paintClock: 1 while there is time left, then a
+   step larger every five seconds someone runs over. Multiplied in here rather
+   than assigned as a px size from JS so the clamp keeps doing its job on a
+   narrow window, and so the growth is one number to change.
+   The transition matters — stepping 12% every five seconds reads as a slow
+   swell rather than a jolt, which is the point: it should nag, not startle. */
 .standup-clock {
-  font-size: clamp(30px, 4.5vw, 60px);
+  font-size: calc(clamp(30px, 4.5vw, 60px) * var(--font-scale) * var(--overrun-scale, 1));
   font-weight: 600;
   line-height: 1;
   color: var(--text);
   margin-left: auto;
   font-variant-numeric: tabular-nums;
+  transition: font-size 0.6s ease-out;
 }
 .standup-clock.overrun { color: var(--accent-danger); }
 .standup-clock.paused { opacity: 0.45; }
+@media (prefers-reduced-motion: reduce) {
+  .standup-clock { transition: none; }
+}
 
 /* Top-bar controls are driven from across the room, so they are sized well above
    the .small buttons used on the setup card. */
 .standup-controls { display: flex; align-items: center; gap: 10px; }
 .standup-btn.standup-ctrl {
-  font-size: 15px;
+  font-size: calc(15px * var(--font-scale));
   font-weight: 600;
   padding: 12px 20px;
   border-radius: 6px;
@@ -667,16 +687,29 @@ label.su-card { cursor: pointer; }
 .standup-work > .standup-board,
 .standup-work > .standup-empty { flex: 1; min-width: 0; }
 
+/* Unlike the Kanban view, the stage never scrolls sideways: it is being
+   projected, and a column parked off-screen is a column nobody discusses.
+   Every status group is on screen at once and they share the width evenly.
+   Overriding .kanban-board, which this element also carries — the Kanban view
+   keeps its 260px columns and its horizontal scroll. */
 .standup-board {
   flex: 1;
   min-height: 0;
   padding: 14px 18px;
-  overflow-x: auto;
+  overflow-x: hidden;
+}
+/* flex-basis 0 rather than auto so the split is even regardless of how much is
+   in each column, and min-width 0 to let them shrink past their content —
+   without it a flex item refuses to go below its intrinsic width and the
+   scrollbar comes straight back. */
+.standup-board .kanban-column {
+  flex: 1 1 0;
+  min-width: 0;
 }
 /* Readable from across a room. */
-.standup-board .kanban-card-summary { font-size: 15px; line-height: 1.4; }
+.standup-board .kanban-card-summary { font-size: calc(15px * var(--font-scale)); line-height: 1.4; }
 .standup-board .kanban-card { padding-bottom: 10px; }
-.standup-board .kanban-col-header { font-size: 13px; }
+.standup-board .kanban-col-header { font-size: calc(13px * var(--font-scale)); }
 
 .standup-empty {
   flex: 1;
@@ -684,7 +717,7 @@ label.su-card { cursor: pointer; }
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  font-size: 17px;
+  font-size: calc(17px * var(--font-scale));
 }
 
 /* ── GitHub panel ────────────────────────────────────────────────────────── */
@@ -698,13 +731,13 @@ label.su-card { cursor: pointer; }
   background: var(--surface);
 }
 .standup-github-title {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   letter-spacing: 1.5px;
   color: var(--muted);
   margin-bottom: 10px;
 }
 .standup-github-heading {
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--muted);
@@ -713,7 +746,7 @@ label.su-card { cursor: pointer; }
   border-top: 1px solid var(--border);
 }
 .standup-github-heading:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
-.standup-github-note { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.standup-github-note { font-size: calc(13px * var(--font-scale)); color: var(--muted); line-height: 1.5; }
 
 .standup-github-row {
   display: block;
@@ -727,7 +760,7 @@ label.su-card { cursor: pointer; }
 }
 .standup-github-row:hover { border-color: var(--accent-primary); }
 .standup-github-summary {
-  font-size: 14px;
+  font-size: calc(14px * var(--font-scale));
   line-height: 1.35;
   /* Two lines is enough to recognise a PR from across the room; past that the
      title is a description, and the link is one click away. */
@@ -739,7 +772,7 @@ label.su-card { cursor: pointer; }
 .standup-github-meta {
   display: block;
   margin-top: 4px;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   color: var(--muted);
 }
 .standup-github-state {
@@ -748,7 +781,7 @@ label.su-card { cursor: pointer; }
   margin-right: 5px;
   border-radius: 3px;
   border: 1px solid currentColor;
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -767,7 +800,7 @@ label.su-card { cursor: pointer; }
 }
 .standup-parking-label {
   display: block;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--muted);
@@ -777,7 +810,7 @@ label.su-card { cursor: pointer; }
    under a board — so it gets a real heading and room above it. In-session it
    keeps the compact chrome, where it shares the stage with a clock. */
 .standup-parking-label.summary {
-  font-size: 15px;
+  font-size: calc(15px * var(--font-scale));
   letter-spacing: 1.5px;
   color: var(--text);
   margin-top: 34px;
@@ -791,7 +824,7 @@ label.su-card { cursor: pointer; }
   border-radius: 5px;
   color: var(--text);
   font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
-  font-size: 15px;
+  font-size: calc(15px * var(--font-scale));
   line-height: 1.45;
   padding: 10px 12px;
   resize: vertical;
@@ -809,7 +842,7 @@ label.su-card { cursor: pointer; }
   border-radius: 5px;
   color: var(--text);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   line-height: 1.6;
   padding: 10px 12px;
   margin-bottom: 10px;

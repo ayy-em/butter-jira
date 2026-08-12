@@ -70,7 +70,10 @@ globalThis.fetch = async (input) => {
   const url = String(input);
   const json = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
   if (url.includes("/sprint?") || url.endsWith("/sprint")) {
-    return json({ values: [{ id: 41, name: "Sprint 41", state: "active" }] });
+    // Named the way a board owner actually names one — identifier plus a
+    // description — so the setup card's sprint line shows the trim doing its
+    // job rather than a name that happens to need no trimming.
+    return json({ values: [{ id: 41, name: "Sprint 41: Payments hardening", state: "active" }] });
   }
   if (url.includes("/sprint/41/issue")) {
     return json({ issues: SPRINT_ISSUES, total: SPRINT_ISSUES.length });

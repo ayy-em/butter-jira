@@ -58,7 +58,7 @@
   height: 26px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
 }
 .issue-drawer-close:hover { color: var(--text); border-color: var(--muted); }
 
@@ -86,11 +86,11 @@ body.issue-page-body {
 .issue-page-home {
   color: var(--muted);
   text-decoration: none;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   letter-spacing: 0.5px;
 }
 .issue-page-home:hover { color: var(--text); }
-.issue-page-site { color: var(--muted); font-size: 11px; margin-left: auto; }
+.issue-page-site { color: var(--muted); font-size: calc(11px * var(--font-scale)); margin-left: auto; }
 
 .issue-page-main { max-width: 900px; margin: 0 auto; padding: 8px 18px 60px; }
 
@@ -106,7 +106,7 @@ body.issue-page-body {
   border: 1px solid var(--accent-danger);
   border-radius: 6px;
   color: var(--accent-danger);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   text-align: center;
 }
 
@@ -122,7 +122,7 @@ body.issue-page-body {
 }
 
 .issue-detail-key {
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--accent-primary);
@@ -132,7 +132,7 @@ body.issue-page-body {
 
 .issue-status-badge {
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.6px;
@@ -146,13 +146,13 @@ body.issue-page-body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--muted);
 }
 .issue-type-icon { width: 14px; height: 14px; }
 
 .issue-header-link {
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   color: var(--muted);
   text-decoration: none;
   border: 1px solid var(--border);
@@ -163,7 +163,7 @@ body.issue-page-body {
 .issue-header-link:hover { color: var(--text); border-color: var(--muted); }
 
 .issue-summary {
-  font-size: 21px;
+  font-size: calc(21px * var(--font-scale));
   font-weight: 600;
   line-height: 1.35;
   color: var(--text);
@@ -175,13 +175,13 @@ body.issue-page-body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   color: var(--muted);
   margin-top: 4px;
   flex-wrap: wrap;
 }
 .issue-parent-label {
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 0.8px;
   border: 1px solid var(--border);
@@ -201,13 +201,13 @@ body.issue-page-body {
   margin-bottom: 24px;
 }
 .issue-meta-label {
-  font-size: 9px;
+  font-size: calc(9px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--muted);
   margin-bottom: 4px;
 }
-.issue-meta-value { font-size: 13px; color: var(--text); }
+.issue-meta-value { font-size: calc(13px * var(--font-scale)); color: var(--text); }
 .issue-meta-value.muted, .issue-person.muted { color: var(--muted); }
 .issue-meta-value.overdue { color: var(--accent-danger); }
 
@@ -215,13 +215,13 @@ body.issue-page-body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   color: var(--text);
 }
 .issue-avatar { width: 20px; height: 20px; border-radius: 50%; flex: 0 0 20px; }
 
 .issue-section-title {
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1.2px;
   color: var(--muted);
@@ -231,16 +231,16 @@ body.issue-page-body {
 }
 .issue-content > .issue-section-title:first-of-type { margin-top: 0; }
 
-.issue-empty-note { color: var(--muted); font-size: 13px; font-style: italic; }
+.issue-empty-note { color: var(--muted); font-size: calc(13px * var(--font-scale)); font-style: italic; }
 
 /* ── Rendered Jira content (post-sanitiser) ───────────────────────────────── */
 
-.rich-text { font-size: 14px; line-height: 1.6; color: var(--text); overflow-wrap: break-word; }
+.rich-text { font-size: calc(14px * var(--font-scale)); line-height: 1.6; color: var(--text); overflow-wrap: break-word; }
 .rich-text > *:not(:last-child) { margin-bottom: 10px; }
 .rich-text p { margin-bottom: 10px; }
 .rich-text h1, .rich-text h2, .rich-text h3,
 .rich-text h4, .rich-text h5, .rich-text h6 {
-  font-size: 15px;
+  font-size: calc(15px * var(--font-scale));
   font-weight: 600;
   margin: 16px 0 8px;
 }
@@ -249,7 +249,7 @@ body.issue-page-body {
 .rich-text a { color: var(--accent-primary); }
 .rich-text code {
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 3px;
@@ -261,7 +261,7 @@ body.issue-page-body {
   border-radius: 4px;
   padding: 10px 12px;
   overflow-x: auto;
-  font-size: 12px;
+  font-size: calc(12px * var(--font-scale));
 }
 .rich-text pre code { border: none; background: none; padding: 0; }
 .rich-text blockquote {
@@ -270,7 +270,7 @@ body.issue-page-body {
   color: var(--muted);
 }
 .rich-text img { max-width: 100%; height: auto; border-radius: 4px; }
-.rich-text table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.rich-text table { border-collapse: collapse; width: 100%; font-size: calc(13px * var(--font-scale)); }
 .rich-text th, .rich-text td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
 .rich-text th { background: var(--surface); font-weight: 600; }
 .rich-text hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
@@ -280,7 +280,7 @@ body.issue-page-body {
 
 .issue-link-group { margin-bottom: 12px; }
 .issue-link-label {
-  font-size: 10px;
+  font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 0.8px;
   color: var(--muted);
@@ -292,7 +292,7 @@ body.issue-page-body {
   gap: 9px;
   padding: 6px 0;
   border-top: 1px solid var(--border);
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
 }
 .issue-link-summary {
   color: var(--text);
@@ -317,9 +317,9 @@ body.issue-page-body {
   gap: 10px;
   margin-bottom: 7px;
 }
-.issue-comment-when, .issue-comment-edited { font-size: 11px; color: var(--muted); }
+.issue-comment-when, .issue-comment-edited { font-size: calc(11px * var(--font-scale)); color: var(--muted); }
 .issue-comment-edited { font-style: italic; }
-.issue-comment-body { font-size: 13px; }
+.issue-comment-body { font-size: calc(13px * var(--font-scale)); }
 
 .issue-reply { margin-top: 16px; }
 .issue-reply-input {
@@ -329,7 +329,7 @@ body.issue-page-body {
   border-radius: 5px;
   color: var(--text);
   font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
-  font-size: 13px;
+  font-size: calc(13px * var(--font-scale));
   line-height: 1.5;
   padding: 10px 12px;
   resize: vertical;
@@ -343,7 +343,7 @@ body.issue-page-body {
   gap: 10px;
   margin-top: 8px;
 }
-.issue-reply-status { font-size: 11px; color: var(--muted); margin-right: auto; }
+.issue-reply-status { font-size: calc(11px * var(--font-scale)); color: var(--muted); margin-right: auto; }
 .issue-reply-status.ok { color: var(--accent-success); }
 .issue-reply-status.error { color: var(--accent-danger); }
 
@@ -352,7 +352,7 @@ body.issue-page-body {
   border: none;
   border-radius: 4px;
   color: #fff;
-  font-size: 11px;
+  font-size: calc(11px * var(--font-scale));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.8px;

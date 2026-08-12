@@ -101,7 +101,7 @@ export function renderIssueCard(issue, creds, { showAssignee = true } = {}) {
   if (pIcon) {
     const pi = document.createElement("span");
     pi.textContent = pIcon;
-    pi.style.fontSize = "12px";
+    pi.style.fontSize = "calc(12px * var(--font-scale))";
     right.appendChild(pi);
   }
   const typeBadge = document.createElement("span");
@@ -132,7 +132,7 @@ export function renderIssueCard(issue, creds, { showAssignee = true } = {}) {
         const ph = makePlaceholder(f.assignee.displayName);
         ph.style.width = "18px";
         ph.style.height = "18px";
-        ph.style.fontSize = "9px";
+        ph.style.fontSize = "calc(9px * var(--font-scale))";
         img.replaceWith(ph);
       };
       footer.appendChild(img);
@@ -140,7 +140,7 @@ export function renderIssueCard(issue, creds, { showAssignee = true } = {}) {
       const ph = makePlaceholder(f.assignee.displayName);
       ph.style.width = "18px";
       ph.style.height = "18px";
-      ph.style.fontSize = "9px";
+      ph.style.fontSize = "calc(9px * var(--font-scale))";
       footer.appendChild(ph);
     }
     const nm = document.createElement("span");

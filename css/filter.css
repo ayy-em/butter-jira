@@ -11,7 +11,7 @@
     border: 1px solid var(--border);
     border-radius: 4px;
     color: var(--text);
-    font-size: 12px;
+    font-size: calc(12px * var(--font-scale));
     width: 180px;
     outline: none;
   }
@@ -21,7 +21,7 @@
     background: transparent;
     border: 1px solid var(--border);
     color: var(--muted);
-    font-size: 11px;
+    font-size: calc(11px * var(--font-scale));
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 5px 12px;
@@ -47,7 +47,7 @@
     align-items: center;
     gap: 8px;
     padding: 5px 8px;
-    font-size: 12px;
+    font-size: calc(12px * var(--font-scale));
     border-radius: 3px;
     cursor: pointer;
     color: var(--text);
@@ -62,7 +62,7 @@
     background: transparent;
     border: 1px solid var(--border);
     color: var(--muted);
-    font-size: 11px;
+    font-size: calc(11px * var(--font-scale));
     text-transform: uppercase;
     letter-spacing: 0.5px;
     padding: 5px 12px;

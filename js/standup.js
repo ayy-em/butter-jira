@@ -175,6 +175,30 @@ export function isOverrun(session, now) {
   return session.phase === PHASES.SPEAKING && phaseRemainingMs(session, now) < 0;
 }
 
+// How much the clock swells while someone runs over: one step every five
+// seconds of overrun, so the timer grows on its own until the room notices.
+// Red alone stops being information once every second person ends up in it;
+// size keeps climbing, so a ten-second overrun and a two-minute one no longer
+// look the same from the back of the room.
+//
+// Capped because the clock shares a flex row with the facilitator's controls —
+// past roughly double it wraps them onto a second line and the "Next" button
+// starts moving around mid-standup, which is worse than a smaller number.
+export const OVERRUN_STEP_SEC = 5;
+export const OVERRUN_STEP_GROWTH = 0.12;
+export const OVERRUN_MAX_SCALE = 2;
+
+// Derived from the timestamps like everything else here, never accumulated:
+// the multiplier is a function of how long this phase has been over, so it
+// falls back to 1 by itself on the next person, on a rewind, and on the +1 min
+// button — none of which need to know it exists.
+export function overrunScale(session, now) {
+  if (!isOverrun(session, now)) return 1;
+  const overMs = -phaseRemainingMs(session, now);
+  const steps = Math.floor(overMs / (OVERRUN_STEP_SEC * 1000));
+  return Math.min(OVERRUN_MAX_SCALE, 1 + steps * OVERRUN_STEP_GROWTH);
+}
+
 // True when a timed phase has run out. Speaking never expires on its own: the
 // facilitator decides when to move on.
 export function shouldAutoAdvance(session, now) {
@@ -278,6 +302,21 @@ export function formatClock(ms) {
   return `${sign}${mins}:${String(secs).padStart(2, "0")}`;
 }
 
+// Sprint names come out of Jira carrying whatever the board owner typed after
+// the identifier — "DP-82: Payments hardening", "DP-82 (carry-over)". On the
+// setup card they are a one-line "which sprints are we in" note, several of
+// them joined by dots, so everything past the identifier is noise that pushes
+// the line to wrap.
+//
+// The identifier is taken as everything up to and including the first run of
+// digits: "DP-82: Blah" → "DP-82", "Sprint 12 — week 3" → "Sprint 12". A name
+// with no digits at all has no identifier to find and is left alone rather
+// than being emptied.
+export function trimSprintLabel(name) {
+  const match = /\d+/.exec(name || "");
+  return match ? name.slice(0, match.index + match[0].length) : name;
+}
+
 // ── Persistence ──────────────────────────────────────────────────────────────
 // Device-local: attendance and durations are about people, and a half-finished
 // session is only meaningful on the machine running the standup.
@@ -320,6 +359,104 @@ export function notesEntries(session) {
 
 export async function clearSession() {
   await localRemove([SESSION_KEY]);
+}
+
+// ── Slack digest ─────────────────────────────────────────────────────────────
+//
+// One message in two representations: plain text, which is what the facilitator
+// reads and edits in the box, and HTML, which is what Slack actually reads off
+// the clipboard and turns into real bullets and bold. The HTML is derived from
+// the text rather than built beside it, so edits made in the box survive the
+// copy and the two can never drift apart.
+
+export const DIGEST_HEADING = "Daily Standup Action Points";
+export const DIGEST_EMOJI = "📌";
+export const DIGEST_SIGNOFF = "Cheers 😎";
+
+// Two spaces is enough to mark a sub-bullet for the parser; four reads better
+// in the textarea.
+const SUB_INDENT = "    ";
+// Bullet glyphs people type into the notes box themselves. Stripped on the way
+// in so they don't end up doubled under the bullet we add, and recognised on
+// the way out so a hand-typed list still becomes a real list.
+const BULLET_LINE = /^(\s*)[-*•◦–—]\s+(.*)$/;
+
+// One bullet per person: a single-line note sits on the same line as the
+// mention, a multi-line one becomes sub-bullets under it.
+export function digestText({ title = "", entries = [], signoff = "" } = {}) {
+  const blocks = entries.map(({ who, note }) => {
+    const lines = noteLines(note);
+    if (lines.length <= 1) return `- ${[who, lines[0]].filter(Boolean).join(" - ")}`;
+    return [`- ${who}`, ...lines.map((line) => `${SUB_INDENT}- ${line}`)].join("\n");
+  });
+  const parts = [];
+  if (title) parts.push(title, "");
+  parts.push(...blocks);
+  if (signoff) parts.push("", signoff);
+  return parts.join("\n");
+}
+
+function noteLines(note) {
+  return String(note ?? "")
+    .split("\n")
+    .map((line) => line.trim().replace(BULLET_LINE, "$2").trim())
+    .filter(Boolean);
+}
+
+// Markdown-lite -> the small HTML subset Slack's composer honours on paste:
+// bold first line, one <ul> of mentions, a nested <ul> per person's notes.
+export function digestHtml(text) {
+  const out = [];
+  let list = null;
+  let seenBlock = false;
+  const flush = () => {
+    if (list) out.push(renderList(list));
+    list = null;
+  };
+
+  for (const raw of String(text ?? "").split("\n")) {
+    const line = raw.replace(/\s+$/, "");
+    const bullet = line.match(BULLET_LINE);
+    if (bullet) {
+      const [, indent, body] = bullet;
+      if (!list) list = [];
+      // Anything indented under an existing bullet is that bullet's child.
+      if (indent.length >= 2 && list.length) list[list.length - 1].children.push(body);
+      else list.push({ text: body, children: [] });
+      seenBlock = true;
+      continue;
+    }
+    if (!line.trim()) continue;
+    flush();
+    // The first line carries the date, so it is the one that gets emphasis.
+    const inner = inlineHtml(line.trim());
+    out.push(`<p>${seenBlock ? inner : `<b>${inner}</b>`}</p>`);
+    seenBlock = true;
+  }
+  flush();
+  return out.join("\n");
+}
+
+function renderList(items) {
+  const li = items.map(({ text, children }) => {
+    const nested = children.length
+      ? `<ul>${children.map((c) => `<li>${inlineHtml(c)}</li>`).join("")}</ul>`
+      : "";
+    return `<li>${inlineHtml(text)}${nested}</li>`;
+  });
+  return `<ul>${li.join("")}</ul>`;
+}
+
+// Trailing punctuation is excluded from the match so "see http://x/y." doesn't
+// swallow the full stop into the link.
+const URL_RE = /https?:\/\/[^\s<>()]+[^\s<>().,;:!?]/g;
+
+function inlineHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(URL_RE, (url) => `<a href="${url}">${url}</a>`);
 }
 
 // Yesterday's attendance and per-person durations, so the picker isn't blank
