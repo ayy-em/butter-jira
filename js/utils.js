@@ -94,6 +94,15 @@ export function debounce(fn, ms) {
   };
 }
 
+// 1234 -> "1.2k". Lines merged runs into five figures on a good sprint, and the
+// cells it sits in are narrow in both the standup panel and the dashboard table.
+export function compactNum(n) {
+  const value = Number(n) || 0;
+  if (value < 1000) return String(value);
+  if (value < 10000) return `${(value / 1000).toFixed(1)}k`;
+  return `${Math.round(value / 1000)}k`;
+}
+
 export function getStoryPoints(issue) {
   const value = fieldValue(issue, "storyPoints");
   if (typeof value === "number") return value;

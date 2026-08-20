@@ -97,15 +97,64 @@ export function wasAddedAfterStart(issue, windowStart) {
   return Boolean(created && created > windowStart);
 }
 
-function bucketAdd(map, key, issue) {
-  if (!map.has(key)) map.set(key, { key, issues: 0, points: 0, doneIssues: 0, donePoints: 0 });
+const REVIEW_RE = /review/i;
+
+// Work parked in a review column: not finished, but off the assignee's plate.
+// Read off the configured status groups rather than a fixed list of status
+// names, so a site that splits "In Code Review" out of "In Review" — or calls
+// it something else entirely — is counted without a code change. The group name
+// is tested first and the raw status second, which covers a status no group
+// claims (those resolve to themselves and still show as their own column).
+export function isInReview(issue, statusGroups = []) {
+  if (isDone(issue)) return false;
+  return (
+    REVIEW_RE.test(resolveGroup(issue, statusGroups)) ||
+    REVIEW_RE.test(issue?.fields?.status?.name || "")
+  );
+}
+
+// Done and in-review together — how much of the sprint has left the assignee.
+// The share is null rather than zero when nothing is estimated, so the view
+// prints "—" instead of implying no progress.
+export function reviewOrDone(bucket) {
+  const done = bucket?.doneIssues || 0;
+  const review = bucket?.reviewIssues || 0;
+  const points = (bucket?.donePoints || 0) + (bucket?.reviewPoints || 0);
+  const total = bucket?.points || 0;
+  return {
+    issues: done + review,
+    points,
+    share: total > 0 ? points / total : null,
+  };
+}
+
+// One shape, so every producer of a bucket agrees on it.
+function emptyBucket(key) {
+  return {
+    key,
+    issues: 0,
+    points: 0,
+    doneIssues: 0,
+    donePoints: 0,
+    reviewIssues: 0,
+    reviewPoints: 0,
+  };
+}
+
+// `done` and `review` are resolved once per issue by the caller: both need the
+// status groups, and every issue lands in three buckets.
+function bucketAdd(map, key, issue, { done = false, review = false } = {}) {
+  if (!map.has(key)) map.set(key, emptyBucket(key));
   const bucket = map.get(key);
   const points = getStoryPoints(issue) ?? 0;
   bucket.issues++;
   bucket.points += points;
-  if (isDone(issue)) {
+  if (done) {
     bucket.doneIssues++;
     bucket.donePoints += points;
+  } else if (review) {
+    bucket.reviewIssues++;
+    bucket.reviewPoints += points;
   }
   return bucket;
 }
@@ -129,6 +178,8 @@ export function summarize({
   let totalPoints = 0;
   let donePoints = 0;
   let doneIssues = 0;
+  let reviewPoints = 0;
+  let reviewIssues = 0;
   let unestimated = 0;
   let carriedIn = 0;
   let carriedInPoints = 0;
@@ -145,9 +196,15 @@ export function summarize({
     totalPoints += value;
     if (points === null) unestimated++;
 
-    if (isDone(issue)) {
+    // Resolved once: the same two flags feed the totals and all three buckets.
+    const done = isDone(issue);
+    const review = isInReview(issue, statusGroups);
+    if (done) {
       doneIssues++;
       donePoints += value;
+    } else if (review) {
+      reviewIssues++;
+      reviewPoints += value;
     }
     if (wasCarriedIn(issue, activeSprintIds)) {
       carriedIn++;
@@ -161,12 +218,12 @@ export function summarize({
     // Status buckets follow the configured group order, so an unmapped status
     // still shows up rather than vanishing.
     const groupName = resolveGroup(issue, statusGroups);
-    bucketAdd(byStatus, groupName, issue);
-    bucketAdd(byBoard, issue.boardId ?? "?", issue);
+    bucketAdd(byStatus, groupName, issue, { done, review });
+    bucketAdd(byBoard, issue.boardId ?? "?", issue, { done, review });
 
     const assignee = issue.fields?.assignee;
     const personKey = assignee?.accountId || "__unassigned__";
-    const bucket = bucketAdd(byPerson, personKey, issue);
+    const bucket = bucketAdd(byPerson, personKey, issue, { done, review });
     bucket.label = assignee ? displayNameFor(assignee) : "Unassigned";
     bucket.onTeam = assignee ? isOnTeam(assignee.accountId) : null;
   }
@@ -176,16 +233,14 @@ export function summarize({
   for (const name of byStatus.keys()) {
     if (!statusOrder.includes(name)) statusOrder.push(name);
   }
-  const statusBuckets = statusOrder.map(
-    (name) => byStatus.get(name) || { key: name, issues: 0, points: 0, doneIssues: 0, donePoints: 0 }
-  );
+  const statusBuckets = statusOrder.map((name) => byStatus.get(name) || emptyBucket(name));
 
   const boardBuckets = boards
     .map((board) => {
       const bucket = byBoard.get(board.id);
       return bucket
         ? { ...bucket, label: board.name, color: board.color }
-        : { key: board.id, label: board.name, color: board.color, issues: 0, points: 0, doneIssues: 0, donePoints: 0 };
+        : { ...emptyBucket(board.id), label: board.name, color: board.color };
     })
     .filter((b) => b.issues > 0 || boards.length <= 6);
 
@@ -218,6 +273,8 @@ export function summarize({
     openPoints,
     doneIssues,
     notDone,
+    reviewIssues,
+    reviewPoints,
     unestimated,
     completionByPoints: totalPoints > 0 ? donePoints / totalPoints : null,
     completionByIssues: counted.length > 0 ? doneIssues / counted.length : null,
@@ -231,6 +288,17 @@ export function summarize({
     byStatus: statusBuckets,
     byBoard: boardBuckets,
     byPerson: personBuckets,
+    // The sprint as one bucket, so a per-person table's totals row is computed
+    // by the same code as its rows.
+    totals: {
+      ...emptyBucket("__sprint__"),
+      issues: counted.length,
+      points: totalPoints,
+      doneIssues,
+      donePoints,
+      reviewIssues,
+      reviewPoints,
+    },
     checks,
     hygieneFindings: totalFindings(checks),
     daysTotal,

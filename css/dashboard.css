@@ -25,6 +25,23 @@
 /* ── Header ───────────────────────────────────────────────────────────────── */
 
 .dash-header { margin-bottom: 16px; }
+.dash-header-top { display: flex; align-items: flex-start; gap: 14px; }
+.dash-recap-btn {
+  margin-left: auto;
+  flex: none;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 7px 12px;
+  white-space: nowrap;
+}
+.dash-recap-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
 .dash-title {
   font-size: calc(19px * var(--font-scale));
   font-weight: 600;
@@ -127,7 +144,7 @@
   border: 1px solid var(--border);
   border-radius: 7px;
   padding: 14px 16px 16px;
-  margin-bottom: 14px;
+  margin-block: 1rem;
 }
 .dash-card-head { display: flex; align-items: baseline; gap: 12px; }
 .dash-card-title {
@@ -153,7 +170,7 @@
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 14px;
 }
-.dash-grid .dash-card { margin-bottom: 0; }
+.dash-grid .dash-card { margin-block: 0; }
 
 /* ── Chart internals ──────────────────────────────────────────────────────── */
 
@@ -285,3 +302,45 @@
   min-width: 28px;
   text-align: right;
 }
+
+/* Six columns don't always fit a narrow window. The table scrolls inside its
+   own card rather than pushing the page sideways. */
+.dash-table-scroll { overflow-x: auto; }
+.dash-table-wide { min-width: 680px; }
+.dash-table-wide th:first-child, .dash-table-wide td:first-child { width: 34%; }
+.dash-table-wide thead th { white-space: nowrap; }
+/* Out-specifies the left-aligned `.dash-table th`, so a numeric heading sits
+   over its column rather than beside it. */
+.dash-table th.dash-num { text-align: right; }
+
+/* Sortable headings, same affordance as the backlog table's. */
+.dash-table thead th.sortable { cursor: pointer; user-select: none; }
+.dash-table thead th.sortable:hover { color: var(--text); }
+.dash-table thead th.sortable:focus-visible {
+  outline: 1px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+.dash-sort {
+  margin-left: 4px;
+  font-size: calc(8px * var(--font-scale));
+  line-height: 1;
+  color: var(--accent-primary);
+}
+
+/* Totals: the same row shape, weighted so the eye stops at it. */
+.dash-table tfoot td {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  padding-top: 9px;
+  color: var(--text);
+}
+.dash-table tfoot .dash-person-name { font-weight: 600; }
+
+.dash-share-cell { min-width: 110px; }
+.dash-share {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.dash-share .dash-meter { max-width: 72px; }

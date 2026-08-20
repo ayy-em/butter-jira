@@ -286,13 +286,15 @@ fragment PrFields on PullRequest {
 //   2 checks-failing    — same, and often unnoticed
 //   3 approved          — one click from shipping, and nobody has clicked it
 //   4 waiting-review    — blocked on someone else, which a standup can unblock
-//   5 draft             — deliberately not ready; mentioned, not chased
+//
+// There is no draft rank because there are no drafts: a draft is work someone
+// has explicitly marked as not ready, so it is dropped on the way in and never
+// appears in a list, a count or a statistic. See `isDraft` in `toActivity`.
 export const PR_STATES = {
   CHANGES_REQUESTED: "changes-requested",
   CHECKS_FAILING: "checks-failing",
   APPROVED: "approved",
   WAITING_REVIEW: "waiting-review",
-  DRAFT: "draft",
 };
 
 const STATE_RANK = {
@@ -300,7 +302,6 @@ const STATE_RANK = {
   [PR_STATES.CHECKS_FAILING]: 2,
   [PR_STATES.APPROVED]: 3,
   [PR_STATES.WAITING_REVIEW]: 4,
-  [PR_STATES.DRAFT]: 5,
 };
 
 export const PR_STATE_LABELS = {
@@ -308,13 +309,9 @@ export const PR_STATE_LABELS = {
   [PR_STATES.CHECKS_FAILING]: "checks failing",
   [PR_STATES.APPROVED]: "approved, unmerged",
   [PR_STATES.WAITING_REVIEW]: "waiting on review",
-  [PR_STATES.DRAFT]: "draft",
 };
 
-// Draft wins over everything: a failing check on a draft is the author's
-// business, not the standup's.
 export function prState(pr) {
-  if (pr.isDraft) return PR_STATES.DRAFT;
   if (pr.reviewDecision === "CHANGES_REQUESTED") return PR_STATES.CHANGES_REQUESTED;
   if (pr.checks === "FAILURE" || pr.checks === "ERROR") return PR_STATES.CHECKS_FAILING;
   if (pr.reviewDecision === "APPROVED") return PR_STATES.APPROVED;
@@ -372,6 +369,9 @@ export function toActivity(payload, repos, { now = new Date() } = {}) {
 
     for (const pr of node.openPullRequests?.nodes || []) {
       if (!pr) continue;
+      // Drafts are dropped here rather than filtered at each call site, so that
+      // no count anywhere in the app can disagree with the list beside it.
+      if (pr.isDraft) continue;
       const reviewers = (pr.reviewRequests?.nodes || [])
         .map((r) => normalizeGithubLogin(r?.requestedReviewer?.login))
         .filter(Boolean);
@@ -384,7 +384,6 @@ export function toActivity(payload, repos, { now = new Date() } = {}) {
         title: pr.title || "",
         url: pr.url || "",
         author: loginOf(pr),
-        isDraft: Boolean(pr.isDraft),
         createdAt: pr.createdAt || "",
         updatedAt: pr.updatedAt || "",
         reviewDecision: pr.reviewDecision || null,
@@ -482,6 +481,395 @@ export function activityFor(activity, login, { now = new Date() } = {}) {
       .filter((pr) => fold(pr.author) === me && new Date(pr.mergedAt).getTime() >= cutoff)
       .sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt))),
     issues: activity.issues.filter((i) => i.assignees.some((a) => fold(a) === me)),
+  };
+}
+
+// ── Sprint window ────────────────────────────────────────────────────────────
+
+// A second query, and a second question. `fetchTeamActivity` answers "what is
+// open right now"; this answers "what did each person do during the sprint",
+// which the first document cannot serve:
+//
+//   * It needs pull requests that are already closed, the reviews and comments
+//     written on them, and the diff size that landed on the default branch —
+//     none of which the standup panel lists.
+//   * It has to reach back over a whole sprint rather than take the newest 50
+//     of everything, which means paginating, per repo.
+//
+// **The window is a fixed lookback, not the sprint's own dates.** That is what
+// lets the fetch start the moment someone clicks STANDUP, before Jira has been
+// asked when the sprint began: the network shape depends on nothing but the
+// repo list. The sprint boundary is applied afterwards, in `statsFor`, over
+// data that already covers it.
+export const STATS_LOOKBACK_DAYS = 45;
+export const STATS_PAGE_SIZE = 50;
+// 6 pages × 50 = 300 pull requests per repo. A repo busier than that over 45
+// days is reported as truncated rather than quietly undercounted.
+export const STATS_MAX_PAGES = 6;
+export const REVIEWS_PER_PR = 30;
+export const COMMENTS_PER_PR = 40;
+// Default-branch commits are a second, separate page loop: `history(since:)`
+// windows server-side, so this one stops on its own rather than on a cutoff
+// test. 100 × 4 = 400 commits per repo over the window. Most of those are
+// discarded — anything that arrived through a pull request is already counted as
+// that pull request's diff — which is the price of catching the ones that did
+// not.
+export const COMMITS_PAGE_SIZE = 100;
+export const COMMITS_MAX_PAGES = 4;
+
+// A board whose active sprint carries no start date still needs a window to
+// count over. Fourteen days is the common sprint length here; every view that
+// falls back to it says so rather than implying Jira supplied the date. Shared
+// so the standup and the dashboard cannot come to mean two different things by
+// "this sprint".
+export const FALLBACK_SPRINT_DAYS = 14;
+
+// Variables rather than interpolation, because this one is issued once per page
+// per repo and the cursor changes every time. `last:` on the two nested
+// connections, not `first:`: the window is recent, so the newest reviews and
+// comments are the ones that can fall inside it.
+export function buildWindowQuery({
+  pageSize = STATS_PAGE_SIZE,
+  reviewLimit = REVIEWS_PER_PR,
+  commentLimit = COMMENTS_PER_PR,
+} = {}) {
+  return `query ButterJiraRepoWindow($owner: String!, $name: String!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    nameWithOwner
+    defaultBranchRef { name }
+    pullRequests(first: ${pageSize}, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number
+        title
+        url
+        isDraft
+        state
+        createdAt
+        updatedAt
+        mergedAt
+        baseRefName
+        additions
+        deletions
+        author { login }
+        reviews(last: ${reviewLimit}) {
+          nodes {
+            state
+            submittedAt
+            author { login }
+            comments { totalCount }
+          }
+        }
+        comments(last: ${commentLimit}) {
+          nodes { createdAt author { login } }
+        }
+      }
+    }
+  }
+}`;
+}
+
+// Commits on the default branch, so work pushed straight to main counts as
+// having shipped. Pull requests cannot answer this: a direct push has no pull
+// request, which is precisely what makes it invisible to the other query.
+//
+// `associatedPullRequests` is what keeps the two from double counting — a commit
+// that arrived through a pull request is dropped here, because that pull
+// request's own diff already accounts for it. Asking for one is enough: the
+// question is whether there are any, not which.
+export function buildCommitQuery({ pageSize = COMMITS_PAGE_SIZE } = {}) {
+  return `query ButterJiraRepoCommits($owner: String!, $name: String!, $since: GitTimestamp!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    nameWithOwner
+    defaultBranchRef {
+      name
+      target {
+        ... on Commit {
+          history(first: ${pageSize}, after: $cursor, since: $since) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              oid
+              committedDate
+              additions
+              deletions
+              author { user { login } }
+              associatedPullRequests(first: 1) { nodes { number } }
+            }
+          }
+        }
+      }
+    }
+  }
+}`;
+}
+
+const DEFAULT_BRANCH_FALLBACK = /^(main|master)$/;
+
+// True when this pull request landed on what the repo calls its main line.
+// `defaultBranchRef` is present for any repo with commits; the name test is the
+// fallback for the one case where it is not, and is deliberately narrow — a
+// release branch must not be counted as main.
+function targetsDefaultBranch(baseRef, defaultBranch) {
+  if (!baseRef) return false;
+  return defaultBranch ? baseRef === defaultBranch : DEFAULT_BRANCH_FALLBACK.test(baseRef);
+}
+
+const msOf = (iso) => {
+  const t = new Date(iso || 0).getTime();
+  return Number.isFinite(t) ? t : 0;
+};
+
+// One repo, paged newest-updated first and stopped as soon as a page runs off
+// the end of the window. A pull request created, merged, reviewed or commented
+// on inside the window has necessarily been updated inside it too, so the
+// updated-at cutoff is a complete stop condition rather than a heuristic.
+async function fetchRepoWindow(repo, { token, host, since, maxPages, query }) {
+  const slug = repoSlug(repo);
+  const pullRequests = [];
+  const reviews = [];
+  const comments = [];
+  let defaultBranch = "";
+  let cursor = null;
+  let pages = 0;
+  let done = false;
+
+  while (!done && pages < maxPages) {
+    const payload = await githubGraphql(query, token, host, {
+      owner: repo.owner,
+      name: repo.name,
+      cursor,
+    });
+    const node = payload?.data?.repository;
+    if (!node) {
+      const err = payload?.errors?.[0];
+      throw new GithubError(err?.message || "No data returned", {
+        status: 200,
+        kind: err?.type === "NOT_FOUND" ? "not-found" : "graphql",
+      });
+    }
+    defaultBranch = node.defaultBranchRef?.name || defaultBranch;
+
+    const conn = node.pullRequests || {};
+    let reachedCutoff = false;
+    for (const pr of conn.nodes || []) {
+      if (!pr) continue;
+      if (msOf(pr.updatedAt) < since) {
+        reachedCutoff = true;
+        break;
+      }
+      // Drafts are out of scope everywhere, so their reviews and comments go
+      // with them: nobody is asked to review work that is not offered yet.
+      if (pr.isDraft) continue;
+
+      const author = loginOf(pr);
+      pullRequests.push({
+        repo: slug,
+        number: pr.number,
+        title: pr.title || "",
+        url: pr.url || "",
+        author,
+        state: pr.state || "",
+        createdAt: pr.createdAt || "",
+        updatedAt: pr.updatedAt || "",
+        mergedAt: pr.mergedAt || "",
+        baseRef: pr.baseRefName || "",
+        additions: Number(pr.additions) || 0,
+        deletions: Number(pr.deletions) || 0,
+      });
+
+      for (const review of pr.reviews?.nodes || []) {
+        const login = normalizeGithubLogin(review?.author?.login);
+        // A review with no submittedAt is still PENDING — a draft review, and
+        // out for the same reason a draft pull request is.
+        if (!login || !review.submittedAt) continue;
+        reviews.push({
+          repo: slug,
+          number: pr.number,
+          author: login,
+          prAuthor: author,
+          submittedAt: review.submittedAt,
+          state: review.state || "",
+          // Inline comments belong to their review; the review body does not
+          // count itself, so nothing here is counted twice.
+          comments: Number(review.comments?.totalCount) || 0,
+        });
+      }
+
+      for (const comment of pr.comments?.nodes || []) {
+        const login = normalizeGithubLogin(comment?.author?.login);
+        if (!login || !comment.createdAt) continue;
+        comments.push({
+          repo: slug,
+          number: pr.number,
+          author: login,
+          prAuthor: author,
+          createdAt: comment.createdAt,
+        });
+      }
+    }
+
+    pages++;
+    done = reachedCutoff || !conn.pageInfo?.hasNextPage;
+    cursor = conn.pageInfo?.endCursor || null;
+  }
+
+  return {
+    pullRequests: pullRequests.map((pr) => ({
+      ...pr,
+      toDefaultBranch: targetsDefaultBranch(pr.baseRef, defaultBranch),
+    })),
+    reviews,
+    comments,
+    defaultBranch,
+    // The page cap bit before the window did: this repo's older half is missing,
+    // and the UI says so rather than presenting a short count as a full one.
+    truncated: !done,
+  };
+}
+
+// One repo's default-branch commits inside the window, keeping only what no pull
+// request accounts for. `history(since:)` does the windowing server-side, so
+// this pages until GitHub says there is no more rather than testing a cutoff.
+async function fetchRepoCommits(repo, { token, host, since, maxPages, query }) {
+  const slug = repoSlug(repo);
+  const commits = [];
+  let cursor = null;
+  let pages = 0;
+  let done = false;
+
+  while (!done && pages < maxPages) {
+    const payload = await githubGraphql(query, token, host, {
+      owner: repo.owner,
+      name: repo.name,
+      since: new Date(since).toISOString(),
+      cursor,
+    });
+    const node = payload?.data?.repository;
+    if (!node) {
+      const err = payload?.errors?.[0];
+      throw new GithubError(err?.message || "No data returned", {
+        status: 200,
+        kind: err?.type === "NOT_FOUND" ? "not-found" : "graphql",
+      });
+    }
+
+    // An empty repo has no default branch and so no history — not an error.
+    const history = node.defaultBranchRef?.target?.history;
+    if (!history) return { commits, truncated: false };
+
+    for (const commit of history.nodes || []) {
+      if (!commit) continue;
+      // Arrived through a pull request: already counted as that PR's diff.
+      if (commit.associatedPullRequests?.nodes?.length) continue;
+      // A commit whose email is not linked to any GitHub account cannot be
+      // attributed to a person, and guessing from the email would be worse.
+      const login = normalizeGithubLogin(commit.author?.user?.login);
+      if (!login) continue;
+      commits.push({
+        repo: slug,
+        oid: commit.oid || "",
+        author: login,
+        committedDate: commit.committedDate || "",
+        additions: Number(commit.additions) || 0,
+        deletions: Number(commit.deletions) || 0,
+      });
+    }
+
+    pages++;
+    done = !history.pageInfo?.hasNextPage;
+    cursor = history.pageInfo?.endCursor || null;
+  }
+
+  // Same meaning as the pull-request loop's: the page cap bit before the window
+  // ran out, so this repo's older half is missing and the UI says so.
+  return { commits, truncated: !done };
+}
+
+// Everything one person did with pull requests inside a window, given their
+// GitHub login. Null — not zeroes — when there is nothing to answer from: an
+// absent statistic and a genuine zero are different facts, and the UI shows
+// them differently.
+//
+// Two definitions worth stating, because both could reasonably go the other way:
+//
+//   * **Reviews and comments are counted on other people's pull requests only.**
+//     Replying to feedback on your own PR is authorship, not review, and
+//     counting it would reward the noisiest thread.
+//   * **Lines counted are lines that reached the default branch**, attributed to
+//     the pull request's author, or to the commit's author when it was pushed
+//     straight to main with no pull request at all. A merge into a feature
+//     branch has not shipped, so it is not counted. Direct pushes were invisible
+//     until they were asked for separately, which flattered anyone working
+//     through pull requests and undercounted everyone else.
+export function statsFor(stats, login, { since = "" } = {}) {
+  const me = fold(login);
+  if (!me || !stats) return null;
+
+  const windowStart = Math.max(msOf(stats.since), since ? msOf(since) : 0);
+  const inWindow = (iso) => msOf(iso) >= windowStart;
+  const mine = (l) => fold(l) === me;
+
+  let prsOpened = 0;
+  let prsMerged = 0;
+  let prAdditions = 0;
+  let prDeletions = 0;
+  for (const pr of stats.pullRequests || []) {
+    if (!mine(pr.author)) continue;
+    if (inWindow(pr.createdAt)) prsOpened++;
+    if (pr.toDefaultBranch && pr.mergedAt && inWindow(pr.mergedAt)) {
+      prsMerged++;
+      prAdditions += pr.additions;
+      prDeletions += pr.deletions;
+    }
+  }
+
+  // Commits pushed straight to the default branch. `fetchRepoCommits` has
+  // already dropped anything a pull request accounts for, so these add to the
+  // pull-request diffs rather than overlapping them.
+  let directCommits = 0;
+  let directAdditions = 0;
+  let directDeletions = 0;
+  for (const commit of stats.commits || []) {
+    if (!mine(commit.author) || !inWindow(commit.committedDate)) continue;
+    directCommits++;
+    directAdditions += commit.additions;
+    directDeletions += commit.deletions;
+  }
+
+  let reviews = 0;
+  let comments = 0;
+  for (const review of stats.reviews || []) {
+    if (!mine(review.author) || mine(review.prAuthor)) continue;
+    if (!inWindow(review.submittedAt)) continue;
+    reviews++;
+    comments += review.comments;
+  }
+  for (const comment of stats.comments || []) {
+    if (!mine(comment.author) || mine(comment.prAuthor)) continue;
+    if (inWindow(comment.createdAt)) comments++;
+  }
+
+  return {
+    from: new Date(windowStart).toISOString(),
+    // The sprint started before the fetch window reaches: these numbers cover
+    // the window, not the sprint, and whoever shows them has to say so.
+    clamped: Boolean(since) && msOf(since) < msOf(stats.since),
+    prsOpened,
+    prsMerged,
+    // Broken out as well as summed, so a tooltip can say what the total is made
+    // of — "1.2k lines, 300 of them pushed straight to main" is a different
+    // sentence about a team than the total alone.
+    prAdditions,
+    prDeletions,
+    directCommits,
+    directAdditions,
+    directDeletions,
+    additions: prAdditions + directAdditions,
+    deletions: prDeletions + directDeletions,
+    lines: prAdditions + prDeletions + directAdditions + directDeletions,
+    reviews,
+    comments,
+    engagements: reviews + comments,
   };
 }
 
@@ -631,7 +1019,7 @@ async function githubRest(path, token, host) {
   return resp.json();
 }
 
-async function githubGraphql(query, token, host) {
+async function githubGraphql(query, token, host, variables = null) {
   const url = githubGraphqlUrl(host);
   if (!url) throw new GithubError("GitHub host is not configured", { kind: "config" });
   const resp = await fetch(url, {
@@ -641,7 +1029,7 @@ async function githubGraphql(query, token, host) {
       Accept: "application/json",
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify(variables ? { query, variables } : { query }),
   });
   noteExpiry(resp);
   if (!resp.ok) throw describeStatus(resp.status, await resp.text().catch(() => ""));
@@ -739,6 +1127,116 @@ export async function fetchTeamActivity({ config = CONFIG, token, now = new Date
   return toActivity(payload, gh.repos, { now });
 }
 
+// The sprint-window counterpart: pull requests, reviews and comments over the
+// last `lookbackDays`, per declared repo, paged. Repos run concurrently and
+// pages run in order within a repo.
+//
+// Same never-fatal rule as the activity fetch, with one exception: if *no* repo
+// could be reached the first error is rethrown. A dead token would otherwise
+// render as every person having done nothing all sprint, which is worse than an
+// absent panel.
+export async function fetchTeamStats({
+  config = CONFIG,
+  token,
+  now = new Date(),
+  lookbackDays = STATS_LOOKBACK_DAYS,
+  maxPages = STATS_MAX_PAGES,
+  commitMaxPages = COMMITS_MAX_PAGES,
+} = {}) {
+  const gh = githubConfig(config);
+  if (!gh.enabled) throw new GithubError("GitHub sync is off", { kind: "config" });
+  if (!gh.repos.length) {
+    throw new GithubError("No repositories configured", { kind: "config" });
+  }
+  const authToken = token || (await getGithubToken());
+  if (!authToken) throw new GithubError("No GitHub token stored", { kind: "auth" });
+
+  const sinceDate = new Date(now.getTime() - lookbackDays * 86400000);
+  const query = buildWindowQuery();
+  const commitQuery = buildCommitQuery();
+
+  const results = await Promise.all(
+    gh.repos.map(async (repo) => {
+      const shared = {
+        token: authToken,
+        host: gh.host,
+        since: sinceDate.getTime(),
+      };
+      try {
+        // The pull-request window and the default-branch history are independent
+        // page loops, so they run together. The commit half is allowed to fail
+        // on its own: losing direct pushes is a smaller loss than losing the
+        // whole repo, and it is reported rather than silently zeroed.
+        const [data, commits] = await Promise.all([
+          fetchRepoWindow(repo, { ...shared, maxPages, query }),
+          fetchRepoCommits(repo, {
+            ...shared,
+            maxPages: commitMaxPages,
+            query: commitQuery,
+          }).catch((err) => ({ commits: [], truncated: false, error: err })),
+        ]);
+        return { repo, data, commits };
+      } catch (err) {
+        return { repo, error: err };
+      }
+    })
+  );
+
+  const reached = [];
+  const truncated = [];
+  const failures = [];
+  const pullRequests = [];
+  const reviews = [];
+  const comments = [];
+  const commits = [];
+  for (const { repo, data, commits: history, error } of results) {
+    const slug = repoSlug(repo);
+    if (error) {
+      failures.push({
+        repo: slug,
+        type: error instanceof GithubError ? error.kind : "error",
+        message: error?.message || "Request failed",
+      });
+      continue;
+    }
+    reached.push(slug);
+    if (data.truncated || history?.truncated) truncated.push(slug);
+    pullRequests.push(...data.pullRequests);
+    reviews.push(...data.reviews);
+    comments.push(...data.comments);
+    commits.push(...(history?.commits || []));
+    // The repo was read; its direct pushes were not. Named separately from a
+    // repo that could not be reached at all, because the fix differs.
+    if (history?.error) {
+      failures.push({
+        repo: slug,
+        type: history.error instanceof GithubError ? history.error.kind : "error",
+        message: `Direct pushes unavailable — ${history.error?.message || "request failed"}`,
+      });
+    }
+  }
+
+  if (!reached.length) {
+    const first = results.find((r) => r.error)?.error;
+    throw first instanceof GithubError
+      ? first
+      : new GithubError(first?.message || "No repositories could be read", { kind: "error" });
+  }
+
+  return {
+    fetchedAt: now.toISOString(),
+    since: sinceDate.toISOString(),
+    repos: gh.repos.map(repoSlug),
+    reached,
+    truncated,
+    failures,
+    pullRequests,
+    reviews,
+    comments,
+    commits,
+  };
+}
+
 // ── Cache ────────────────────────────────────────────────────────────────────
 
 // Keyed by the repo set, not by the org: changing the allowlist must not serve
@@ -751,22 +1249,85 @@ export function activityCacheKey(config = CONFIG) {
   return `cache_github_${gh.host}_${gh.repos.map(repoSlug).join(",")}`;
 }
 
-export async function getTeamActivity({ config = CONFIG, now = new Date(), force = false } = {}) {
-  const key = activityCacheKey(config);
+export function statsCacheKey(config = CONFIG) {
+  const gh = githubConfig(config);
+  return `cache_github_stats_${gh.host}_${gh.repos.map(repoSlug).join(",")}`;
+}
+
+// In-flight requests, keyed the same way as the stored ones. This is what makes
+// prewarming safe: the header's click and the view's own call land on the same
+// promise instead of issuing the query twice, and the second caller does not
+// have to know a first one happened.
+const inflight = new Map();
+
+function shared(key, force, run) {
   if (!force) {
-    try {
-      const stored = await localGet(key);
-      const entry = stored?.[key];
-      if (entry && Date.now() - entry.ts <= ACTIVITY_TTL_MS) return entry.value;
-    } catch {
-      // Storage unavailable — fetch rather than fail.
-    }
+    const hit = inflight.get(key);
+    if (hit) return hit;
   }
-  const activity = await fetchTeamActivity({ config, now });
+  const promise = run();
+  inflight.set(key, promise);
+  // Cleared on settle, not on success: a failed fetch must be retryable, and
+  // both arms are handled here so the derived promise never counts as unhandled.
+  const clear = () => {
+    if (inflight.get(key) === promise) inflight.delete(key);
+  };
+  promise.then(clear, clear);
+  return promise;
+}
+
+async function readCached(key, ttl) {
   try {
-    await localSet({ [key]: { value: activity, ts: Date.now() } });
+    const stored = await localGet(key);
+    const entry = stored?.[key];
+    if (entry && Date.now() - entry.ts <= ttl) return entry.value;
+  } catch {
+    // Storage unavailable — fetch rather than fail.
+  }
+  return null;
+}
+
+async function writeCached(key, value) {
+  try {
+    await localSet({ [key]: { value, ts: Date.now() } });
   } catch {
     // Quota errors must not lose the data we just fetched.
   }
-  return activity;
+}
+
+export function getTeamActivity({ config = CONFIG, now = new Date(), force = false } = {}) {
+  const key = activityCacheKey(config);
+  return shared(key, force, async () => {
+    const cached = force ? null : await readCached(key, ACTIVITY_TTL_MS);
+    if (cached) return cached;
+    const activity = await fetchTeamActivity({ config, now });
+    await writeCached(key, activity);
+    return activity;
+  });
+}
+
+export function getTeamStats({ config = CONFIG, now = new Date(), force = false } = {}) {
+  const key = statsCacheKey(config);
+  return shared(key, force, async () => {
+    const cached = force ? null : await readCached(key, ACTIVITY_TTL_MS);
+    if (cached) return cached;
+    const stats = await fetchTeamStats({ config, now });
+    await writeCached(key, stats);
+    return stats;
+  });
+}
+
+// Called from the header the instant STANDUP is clicked, so the pull-request
+// window — the slowest thing the standup asks for, and the only paged one — is
+// already in flight while the sprint issues load and the facilitator ticks
+// people off. Returns nothing useful on purpose: the view calls the same two
+// functions and gets the same promises, errors included.
+export function prewarmGithub({ config = CONFIG, now = new Date() } = {}) {
+  if (!isGithubConfigured(config)) return false;
+  for (const started of [getTeamActivity({ config, now }), getTeamStats({ config, now })]) {
+    // Nobody is awaiting these yet. A rejection here is not an error anyone
+    // asked about, so it must not reach the console as an unhandled one.
+    started.catch(() => {});
+  }
+  return true;
 }

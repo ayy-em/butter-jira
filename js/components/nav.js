@@ -2,6 +2,7 @@ import { runtimeUrl } from "../browser.js";
 import { loadTheme, saveTheme } from "../utils.js";
 import { CONFIG, jiraHomeUrl, siteHost, wikiUrl } from "../config.js";
 import { getBadgeCount } from "../monitor.js";
+import { prewarmGithub } from "../github.js";
 
 // Six flat tabs outgrew the header, so the five board views collapse into two
 // menus by what you're looking at — the whole backlog, or the sprint in flight.
@@ -27,7 +28,7 @@ const TABS = [
       { hash: "#monitor", label: "MONITOR", key: "M", badge: true },
     ],
   },
-  { hash: "#standup", label: "STANDUP", key: "S", flair: true },
+  { hash: "#standup", label: "STANDUP", key: "S", flair: true, prewarm: prewarmGithub },
 ];
 
 // External tools get their own marks rather than text labels — the icons carry
@@ -403,6 +404,13 @@ function createTabLink(tab, { inMenu = false } = {}) {
   label.textContent = tab.label;
   link.appendChild(label);
 
+  // On pointerdown, not click: it fires a frame or two earlier, and a fetch
+  // whose result nobody ends up needing costs one cached GraphQL round trip.
+  // Standup's GitHub window is the only thing slow enough to be worth it.
+  if (tab.prewarm) {
+    link.addEventListener("pointerdown", () => tab.prewarm(), { passive: true });
+  }
+
   if (tab.badge) link.appendChild(createMonitorBadge());
   if (inMenu && tab.key) {
     const hint = document.createElement("span");
@@ -423,6 +431,7 @@ function createTabMenu(group) {
   trigger.type = "button";
   trigger.setAttribute("aria-haspopup", "true");
   trigger.setAttribute("aria-expanded", "false");
+  trigger.setAttribute("width", "130px");
   trigger.dataset.group = group.items.map((i) => i.hash).join(" ");
 
   const label = document.createElement("span");

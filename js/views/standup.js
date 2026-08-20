@@ -1,6 +1,6 @@
 import { runtimeUrl } from "../browser.js";
 import { getActiveSprint, getAllSprintIssues } from "../api.js";
-import { BOARDS, fmtDate, isOverdue, loadStatusGroups } from "../utils.js";
+import { BOARDS, compactNum, fmtDate, isOverdue, loadStatusGroups } from "../utils.js";
 import {
   activeMembers,
   activeTeam,
@@ -10,10 +10,13 @@ import {
   slackMentionFor,
 } from "../team.js";
 import {
+  FALLBACK_SPRINT_DAYS,
   PR_STATE_LABELS,
   activityFor,
   getTeamActivity,
+  getTeamStats,
   isGithubConfigured,
+  statsFor,
 } from "../github.js";
 import * as confetti from "../confetti.js";
 import { renderColumns } from "../components/board.js";
@@ -58,6 +61,20 @@ import {
 export async function mount(container, creds) {
   container.innerHTML = '<div class="spinner"></div>';
 
+  // GitHub is a second, optional source and is never on the critical path. The
+  // fetch is kicked off here, before the first `await` — the header prewarms it
+  // on click too, and both land on the same in-flight promise — so the two
+  // GraphQL queries run alongside the sprint issues rather than after them. The
+  // standup starts whether or not they have landed, and any failure leaves the
+  // panel absent rather than blocking a view. `github.state` is what the setup
+  // chip reports.
+  const github = { state: "off", activity: null, stats: null, error: "", statsError: "" };
+  // A cached window resolves in a microtask, which can be before the rest of
+  // mount has even declared `session`. Nothing repaints until the first render
+  // has happened; whatever landed early is on screen by then anyway.
+  let mounted = false;
+  const githubFetch = startGithubFetch();
+
   const [sprintIssues, statusGroups, prefs, storedSession] = await Promise.all([
     getAllSprintIssues(creds),
     loadStatusGroups(),
@@ -67,17 +84,34 @@ export async function mount(container, creds) {
   await sfx.loadMuted();
   sfx.preload();
 
-  // Named for the header line only. getAllSprintIssues has already asked for
-  // these, so every call here is a cache hit rather than a second round trip,
-  // and a board that refuses one is simply left out of the line.
-  const sprintNames = [
-    ...new Set(
-      (await Promise.all(BOARDS.map((b) => getActiveSprint(b.id, creds).catch(() => []))))
-        .flat()
-        .map((s) => s?.name)
-        .filter(Boolean)
-    ),
-  ];
+  // getAllSprintIssues has already asked for these, so every call here is a
+  // cache hit rather than a second round trip, and a board that refuses one is
+  // simply left out.
+  const activeSprints = (
+    await Promise.all(BOARDS.map((b) => getActiveSprint(b.id, creds).catch(() => [])))
+  )
+    .flat()
+    .filter(Boolean);
+
+  // Named for the header line.
+  const sprintNames = [...new Set(activeSprints.map((s) => s?.name).filter(Boolean))];
+
+  // The window every GitHub statistic is counted over. Earliest start among the
+  // sprints in flight, because with two boards running staggered sprints a
+  // per-board window would mean two different meanings of "this sprint" in one
+  // table. Fourteen days is the fallback for a board whose sprint carries no
+  // start date, which is the common sprint length here and states its guess
+  // rather than counting from the beginning of time.
+  const sprintStarts = activeSprints
+    .map((s) => new Date(s?.startDate || 0).getTime())
+    .filter((t) => Number.isFinite(t) && t > 0);
+  const sprintStart = new Date(
+    sprintStarts.length
+      ? Math.min(...sprintStarts)
+      : Date.now() - FALLBACK_SPRINT_DAYS * 86400000
+  );
+  const sprintStartIso = sprintStart.toISOString();
+  const sprintDated = sprintStarts.length > 0;
 
   const roster = activeMembers();
   // A discarded resume has to stick: the banner is hidden by this going null,
@@ -87,31 +121,80 @@ export async function mount(container, creds) {
   let ticker = null;
   let countdownCuePlayed = false;
 
-  // GitHub is a second, optional source and is never on the critical path: the
-  // fetch is kicked off when the setup screen appears, the standup starts
-  // whether or not it has landed, and any failure leaves the panel absent
-  // rather than blocking a view. `github.state` is what the setup chip reports.
-  const github = { state: "off", activity: null, error: "" };
-  let githubPending = null;
-
+  // Two queries, two failure modes, one status line. The activity query is what
+  // the panel lists; the window query is what the per-person numbers count. The
+  // window one is slower — it pages — so they are awaited separately and the
+  // screen repaints as each lands, rather than the fast one waiting on the slow.
   function startGithubFetch() {
     if (!isGithubConfigured()) {
       github.state = "off";
       return null;
     }
     github.state = "loading";
-    githubPending = getTeamActivity()
-      .then((activity) => {
-        github.activity = activity;
-        github.state = activity.failures.length ? "partial" : "ready";
-        return activity;
+
+    const activity = getTeamActivity()
+      .then((result) => {
+        github.activity = result;
+        return result;
       })
       .catch((err) => {
-        github.state = "error";
         github.error = String(err?.message || err);
         return null;
       });
-    return githubPending;
+
+    const stats = getTeamStats()
+      .then((result) => {
+        github.stats = result;
+        return result;
+      })
+      .catch((err) => {
+        // Losing the window costs the four numbers, not the panel: the lists
+        // come from the other query and are still worth showing.
+        github.statsError = String(err?.message || err);
+        return null;
+      });
+
+    // Repaint as soon as either lands, so the panel is not held back by the
+    // paged query and the numbers are not held back by anything.
+    const repaintOn = (pending) => pending.then((result) => {
+      settleGithubState();
+      repaintGithub();
+      return result;
+    });
+    return Promise.all([repaintOn(activity), repaintOn(stats)]);
+  }
+
+  // "loading" until both have answered; after that the worst news wins, because
+  // the chip's job is to explain a panel that is thinner than expected.
+  function settleGithubState() {
+    if (github.state === "off") return;
+    const activityDone = Boolean(github.activity) || Boolean(github.error);
+    const statsDone = Boolean(github.stats) || Boolean(github.statsError);
+    if (!activityDone || !statsDone) {
+      github.state = "loading";
+      return;
+    }
+    if (!github.activity && !github.stats) {
+      github.state = "error";
+      return;
+    }
+    const unreachable =
+      (github.activity?.failures?.length || 0) +
+      (github.stats?.failures?.length || 0) +
+      (github.stats?.truncated?.length || 0);
+    const partial = unreachable > 0 || !github.activity || !github.stats;
+    github.state = partial ? "partial" : "ready";
+  }
+
+  function repaintGithub() {
+    if (!mounted) return;
+    // The setup screen reports GitHub in four places now — the Open PRs tile,
+    // the per-person stat cluster, the Quick info card and its note — so it is
+    // repainted wholesale rather than having one chip patched in place.
+    if (!session) renderSetup(setupNotice);
+    // A person already on screen when a fetch lands gets their numbers without
+    // waiting for the next hand-off.
+    else if (session.phase === PHASES.SPEAKING) renderRunning();
   }
   // The board element of the person currently speaking, so a card drop can
   // repaint just the columns. Re-rendering the whole stage would blow away the
@@ -245,13 +328,93 @@ export async function mount(container, creds) {
     return { count, label: `${count} ${flagsBlocked ? "blocked" : "overdue"}` };
   }
 
-  // Open PRs authored by this person, or null when GitHub cannot answer for
-  // them — an absent number and a zero are different facts.
-  function prCountFor(accountId) {
-    if (!github.activity) return null;
+  // The four numbers the standup asks about a person, or null when GitHub cannot
+  // answer for them at all — an absent number and a zero are different facts.
+  //
+  // `open` is "right now" and comes from the activity query; the rest are
+  // sprint-to-date and come from the paged window query. Either query can be
+  // missing on its own, so each half is separately null-able and the row shows
+  // whichever has arrived.
+  function githubStatsFor(accountId) {
     const login = memberFor(accountId)?.githubLogin;
     if (!login) return null;
-    return activityFor(github.activity, login).open.length;
+    const open = github.activity ? activityFor(github.activity, login).open.length : null;
+    const window = github.stats
+      ? statsFor(github.stats, login, { since: sprintStartIso })
+      : null;
+    if (open === null && !window) return null;
+    return { login, open, window };
+  }
+
+  // One definition of the four statistics, rendered twice — compactly on the
+  // setup row and as tiles on the speaker's panel. Sharing the list is what
+  // stops the two from drifting into meaning different things.
+  function statSpecs(stats) {
+    const w = stats.window;
+    let note;
+    if (!w) {
+      note = github.statsError
+        ? ` Unavailable — ${github.statsError}`
+        : " Still loading.";
+    } else if (w.clamped) {
+      note =
+        ` Counted from ${fmtDate(w.from)}, which is as far back as GitHub was` +
+        " queried — this sprint started before that.";
+    } else if (sprintDated) {
+      note = ` Sprint to date, from ${fmtDate(w.from)}.`;
+    } else {
+      note =
+        ` Last ${FALLBACK_SPRINT_DAYS} days, from ${fmtDate(w.from)} — no start` +
+        " date on the active sprint.";
+    }
+
+    return [
+      {
+        key: "open",
+        label: "Open PRs",
+        short: "open",
+        value: stats.open,
+        title:
+          stats.open === null
+            ? `Open pull requests they authored.${github.error ? ` Unavailable — ${github.error}` : " Still loading."}`
+            : "Open pull requests they authored. Drafts excluded.",
+      },
+      {
+        key: "opened",
+        label: "PRs opened",
+        short: "new",
+        value: w ? w.prsOpened : null,
+        title: `Pull requests they opened, drafts excluded.${note}`,
+      },
+      {
+        key: "reviews",
+        label: "Reviews & comments",
+        short: "rev",
+        value: w ? w.engagements : null,
+        title: w
+          ? `${w.reviews} ${plural(w.reviews, "review")} submitted and ${w.comments} ${plural(w.comments, "comment")} written on other people's pull requests.${note}`
+          : `Reviews and comments on other people's pull requests.${note}`,
+      },
+      {
+        key: "lines",
+        label: "Lines to main",
+        short: "lines",
+        value: w ? w.lines : null,
+        text: w ? `+${compactNum(w.additions)} −${compactNum(w.deletions)}` : null,
+        title: w
+          ? `${w.lines.toLocaleString()} ${plural(w.lines, "line")} into the default branch — ${w.additions.toLocaleString()} added, ${w.deletions.toLocaleString()} removed — across ${w.prsMerged} merged ${plural(w.prsMerged, "pull request")}${w.directCommits ? ` and ${w.directCommits} ${plural(w.directCommits, "commit")} pushed straight to it` : ""}.${note}`
+          : `Lines that reached the repositories' default branches, whether through a pull request or pushed straight to it.${note}`,
+      },
+    ];
+  }
+
+  // Which of the four absent cases this is, because each has a different fix:
+  // connect GitHub, wait, add a login to the roster, or nothing at all.
+  function githubAbsentReason() {
+    if (github.state === "off") return "GitHub is not connected.";
+    if (github.state === "error") return `GitHub is unavailable — ${github.error}`;
+    if (!github.activity && !github.stats) return "Still loading pull requests.";
+    return "No GitHub login on the roster for this person.";
   }
 
   // The last notice passed to renderSetup, so a repaint triggered by the GitHub
@@ -528,20 +691,7 @@ export async function mount(container, creds) {
     if (!n) count.classList.add("none");
     row.append(count, pipsEl(n, busiest));
 
-    const prs = prCountFor(id);
-    const prCell = el("span", "su-person-prs mono" + (prs ? " on" : ""));
-    if (prs === null) {
-      prCell.classList.add("absent");
-      prCell.textContent = "—";
-      prCell.title = github.activity
-        ? "No GitHub login on the roster for this person."
-        : { loading: "Still loading pull requests.", error: "GitHub is unavailable." }[
-            github.state
-          ] || "GitHub is not connected.";
-    } else {
-      prCell.append(icon("github", 14), el("span", null, `${prs} ${plural(prs, "PR")}`));
-    }
-    row.appendChild(prCell);
+    row.appendChild(githubCell(githubStatsFor(id)));
 
     const flag = flagFor(id);
     const tone = flag.count === 0 ? "ok" : flag.count === 1 ? "warn" : "bad";
@@ -552,6 +702,29 @@ export async function mount(container, creds) {
 
     row.appendChild(minsSelect(id, memberLabel(member)));
     return row;
+  }
+
+  // Four numbers in one cell, each with the word it means underneath rather than
+  // a legend somewhere else on the screen.
+  function githubCell(stats) {
+    const cell = el("span", "su-person-gh mono");
+    if (!stats) {
+      cell.classList.add("absent");
+      cell.textContent = "—";
+      cell.title = githubAbsentReason();
+      return cell;
+    }
+    cell.appendChild(icon("github", 13));
+    for (const spec of statSpecs(stats)) {
+      const stat = el("span", `su-gh-stat ${spec.key}`);
+      stat.title = spec.title;
+      const shown = spec.text ?? (spec.value === null ? "—" : String(spec.value));
+      const num = el("span", "su-gh-num" + (spec.value ? " on" : ""), shown);
+      if (spec.value === null) num.classList.add("absent");
+      stat.append(num, el("span", "su-gh-key", spec.short));
+      cell.appendChild(stat);
+    }
+    return cell;
   }
 
   function avatarEl(accountId, label) {
@@ -622,33 +795,51 @@ export async function mount(container, creds) {
   }
 
   // Says which of the five things happened to the GitHub fetch, so an absent
-  // panel during the standup is explained here rather than being a silent gap.
+  // panel or a row of dashes during the standup is explained here rather than
+  // being a silent gap.
   function githubStatus() {
     const counts = github.activity;
+    const open = counts
+      ? `${counts.pullRequests.length} open ${plural(counts.pullRequests.length, "PR")} across ${counts.reached.length} ${plural(counts.reached.length, "repo")}`
+      : "";
     switch (github.state) {
       case "loading":
-        return { chip: "Loading…", tone: "", note: "Fetching open pull requests" };
-      case "ready":
         return {
-          chip: "Connected",
-          tone: "ok",
-          note: counts
-            ? `${counts.pullRequests.length} open ${plural(counts.pullRequests.length, "PR")} across ${counts.reached.length} ${plural(counts.reached.length, "repo")}`
-            : "Ready",
+          chip: "Loading…",
+          tone: "",
+          note: github.activity
+            ? "Counting reviews and merges this sprint"
+            : "Fetching pull requests",
         };
-      case "partial":
+      case "ready":
+        return { chip: "Connected", tone: "ok", note: open || "Ready" };
+      case "partial": {
+        // Every reason the numbers could be short, stated: an unreadable repo, a
+        // repo too busy for the page cap, or the window query failing outright.
+        const parts = [open].filter(Boolean);
+        const unreachable =
+          (counts?.failures?.length || 0) + (github.stats?.failures?.length || 0);
+        if (unreachable) {
+          parts.push(`${unreachable} ${plural(unreachable, "repo")} unreachable`);
+        }
+        if (github.stats?.truncated?.length) {
+          parts.push(
+            `sprint counts capped in ${github.stats.truncated.join(", ")}`
+          );
+        }
+        if (github.statsError) parts.push(`no sprint counts (${github.statsError})`);
+        if (!github.activity) parts.push("no pull-request list");
         return {
           chip: "Partial",
           tone: "warn",
-          note: counts
-            ? `${counts.pullRequests.length} open PRs · ${counts.failures.length} ${plural(counts.failures.length, "repo")} unreachable`
-            : "Some repos unreachable",
+          note: parts.join(" · ") || "Some repos unreachable",
         };
+      }
       case "error":
         return {
           chip: "Unavailable",
           tone: "bad",
-          note: `${github.error} — the standup runs without it`,
+          note: `${github.error || github.statsError} — the standup runs without it`,
         };
       default:
         return { chip: "Off", tone: "", note: "Add repos in Settings → GitHub" };
@@ -1059,7 +1250,7 @@ export async function mount(container, creds) {
     title.append(mark, document.createTextNode("GITHUB"));
     panel.appendChild(title);
 
-    if (github.state === "loading" || !github.activity) {
+    if (!github.activity && !github.stats) {
       const loading = document.createElement("div");
       loading.className = "standup-github-note";
       loading.textContent = "Loading…";
@@ -1078,7 +1269,15 @@ export async function mount(container, creds) {
       return panel;
     }
 
-    const mine = activityFor(github.activity, login);
+    // The numbers first: they are the same four the setup screen showed, and
+    // they are the part that answers "what have you been doing this sprint"
+    // without anyone having to read a list of titles out loud.
+    const stats = githubStatsFor(accountId);
+    if (stats) panel.appendChild(githubStatStrip(stats));
+
+    const mine = github.activity
+      ? activityFor(github.activity, login)
+      : { open: [], reviewRequests: [], merged: [], issues: [] };
     const sections = [
       ["Open PRs", mine.open, prRow],
       ["Waiting on you", mine.reviewRequests, prRow],
@@ -1089,7 +1288,9 @@ export async function mount(container, creds) {
     if (!sections.length) {
       const note = document.createElement("div");
       note.className = "standup-github-note";
-      note.textContent = "Nothing open on GitHub.";
+      note.textContent = github.activity
+        ? "Nothing open on GitHub."
+        : `Pull-request list unavailable — ${github.error}`;
       panel.appendChild(note);
       return panel;
     }
@@ -1102,6 +1303,31 @@ export async function mount(container, creds) {
       for (const item of items) panel.appendChild(rowFn(item));
     }
     return panel;
+  }
+
+  // Four tiles, sized to be read from across the room — the same statistics as
+  // the setup row's cluster, from the same `statSpecs`.
+  function githubStatStrip(stats) {
+    const strip = document.createElement("div");
+    strip.className = "standup-gh-stats";
+    for (const spec of statSpecs(stats)) {
+      const tile = document.createElement("div");
+      tile.className = `standup-gh-stat ${spec.key}`;
+      tile.title = spec.title;
+
+      const num = document.createElement("span");
+      num.className = "standup-gh-stat-num mono";
+      num.textContent = spec.text ?? (spec.value === null ? "—" : String(spec.value));
+      if (spec.value === null) num.classList.add("absent");
+
+      const key = document.createElement("span");
+      key.className = "standup-gh-stat-key";
+      key.textContent = spec.label;
+
+      tile.append(num, key);
+      strip.appendChild(tile);
+    }
+    return strip;
   }
 
   function githubRow(item) {
@@ -1418,19 +1644,10 @@ export async function mount(container, creds) {
   });
   observer.observe(container, { childList: true });
 
-  // Kicked off before the first paint — the state flips to "loading"
-  // synchronously, so the setup card renders with its status line already
-  // there — but never awaited. Whatever has landed by the time someone presses
+  // The GitHub fetch was started at the top of mount, before the Jira awaits,
+  // and is never awaited here. Whatever has landed by the time someone presses
   // Start is what the panel shows, and the rest fills in behind.
-  const githubFetch = startGithubFetch();
+  mounted = true;
   renderSetup();
-  githubFetch?.then(() => {
-    // The setup screen reports GitHub in three places now — the Open PRs tile,
-    // the per-person PR counts and the Quick info card — so it is repainted
-    // wholesale rather than having one chip patched in place.
-    if (!session) renderSetup(setupNotice);
-    // A person already on screen when the fetch lands gets their panel without
-    // waiting for the next hand-off.
-    else if (session.phase === PHASES.SPEAKING) renderRunning();
-  });
+  githubFetch?.then(repaintGithub);
 }

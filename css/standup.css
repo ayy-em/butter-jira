@@ -220,7 +220,7 @@
 
 .su-person {
   display: grid;
-  grid-template-columns: 16px 30px minmax(110px, 1fr) 104px auto 74px 104px 86px;
+  grid-template-columns: 16px 30px minmax(110px, 1fr) 104px auto minmax(215px, auto) 104px 86px;
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
@@ -262,12 +262,27 @@
 }
 .su-pip.on { background: #A855F7; }
 
-.su-person-prs {
-  display: inline-flex; align-items: center; gap: 7px;
+/* Four GitHub numbers in one cell. Each carries its own word rather than
+   relying on a legend elsewhere on the screen, and every one of them has a
+   title explaining what it counted and over what window. */
+.su-person-gh {
+  display: inline-flex; align-items: center; gap: 10px;
   font-size: calc(11.5px * var(--font-scale)); color: var(--muted); white-space: nowrap;
 }
-.su-person-prs.on { color: var(--accent-success); }
-.su-person-prs.absent { justify-content: center; opacity: 0.5; }
+.su-person-gh > svg { flex: none; opacity: 0.75; }
+.su-person-gh.absent { justify-content: center; opacity: 0.5; }
+.su-gh-stat { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; }
+.su-gh-num { font-size: calc(12.5px * var(--font-scale)); color: var(--text); }
+/* Colour marks "there is something here", never the meaning — the word under
+   the number does that. */
+.su-gh-num.on { color: var(--accent-success); }
+.su-gh-num.absent { color: var(--muted); opacity: 0.6; }
+.su-gh-key {
+  font-size: calc(9px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  opacity: 0.75;
+}
 
 .su-person-flag {
   display: inline-flex; align-items: center; gap: 7px;
@@ -397,13 +412,21 @@ label.su-card { cursor: pointer; }
   .su-person, .su-seg, .su-step-btn, .su-btn, .su-start { transition: none; }
 }
 
+/* The two sprint-to-date numbers with the longest labels go first when the
+   table gets tight: open pull requests and reviews are the two a standup acts
+   on, and the other two are still one hover away in the tooltip. */
+@media (max-width: 1400px) {
+  .su-person { grid-template-columns: 16px 30px minmax(110px, 1fr) 104px auto minmax(150px, auto) 104px 86px; }
+  .su-gh-stat.lines { display: none; }
+}
+
 @media (max-width: 1080px) {
   .su-tiles { width: 100%; }
   .su-info-row { grid-template-columns: minmax(0, 1fr); }
   /* Below this width the pips and the sprint-item count are the first things
      that can go: the name, the flag and the clock are what the meeting needs. */
-  .su-person { grid-template-columns: 16px 30px minmax(90px, 1fr) auto 104px 86px; }
-  .su-person-items, .su-pips { display: none; }
+  .su-person { grid-template-columns: 16px 30px minmax(90px, 1fr) minmax(105px, auto) 104px 86px; }
+  .su-person-items, .su-pips, .su-gh-stat.opened { display: none; }
 }
 
 /* ── Summary card ─────────────────────────────────────────────────────────── */
@@ -745,6 +768,44 @@ label.su-card { cursor: pointer; }
   height: calc(14px * var(--font-scale));
   flex: none;
 }
+/* The speaker's four numbers, above their lists. Two by two rather than a row
+   of four: the panel is ~300px wide and "Reviews & comments" has to fit on one
+   line at projector type sizes. */
+.standup-gh-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.standup-gh-stat {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  min-width: 0;
+}
+.standup-gh-stat-num {
+  display: block;
+  font-size: calc(19px * var(--font-scale));
+  line-height: 1.15;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.standup-gh-stat-num.absent { color: var(--muted); opacity: 0.6; }
+/* Lines merged is two numbers in one tile, so it is set a size down to keep
+   the four tiles the same height. */
+.standup-gh-stat.lines .standup-gh-stat-num { font-size: calc(15px * var(--font-scale)); }
+.standup-gh-stat-key {
+  display: block;
+  margin-top: 2px;
+  font-size: calc(10px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--muted);
+}
+
 .standup-github-heading {
   font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
@@ -799,7 +860,6 @@ label.su-card { cursor: pointer; }
 .standup-github-state.checks-failing { color: var(--accent-danger); }
 .standup-github-state.approved { color: var(--accent-success); }
 .standup-github-state.waiting-review { color: var(--accent-warning); }
-.standup-github-state.draft { color: var(--muted); }
 
 .standup-parking {
   border-top: 1px solid var(--border);

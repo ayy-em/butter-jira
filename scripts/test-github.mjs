@@ -18,7 +18,29 @@ const CREDS_URL = new URL("../js/credentials.js", import.meta.url);
 let storage = {};      // chrome.storage.sync
 let localStore = {};   // chrome.storage.local
 let nextResponse = null;
+// Paged fetches need a scripted sequence rather than one canned answer; an
+// empty queue falls back to nextResponse, which is what every older test uses.
+let responseQueue = [];
 let requests = [];
+// The default-branch history is a second page loop issued alongside the pull
+// request one, so it gets its own queue and its own request log. Sharing them
+// would make every assertion about pull-request paging depend on how many pages
+// of commits happened to be scripted.
+let commitQueue = [];
+let commitResponse = null;
+let commitRequests = [];
+const emptyHistory = (branch = "main") => ({
+  status: 200,
+  headers: {},
+  body: {
+    data: {
+      repository: {
+        nameWithOwner: "acme/platform-api",
+        defaultBranchRef: { name: branch, target: { history: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] } } },
+      },
+    },
+  },
+});
 
 const pick = (store, keys) =>
   Object.fromEntries(
@@ -44,8 +66,13 @@ globalThis.chrome = {
 globalThis.fetch = async (url, options = {}) => {
   const u = String(url);
   if (u.includes("config.local.json")) return { ok: false, status: 404 };
-  requests.push({ url: u, options });
-  const resp = nextResponse || { status: 200, body: { data: {} }, headers: {} };
+  const isCommitQuery = String(options.body || "").includes("ButterJiraRepoCommits");
+  if (isCommitQuery) commitRequests.push({ url: u, options });
+  else requests.push({ url: u, options });
+  const resp = isCommitQuery
+    ? (commitQueue.length ? commitQueue.shift() : commitResponse) || emptyHistory()
+    : (responseQueue.length ? responseQueue.shift() : nextResponse) ||
+      { status: 200, body: { data: {} }, headers: {} };
   return {
     ok: resp.status >= 200 && resp.status < 300,
     status: resp.status,
@@ -182,7 +209,7 @@ check(
 
 section("PR state derivation");
 const state = (pr) => gh.prState(pr);
-check("draft beats everything", state({ isDraft: true, reviewDecision: "CHANGES_REQUESTED", checks: "FAILURE" }) === "draft");
+check("no draft state exists to derive", gh.PR_STATES.DRAFT === undefined);
 check("changes requested", state({ reviewDecision: "CHANGES_REQUESTED" }) === "changes-requested");
 check("failing checks", state({ checks: "FAILURE" }) === "checks-failing");
 check("errored checks count as failing", state({ checks: "ERROR" }) === "checks-failing");
@@ -262,7 +289,8 @@ const payload = {
 };
 
 const activity = gh.toActivity(payload, repos, { now: NOW });
-check("PRs collected", activity.pullRequests.length === 3);
+check("PRs collected", activity.pullRequests.length === 2);
+check("drafts dropped on the way in", !activity.pullRequests.some((p) => p.number === 12));
 check("merged collected", activity.merged.length === 2);
 check("issues collected", activity.issues.length === 1);
 check("reached repos recorded", activity.reached.join() === "acme/platform-api");
@@ -270,7 +298,6 @@ check("failing repo attributed by alias, not swallowed", activity.failures[0]?.r
 check("failure keeps GitHub's message", /Could not resolve/.test(activity.failures[0]?.message || ""));
 check("one repo failing does not fail the fetch", activity.pullRequests.length > 0);
 check("most stuck first", activity.pullRequests[0].number === 10);
-check("draft last", activity.pullRequests[2].number === 12);
 check("team review requests kept separate from user ones",
   activity.pullRequests.find((p) => p.number === 11).reviewers.join() === "ada");
 check("age derived", activity.pullRequests[0].ageDays === 10);
@@ -291,12 +318,92 @@ check("merged last month excluded", !sam.merged.some((p) => p.number === 7));
 check("assigned issue matched case-insensitively", sam.issues.length === 1);
 
 const ada = gh.activityFor(activity, "ada", { now: NOW });
-check("Ada's own draft is hers", ada.open.length === 1 && ada.open[0].number === 12);
+check("her own draft is not counted as work in flight", ada.open.length === 0);
 check("PR waiting on Ada is in her review list", ada.reviewRequests.length === 1);
 check("a review request is not counted as her own work", !ada.open.some((p) => p.number === 11));
 
 const nobody = gh.activityFor(activity, "", { now: NOW });
 check("no login yields nothing, never everything", nobody.open.length === 0 && nobody.issues.length === 0);
+
+section("sprint-window document");
+const windowQuery = gh.buildWindowQuery();
+check("parameterised, because the cursor changes every page",
+  windowQuery.includes("$owner: String!") && windowQuery.includes("$cursor: String"));
+check("newest-updated first, which is what makes the cutoff a stop condition",
+  /orderBy: \{ field: UPDATED_AT, direction: DESC \}/.test(windowQuery));
+check("page info requested", windowQuery.includes("hasNextPage") && windowQuery.includes("endCursor"));
+check("default branch requested — 'merged into main' needs to know what main is",
+  windowQuery.includes("defaultBranchRef"));
+check("diff size requested", windowQuery.includes("additions") && windowQuery.includes("deletions"));
+check("reviews and comments take the newest, not the oldest",
+  /reviews\(last: \d+\)/.test(windowQuery) && /comments\(last: \d+\)/.test(windowQuery));
+check("inline comment counts come as totals, not as pages",
+  /comments \{ totalCount \}/.test(windowQuery));
+check("no search() call here either", !windowQuery.includes("search("));
+
+section("per-person sprint statistics");
+const SPRINT_START = "2026-08-03T00:00:00Z";
+const windowPr = (patch) => ({
+  repo: "acme/platform-api", title: "t", url: "u", state: "MERGED",
+  baseRef: "main", toDefaultBranch: true, additions: 0, deletions: 0,
+  createdAt: "", mergedAt: "", updatedAt: "", ...patch,
+});
+const STATS = {
+  fetchedAt: NOW.toISOString(),
+  since: "2026-07-01T00:00:00Z",
+  repos: ["acme/platform-api"],
+  reached: ["acme/platform-api"],
+  truncated: [],
+  failures: [],
+  pullRequests: [
+    // Opened and merged inside the sprint.
+    windowPr({ number: 1, author: "SamLee", createdAt: "2026-08-05T00:00:00Z", mergedAt: "2026-08-06T00:00:00Z", additions: 120, deletions: 30 }),
+    // Opened before it, merged during it: lines yes, opened no.
+    windowPr({ number: 2, author: "samlee", createdAt: "2026-07-20T00:00:00Z", mergedAt: "2026-08-04T00:00:00Z", additions: 10, deletions: 5 }),
+    // Merged into a feature branch: opened yes, lines no.
+    windowPr({ number: 3, author: "samlee", createdAt: "2026-08-06T00:00:00Z", mergedAt: "2026-08-06T00:00:00Z", toDefaultBranch: false, baseRef: "release/2", additions: 999, deletions: 999 }),
+    windowPr({ number: 4, author: "ada", createdAt: "2026-08-05T00:00:00Z", state: "OPEN" }),
+  ],
+  reviews: [
+    { repo: "acme/platform-api", number: 4, author: "SamLee", prAuthor: "ada", submittedAt: "2026-08-06T00:00:00Z", state: "APPROVED", comments: 2 },
+    // On his own pull request — authorship, not review.
+    { repo: "acme/platform-api", number: 1, author: "samlee", prAuthor: "samlee", submittedAt: "2026-08-06T00:00:00Z", state: "COMMENTED", comments: 5 },
+    // Before the sprint started.
+    { repo: "acme/platform-api", number: 4, author: "samlee", prAuthor: "ada", submittedAt: "2026-07-10T00:00:00Z", state: "COMMENTED", comments: 1 },
+  ],
+  comments: [
+    { repo: "acme/platform-api", number: 4, author: "samlee", prAuthor: "ada", createdAt: "2026-08-06T00:00:00Z" },
+    { repo: "acme/platform-api", number: 1, author: "samlee", prAuthor: "samlee", createdAt: "2026-08-06T00:00:00Z" },
+  ],
+};
+
+const samStats = gh.statsFor(STATS, "samlee", { since: SPRINT_START });
+check("opened counts this sprint's, case-insensitively", samStats.prsOpened === 2);
+check("the one opened before the sprint appears once the window reaches back",
+  gh.statsFor(STATS, "samlee", { since: STATS.since }).prsOpened === 3);
+check("merged counts default-branch merges only", samStats.prsMerged === 2);
+check("lines merged sum the default-branch merges", samStats.additions === 130 && samStats.deletions === 35);
+check("lines is additions plus deletions", samStats.lines === 165);
+check("reviewing your own PR is not a review", samStats.reviews === 1);
+check("inline comments count alongside conversation ones", samStats.comments === 3);
+check("engagements are reviews plus comments", samStats.engagements === 4);
+check("a review before the sprint is out of the window", samStats.reviews === 1);
+check("the window is the sprint when the sprint is inside it",
+  Date.parse(samStats.from) === Date.parse(SPRINT_START) && samStats.clamped === false);
+
+const adaStats = gh.statsFor(STATS, "ada", { since: SPRINT_START });
+check("someone else's numbers are their own", adaStats.prsOpened === 1 && adaStats.prsMerged === 0);
+check("a genuine zero is a zero, not an absence", adaStats.lines === 0 && adaStats.engagements === 0);
+
+const stranger = gh.statsFor(STATS, "nobody-here", { since: SPRINT_START });
+check("a login nobody matches still answers zero", stranger.prsOpened === 0);
+check("no login answers nothing, never everything", gh.statsFor(STATS, "") === null);
+check("no window answers nothing", gh.statsFor(null, "samlee") === null);
+
+const clamped = gh.statsFor(STATS, "samlee", { since: "2026-06-01T00:00:00Z" });
+check("a sprint older than the fetch window is clamped", clamped.clamped === true);
+check("clamping counts from the fetch window, not from the sprint",
+  Date.parse(clamped.from) === Date.parse(STATS.since));
 
 section("roster matcher");
 const proposal = gh.proposeGithubMatches(
@@ -368,7 +475,7 @@ check("one request for every declared repo", requests.length === 1);
 check("posted to the GraphQL endpoint", requests[0].url === "https://api.github.com/graphql");
 check("bearer auth", requests[0].options.headers.Authorization === "Bearer gh-token");
 check("query names both repos", /platform-api[\s\S]*trading-ui/.test(requests[0].options.body));
-check("view model returned", fetched.pullRequests.length === 3);
+check("view model returned, drafts already dropped", fetched.pullRequests.length === 2);
 await new Promise((r) => setTimeout(r, 0));   // the expiry write is fire-and-forget
 check("expiry recorded from the response header", localStore.githubTokenExpiresAt === "2026-10-01");
 
@@ -402,7 +509,261 @@ caught = null;
 try { await gh.fetchTeamActivity({ now: NOW }); } catch (err) { caught = err; }
 check("a whole-query GraphQL failure throws", caught?.kind === "graphql");
 
+section("sprint-window transport");
+storage.github = { enabled: true, host: "github.com", org: "acme", repos: ["acme/platform-api"] };
+await cfg.loadConfig();
+await creds.saveGithubToken("gh-token");
+
+const prNode = (number, updatedAt, extra = {}) => ({
+  number, title: `PR ${number}`, url: `u${number}`, isDraft: false, state: "MERGED",
+  createdAt: updatedAt, updatedAt, mergedAt: updatedAt,
+  baseRefName: "main", additions: 10, deletions: 1,
+  author: { login: "samlee" },
+  reviews: { nodes: [] },
+  comments: { nodes: [] },
+  ...extra,
+});
+const windowPage = (nodes, hasNextPage, branch = "main") => ({
+  status: 200,
+  headers: {},
+  body: {
+    data: {
+      repository: {
+        nameWithOwner: "acme/platform-api",
+        defaultBranchRef: branch ? { name: branch } : null,
+        pullRequests: { pageInfo: { hasNextPage, endCursor: "cursor-1" }, nodes },
+      },
+    },
+  },
+});
+
+requests = [];
+nextResponse = null;
+responseQueue = [
+  windowPage([prNode(1, "2026-08-06T00:00:00Z"), prNode(2, "2026-08-05T00:00:00Z")], true),
+  // The last node on this page is older than the 45-day window.
+  windowPage([prNode(3, "2026-08-04T00:00:00Z"), prNode(4, "2026-05-01T00:00:00Z")], true),
+];
+const windowed = await gh.fetchTeamStats({ now: NOW });
+check("paged past the first page", requests.length === 2);
+check("stopped at the window rather than paging on", windowed.pullRequests.length === 3);
+check("the cursor is threaded into the next page",
+  JSON.parse(requests[1].options.body).variables.cursor === "cursor-1");
+check("a window that ended on its own is not truncated", windowed.truncated.length === 0);
+check("default-branch merges recognised", windowed.pullRequests.every((p) => p.toDefaultBranch));
+check("window start reported alongside the data", windowed.since < NOW.toISOString());
+
+requests = [];
+responseQueue = [];
+nextResponse = windowPage([prNode(9, "2026-08-06T00:00:00Z")], true); // always one more page
+const capped = await gh.fetchTeamStats({ now: NOW, maxPages: 3 });
+check("a repo busier than the cap is bounded", requests.length === 3);
+check("and says so rather than passing off a short count as a full one",
+  capped.truncated.join() === "acme/platform-api");
+
+requests = [];
+nextResponse = windowPage(
+  [
+    prNode(20, "2026-08-06T00:00:00Z", {
+      isDraft: true,
+      reviews: { nodes: [{ state: "COMMENTED", submittedAt: "2026-08-06T00:00:00Z", author: { login: "ada" }, comments: { totalCount: 3 } }] },
+      comments: { nodes: [{ createdAt: "2026-08-06T00:00:00Z", author: { login: "ada" } }] },
+    }),
+    prNode(21, "2026-08-06T00:00:00Z", {
+      reviews: {
+        nodes: [
+          { state: "APPROVED", submittedAt: "2026-08-06T00:00:00Z", author: { login: "Ada" }, comments: { totalCount: 2 } },
+          { state: "PENDING", submittedAt: null, author: { login: "ada" }, comments: { totalCount: 9 } },
+        ],
+      },
+      comments: { nodes: [{ createdAt: "2026-08-06T00:00:00Z", author: { login: "ada" } }] },
+    }),
+  ],
+  false
+);
+const withDrafts = await gh.fetchTeamStats({ now: NOW });
+check("a draft contributes nothing, not even its reviews",
+  withDrafts.pullRequests.length === 1 && !withDrafts.pullRequests.some((p) => p.number === 20));
+check("a draft's comments go with it", withDrafts.comments.length === 1);
+check("an unsubmitted review is not a review", withDrafts.reviews.length === 1);
+check("the reviewer, not the author, is credited",
+  withDrafts.reviews[0].author === "Ada" && withDrafts.reviews[0].prAuthor === "samlee");
+
+const draftStats = gh.statsFor(withDrafts, "ada", { since: SPRINT_START });
+check("reviews on the draft are not counted for anyone",
+  draftStats.reviews === 1 && draftStats.comments === 3);
+
+storage.github = {
+  enabled: true, host: "github.com", org: "acme",
+  repos: ["acme/platform-api", "acme/trading-ui"],
+};
+await cfg.loadConfig();
+requests = [];
+nextResponse = null;
+responseQueue = [
+  windowPage([prNode(1, "2026-08-06T00:00:00Z")], false),
+  { status: 200, headers: {}, body: { data: { repository: null }, errors: [{ type: "NOT_FOUND", message: "Could not resolve to a Repository" }] } },
+];
+const partial = await gh.fetchTeamStats({ now: NOW });
+check("one unreadable repo is a per-repo verdict", partial.failures.length === 1);
+check("the readable one still answers", partial.reached.join() === "acme/platform-api");
+check("failure names the repo", partial.failures[0].repo === "acme/trading-ui");
+
+responseQueue = [];
+nextResponse = { status: 200, headers: {}, body: { data: { repository: null }, errors: [{ type: "NOT_FOUND", message: "gone" }] } };
+caught = null;
+try { await gh.fetchTeamStats({ now: NOW }); } catch (err) { caught = err; }
+check("every repo failing throws rather than reading as a quiet sprint of zeroes",
+  caught instanceof Error);
+
+section("prewarm and in-flight sharing");
+storage.github = { enabled: true, host: "github.com", org: "acme", repos: ["acme/platform-api"] };
+await cfg.loadConfig();
+localStore = {};
+await creds.saveGithubToken("gh-token");
+requests = [];
+responseQueue = [];
+nextResponse = { status: 200, body: payload, headers: {} };
+const first = gh.getTeamActivity({ now: NOW });
+const second = gh.getTeamActivity({ now: NOW });
+check("a second caller joins the request already in flight", first === second);
+await first;
+check("which means one request, not two", requests.length === 1);
+
+requests = [];
+const cachedCall = await gh.getTeamActivity({ now: NOW });
+check("and the next call is served from storage", requests.length === 0 && cachedCall.reached.length === 1);
+
+storage.github = { enabled: false, host: "github.com", org: "", repos: [] };
+await cfg.loadConfig();
+requests = [];
+check("prewarming an unconfigured GitHub does nothing at all",
+  gh.prewarmGithub() === false && requests.length === 0);
+
+section("direct pushes to the default branch");
+const commitQuery = gh.buildCommitQuery();
+check("commit query walks the default branch's history",
+  commitQuery.includes("defaultBranchRef") && commitQuery.includes("history("));
+check("the window is applied server-side", commitQuery.includes("since: $since"));
+check("diff size requested per commit",
+  commitQuery.includes("additions") && commitQuery.includes("deletions"));
+check("pull request association asked for, so nothing is counted twice",
+  commitQuery.includes("associatedPullRequests"));
+
+storage.github = { enabled: true, host: "github.com", org: "acme", repos: ["acme/platform-api"] };
+await cfg.loadConfig();
+
+const commitNode = (oid, committedDate, extra = {}) => ({
+  oid, committedDate, additions: 20, deletions: 5,
+  author: { user: { login: "samlee" } },
+  associatedPullRequests: { nodes: [] },
+  ...extra,
+});
+const historyPage = (nodes, hasNextPage, branch = "main") => ({
+  status: 200,
+  headers: {},
+  body: {
+    data: {
+      repository: {
+        nameWithOwner: "acme/platform-api",
+        defaultBranchRef: {
+          name: branch,
+          target: { history: { pageInfo: { hasNextPage, endCursor: "commit-cursor-1" }, nodes } },
+        },
+      },
+    },
+  },
+});
+
+requests = [];
+commitRequests = [];
+responseQueue = [];
+commitQueue = [];
+nextResponse = windowPage([prNode(1, "2026-08-06T00:00:00Z")], false);
+commitResponse = null;
+commitQueue = [
+  historyPage(
+    [
+      commitNode("aaa", "2026-08-06T00:00:00Z"),
+      // Arrived through a pull request: that PR's diff already counts it.
+      commitNode("bbb", "2026-08-06T00:00:00Z", { associatedPullRequests: { nodes: [{ number: 1 }] } }),
+      // No GitHub account behind the commit email: cannot be attributed.
+      commitNode("ccc", "2026-08-06T00:00:00Z", { author: { user: null } }),
+      // Somebody else's direct push.
+      commitNode("ddd", "2026-08-06T00:00:00Z", { author: { user: { login: "Ada" } }, additions: 7, deletions: 3 }),
+    ],
+    true
+  ),
+  historyPage([commitNode("eee", "2026-08-05T00:00:00Z", { additions: 1, deletions: 1 })], false),
+];
+const pushed = await gh.fetchTeamStats({ now: NOW });
+
+check("the commit history is a second query, not a second page of the first",
+  commitRequests.length === 2 && requests.length === 1);
+check("commit paging threads its own cursor",
+  JSON.parse(commitRequests[1].options.body).variables.cursor === "commit-cursor-1");
+check("the since variable is sent as a timestamp",
+  typeof JSON.parse(commitRequests[0].options.body).variables.since === "string");
+check("commits that came in through a pull request are dropped",
+  !pushed.commits.some((c) => c.oid === "bbb"));
+check("commits with no GitHub account behind them are dropped",
+  !pushed.commits.some((c) => c.oid === "ccc"));
+check("direct pushes kept, across pages",
+  pushed.commits.map((c) => c.oid).join() === "aaa,ddd,eee");
+check("commits carry their repo", pushed.commits.every((c) => c.repo === "acme/platform-api"));
+
+let pushStats = gh.statsFor(pushed, "samlee", { since: SPRINT_START });
+check("direct pushes counted", pushStats.directCommits === 2);
+check("direct lines added", pushStats.directAdditions === 21 && pushStats.directDeletions === 6);
+check("pull request lines still reported on their own",
+  pushStats.prAdditions === 10 && pushStats.prDeletions === 1);
+check("additions fold both sources together", pushStats.additions === 31);
+check("deletions fold both sources together", pushStats.deletions === 7);
+check("lines is the whole of what reached main", pushStats.lines === 38);
+
+pushStats = gh.statsFor(pushed, "ada", { since: SPRINT_START });
+check("a direct push is credited to its own author",
+  pushStats.directCommits === 1 && pushStats.lines === 10);
+check("and does not borrow the other person's pull requests", pushStats.prsMerged === 0);
+
+// A commit inside the fetch window but before the sprint started.
+pushStats = gh.statsFor(pushed, "samlee", { since: "2026-08-06T00:00:00Z" });
+check("the sprint boundary applies to commits too", pushStats.directCommits === 1);
+
+requests = [];
+commitRequests = [];
+commitQueue = [];
+commitResponse = historyPage([commitNode("fff", "2026-08-06T00:00:00Z")], true); // always one more
+const cappedCommits = await gh.fetchTeamStats({ now: NOW, commitMaxPages: 2 });
+check("commit paging is bounded by its own cap", commitRequests.length === 2);
+check("a capped history reports the repo as truncated",
+  cappedCommits.truncated.join() === "acme/platform-api");
+
+requests = [];
+commitRequests = [];
+commitQueue = [];
+commitResponse = {
+  status: 200, headers: {},
+  body: { data: { repository: { nameWithOwner: "acme/platform-api", defaultBranchRef: null } } },
+};
+const emptyRepo = await gh.fetchTeamStats({ now: NOW });
+check("a repo with no default branch yields no commits and no error",
+  emptyRepo.commits.length === 0 && emptyRepo.failures.length === 0);
+
+requests = [];
+commitRequests = [];
+commitQueue = [];
+commitResponse = { status: 200, headers: {}, body: { errors: [{ message: "Something broke" }] } };
+const halfFailed = await gh.fetchTeamStats({ now: NOW });
+check("losing the commit half does not lose the repo",
+  halfFailed.reached.join() === "acme/platform-api" && halfFailed.pullRequests.length === 1);
+check("and it is reported rather than silently zeroed",
+  halfFailed.failures.some((f) => /Direct pushes unavailable/.test(f.message)));
+commitResponse = null;
+
 section("repo access check");
+storage.github = { enabled: true, host: "github.com", org: "acme", repos: ["acme/platform-api"] };
+await cfg.loadConfig();
 requests = [];
 nextResponse = { status: 200, body: { private: true }, headers: {} };
 const access = await gh.checkRepoAccess(repos, { host: "github.com" }, "gh-token");

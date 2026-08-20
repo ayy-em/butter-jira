@@ -13,9 +13,15 @@ const NAMES = [
   ["Tulio", 7, 2, 0], ["Evgeny", 3, 8, 0], ["Lana", 2, 1, 2],
 ];
 
-// ?theme=light · ?select=nobody · ?roster=empty · ?github=off · ?resume=1 · ?start=1
+// ?theme=light · ?select=nobody · ?roster=empty · ?github=off · ?resume=1 ·
+// ?start=1 · ?sprint=undated
 const params = new URLSearchParams(location.search);
 document.documentElement.dataset.theme = params.get("theme") || "dark";
+
+const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+// Nine days in, which is where a two-week sprint usually is when someone stops
+// to look at the numbers.
+const SPRINT_START = daysAgo(9);
 
 const local = {};
 const sync = {};
@@ -73,7 +79,16 @@ globalThis.fetch = async (input) => {
     // Named the way a board owner actually names one — identifier plus a
     // description — so the setup card's sprint line shows the trim doing its
     // job rather than a name that happens to need no trimming.
-    return json({ values: [{ id: 41, name: "Sprint 41: Payments hardening", state: "active" }] });
+    // ?sprint=undated drops the start date, which is what sends the GitHub
+    // statistics onto their fallback window.
+    return json({
+      values: [{
+        id: 41,
+        name: "Sprint 41: Payments hardening",
+        state: "active",
+        startDate: params.get("sprint") === "undated" ? undefined : SPRINT_START,
+      }],
+    });
   }
   if (url.includes("/sprint/41/issue")) {
     return json({ issues: SPRINT_ISSUES, total: SPRINT_ISSUES.length });
@@ -116,7 +131,7 @@ TEAMS.teams = [{
 }];
 await saveTeam(TEAMS);
 
-const { activityCacheKey } = await import("./js/github.js");
+const { activityCacheKey, statsCacheKey } = await import("./js/github.js");
 local[activityCacheKey(CONFIG)] = {
   ts: Date.now(),
   value: {
@@ -142,6 +157,74 @@ local[activityCacheKey(CONFIG)] = {
     merged: [],
     issues: [],
     failures: [],
+  },
+};
+
+// The sprint-window cache: what the per-person statistics are counted from.
+// Deterministic per person — pull requests they opened and merged, and reviews
+// and comments left on the *next* person's, so nobody is credited for reviewing
+// themselves and the numbers differ enough between rows to be worth looking at.
+const windowPrs = [];
+const windowReviews = [];
+const windowComments = [];
+NAMES.forEach((p, i) => {
+  const login = p[0].toLowerCase();
+  const target = NAMES[(i + 1) % NAMES.length][0].toLowerCase();
+
+  for (let n = 0; n < 1 + ((i * 2) % 4) + p[2]; n++) {
+    const merged = n % 2 === 0;
+    windowPrs.push({
+      repo: n % 2 ? "example/alpha" : "example/beta",
+      number: 500 + i * 20 + n,
+      title: `Sprint change ${n + 1} from ${p[0]}`,
+      url: "#",
+      author: login,
+      state: merged ? "MERGED" : "OPEN",
+      createdAt: daysAgo(1 + (n % 7)),
+      updatedAt: daysAgo(1),
+      mergedAt: merged ? daysAgo(1 + (n % 3)) : "",
+      baseRef: "main",
+      toDefaultBranch: true,
+      additions: 40 + i * 37 + n * 61,
+      deletions: 12 + i * 9 + n * 17,
+    });
+  }
+
+  for (let n = 0; n < 1 + ((i * 3) % 5); n++) {
+    windowReviews.push({
+      repo: "example/alpha",
+      number: 500 + ((i + 1) % NAMES.length) * 20,
+      author: login,
+      prAuthor: target,
+      submittedAt: daysAgo(1 + (n % 5)),
+      state: n % 3 === 0 ? "APPROVED" : "COMMENTED",
+      comments: n % 4,
+    });
+  }
+
+  for (let n = 0; n < 1 + ((i * 2) % 4); n++) {
+    windowComments.push({
+      repo: "example/beta",
+      number: 600 + ((i + 1) % NAMES.length),
+      author: login,
+      prAuthor: target,
+      createdAt: daysAgo(1 + (n % 4)),
+    });
+  }
+});
+
+local[statsCacheKey(CONFIG)] = {
+  ts: Date.now(),
+  value: {
+    fetchedAt: new Date().toISOString(),
+    since: daysAgo(45),
+    repos: ["example/alpha", "example/beta"],
+    reached: ["example/alpha", "example/beta"],
+    truncated: [],
+    failures: [],
+    pullRequests: windowPrs,
+    reviews: windowReviews,
+    comments: windowComments,
   },
 };
 
