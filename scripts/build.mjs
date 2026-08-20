@@ -38,6 +38,7 @@ export const TARGETS = ["chrome", "firefox", "edge"];
 const INCLUDE_FILES = [
   "app.html",
   "issue.html",
+  "recap.html",
   "settings.html",
   "settings.js",
   "background.js",

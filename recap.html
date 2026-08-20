@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sprint recap — butter_jira</title>
+  <!-- Deliberately not css/app.css: its app-shell rules clip a print job. -->
+  <link rel="stylesheet" href="css/recap.css">
+</head>
+<body class="recap-page">
+  <div class="recap-toolbar" id="recap-toolbar">
+    <!-- Starts disabled. This page fetches before it can render, and a print
+         button offered over an empty document is how it produced a blank PDF. -->
+    <button class="recap-print-btn" id="recap-print" disabled>Preparing…</button>
+    <span class="recap-toolbar-note" id="recap-toolbar-note">
+      Building the recap…
+    </span>
+  </div>
+  <div class="recap-sheet">
+    <div class="recap" id="recap-root"></div>
+  </div>
+  <script type="module" src="js/recap-page.js"></script>
+</body>
+</html>
