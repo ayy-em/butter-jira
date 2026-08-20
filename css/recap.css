@@ -1,0 +1,552 @@
+/* Sprint recap — a print document, not a screen.
+ *
+ * Three rules shape everything below.
+ *
+ * 1. **Light, always.** The palette is declared here in fixed values rather than
+ *    read from the app's theme tokens: printing the dark theme would empty a
+ *    toner cartridge, and a recap generated at night must not differ from one
+ *    generated in the morning.
+ * 2. **Colour is decoration.** Every figure is printed as text beside whatever
+ *    fill carries it, so the document survives a black-and-white printer and a
+ *    reader who cannot separate the hues.
+ * 3. **Nothing breaks across a page that has to be read as one thing** — a
+ *    person's card, a board block, a table row.
+ *
+ * The on-screen version is the same document at screen width; the toolbar is the
+ * only thing that differs, and it is `display: none` in print.
+ */
+
+/* The same two faces app.css declares. Repeated rather than inherited because
+ * this document deliberately does not load app.css: that stylesheet sets
+ * `html, body { height: 100%; overflow: hidden }` for the app's scroll shell,
+ * and an overflow-hidden body clips a print job to exactly one page. Same family
+ * names and same files, so the browser downloads each once.
+ */
+@font-face {
+  font-family: 'Ubuntu Sans';
+  src: url('../assets/fonts/UbuntuSans-Variable.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Ubuntu Sans Mono';
+  src: url('../assets/fonts/UbuntuSansMono-Variable.woff2') format('woff2-variations');
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* The page must be free to grow: a clipped body prints one page and drops the
+   rest of the document on the floor. */
+html, body.recap-page {
+  height: auto;
+  overflow: visible;
+}
+* { box-sizing: border-box; }
+
+.recap {
+  /* Ink and paper. Contrast ratios are against #FFFFFF. */
+  --ink: #16181d;          /* 15.8:1 */
+  --ink-soft: #454b57;     /*  8.6:1 */
+  --ink-muted: #6b7280;    /*  4.8:1 */
+  --rule: #d8dbe1;
+  --rule-soft: #eceef1;
+  --wash: #f6f7f9;
+  /* One hue, four steps, light to dark — a sprint's statuses are a sequence, so
+     they take a ramp rather than four unrelated colours. Same reasoning as the
+     dashboard's progress bar, re-stepped for paper. */
+  --step-1: #a9c8ee;
+  --step-2: #6c9fdf;
+  --step-3: #2a78d6;
+  --step-4: #1a4f92;
+  --flag: #b45309;         /*  4.7:1 — scope creep, the one thing that earns a colour of its own */
+
+  color: var(--ink);
+  /* The background, for screen. On screen there are no page boxes — the sheet is
+     one continuous strip — so the image is stretched over the whole of it rather
+     than tiled: a tile would repeat every 267mm, restarting partway down the
+     sheet at a seam that corresponds to nothing the reader can see. In print the
+     page canvas carries it instead, tiled per page, and this goes transparent.
+     Declared here rather than inside `@media screen` deliberately: a background
+     that only exists under `@media print` is not fetched until the print styles
+     apply, and Chrome snapshots the page without waiting for it — which printed
+     a blank white page. Naming the URL in a rule that applies on load is what
+     gets it into the cache before the print dialog. */
+  background: url('../assets/bgs/pdf-bg.png') center top / 100% 100% no-repeat;
+  padding: 0 var(--page-gutter);
+  font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 10pt;
+  line-height: 1.45;
+}
+
+.recap .mono {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Page furniture ───────────────────────────────────────────────────────── */
+
+/* `--page-content-height` is A4 less the top and bottom margins declared just
+   below. It lives beside them because the background image is tiled at exactly
+   this height to land one whole copy on each page — change one and the other has
+   to follow.
+   `--paper` sits on the root rather than with the rest of the palette on
+   `.recap`, because the two boxes that paint the paper — the screen sheet and
+   the printed page — are both outside `.recap`. */
+:root {
+  --page-content-height: 267mm;
+  --paper: #ffffff;
+  /* The inset between the background and the content, on every edge of every
+     page. Sides come from padding on `.recap`, which repeats naturally; top and
+     bottom come from the `thead` and `tfoot` of the layout table, which are the
+     only boxes Blink reserves space for on each page. */
+  --page-gutter: 1.5rem;
+}
+
+@page {
+  size: A4;
+  margin: 16mm 12mm 14mm;
+}
+
+/* The document is a single-column table. Its `thead` is what makes the header
+   repeat on every printed page while also reserving the space it takes up —
+   `position: fixed` does the first half only, and content then flows underneath
+   it from page two onwards. */
+.recap-layout { width: 100%; max-width: 100%; border-collapse: collapse; table-layout: fixed; }
+/* A print page cannot be scrolled, so anything wider than it is simply lost.
+   Every wrapping box states its own limit rather than trusting its children. */
+.recap-tiles, .recap-people, .recap-person-stats, .recap-table { max-width: 100%; }
+.recap-layout > thead { display: table-header-group; }
+.recap-layout > thead > tr > td { padding: var(--page-gutter) 0 10px; }
+.recap-layout > tbody > tr > td { padding: 0; vertical-align: top; }
+.recap-layout > tfoot > tr > td { padding: 0; height: var(--page-gutter); }
+
+.recap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+}
+.recap-logo { height: 26px; width: auto; max-width: 46mm; object-fit: contain; }
+.recap-logo-text { font-size: 13pt; font-weight: 700; letter-spacing: -0.01em; }
+.recap-team {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 9pt;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: var(--ink-soft);
+  text-align: right;
+}
+
+.recap-body { padding-top: 0; }
+
+.recap-footer {
+  margin-top: 14px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule-soft);
+  font-size: 7pt;
+  color: var(--ink-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ── Titles ───────────────────────────────────────────────────────────────── */
+
+.recap-title { font-size: 20pt; font-weight: 700; margin: 0 0 2px; letter-spacing: -0.02em; }
+.recap-subtitle { font-size: 10pt; color: var(--ink-soft); margin: 0 0 4px; }
+.recap-goal {
+  margin: 6px 0 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--step-3);
+  font-size: 10pt;
+  color: var(--ink-soft);
+}
+
+/* The sprints this document covers, one bullet each. A real list marker rather
+   than the rule .recap-goal uses: several boards run sprints at once, and a
+   column of identical rules read as one paragraph broken up. The marker takes
+   the board's colour so the bullet ties back to the block further down. */
+.recap-sprint-list { margin: 8px 0 0; padding-left: 16px; }
+.recap-sprint-item {
+  margin-top: 4px;
+  font-size: 10pt;
+  color: var(--ink-soft);
+  break-inside: avoid;
+}
+.recap-sprint-item::marker { color: var(--sprint-dot, var(--step-3)); }
+.recap-sprint-name { font-weight: 600; color: var(--ink); }
+.recap-sprint-goal::before { content: " — "; }
+
+.recap-section { margin-top: 18px; }
+/* Two sections start their own page: the per-person rows and the ticket list are
+   each read as a block, and both were landing halfway down a page behind the end
+   of the section above. The break is stated rather than left to `break-inside`,
+   which only stops a section being split — it will not move one that already
+   fits where it starts.
+   Blink does honour a forced break inside a table cell, which is where the whole
+   document lives (see the `thead` note above); `position: fixed` headers and
+   `break-before` are the two things that behave differently in there, and only
+   the first of them bit. */
+.recap-section-break { break-before: page; }
+.recap-section-title {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: var(--ink-muted);
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--rule);
+  break-after: avoid;
+}
+.recap-note { font-size: 7.5pt; color: var(--ink-muted); margin: 6px 0 0; }
+/* The build state and any failure are the only things on the page when they
+   show, so they are read at body size rather than as a footnote — the one place
+   a muted line is not shrunk with the rest of them. They do print, because a
+   page that went to paper mid-build must say why it is short. */
+.recap-status-failed, #recap-root > .recap-note:only-child {
+  font-size: 11pt;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* ── Stat tiles ───────────────────────────────────────────────────────────── */
+
+.recap-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.recap-tile {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 7px 9px;
+  background: var(--paper);
+  break-inside: avoid;
+}
+.recap-tile-label {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 6.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+  color: var(--ink-muted);
+}
+.recap-tile-value { font-size: 16pt; font-weight: 700; line-height: 1.15; letter-spacing: -0.02em; }
+.recap-tile-detail { font-size: 8pt; color: var(--ink-soft); }
+.recap-tile-flag .recap-tile-value { color: var(--flag); }
+
+/* The supporting figures under the four headline cards: a line, not eight more
+   cards competing with them. */
+.recap-inline-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule-soft);
+}
+.recap-inline-stats .recap-stat { border-top: none; padding-top: 0; min-width: 60px; }
+
+/* ── Status split ─────────────────────────────────────────────────────────── */
+
+.recap-bar {
+  display: flex;
+  gap: 2px;                /* the surface showing through, not a border */
+  height: 16px;
+  margin-bottom: 6px;
+}
+.recap-bar-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  font-size: 7.5pt;
+  font-weight: 600;
+  overflow: hidden;
+}
+.recap-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 8.5pt; }
+.recap-legend-item { display: flex; align-items: center; gap: 5px; color: var(--ink-soft); }
+.recap-dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+
+/* ── People ───────────────────────────────────────────────────────────────── */
+
+/* One person per row, the full width of the page. Two columns of stacked cards
+   put the same five figures at two different horizontal positions, so reading
+   "who has the most points wrapped" meant scanning a zigzag; a column of rows
+   lines every figure up under the one above it, which is the comparison this
+   section exists to support. Each row is short enough that `break-inside: avoid`
+   never leaves a large hole at the foot of a page. */
+.recap-people {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.recap-person {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 6px 9px;
+  break-inside: avoid;
+}
+/* Fixed rather than content-sized: the names have to start and end at the same
+   place down the column, or the figures beside them stop lining up. */
+.recap-person-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 190px;
+  min-width: 0;
+}
+.recap-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+  background: var(--wash);
+}
+.recap-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12pt;
+  font-weight: 600;
+  color: var(--ink-soft);
+  border: 1px solid var(--rule);
+}
+.recap-person-name { font-size: 11pt; font-weight: 600; line-height: 1.2; }
+.recap-person-sub { font-size: 7pt; color: var(--ink-muted); }
+/* `grid-auto-flow: column` rather than a counted `repeat()`: the row divides
+   itself evenly by however many figures a card carries, so adding or dropping
+   one needs no change here. */
+.recap-person-stats {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+/* A rule between the columns, not above them — the figures now sit side by side,
+   and a top border would draw a line across the row instead of separating it. */
+.recap-person-stats .recap-stat {
+  border-top: none;
+  border-left: 1px solid var(--rule-soft);
+  padding: 0 0 0 8px;
+}
+.recap-person-stats .recap-stat:first-child { border-left: none; padding-left: 0; }
+/* Two lines' worth, whether the label needs them or not. Side by side, a label
+   that fits on one line put its figure a line higher than its neighbours, and
+   the row of numbers this layout exists to line up came out ragged. */
+.recap-person-stats .recap-stat-label { min-height: 2.9em; }
+.recap-stat { border-top: 1px solid var(--rule-soft); padding-top: 3px; }
+.recap-stat-label {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 6pt;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ink-muted);
+  display: block;
+}
+.recap-stat-value { font-size: 10.5pt; font-weight: 600; }
+.recap-stat-value .recap-stat-of { font-size: 7pt; font-weight: 400; color: var(--ink-muted); }
+.recap-outside {
+  font-size: 6pt;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-muted);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0 3px;
+  margin-left: 5px;
+  white-space: nowrap;
+}
+
+/* ── Boards ───────────────────────────────────────────────────────────────── */
+
+.recap-boards { display: flex; flex-direction: column; gap: 7px; }
+.recap-board {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--step-3);
+  border-radius: 4px;
+  padding: 8px 10px;
+  break-inside: avoid;
+}
+.recap-board-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.recap-board-name { font-size: 11pt; font-weight: 600; }
+.recap-board-sprint { font-size: 9pt; color: var(--ink-soft); }
+.recap-board-dates {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 7pt;
+  color: var(--ink-muted);
+  margin-left: auto;
+}
+.recap-board-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 5px; }
+
+/* ── Tickets ──────────────────────────────────────────────────────────────── */
+
+.recap-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+/* Repeats the heading row on every page the table spills onto. */
+.recap-table thead { display: table-header-group; }
+.recap-table th {
+  text-align: left;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 6.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--ink-muted);
+  font-weight: 500;
+  padding: 0 6px 4px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.recap-table td {
+  padding: 3.5px 6px 3.5px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+.recap-table tr { break-inside: avoid; }
+.recap-table .recap-num { text-align: right; white-space: nowrap; }
+.recap-table-group td {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--ink-soft);
+  background: var(--wash);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--rule);
+}
+/* Eight numeric columns now, one of them headed "SP done & in PRs": the name
+   column gives up the width, and the headings are allowed to wrap over two
+   lines. The figures under them still never wrap. */
+.recap-summary-table { font-size: 8pt; }
+.recap-summary-table th:first-child,
+.recap-summary-table td:first-child { width: 21%; }
+.recap-summary-table th.recap-num { white-space: normal; }
+/* A wrapped heading sits directly against its neighbour at 6px; nine columns
+   need the gap stated rather than inherited from the ticket table. */
+.recap-summary-table th,
+.recap-summary-table td { padding-right: 10px; }
+.recap-summary-table th:last-child,
+.recap-summary-table td:last-child { padding-right: 0; }
+.recap-summary-table tfoot td {
+  border-top: 1px solid var(--rule);
+  border-bottom: none;
+  padding-top: 5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.recap-key { font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; white-space: nowrap; }
+.recap-status {
+  display: inline-block;
+  font-size: 7.5pt;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.recap-status-done { border-color: var(--step-3); color: var(--step-4); }
+/* The one flag in the document, so it gets the one colour that is not the ramp
+   — and a caret, so it is not colour alone. */
+.recap-flag { color: var(--flag); font-weight: 600; white-space: nowrap; }
+
+/* ── Screen-only chrome ───────────────────────────────────────────────────── */
+
+.recap-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: var(--wash);
+  border-bottom: 1px solid var(--rule);
+  font-size: 9.5pt;
+}
+.recap-print-btn {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 9pt;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px 12px;
+  border: 1px solid var(--step-3);
+  border-radius: 4px;
+  background: var(--step-3);
+  color: #fff;
+  cursor: pointer;
+}
+.recap-print-btn:hover:not(:disabled) { background: var(--step-4); border-color: var(--step-4); }
+/* Visibly not-yet, so nobody clicks it expecting a finished document. */
+.recap-print-btn:disabled {
+  background: var(--rule-soft);
+  border-color: var(--rule);
+  color: var(--ink-muted);
+  cursor: progress;
+}
+.recap-toolbar-note { color: var(--ink-muted); }
+
+body.recap-page {
+  margin: 0;
+  background: #e9ebef;
+}
+/* On screen the document sits on a page-shaped sheet, so what you see is what
+   comes out of the printer. The padding is the `@page` margins below, painted as
+   paper, so the band of white around the background matches the printed one. */
+.recap-sheet {
+  max-width: 210mm;
+  margin: 0 auto 24px;
+  padding: 16mm 12mm 14mm;
+  background: var(--paper);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+}
+
+@media print {
+  /* The page background, one full copy on every sheet.
+   *
+   * Three things had to be true for this to come out at all, and each of them
+   * silently produced a blank white page instead:
+   *
+   * 1. It is set on `body`, whose background is propagated to the page canvas.
+   *    A background on `.recap-sheet` paints once, over the first page only.
+   * 2. It is tiled, not `cover`. A scrolling background is sized to the whole
+   *    document, so `cover` stretches one copy over all three pages and gives
+   *    each page a third of it; `background-attachment: fixed`, which would fix
+   *    that on screen, is not painted at all in Blink's print output. Tiling at
+   *    exactly the page content height lands one whole copy per page — verified
+   *    by halving the tile and watching two stack up inside a single page.
+   * 3. `print-color-adjust: exact`. Chrome's print dialog has "Background
+   *    graphics" off by default, and without this neither the image nor the
+   *    status fills below come out.
+   *
+   * The @page margins stay white: Blink clips the canvas background to the page
+   * content box rather than bleeding it to the paper edge. Full bleed would mean
+   * `@page { margin: 0 }` and re-creating the insets inside the table — the
+   * `thead` already reserves the top one on every page, but nothing reserves the
+   * bottom, and running a print document to the paper edge risks the printer
+   * clipping it.
+   */
+  body.recap-page {
+    background: var(--paper) url('../assets/bgs/pdf-bg.png') center top / 100% var(--page-content-height) repeat-y;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Both are opaque white on screen — the sheet is what makes the document look
+     like paper there. In print the paper is the paper, so they get out of the
+     background's way. */
+  .recap-sheet, .recap { background: transparent; }
+  .recap-toolbar { display: none; }
+  .recap-sheet { max-width: none; margin: 0; padding: 0; box-shadow: none; }
+  /* Status fills and washes are information here, not decoration. */
+  .recap, .recap * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
