@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-08-12
+Last updated: 2026-08-20
 
 An MV3 browser extension for Chrome, Firefox and Edge, giving Gantt, Backlog,
 and Kanban views over Jira Cloud boards. This roadmap takes it from an internal single-tenant tool to a
@@ -25,7 +25,7 @@ built the way it is, which is the part that gets forgotten.
 | Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, and a 5-minute response cache. One accessor module (`js/browser.js`) |
 | Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
 | Version control | Git, `.gitignore` in place |
-| Tests | Thirteen `scripts/test-*.mjs` suites (1159 checks) + a manual smoke checklist |
+| Tests | Fourteen `scripts/test-*.mjs` suites (1343 checks) + a manual smoke checklist |
 
 ## Sizing
 
@@ -226,12 +226,70 @@ that number exact rather than caveated.
 
 ---
 
+## Sprint recap PDF ✔ *(ad-hoc, 2026-08-18)*
+
+**Size: M** · Done. Shipped on request, and it is **not** M10 — the two should
+not be conflated when M10 is picked up.
+
+**Generate recap** on the Sprint Dashboard opens `recap.html`, a print-styled
+document over the M7 aggregates plus the M11 GitHub window: combined figures for
+every active sprint, a per-person contribution card with photo, a per-board block
+and the full ticket list with scope-creep and carry-in flags. Saved as a PDF
+through the browser's own print dialog.
+
+**Four decisions worth keeping:**
+
+- **Print-to-PDF, not a PDF library.** No dependency in a repo with no build step, and the output is real vector text rather than the rasterised page a jsPDF-plus-canvas route would produce. Costs one click in the print dialog.
+- **A page of its own, recomputed rather than handed a payload.** `css/app.css` is deliberately not loaded: its `html, body { overflow: hidden }` app-shell rule clips a print job to exactly one page, which is how the first draft lost two thirds of the document. Fonts are re-declared in `css/recap.css` instead.
+- **It recaps the sprints the dashboard is showing** — the active ones, which on retro day are the ones ending. Recapping *closed* sprints needs new fetches and was deliberately not built; noted below as the follow-up if the team starts closing sprints before running the retro.
+- **Ordered by name, headed "contribution", footed with a line saying it is not an assessment.** M10 and M14 both set the rule that per-colleague numbers are conversation fuel, not a score. This document carries named people, photographs and pull-request counts, so it states its own framing rather than relying on whoever opens it to supply one.
+
+**One bug worth remembering.** The first version offered its print button over an
+empty page while it was still fetching, so printing in that window produced a
+blank A4 sheet — one page whose only content was Chrome's own header and footer.
+Every check had used `?print=0` and printed through DevTools *after* the render,
+so the window in which the page is printable but not yet built was never
+exercised. The fix is a readiness gate on both routes to the dialog plus a visible
+build state; the harness gained `?jira=slow` so that window can be held open and
+looked at.
+
+**A second print bug, same root cause — a print job is not a scrolling page.**
+The running header was `position: fixed`, which Blink repeats on every page but
+reserves no space for, so every page after the first had its top card sliced in
+half behind it. Fixed by laying the document out as a one-column table and putting
+the header in a `thead`, which repeats *and* reserves. Verified by printing each
+page separately (`printToPDF` takes a `pageRanges`, and a one-page PDF is
+something `sips` can rasterise) rather than by looking at page one and assuming.
+
+**A third print bug, and the lesson behind all three.** The 30-second deadline put
+on the GitHub window fired on real repositories: adding the default-branch commit
+query had roughly doubled the requests per repo, and the recap was the only caller
+with a deadline at all. Raised to 180s, and — more to the point — the document now
+renders the Jira half immediately and fills the GitHub figures in, so the wait is
+visible rather than blank. Per-repo failures and truncation, which `fetchTeamStats`
+had been reporting all along, are now printed too: without them a repo whose token
+cannot read commit history produced a confident zero.
+
+Each of the three was the same mistake in a different costume — verifying the
+artefact while skipping the conditions under which it is produced: printing after
+the render rather than during it, looking at page one rather than every page, and
+setting a deadline without measuring what the work actually costs.
+
+**Follow-up, not scheduled:** recapping a sprint after it is closed in Jira —
+`/board/{id}/sprint?state=closed` plus its issues, and a GitHub window derived
+from the closed sprint's own dates rather than the live one. M15's start-of-sprint
+snapshot would also fix the scope-creep approximation this inherits.
+
+---
+
 ## M10 — Sprint Wrapped *(suggested feature 10)*
 
 **Size: M** · Depends on M7 aggregates.
 
 An end-of-sprint recap card for the retro — the fun one, built almost entirely
-from data M7 already computes.
+from data M7 already computes. **Distinct from the Sprint recap PDF shipped
+ad-hoc on 2026-08-18** (above): that one is the formal document, this one is the
+silly card. The superlatives and the PNG export are what is left to build.
 
 - Headline stats: points shipped, issues closed, cycle-time median, biggest single-day burn, scope added mid-sprint.
 - Light-hearted superlatives: *Deadline Whisperer* (most issues closed early), *The Ping-Pong Award* (most status transitions), *Carryover Champion*, *Epic Slayer* (finished the last child of an epic), *Ghost Ticket* (longest untouched issue still in sprint).
@@ -312,6 +370,73 @@ plumbing.
 **Sizing: S–M** now that M11 exists, plus a spike on key-matching accuracy
 (short keys like `AB-1` produce false positives in commit messages).
 
+### Per-person Jira activity this sprint *(scoped 2026-08-20)*
+
+The standup and the recap both answer "what is assigned to this person" and, when
+GitHub is connected, "what did they push". Neither answers **what they did in
+Jira** — who moved which ticket, who picked work up, who created the things that
+appeared mid-sprint. Wanted as per-person panels on the standup screens and a
+matching block in the recap PDF.
+
+**Viable, and cheaper than it looks, because the data is already in flight.**
+
+- **Status transitions, assignee changes and field edits** come from
+  `expand=changelog` on the call that already fetches the sprint —
+  `getSprintIssues` (`js/api.js:130`) — and its backlog twin. No extra requests:
+  the expand rides the existing page loop. Every history entry carries author,
+  timestamp and from → to, which is the whole of what a panel needs.
+- **Issues created this sprint, per person**, needs nothing new whatsoever.
+  `fields.creator` and `fields.created` are fetched and cached today.
+
+**What is not cheap, and is therefore out of the first pass.** Comments and
+worklogs are per-issue endpoints (`/rest/api/3/issue/{key}/comment`, `/worklog`)
+— one request per issue against a sprint of a hundred, which is exactly the
+fan-out the risk register flags for M7 and M13. If comment counts turn out to be
+what people actually wanted, that is a second decision with a real cost attached
+rather than a free addition to this one.
+
+**Three things to get right, in the order they bite:**
+
+1. **Framing, and it is not a formality here.** This counts *actions taken by a
+   named colleague*, which is a much shorter step to a productivity metric than
+   anything shipped so far: points assigned describe work, transition counts
+   describe a person. The rules M10 and M14 already set are the floor — ordered
+   by name and never by output, "activity" and not "performance", no leaderboard,
+   and the same conversation-fuel note the recap carries. Settle it before the
+   panel is drawn, because a table sorted by transition count is very hard to
+   un-read once seen.
+2. **The changelog expand is bounded and does not paginate.** Jira returns the
+   most recent entries per issue alongside a total, and a ticket that has
+   ping-ponged for months can exceed it. The answer is the one `js/github.js`
+   already uses for the same problem: carry a `truncated` list through the model
+   and have the screen and the document say so, rather than printing an
+   undercount as though it were whole.
+3. **Cache size.** Sprint issues go through `cached()` into device-local storage
+   on a 5-minute TTL. Whole changelogs would multiply that payload to carry data
+   the app discards most of. Reduce each issue's history to a compact array —
+   author id, field, from, to, timestamp — at fetch time, before it is cached. A
+   pure function, so it tests without a browser.
+
+**It is a substrate rather than one feature, which is the real argument for
+building it.** M10's *Ping-Pong Award* is "most status transitions"; M14's "what
+they did" is "issues closed and moved this week". Both are this reader with a
+different window over it. So the window is a parameter from the first commit, the
+way `statsFor(stats, login, { since })` already takes one
+(`js/github.js:804`), and neither milestone pays for it a second time.
+
+**Sizing: S–M.** The reader and its model are S and carry the tests; the standup
+panel and the recap block are roughly S each, and both slot into structures that
+exist — `statSpecs()` (`js/views/standup.js:352`) already defines a per-person
+statistic once and renders it in two places, and the recap has a per-person row
+waiting for a column.
+
+**Spike first, and a small one.** Confirm `expand=changelog` is honoured by
+`/rest/agile/1.0/board/{id}/sprint/{id}/issue` and not only by the JQL search
+endpoint, and read what the per-issue entry cap actually is on this site.
+Everything above assumes the agile endpoint takes the expand; if it does not, the
+fallback is the JQL search path, which does — at the cost of one query per board
+rather than none.
+
 ### Icebox
 
 - **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. Pairs naturally with the M7 daily snapshots.
@@ -342,15 +467,16 @@ PRs), and three numbered panels (participants, quick info, keyboard shortcuts)
 over a full-width start button.
 
 Each participant row now answers, at a glance, what the facilitator would
-otherwise have to ask: sprint items with a relative workload bar, open PRs from
-the GitHub sync, a blocked/overdue flag, and a per-person speaking time.
+otherwise have to ask: sprint items with a relative workload bar, four GitHub
+numbers (open PRs, PRs opened, reviews and comments, lines merged — added in
+11c), a blocked/overdue flag, and a per-person speaking time.
 
 **Four decisions worth keeping:**
 
 - **The blocked column is decided once, for the whole table.** Jira gives no universal "blocked" field, so it is read off the status name (`block|impediment|on hold`) — but only when this sprint actually *has* such a status. Otherwise the same slot shows overdue, which every site can answer. Per-row fallback would have made one column mean two things.
 - **The pip bar is relative to the busiest person on the roster,** not to a fixed ceiling nobody agreed on. It reads as "who is carrying the most", which is the question a standup asks.
 - **An absent PR count and a zero are different facts.** GitHub off, still loading, or no login on the roster renders `—` with a title explaining which; only a real answer renders a number.
-- **The GitHub status line was promoted, not dropped.** It used to be one chip under the button; GitHub now appears in three places (tile, per-person counts, Quick info card), so the fetch landing repaints the setup screen wholesale instead of patching one node.
+- **The GitHub status line was promoted, not dropped.** It used to be one chip under the button; GitHub now appears in four places (tile, the per-person stat cluster, Quick info card and its note), so a fetch landing repaints the setup screen wholesale instead of patching one node.
 
 Enter now starts the standup, matching the hint under the button. The running
 stage and the summary screen are untouched.
@@ -362,7 +488,9 @@ selected, empty roster, resumable session, and narrow (980px). That caught the
 one real layout question, which is what a nine-column row does when the window
 is not wide enough for it: below 1080px the item count and the pip bar are the
 first things dropped, because the name, the flag and the clock are what the
-meeting needs.
+meeting needs. 11c widened that row again, so the drop order now continues into
+the GitHub cluster — lines merged goes below 1400px, PRs opened below 1080px,
+both still one hover away in the tooltip.
 
 ---
 
@@ -531,13 +659,37 @@ allowlist**. The reasoning is worth keeping:
 **11b — GitHub in standup**
 
 - **One request for every declared repo.** Aliased `repository()` fields, each pulling open PRs, recently merged PRs and open issues. Aliases are positional (`r0`, `r1`, …) precisely so a partial failure maps back to the repo that caused it — GraphQL reports errors by path, not by content, and "one repo is unreadable" must not read as "GitHub is down".
-- **Pre-fetch on mount.** The query fires as the setup card paints, in parallel with `getAllSprintIssues`. Nothing awaits it: the standup starts whether or not it has landed, a slow fetch fills in behind, and a person already on screen when it lands gets their panel without waiting for the next hand-off. A status line on the setup card says which of loading / ready / partial / failed happened.
+- **Pre-fetch on mount.** The query fires as the setup card paints. Nothing awaits it: the standup starts whether or not it has landed, a slow fetch fills in behind, and a person already on screen when it lands gets their panel without waiting for the next hand-off. A status line on the setup card says which of loading / ready / partial / failed happened. (It fired *after* the Jira awaits, not alongside them, which 11c fixed — see below.)
 - **Per-person panel** beside the speaker's board: open PRs with the state that decides what to say, then "waiting on you", then what they merged since the last working day, then assigned issues. Empty sections are omitted; an empty panel says so in one line.
-- **Sorted by how stuck, not by how recent** — changes requested, then failing checks, then approved-and-unmerged, then waiting on review, then draft, each tie-broken by age. Draft outranks everything: a failing check on a draft is the author's business, not the standup's.
+- **Sorted by how stuck, not by how recent** — changes requested, then failing checks, then approved-and-unmerged, then waiting on review, each tie-broken by age. (Drafts had a fifth rank until 11c dropped them from the model entirely.)
 - **"Waiting on you" without the search API.** `review-requested:` is a search qualifier, so it came out of `reviewRequests` on each PR node instead. Team review requests are kept separate from individual ones — a team request is not a name.
 - **Merged since the last *working* day**, not the last 24 hours. Anything shorter makes the panel lie every Monday.
 - ~~**Coverage gaps stated once, on the summary**~~ — built, then **removed on 2026-08-07 at the user's request**: the end screen is a celebration, not an audit. Repo read failures are still reported, on the setup card's status line; PRs by people off the roster and roster members with no GitHub login are now surfaced nowhere. `coverageGaps()` and its tests went with it rather than sitting unused. If the accounting is wanted back, Settings is the place for it, not the done screen.
 - **Cache** with the existing 5-minute TTL, keyed by **the repo list** rather than by the org — changing the allowlist must not serve the previous list's answer.
+
+**11c — Sprint statistics per person** *(2026-08-17)*
+
+Four numbers per person, on the setup row beside each name and again as tiles on
+the speaker's panel: open PRs they authored, PRs they opened this sprint, reviews
+and comments this sprint, and lines merged into a repo's default branch this
+sprint. Requested because the panel answered "what is in flight" but not "what
+has this sprint actually consisted of", which is the half a standup keeps asking
+about out loud.
+
+- **Drafts count for nothing, anywhere.** Dropped in `toActivity` and in the window fetch rather than filtered per call site, so no count can disagree with the list beside it, and a draft's reviews and comments go with it. `PR_STATES.DRAFT` and its CSS went with them: work explicitly marked not-ready is not work a standup chases.
+- **A second query, because it is a second question.** The aliased activity document answers "what is open right now" and cannot be stretched: the sprint numbers need closed pull requests, reviews, comments and diff sizes, over a whole sprint rather than the newest 50 of everything. So `fetchTeamStats` pages `pullRequests(orderBy: UPDATED_AT DESC)` per repo, stopping at the first node older than the window. A PR created, merged, reviewed or commented on inside the window has necessarily been *updated* inside it, which is what makes that a complete stop condition rather than a heuristic.
+- **The fetch window is a fixed 45-day lookback, not the sprint's own dates** — the point that makes the rest work. The network shape depends on nothing but the repo list, so the query can start before Jira has said when the sprint began; the sprint boundary is applied afterwards in `statsFor`, over data that already covers it. A sprint older than the window is *clamped* and says so in the tooltip rather than silently undercounting.
+- **Started from the header, not from the view.** `prewarmGithub()` fires on `pointerdown` on the STANDUP tab, and an in-flight map keyed the same way as the cache means the view's own call joins that request instead of issuing a second one. The view also starts it above its first `await`, so keyboard and palette navigation get the same parallelism. This is what the README already claimed and the code did not: the fetch used to fire *after* `getAllSprintIssues` resolved.
+- **Two definitions, both of which could have gone the other way.** Reviews and comments are counted on *other people's* pull requests only — replying to feedback on your own is authorship, not review, and counting it would reward the noisiest thread. "Lines merged" means lines that reached the **default branch**, attributed to the PR author; a merge into a release branch has not shipped.
+- **The sprint window is the earliest start among the active sprints.** Two boards on staggered sprints would otherwise put two meanings of "this sprint" in one table. A sprint with no start date falls back to 14 days and says which it used.
+- **Every way the numbers can be short is stated.** A repo too busy for the 6-page cap is reported as truncated, a repo the token cannot read is a per-repo failure, and the window query failing costs the four numbers but not the panel. Every repo failing throws instead: a dead token rendering as "everyone did nothing this sprint" is worse than an absent panel.
+- **Not measurement.** These are conversation prompts on a screen the team runs together, not a per-person scorecard, and nothing is ranked, scored, compared or stored. Lines merged is the number most easily misread as productivity; it is shown as `+added −removed` next to three others precisely so no single figure reads as a verdict.
+
+Verified by `scripts/test-github.mjs` and by mounting the real view against a
+fake DOM — the cases that would look plausible while being wrong: a PR opened
+before the sprint but merged during it, a merge into a non-default branch, a
+review on your own PR, an unsubmitted review, a draft's reviews, and a sprint
+older than the fetch window.
 
 **Not in this milestone:** correlating pull requests to individual Jira issue
 keys. That is the deferred *development links* item above, and it is a different
@@ -547,7 +699,7 @@ problem sitting on top of the same auth and config this milestone built.
 team has in the declared repos, grouped by person, fetched in one request before
 the first person speaks; with GitHub not configured, its list empty, or its token
 dead, every existing screen behaves exactly as it did before. Verified by
-`scripts/test-github.mjs` (140 checks) covering login normalisation, repo-ref
+`scripts/test-github.mjs` (181 checks after 11c) covering login normalisation, repo-ref
 parsing including the injection cases, API base derivation for github.com vs
 GHES, the aliased query, response → view model, review-state and staleness
 derivation, per-person slicing, the roster
