@@ -1,0 +1,374 @@
+// Shared preview fixture.
+//
+// Stubbed extension storage and a stubbed Jira/GitHub network, seeded with a
+// deterministic sprint, so any real view can be mounted against it without a
+// site, a token or a roster. Imported — not copied — by preview-dashboard.js and
+// preview-recap.js: two harnesses with two copies of this would drift, and then
+// the two screens would be previewed against different sprints.
+//
+// Top-level await is deliberate. A static `import` of this module finishes before
+// the importing module's body runs, so a harness can simply import it and then
+// dynamically import the view, knowing the stubs are already in place.
+//
+// ?theme=light · ?github=off · ?stats=slow · ?stats=error · ?sprint=undated
+// ?push=off · ?roster=empty · ?avatars=off · ?jira=slow · ?stats=partial
+
+export const params = new URLSearchParams(location.search);
+document.documentElement.dataset.theme = params.get("theme") || "dark";
+
+const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+// Nine days into a two-week sprint, which is when somebody stops to look at the
+// numbers.
+const SPRINT_START = daysAgo(9);
+
+// Synthetic people, deliberately. The names here are invented and the avatars are
+// generated inline below — no colleague's name or photograph belongs in a fixture
+// file, and assets/avatars holds real ones.
+//
+// name, githubLogin, then one entry per ticket: [status, points]. Written out
+// rather than generated so each row makes a point: a mixed row, a finished row, a
+// row with no estimates at all (dash, not 0%), and a row with nobody mapped on
+// GitHub (dash in the PR columns, not a nought).
+const PEOPLE = [
+  ["Avery Quinn", "averyq", [["Done", 5], ["Done", 3], ["In Code Review", 8], ["In Progress", 2], ["To Do", 3]]],
+  ["Bo Ferreira", "boferreira", [["Done", 2], ["In Code Review", 3], ["In Review", 1], ["To Do", 5], ["To Do", 3]]],
+  ["Cy Nakamura", "cynakamura", [["Done", 3], ["Done", 5], ["Done", 2]]],
+  ["Devi Okonjo", "deviok", [["In Progress", null], ["In Code Review", null], ["To Do", null]]],
+  ["Emil Vance", "", [["In Review", 5], ["In Progress", 3]]],
+  ["Freya Salib", "freyas", [["To Do", 8], ["To Do", 5], ["In Progress", 13]]],
+];
+
+// A generated avatar, so the harness can exercise the <img> path — and the
+// initials fallback beside it — without touching a real photograph. Half the
+// roster gets one; ?avatars=off drops them all.
+const AVATAR_TINTS = ["#4F8EF7", "#4FCF8E", "#A855F7", "#F7914F", "#EC4899", "#14B8A6"];
+function avatarDataUri(name, i) {
+  const initials = name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96">` +
+    `<rect width="96" height="96" fill="${AVATAR_TINTS[i % AVATAR_TINTS.length]}"/>` +
+    `<text x="48" y="62" font-family="sans-serif" font-size="38" font-weight="600"` +
+    ` fill="#ffffff" text-anchor="middle">${initials}</text></svg>`;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
+function avatarUrlsFor(name, i) {
+  if (params.get("avatars") === "off" || i % 2 === 1) return undefined;
+  const uri = avatarDataUri(name, i);
+  return { "48x48": uri, "32x32": uri, "24x24": uri };
+}
+
+
+const local = {};
+const sync = {};
+const pick = (store, keys) =>
+  keys == null
+    ? { ...store }
+    : Object.fromEntries(
+        (Array.isArray(keys) ? keys : [keys]).filter((k) => k in store).map((k) => [k, store[k]])
+      );
+
+// Set once the config is loaded, so ?stats=slow can hold back exactly the one
+// read the delivery table waits on — which is what exercises its repaint.
+let slowKey = "";
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const area = (store, { slow = false } = {}) => ({
+  get: async (keys) => {
+    const wanted = keys == null ? [] : [].concat(keys);
+    if (slow && slowKey && wanted.includes(slowKey)) await sleep(2500);
+    return pick(store, keys);
+  },
+  set: (obj) => { Object.assign(store, obj); return Promise.resolve(); },
+  remove: (keys) => { for (const k of [].concat(keys)) delete store[k]; return Promise.resolve(); },
+});
+
+globalThis.chrome = {
+  runtime: { getURL: (p) => p },
+  storage: {
+    local: area(local, { slow: params.get("stats") === "slow" }),
+    sync: area(sync),
+  },
+};
+
+// ── Fake Jira ────────────────────────────────────────────────────────────────
+
+// Three boards, each with its own active sprint, because that is the shape the
+// recap has to handle: one of them starts two days earlier, which is what makes
+// the combined window the *earliest* start rather than any single sprint's.
+const BOARD_FIXTURE = [
+  { id: 1, name: "ACME", projectKey: "ACME", color: "#4F8EF7",
+    sprint: { id: 41, name: "Sprint 41: Payments hardening", goal: "Ship the importer job and clear the review backlog", startsAgo: 9, endsIn: 5 } },
+  { id: 2, name: "PLAT", projectKey: "PLAT", color: "#F7914F",
+    sprint: { id: 18, name: "PLAT 18: Index split", goal: "Split the index writer and keep the old path behind a flag", startsAgo: 9, endsIn: 5 } },
+  { id: 3, name: "DATA", projectKey: "DATA", color: "#4FCF8E",
+    sprint: { id: 7, name: "DATA 7: Pipeline hardening", goal: "", startsAgo: 11, endsIn: 3 } },
+];
+
+const CATEGORY = {
+  "To Do": "new",
+  "In Progress": "indeterminate",
+  "In Code Review": "indeterminate",
+  "In Review": "indeterminate",
+  Done: "done",
+};
+
+let seq = 0;
+const ISSUES_BY_BOARD = new Map(BOARD_FIXTURE.map((b) => [b.id, []]));
+
+PEOPLE.forEach((person, i) => {
+  person[2].forEach(([status, points], n) => {
+    seq++;
+    // Round-robin across the boards, so every board block has content and the
+    // ticket list has something to group.
+    const board = BOARD_FIXTURE[(i + n) % BOARD_FIXTURE.length];
+    // Every fifth ticket was created after the sprint began: that is the scope
+    // creep the recap flags, per person and per board.
+    const crept = seq % 5 === 0;
+    const fields = {
+      summary: `${status === "Done" ? "Shipped" : "Work item"} ${seq} for ${person[0]}`,
+      status: { name: status, statusCategory: { key: CATEGORY[status] } },
+      assignee: {
+        accountId: `acc-${i}`,
+        displayName: person[0],
+        avatarUrls: avatarUrlsFor(person[0], i),
+      },
+      issuetype: { name: "Story", subtask: false },
+      created: crept ? daysAgo(2) : daysAgo(12),
+    };
+    if (points !== null) fields.cf_sp = points;
+    ISSUES_BY_BOARD.get(board.id).push({
+      id: String(seq),
+      key: `${board.projectKey}-${100 + seq}`,
+      fields,
+    });
+  });
+});
+
+// Unassigned work still has to appear, and a sub-task must not: its points
+// duplicate the parent's.
+ISSUES_BY_BOARD.get(1).push({
+  id: "u1", key: "ACME-900",
+  fields: {
+    summary: "Nobody has picked this up", status: { name: "To Do", statusCategory: { key: "new" } },
+    assignee: null, issuetype: { name: "Task", subtask: false }, created: daysAgo(3), cf_sp: 2,
+  },
+});
+ISSUES_BY_BOARD.get(1).push({
+  id: "s1", key: "ACME-901",
+  fields: {
+    summary: "A sub-task, excluded from the totals",
+    status: { name: "In Code Review", statusCategory: { key: "indeterminate" } },
+    assignee: { accountId: "acc-0", displayName: PEOPLE[0][0], avatarUrls: avatarUrlsFor(PEOPLE[0][0], 0) },
+    issuetype: { name: "Sub-task", subtask: true }, created: daysAgo(4), cf_sp: 99,
+  },
+});
+
+globalThis.fetch = async (input) => {
+  const url = String(input);
+  // ?jira=slow holds the *agile* endpoints back — the sprint reads a view waits
+  // on — so the fetching state can be looked at. Deliberately not every request:
+  // delaying config.local.json too would hold up this fixture's own bootstrap and
+  // the page would never even start.
+  if (params.get("jira") === "slow" && url.includes("/rest/agile/")) await sleep(2000);
+  const json = (body) => ({
+    ok: true, status: 200, headers: { get: () => null },
+    json: async () => body, text: async () => JSON.stringify(body),
+  });
+
+  const sprintList = /\/board\/(\d+)\/sprint(\?|$)/.exec(url);
+  if (sprintList) {
+    const board = BOARD_FIXTURE.find((b) => b.id === Number(sprintList[1]));
+    if (!board) return json({ values: [] });
+    const undated = params.get("sprint") === "undated";
+    return json({
+      values: [{
+        id: board.sprint.id,
+        name: board.sprint.name,
+        goal: board.sprint.goal,
+        state: "active",
+        startDate: undated ? undefined : daysAgo(board.sprint.startsAgo),
+        endDate: undated ? undefined : daysAgo(-board.sprint.endsIn),
+      }],
+    });
+  }
+
+  const sprintIssues = /\/board\/(\d+)\/sprint\/(\d+)\/issue/.exec(url);
+  if (sprintIssues) {
+    const issues = ISSUES_BY_BOARD.get(Number(sprintIssues[1])) || [];
+    return json({ issues, total: issues.length });
+  }
+
+  // ?stats=error: no cache and no token, so the window query fails the way a
+  // missing token fails in the product.
+  return json({ values: [], issues: [], total: 0 });
+};
+
+// ── Seed config, roster and the GitHub window cache ──────────────────────────
+
+export const { loadConfig, saveConfig, CONFIG } = await import("./js/config.js");
+await saveConfig({
+  site: { baseUrl: "https://example.atlassian.net", wikiPath: "/wiki" },
+  // The recap header prints brand.orgLogo when it is set. Pointed at the app's
+  // own tracked logo rather than assets/brand/, which is a gitignored working
+  // folder — a preview has to render in a fresh clone. ?logo=off exercises the
+  // text fallback.
+  brand: params.get("logo") === "off"
+    ? { productName: "butter_jira", orgName: "Preview Org", orgLogo: "" }
+    : { productName: "butter_jira", orgName: "Preview Org", orgLogo: "assets/logo.png" },
+  boards: BOARD_FIXTURE.map(({ id, name, projectKey, color }) => ({ id, name, projectKey, color })),
+  fields: { storyPoints: ["cf_sp"], sprint: ["cf_sprint"], startDate: [], epicLink: [], epicName: [] },
+  // The split the delivery table is built to read: a dedicated code review
+  // column beside a general review one.
+  statusGroups: [
+    { name: "To Do", statuses: ["To Do", "Open", "Backlog"] },
+    { name: "In Progress", statuses: ["In Progress", "In Development"] },
+    { name: "In Code Review", statuses: ["In Code Review", "Code Review"] },
+    { name: "In Review", statuses: ["In Review", "Review"] },
+    { name: "Done", statuses: ["Done", "Closed", "Resolved"] },
+  ],
+  github: params.get("github") === "off"
+    ? { enabled: false, host: "github.com", org: "", repos: [] }
+    : { enabled: true, host: "github.com", org: "example", repos: ["example/alpha", "example/beta"] },
+});
+await loadConfig();
+
+// A page that reads its own credentials — recap.html does, the way issue.html
+// does — needs them in storage rather than handed in as an argument. Synthetic,
+// obviously, and only ever in the stubbed store this file installs.
+const { saveCredentials } = await import("./js/credentials.js");
+await saveCredentials({ email: "preview@example.invalid", token: "preview-token" });
+
+// BOARDS is a module-level array the API layer iterates; nothing fills it until
+// this runs, and an empty one means "no sprints anywhere".
+const { loadBoards } = await import("./js/utils.js");
+await loadBoards();
+
+const { TEAMS, saveTeam } = await import("./js/team.js");
+TEAMS.activeTeamId = "default";
+TEAMS.teams = [{
+  id: "default",
+  name: "Data Engineering",
+  // One person is deliberately absent from the roster, so their row shows what an
+  // unmapped person looks like.
+  members: PEOPLE.filter((p) => p[1]).map((p, i) => ({
+    accountId: `acc-${PEOPLE.indexOf(p)}`,
+    jiraName: p[0],
+    nameOverride: "",
+    email: "",
+    active: true,
+    githubLogin: p[1],
+    slackHandle: "",
+    avatarUrl: "",
+  })),
+}];
+await saveTeam(TEAMS);
+
+const { statsCacheKey } = await import("./js/github.js");
+slowKey = statsCacheKey(CONFIG);
+
+// ?stats=partial keeps the payload but marks one repo as half-answered and
+// another as truncated — the state where every GitHub figure below is an
+// undercount, which the document has to say rather than print as a whole number.
+const partialStats = params.get("stats") === "partial";
+
+if (params.get("stats") !== "error") {
+  // Deterministic per person: pull requests opened during the sprint, half of
+  // them merged to the default branch, with diffs big enough that the compact
+  // formatter has something to do.
+  const windowPrs = [];
+  PEOPLE.forEach((person, i) => {
+    if (!person[1]) return;
+    for (let n = 0; n < 1 + ((i * 3) % 5); n++) {
+      const merged = n % 2 === 0;
+      windowPrs.push({
+        repo: n % 2 ? "example/alpha" : "example/beta",
+        number: 500 + i * 20 + n,
+        title: `Sprint change ${n + 1} from ${person[0]}`,
+        url: "#",
+        author: person[1],
+        state: merged ? "MERGED" : "OPEN",
+        createdAt: daysAgo(1 + (n % 7)),
+        updatedAt: daysAgo(1),
+        mergedAt: merged ? daysAgo(1 + (n % 3)) : "",
+        baseRef: "main",
+        toDefaultBranch: true,
+        additions: 140 + i * 337 + n * 461,
+        deletions: 32 + i * 109 + n * 217,
+      });
+    }
+  });
+
+  // Direct pushes to main: every third person works that way, so their row is
+  // carried largely by commits with no pull request behind them. ?push=off drops
+  // them, which is the before-and-after of counting them at all.
+  const commits = [];
+  if (params.get("push") !== "off") {
+    PEOPLE.forEach((person, i) => {
+      if (!person[1] || i % 3 !== 2) return;
+      for (let n = 0; n < 2 + (i % 3); n++) {
+        commits.push({
+          repo: "example/alpha",
+          oid: `c${i}${n}`,
+          author: person[1],
+          committedDate: daysAgo(1 + (n % 6)),
+          additions: 60 + i * 91 + n * 37,
+          deletions: 14 + i * 23 + n * 11,
+        });
+      }
+    });
+  }
+
+  // Reviews and comments, always on somebody else's pull request — the statistic
+  // deliberately excludes replies on your own, so crediting them here would test
+  // nothing.
+  const windowReviews = [];
+  const windowComments = [];
+  PEOPLE.forEach((person, i) => {
+    if (!person[1]) return;
+    const target = PEOPLE[(i + 1) % PEOPLE.length];
+    if (!target[1]) return;
+    for (let n = 0; n < 1 + ((i * 3) % 5); n++) {
+      windowReviews.push({
+        repo: "example/alpha",
+        number: 500 + ((i + 1) % PEOPLE.length) * 20,
+        author: person[1],
+        prAuthor: target[1],
+        submittedAt: daysAgo(1 + (n % 5)),
+        state: n % 3 === 0 ? "APPROVED" : "COMMENTED",
+        comments: n % 4,
+      });
+    }
+    for (let n = 0; n < 1 + ((i * 2) % 4); n++) {
+      windowComments.push({
+        repo: "example/beta",
+        number: 600 + ((i + 1) % PEOPLE.length),
+        author: person[1],
+        prAuthor: target[1],
+        createdAt: daysAgo(1 + (n % 4)),
+      });
+    }
+  });
+
+  local[slowKey] = {
+    ts: Date.now(),
+    value: {
+      fetchedAt: new Date().toISOString(),
+      since: daysAgo(45),
+      repos: ["example/alpha", "example/beta"],
+      reached: ["example/alpha", "example/beta"],
+      truncated: partialStats ? ["example/beta"] : [],
+      failures: partialStats
+        ? [{
+            repo: "example/alpha",
+            type: "graphql",
+            message: "Direct pushes unavailable — Resource not accessible by personal access token",
+          }]
+        : [],
+      pullRequests: windowPrs,
+      reviews: windowReviews,
+      comments: windowComments,
+      commits,
+    },
+  };
+}
+

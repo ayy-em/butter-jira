@@ -1,14 +1,23 @@
 import { getActiveSprint, getAllSprintIssues } from "../api.js";
-import { BOARDS, fmtDate, loadStatusGroups, relDate } from "../utils.js";
+import { runtimeUrl } from "../browser.js";
+import { BOARDS, compactNum, fmtDate, loadStatusGroups, relDate } from "../utils.js";
 import { CONFIG } from "../config.js";
 import {
   buildBurndown,
   hygieneLabel,
   hygieneScore,
   isoDay,
+  reviewOrDone,
   summarize,
 } from "../dashboard.js";
 import { loadSnapshots, recordSnapshot, snapshotFrom, sprintKey } from "../snapshots.js";
+import { memberFor } from "../team.js";
+import {
+  FALLBACK_SPRINT_DAYS,
+  getTeamStats,
+  isGithubConfigured,
+  statsFor,
+} from "../github.js";
 import {
   burndownChart,
   emptyState,
@@ -56,6 +65,27 @@ function rampFor(count) {
 export async function mount(container, creds) {
   container.innerHTML = '<div class="spinner"></div>';
 
+  // GitHub is a second, optional source and never on the critical path — the
+  // same rule standup mode follows. The fetch starts before the first await so
+  // it overlaps the Jira calls, the view renders whether or not it has landed,
+  // and the two columns it feeds fill themselves in afterwards. `since` is set
+  // once the sprint window is known, below.
+  const github = { state: "off", stats: null, error: "", since: "", dated: false };
+  let repaintDelivery = null;
+  if (isGithubConfigured()) {
+    github.state = "loading";
+    getTeamStats()
+      .then((stats) => {
+        github.stats = stats;
+        github.state = "ready";
+      })
+      .catch((err) => {
+        github.error = String(err?.message || err);
+        github.state = "error";
+      })
+      .then(() => repaintDelivery?.());
+  }
+
   // Both of these are already cached by the other views, so opening this tab
   // normally costs nothing in requests.
   const [issues, statusGroups] = await Promise.all([
@@ -73,6 +103,14 @@ export async function mount(container, creds) {
     boards: BOARDS,
     now: new Date(),
   });
+
+  // The window the GitHub figures are counted over: the sprint's own start, or
+  // a stated guess when the active sprint carries no start date. `statsFor`
+  // clamps this to how far back the query actually reached and says when it did.
+  github.dated = Boolean(summary.window.start);
+  github.since = (
+    summary.window.start || new Date(Date.now() - FALLBACK_SPRINT_DAYS * 86400000)
+  ).toISOString();
 
   // Record today's aggregate, then read the series back including it.
   const key = sprintKey(sprints);
@@ -93,6 +131,12 @@ export async function mount(container, creds) {
   wrap.appendChild(renderBurndown(summary, burndown, snapshots));
   wrap.appendChild(renderProgress(summary));
   wrap.appendChild(renderBreakdowns(summary));
+
+  // Held onto so the GitHub columns can fill in when the query lands. Assigned
+  // after the first paint, which already reflects whatever has arrived by now.
+  const delivery = renderDelivery(summary, github);
+  repaintDelivery = delivery.repaint;
+  wrap.appendChild(delivery.el);
   container.appendChild(wrap);
 }
 
@@ -100,12 +144,31 @@ function renderHeader(summary) {
   const header = document.createElement("header");
   header.className = "dash-header";
 
+  const top = document.createElement("div");
+  top.className = "dash-header-top";
   const title = document.createElement("h1");
   title.className = "dash-title";
   title.textContent = summary.sprintNames.length
     ? summary.sprintNames.join(" · ")
     : "No active sprint";
-  header.appendChild(title);
+  top.appendChild(title);
+
+  // Opens the printable recap in a new tab, where it rebuilds from the same
+  // cached calls this view used. A new tab rather than a dialog here: the
+  // document is the artefact, and it should be reloadable and keepable on its
+  // own. Absent with no sprint, which is the one case it has nothing to say.
+  if (summary.sprintNames.length || summary.issueCount) {
+    const recap = document.createElement("a");
+    recap.className = "dash-recap-btn";
+    recap.href = runtimeUrl("recap.html");
+    recap.target = "_blank";
+    recap.rel = "noopener";
+    recap.textContent = "Generate recap";
+    recap.title =
+      "Opens a printable end-of-sprint recap — pick Save as PDF in the print dialog";
+    top.appendChild(recap);
+  }
+  header.appendChild(top);
 
   const meta = document.createElement("div");
   meta.className = "dash-header-meta";
@@ -505,6 +568,347 @@ function renderPersonTable(summary) {
   }
   table.appendChild(tbody);
   return table;
+}
+
+// Per-person delivery table: planned against what has left the assignee's
+// hands. Full width and at the foot of the view because it is the read-across
+// artefact — eight figures a row, which no chart carries and a reader scans by
+// column. The share column gets a meter rather than a second chart: one row is
+// one ratio, and the number beside it is the value, so nothing is colour-only.
+//
+// Returns its repaint so the caller can call it again when the GitHub window
+// query lands. Sort state lives in this closure, which is what makes a repaint
+// keep whatever ordering the reader chose.
+function renderDelivery(summary, github) {
+  const card = document.createElement("section");
+  card.className = "dash-card";
+
+  const title = document.createElement("h2");
+  title.className = "dash-card-title";
+  title.textContent = "Delivery by person";
+  card.appendChild(title);
+
+  if (!summary.byPerson.length) {
+    card.appendChild(emptyState("Nothing assigned in the sprint."));
+    return { el: card, repaint: () => {} };
+  }
+
+  // With GitHub off the two columns are absent rather than apologetic — the
+  // table is exactly what it was before, not a pair of empty columns.
+  const githubOn = github.state !== "off";
+
+  const COLUMNS = [
+    {
+      id: "person",
+      label: "Person",
+      dir: "asc",                       // names read A–Z; numbers read best-first
+      value: (row) => row.label,
+      cell: nameCell,
+    },
+    {
+      id: "tickets",
+      label: "Tickets",
+      hint: "Issues assigned in the sprint, sub-tasks excluded.",
+      value: (row) => row.tickets,
+      cell: (row) => numCell(row.tickets, trimNum),
+    },
+    {
+      id: "reviewDone",
+      label: "In review + done",
+      hint: "Tickets in a review column or already done.",
+      value: (row) => row.reviewDone,
+      cell: (row) => numCell(row.reviewDone, trimNum),
+    },
+    {
+      id: "points",
+      label: "Points planned",
+      value: (row) => row.points,
+      cell: (row) => numCell(row.points, trimNum),
+    },
+    {
+      id: "reviewDonePoints",
+      label: "Points in review + done",
+      value: (row) => row.reviewDonePoints,
+      cell: (row) => numCell(row.reviewDonePoints, trimNum),
+    },
+    {
+      id: "share",
+      label: "% in review + done",
+      hint:
+        "Story points in review or done, over points planned. Unestimated issues" +
+        " count as zero, so a person with no estimates shows a dash.",
+      value: (row) => row.share,
+      cell: shareCell,
+    },
+    ...(githubOn
+      ? [
+          {
+            id: "prsOpened",
+            label: "PRs opened",
+            hint: "Pull requests they opened during the sprint window, drafts excluded.",
+            value: (row) => row.prsOpened,
+            cell: (row) => numCell(row.prsOpened, trimNum),
+          },
+          {
+            id: "lines",
+            label: "Lines to main",
+            hint:
+              "Additions plus deletions that reached the default branch during the" +
+              " sprint window: pull requests merged into it, plus commits pushed" +
+              " straight to it with no pull request at all.",
+            value: (row) => row.lines,
+            cell: (row) => numCell(row.lines, compactNum),
+          },
+        ]
+      : []),
+  ];
+
+  // The column the table exists for, best first. Everything else is the working
+  // shown, so it opens on the answer rather than on a name.
+  const sort = { id: "share", dir: "desc" };
+
+  const scroll = document.createElement("div");
+  scroll.className = "dash-table-scroll";
+  const table = document.createElement("table");
+  table.className = "dash-table dash-table-wide";
+  scroll.appendChild(table);
+  card.appendChild(scroll);
+
+  const note = document.createElement("p");
+  note.className = "dash-note";
+  card.appendChild(note);
+
+  paint();
+  return { el: card, repaint: paint };
+
+  function paint() {
+    const rows = summary.byPerson.map((person) =>
+      rowFor(person.label, person, {
+        onTeam: person.onTeam,
+        stats: statsForPerson(person.key),
+      })
+    );
+    rows.sort(compareRows);
+
+    // Totals over the rows above, so the line always adds up to what is on
+    // screen. The GitHub halves are summed rather than re-derived: a pull
+    // request has one author, so no row double-counts another's.
+    const totals = rowFor("All", summary.totals, {
+      stats: sumStats(rows),
+    });
+
+    table.innerHTML = "";
+    table.appendChild(renderHead());
+    const tbody = document.createElement("tbody");
+    for (const row of rows) tbody.appendChild(renderRow(row));
+    table.appendChild(tbody);
+    const tfoot = document.createElement("tfoot");
+    tfoot.appendChild(renderRow(totals));
+    table.appendChild(tfoot);
+
+    note.textContent = noteText();
+  }
+
+  function renderHead() {
+    const thead = document.createElement("thead");
+    const tr = document.createElement("tr");
+    COLUMNS.forEach((column, i) => {
+      const th = document.createElement("th");
+      if (i > 0) th.className = "dash-num";
+      th.classList.add("sortable");
+      th.tabIndex = 0;
+      th.setAttribute("role", "button");
+      th.setAttribute(
+        "aria-sort",
+        sort.id === column.id ? (sort.dir === "asc" ? "ascending" : "descending") : "none"
+      );
+
+      const label = document.createElement("span");
+      label.textContent = column.label;
+      th.appendChild(label);
+
+      // Caret beside the label, help mark last: the sort state belongs to the
+      // heading, the "?" is an affordance sitting after it.
+      if (sort.id === column.id) {
+        const caret = document.createElement("span");
+        caret.className = "dash-sort";
+        caret.textContent = sort.dir === "asc" ? "▲" : "▼";
+        th.appendChild(caret);
+      }
+      if (column.hint) {
+        const mark = document.createElement("span");
+        mark.className = "dash-hint-mark";
+        mark.textContent = "?";
+        mark.title = column.hint;
+        th.appendChild(mark);
+      }
+
+      const toggle = () => {
+        // Re-clicking a column flips it; a new column opens the way that column
+        // reads first — names ascending, figures largest first.
+        if (sort.id === column.id) sort.dir = sort.dir === "asc" ? "desc" : "asc";
+        else Object.assign(sort, { id: column.id, dir: column.dir || "desc" });
+        paint();
+      };
+      th.addEventListener("click", toggle);
+      th.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggle();
+        }
+      });
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+    return thead;
+  }
+
+  function renderRow(row) {
+    const tr = document.createElement("tr");
+    for (const column of COLUMNS) tr.appendChild(column.cell(row));
+    return tr;
+  }
+
+  function compareRows(a, b) {
+    const column = COLUMNS.find((c) => c.id === sort.id) || COLUMNS[0];
+    const av = column.value(a);
+    const bv = column.value(b);
+    let cmp;
+    // Absent sorts last whichever way the column points: a dash is not a small
+    // number, and burying the people GitHub cannot answer for at the top of a
+    // descending sort would read as zero output.
+    if (av === null && bv === null) cmp = 0;
+    else if (av === null) return 1;
+    else if (bv === null) return -1;
+    else cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
+    if (sort.dir === "desc") cmp = -cmp;
+    // Ties settle by name, so a repaint never reshuffles equal rows.
+    return cmp || a.label.localeCompare(b.label);
+  }
+
+  // Per-person GitHub numbers, or null when GitHub cannot answer for them at
+  // all: query still in flight or failed, nobody on the roster for that Jira
+  // account, or no login on their roster entry. A missing number and a zero are
+  // different facts, so this never stands in a nought for one.
+  function statsForPerson(accountId) {
+    if (!github.stats) return null;
+    const login = memberFor(accountId)?.githubLogin;
+    if (!login) return null;
+    return statsFor(github.stats, login, { since: github.since });
+  }
+
+  function sumStats(rows) {
+    const counted = rows.filter((row) => row.prsOpened !== null);
+    if (!counted.length) return null;
+    return {
+      prsOpened: counted.reduce((n, row) => n + row.prsOpened, 0),
+      lines: counted.reduce((n, row) => n + row.lines, 0),
+    };
+  }
+
+  function rowFor(label, bucket, { onTeam = null, stats = null } = {}) {
+    const progress = reviewOrDone(bucket);
+    return {
+      label,
+      onTeam,
+      tickets: bucket.issues,
+      reviewDone: progress.issues,
+      points: bucket.points,
+      reviewDonePoints: progress.points,
+      share: progress.share,
+      prsOpened: stats ? stats.prsOpened : null,
+      lines: stats ? stats.lines : null,
+      clamped: Boolean(stats?.clamped),
+      from: stats?.from || "",
+    };
+  }
+
+  function numCell(value, format) {
+    const td = document.createElement("td");
+    td.className = "dash-num mono";
+    td.textContent =
+      value === null ? (github.state === "loading" ? "…" : "—") : format(value);
+    return td;
+  }
+
+  function nameCell(row) {
+    const td = document.createElement("td");
+    td.className = "dash-person-name";
+    td.textContent = row.label;
+    if (row.onTeam === false) {
+      const outside = document.createElement("span");
+      outside.className = "dash-outside";
+      outside.textContent = "outside team";
+      td.appendChild(outside);
+    }
+    return td;
+  }
+
+  // The meter lives in an inner span rather than on the cell itself: a `td` set
+  // to `display: flex` stops drawing the row rule underneath it, which reads as
+  // a broken table.
+  function shareCell(row) {
+    const td = document.createElement("td");
+    td.className = "dash-num dash-share-cell";
+    const inner = document.createElement("span");
+    inner.className = "dash-share";
+    td.appendChild(inner);
+
+    if (row.share === null) {
+      // An empty track would read as 0%; nothing estimated is not zero progress.
+      const dash = document.createElement("span");
+      dash.className = "dash-meter-value mono";
+      dash.textContent = "—";
+      inner.appendChild(dash);
+      return td;
+    }
+    const meter = document.createElement("span");
+    meter.className = "dash-meter";
+    const fill = document.createElement("span");
+    fill.className = "dash-meter-fill";
+    fill.style.width = `${Math.min(100, Math.round(row.share * 100))}%`;
+    meter.appendChild(fill);
+    const value = document.createElement("span");
+    value.className = "dash-meter-value mono";
+    value.textContent = `${Math.round(row.share * 100)}%`;
+    inner.append(meter, value);
+    return td;
+  }
+
+  function noteText() {
+    const parts = [
+      "A ticket counts as in review when its status group reads as a review" +
+        " state — set the grouping in Settings to track a dedicated code review" +
+        " column.",
+      `Sub-tasks are excluded${summary.unestimated ? `, and ${summary.unestimated} issue${summary.unestimated === 1 ? " is" : "s are"} unestimated` : ""}.`,
+    ];
+    if (githubOn) parts.push(githubNote());
+    return parts.join(" ");
+  }
+
+  function githubNote() {
+    if (github.state === "loading") return "Pull request figures still loading.";
+    if (github.state === "error") {
+      return `PRs and lines to main unavailable — ${github.error}.`;
+    }
+    // Every row shares one window, so the first that has one speaks for all.
+    const sample = summary.byPerson.map((p) => statsForPerson(p.key)).find(Boolean);
+    if (!sample) {
+      return (
+        "No PR figures: nobody in the sprint has a GitHub login on the roster." +
+        " Map logins in Settings → Team."
+      );
+    }
+    const window = sample.clamped
+      ? `from ${fmtDate(sample.from)}, which is as far back as GitHub was queried — this sprint started before that`
+      : github.dated
+        ? `from ${fmtDate(sample.from)}`
+        : `over the last ${FALLBACK_SPRINT_DAYS} days, there being no start date on the active sprint`;
+    return (
+      `PRs opened and lines to main are counted ${window}, and only for people` +
+      " with a GitHub login on the roster."
+    );
+  }
 }
 
 // Points are often halves; integers shouldn't show a trailing ".0".

@@ -259,6 +259,72 @@ check("outsider flagged", summary.byPerson.find((p) => p.label === "Zoe Outsider
 check("unassigned bucketed", summary.byPerson.some((p) => p.label === "Unassigned"));
 check("unassigned has no team flag", summary.byPerson.find((p) => p.label === "Unassigned").onTeam === null);
 
+section("in review + done");
+const REVIEW_GROUPS = [
+  { name: "To Do", statuses: ["To Do"] },
+  { name: "In Progress", statuses: ["In Progress"] },
+  { name: "In Code Review", statuses: ["Peer check"] },   // group name carries it
+  { name: "Done", statuses: ["Done"] },
+];
+check("review status matched by name",
+  dash.isInReview(issue({ status: "In Code Review" }), GROUPS) === true);
+check("review matched via the group name, not the status",
+  dash.isInReview(issue({ status: "Peer check" }), REVIEW_GROUPS) === true);
+check("a status no group claims still matches on its own name",
+  dash.isInReview(issue({ status: "Ready for Review" }), GROUPS) === true);
+check("in progress is not in review",
+  dash.isInReview(issue({ status: "In Progress" }), GROUPS) === false);
+check("done is never also in review",
+  dash.isInReview(issue({ status: "Done" }), GROUPS) === false);
+check("a done-category status named for review counts as done, not review",
+  dash.isInReview(issue({ status: "Reviewed", doneCategory: "done" }), GROUPS) === false);
+
+summary = dash.summarize({
+  issues: [
+    issue({ assignee: { accountId: "acc-1", displayName: "Ada" }, status: "To Do", points: 5 }),
+    issue({ assignee: { accountId: "acc-1", displayName: "Ada" }, status: "In Code Review", points: 3 }),
+    issue({ assignee: { accountId: "acc-1", displayName: "Ada" }, status: "Done", points: 2 }),
+    issue({ assignee: { accountId: "acc-9", displayName: "Zoe" }, status: "In Progress", points: 4 }),
+  ],
+  sprints: [SPRINT], statusGroups: GROUPS, boards: BOARDS,
+});
+const ada = summary.byPerson.find((p) => p.label === "Ada");
+const zoe = summary.byPerson.find((p) => p.label === "Zoe");
+check("review points bucketed per person", ada.reviewPoints === 3);
+check("review issues bucketed per person", ada.reviewIssues === 1);
+check("done stays separate from review", ada.donePoints === 2);
+check("nobody is counted twice", ada.reviewIssues + ada.doneIssues === 2);
+check("sprint-level review points", summary.reviewPoints === 3);
+check("sprint-level review issues", summary.reviewIssues === 1);
+
+let progress = dash.reviewOrDone(ada);
+check("review + done issues combined", progress.issues === 2);
+check("review + done points combined", progress.points === 5);
+check("share is points-based", progress.share === 0.5);
+check("share of untouched work is zero, not null", dash.reviewOrDone(zoe).share === 0);
+
+check("totals bucket mirrors the sprint", summary.totals.points === 14);
+check("totals row agrees with the rows",
+  dash.reviewOrDone(summary.totals).points === ada.donePoints + ada.reviewPoints);
+
+progress = dash.reviewOrDone({ issues: 2, points: 0, doneIssues: 1, donePoints: 0, reviewIssues: 0, reviewPoints: 0 });
+check("no estimates -> null share, not zero", progress.share === null);
+check("unestimated work still counts its tickets", progress.issues === 1);
+check("an empty bucket does not throw", dash.reviewOrDone({}).share === null);
+check("review buckets present on status rows",
+  summary.byStatus.every((b) => typeof b.reviewPoints === "number"));
+check("review buckets present on empty board rows",
+  dash.summarize({ issues: [], sprints: [SPRINT], statusGroups: GROUPS, boards: BOARDS })
+    .byBoard.every((b) => b.reviewIssues === 0));
+
+section("compact numbers");
+const utils = await import(new URL("../js/utils.js", import.meta.url));
+check("under a thousand is printed whole", utils.compactNum(999) === "999");
+check("thousands keep one decimal", utils.compactNum(1234) === "1.2k");
+check("five figures drop the decimal", utils.compactNum(15400) === "15k");
+check("zero is zero, not a dash", utils.compactNum(0) === "0");
+check("rubbish reads as zero", utils.compactNum(null) === "0");
+
 section("days remaining");
 summary = dash.summarize({
   issues: [issue({})], sprints: [SPRINT], statusGroups: GROUPS, boards: BOARDS,
