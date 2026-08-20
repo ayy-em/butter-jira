@@ -248,6 +248,29 @@ Below that: a burndown, sprint progression by status, and breakdowns by board an
 by person. Everything is derived from data the other views already fetched, so
 opening the tab normally costs no Jira requests at all.
 
+At the foot of the view, **delivery by person** — tickets assigned, how many are
+in review or done, points planned, points in review or done, that last pair as a
+share, and with GitHub sync on, PRs opened and lines to main over the sprint. It
+opens sorted by the share, best first; any heading sorts by its column, and rows
+GitHub cannot answer for stay at the bottom either way, because a dash is not a
+small number. The `All` row is always last and is computed by the same code as
+the rows above it.
+
+A ticket counts as *in review* when the status group it resolves to reads as a
+review state, so splitting a dedicated code review column out of "In Review" in
+Settings is picked up without a code change. The share is points-based, with
+unestimated issues counting as zero, so someone with no estimates shows a dash
+rather than 0%.
+
+The two GitHub columns are counted over the sprint's own window — its start date,
+or a stated 14-day guess when the active sprint has none — and clamped to how far
+back the query reached, which the note under the table says when it happens.
+Lines to main is additions plus deletions that reached the default branch —
+merged pull requests plus commits pushed straight to it — and only people with a
+GitHub login on the roster are counted. The fetch
+never blocks the view: the Jira columns render immediately and the GitHub pair
+fills in when the window query lands, or shows why it did not.
+
 **About the burndown.** Jira has no public API for what a sprint looked like on a
 past day. The two available routes are a changelog request *per issue* (60 issues
 = 60 requests, every time you open the tab) and an undocumented internal endpoint.
@@ -267,6 +290,125 @@ meant as a nudge rather than a KPI to optimise.
 
 Sub-tasks are excluded from point totals — their estimates duplicate the parent
 story's — and the excluded count is shown rather than hidden.
+
+### Sprint recap (PDF)
+
+**Generate recap** in the top right of the Sprint Dashboard opens a printable
+end-of-sprint document in a new tab — the retro artefact. Pick **Save as PDF** in
+the print dialog that follows. There is no PDF library involved and nothing is
+rasterised: it is a print stylesheet over the same numbers the dashboard shows,
+so the text in the PDF is real text, selectable and searchable, and it prints the
+same on every platform.
+
+What is in it, in order:
+
+| Section | Contents |
+|---|---|
+| Header, on every page | Your organisation's logo — the `org-logo-dark.png` sibling of `brand.orgLogo`, this being a document that always prints on white paper — or your organisation's name, and `Sprint Recap` on the right |
+| Title | `Sprint Recap DD.MM.YYYY - DD.MM.YYYY` over the combined window, the calendar and working day counts, then a bullet per active sprint with its name and goal, the bullet coloured by its board |
+| The sprint, combined | Four cards — **issues started with**, **crept in**, **in PR + ready**, **LoC in main** — then points done, in review, still open, carried in and review traffic as a single supporting line rather than eight more cards |
+| Per person, at a glance | One table across the page, sorted by story-point completion: issues, PRs & done, completion %, SP assigned, SP done & in PRs, SPs complete %, PRs opened, reviews — with an `All` row from the combined figures |
+| Where the points ended up | The status split as a labelled bar, with every figure also written out |
+| Contribution by person | One full-width row each, in name order: photo, name and GitHub handle on the left, then points planned, points wrapped (with its share), crept in, commits to main (merged pull requests plus commits pushed straight to the default branch) and lines to main, divided evenly across the rest of the row so every figure lines up with the one above it |
+| Board by board | One block per board with its sprint name, dates and goal, then issues, done, points, completion, crept in and carried in |
+| Tickets in this sprint | Every ticket grouped by board — key, summary, assignee, status, points, and a flag when it crept in or carried over |
+
+**It recaps the sprints the dashboard is showing**, which on retro day are the
+ones ending. It rebuilds from the same cached calls the dashboard made rather
+than being handed a copy of the screen, so a recap can't be generated from a tab
+someone left open yesterday — but equally, once a sprint is *closed* in Jira the
+boards have moved on and it will recap the new one.
+
+**Completion is given twice, by issue and by points.** The issue-based figure is
+the one that exists for everybody, including anyone whose tickets carry no
+estimate at all; the points-based one is a dash rather than a zero when nothing
+that person holds is estimated, which is why the table carries both.
+
+**The table is sorted by story-point completion; the cards are not.** The cards
+stay in name order, and the heading over them says contribution rather than
+performance — a per-colleague number here is retro conversation fuel, not a
+score. Sorting the table is a concession to how a table of figures is actually
+read, not a ranking of people.
+
+**Content is inset from the background by `--page-gutter` (1.5rem) on every
+edge of every page.** Sides come from padding on `.recap`, which repeats down the
+page on its own. Top and bottom cannot: padding on a container applies once, at
+the start and end of the whole document, so every page but the first and last
+would run hard against the edge. They come from the layout table's `thead` and
+`tfoot` instead — the two boxes Blink repeats *and* reserves height for on every
+printed page. Widening the gutter to 40mm takes the sample recap from three pages
+to six, which is how you can tell it is being reserved per page rather than once.
+
+**Every page carries `assets/bgs/pdf-bg.png` as its background.** It is set on
+`body`, whose background reaches the page canvas, and tiled at exactly the page
+content height (`--page-content-height`, A4 less the `@page` top and bottom
+margins) so each page gets one whole copy rather than a third of one. Three
+things each made it silently print blank while this was built: `cover` instead of
+tiling, `background-attachment: fixed` (which Blink does not paint in print at
+all), and declaring the image only inside `@media print` — a print-only
+background is not fetched until the print styles apply, and Chrome snapshots the
+page without waiting for it. `.recap` names the same URL outside any media query, which both
+previews it and gets it into the cache before anyone reaches the print dialog.
+On screen it is *stretched* over the sheet rather than tiled: there are no page
+boxes there, so a 267mm tile would restart partway down at a seam corresponding
+to nothing the reader can see.
+The `@page` margins stay white: Blink clips the canvas background to the page
+content box. Swap the file to change the look; if you change the `@page` margins,
+change `--page-content-height` with them.
+
+**Contribution by person and Tickets in this sprint each start a new page.**
+Both are read as a block, and both used to open halfway down a page behind the
+tail of the section above. Blink honours a forced `break-before` inside a table
+cell, which is where the whole document lives — see the next note.
+
+**The running header is a table `thead`, not a fixed element.** A `thead` is the
+only thing Blink both repeats on every printed page *and* reserves vertical space
+for; `position: fixed` does the first half only, so from page two onwards it
+painted over whatever card had started at the top. If you are looking at a PDF
+whose sections seem sliced off at the top of each page, that is the bug this
+replaced.
+
+**Chrome's own header and footer** — date, title, URL, page numbers — are drawn
+in the page margins and are controlled by the **Headers and footers** checkbox in
+the print dialog, not by this app. Untick it for a clean document.
+
+**The Jira half renders first; the GitHub figures fill in.** The pull-request
+window pages through 45 days of history *and* 45 days of default-branch commits
+per repository — ten sequential requests each in the worst case — which on a busy
+month takes a minute or more. So the document goes on screen as soon as Jira
+answers, with the GitHub figures showing `…`, and re-renders when they land.
+**Printing stays disabled until they do**, so what goes to paper is never a
+half-document; the toolbar says why it is waiting.
+
+The deadlines exist to stop an indefinite wait, not to set a target: 60s for Jira,
+180s for GitHub. An earlier 30s GitHub deadline was simply wrong — it fired
+routinely on real repositories while the dashboard, which sets no deadline at all,
+filled in a moment later. A timeout names the service that went quiet and says to
+reload or narrow the repository list.
+
+**A partial GitHub answer is reported as partial.** A repository that answers for
+pull requests but not for commits — which is what happens when the token lacks
+*Contents: read* — or one whose history runs past the page cap, is named in the
+note under the per-person section, along with what it means: the figures below it
+undercount. The whole point of separating an absent number from a zero is lost if a
+partial answer prints as a whole one.
+
+**Failure is never silent.** A failure leaves the print button disabled and
+retitles the tab, so a PDF saved anyway is not named as though it worked.
+
+Photos come from the roster's avatar overrides first (`assets/avatars/`, an
+untracked folder), then from Jira, then from initials — a person with no photo
+does not leave a hole. The GitHub half is awaited here rather than filled in
+later, unlike on the dashboard: a document is generated once and kept, so it is
+worth a second to have the numbers in it. When GitHub is off, fails, or has
+nobody mapped, the affected figures are dashes and the note under the section
+says which of the three it was.
+
+**Framing is deliberate.** The per-person section is ordered by name, never by
+output, and it is headed "contribution", not "performance" — the same discipline
+the roadmap sets for M10 and M14. It is material for a retro conversation, and a
+document that ranked colleagues would be read as an assessment however it was
+labelled. The footer says so on every copy.
 
 ### Standup mode
 
@@ -304,6 +446,50 @@ GitHub sync** and each speaker's board gains a panel beside it: their open pull
 requests, pull requests waiting on *their* review, what they merged since the
 last working day, and any GitHub issues assigned to them.
 
+**Four numbers per person**, on the setup screen beside each name and again as
+tiles on the speaker's panel:
+
+| Number | What it counts |
+|---|---|
+| Open PRs | Pull requests they authored that are open right now |
+| PRs opened | Pull requests they opened since the sprint started |
+| Reviews & comments | Reviews they submitted, plus review and conversation comments they wrote, on *other people's* pull requests, since the sprint started |
+| Lines to main | Lines added and removed that reached a repo's default branch since the sprint started — through a merged pull request, or pushed straight to it with no pull request at all |
+
+**Draft pull requests count for nothing.** They are dropped where the response is
+read, so a draft appears in no list, no count and no statistic — its reviews and
+comments go with it. Work someone has explicitly marked as not ready is not work
+a standup chases.
+
+Two definitions are worth knowing before anyone reads anything into these
+numbers. Reviews and comments are counted on *other people's* pull requests only:
+replying to feedback on your own is authorship, not review. And "lines to main"
+means lines that reached the default branch — a merge into a release or feature
+branch has not shipped, so it is not counted. Hovering any number says what it
+counted and over what window.
+
+**Direct pushes count**, given the token can read them — commit history needs
+*Repository → Contents: read*, which the pull-request permission does not imply.
+Without it the commit half of the query fails on its own, the pull-request numbers
+render as before, and the table says direct pushes are unavailable rather than
+reporting a short total as a full one. Not every team works through pull requests
+for everything, and counting only merged PRs flattered the people who did while
+undercounting everyone else. So the default branch's own commit history is read
+as well, and any commit with no pull request behind it is added to that author's
+total. `associatedPullRequests` is what keeps the two from overlapping: a commit
+that arrived through a pull request is dropped from the commit side, because that
+pull request's diff already accounts for it. A commit whose author email is not
+linked to a GitHub account cannot be attributed to anyone and is left out rather
+than guessed at. The tooltip breaks the total down when any of it was pushed
+directly.
+
+The sprint window is the **earliest start date among the active sprints**, so two
+boards on staggered sprints still produce one meaning of "this sprint" per table.
+A board whose active sprint carries no start date falls back to the last 14 days,
+and says so. GitHub is only queried 45 days back, so a sprint longer than that is
+counted from where the query stopped — again, stated in the tooltip rather than
+quietly.
+
 **You list the repos. Nothing else is read.** The repo list in Settings is an
 allowlist, not a filter — the queries are built from exactly those repos, so a
 token with access to fifty repos still only ever pulls the ones you typed in. An
@@ -319,6 +505,7 @@ these read-only permissions:
 |---|---|---|
 | Repository → Metadata | Read | Mandatory; implied by any other repo permission |
 | Repository → Pull requests | Read | Open PRs, review state, merged PRs |
+| Repository → Contents | Read | Lines pushed straight to the default branch — optional |
 | Repository → Issues | Read | Open issues assigned to someone |
 | Repository → Checks | Read | The "checks failing" state — optional |
 | Organisation → Members | Read | The "Match logins from GitHub org" button — optional |
@@ -344,19 +531,26 @@ logins from GitHub org* proposes mappings from the org member list and fills in
 only the blanks — every row stays editable, and an ambiguous match is left empty
 rather than guessed. Someone with no login simply gets no panel.
 
-**It is never on the critical path.** The fetch starts when you open the standup
-tab, in parallel with the sprint issues, and the standup begins whether or not it
-has landed. If it is slow the panel fills in behind; if it fails, or the token is
-dead, or GitHub sync is off, the panel is absent and the standup is exactly what
-it was before. A line on the setup card says which of those happened, including
-how many of the declared repos could not be read.
+**It is never on the critical path.** The fetch starts the moment the STANDUP tab
+is clicked — before the view has even loaded — and runs alongside the sprint
+issues; the standup begins whether or not it has landed. If it is slow the screen
+fills in behind; if it fails, or the token is dead, or GitHub sync is off, the
+panel is absent and the standup is exactly what it was before. A line on the
+setup card says which of those happened, including how many of the declared repos
+could not be read, and whether any repo was too busy for the page cap.
 
 Note the gap that leaves: pull requests by people who aren't on the roster, and
 roster members with no GitHub login, are simply not shown and are not counted
 anywhere. The panel shows what it can attribute, not everything that exists.
 
-One GraphQL request covers every declared repo, cached for five minutes and keyed
-by the repo list, so leaving and re-entering standup does not re-query. Pull
+Three queries run: one GraphQL request covering every declared repo for the
+lists, and two paged ones per repo for the sprint numbers — 45 days back, capped
+at 300 pull requests and 400 default-branch commits per repo. The commit half is
+allowed to fail on its own: losing direct pushes is a smaller loss than losing
+the repo, so the rest still renders and the gap is named in the failure list
+rather than silently zeroed. Both are cached for five minutes and keyed by the repo
+list, so leaving and re-entering standup does not re-query, and a second caller
+arriving while one is in flight joins it rather than issuing it again. Pull
 requests are **not** correlated to Jira issue keys; that is a separate problem
 and is in the roadmap's deferred backlog.
 
@@ -432,6 +626,8 @@ js/credentials.js   # device-local token storage + expiry lifecycle
 js/team.js          # team roster: storage, display names, team-only filter
 js/monitor.js       # sprint hygiene checks (pure derivation)
 js/dashboard.js     # sprint aggregation (pure derivation)
+js/recap.js         # sprint recap model (pure derivation)
+js/recap-page.js    # the printable recap document
 js/snapshots.js     # daily sprint snapshots — the burndown's history
 js/charts.js        # inline SVG chart primitives, no libraries
 js/standup.js       # standup session: order, phases, timing (DOM-free)
@@ -461,20 +657,37 @@ No build step — plain ES modules, loaded directly by Chrome.
 Config-layer unit checks — no dependencies, no network, no browser:
 
 ```bash
-node scripts/test-backlog.mjs      # grouping, paging, tones, views    (103 checks)
+node scripts/test-backlog.mjs      # grouping, paging, tones, views    (115 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
-node scripts/test-imports.mjs      # every module imports what it calls  (39 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (40 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (49 checks)
 node scripts/test-config.mjs       # config layer, field discovery      (76 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
 node scripts/test-team.mjs         # roster, display names, filtering (127 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
-node scripts/test-standup.mjs      # session timing, order, resume    (116 checks)
-node scripts/test-dashboard.mjs    # aggregation, burndown, geometry  (123 checks)
+node scripts/test-standup.mjs      # session timing, order, resume   (165 checks)
+node scripts/test-dashboard.mjs    # aggregation, burndown, geometry  (151 checks)
+node scripts/test-recap.mjs        # recap model, flags, PDF caveats   (73 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
-node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (140 checks)
+node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (206 checks)
 ```
+
+View code is verified by rendering it rather than asserting on it:
+`preview-standup.html`, `preview-backlog.html`, `preview-dashboard.html` and
+`preview-recap.html` mount the real view against stubbed extension storage and a
+stubbed Jira/GitHub network, so a screen can be looked at in each of its states
+without a site, a token or a roster. The last two share their fixture
+(`preview-fixture.js`) — three boards, three staggered sprints, synthetic people
+and generated avatars — so the dashboard and the recap are always previewed
+against the same sprint. Query parameters pick the state: `?theme=light`,
+`?github=off`, `?stats=slow`, `?stats=error`, `?sprint=undated`, `?push=off`,
+`?avatars=off`, `?logo=off`, `?jira=slow`, `?stats=partial`, plus `?sort=<column>` on the
+dashboard and `?print=1` on the recap. `?jira=slow` and `?stats=slow` hold the recap's
+loading states open long enough to look at — the states that must never offer a
+print button — and `?stats=partial` marks one repo half-answered and another
+truncated, which is what the undercount warning is for. None of them ships: `scripts/build.mjs` copies an
+explicit file list.
 
 `test-config.mjs` covers URL normalisation, the defaults → `config.local.json` →
 storage resolution order, field discovery against both company-managed and
@@ -500,18 +713,32 @@ handlers and script stripping — and ADF conversion in both directions.
 ordering, phase transitions, pause arithmetic (including multiple pauses),
 overrun, resume-after-reload, and the board grouping shared with Kanban.
 
+`test-recap.mjs` covers the recap model: the combined figures and their shares,
+per-person contribution rows with the GitHub half attached or absent, the board
+split, the ticket list's ordering and its scope-creep and carry-in flags, and the
+three separate ways GitHub can have no answer. The document itself is verified by
+printing it — see the preview harnesses below.
+
 `test-dashboard.mjs` covers working-day arithmetic, carry-in and scope-change
-detection, the per-status/board/person buckets, snapshot storage and pruning, and
-the burndown series — plus chart geometry against a DOM shim, so a NaN coordinate
+detection, the per-status/board/person buckets, review-versus-done classification
+and the points share built on it, snapshot storage and pruning, and the burndown
+series — plus chart geometry against a DOM shim, so a NaN coordinate
 or a label placed outside the viewBox fails the suite rather than the eye.
 
 `test-github.mjs` covers the parts of GitHub sync that can be wrong quietly:
 repo-reference parsing (including the injection cases the GraphQL document would
 otherwise interpolate), API base derivation for github.com vs Enterprise Server,
 the aliased query, review-state and staleness derivation, per-person slicing,
-and the roster matcher. It also asserts the two
-behaviours that only show up in the transport — one repo failing degrades to
-that one repo, and the real token expiry is read off the response header.
+and the roster matcher. The sprint-window layer gets its own arithmetic checks —
+a pull request opened before the sprint but merged during it, a merge into a
+branch that is not the default one, a review on your own pull request, a review
+never submitted, and a sprint older than the fetch window — because every one of
+those is a number that would look plausible while being wrong. It also asserts
+the behaviours that only show up in the transport: paging stops at the window,
+a repo busier than the page cap says so, one repo failing degrades to that one
+repo, every repo failing throws rather than reading as a sprint of zeroes, a
+second caller joins a request already in flight, and the real token expiry is
+read off the response header.
 
 `test-imports.mjs` exists because a mechanical rename across twenty files once
 missed two imports and shipped: `node --check` parses without resolving
