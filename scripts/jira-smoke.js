@@ -130,5 +130,124 @@ try {
   failed++;
 }
 
+// ── Test 5: changelog expand on the agile endpoint ────────────────────────────
+// The spike the roadmap asks for before per-person Jira activity is built. Two
+// questions, and the answers change the cost of the feature rather than whether
+// it works:
+//
+//   1. Does `/rest/agile/1.0/board/{id}/sprint/{id}/issue` honour
+//      `expand=changelog`? If it does, the history rides the request the app
+//      already makes and costs nothing. If it does not, the fallback is the JQL
+//      search path — one query per board rather than none.
+//   2. What is the per-issue entry cap on this site? Jira returns the most
+//      recent entries alongside a `total`, and a ticket that has ping-ponged
+//      for months can exceed it. Whatever the number is, the reader has to
+//      carry a `truncated` flag rather than print an undercount as a whole.
+console.log("\n── Test 5: expand=changelog — per-person activity spike ─────────");
+try {
+  const boards = await jiraGet("/rest/agile/1.0/board?maxResults=50");
+  const candidates = PROJECTS.length
+    ? (boards.values || []).filter((b) => PROJECTS.includes(b.location?.projectKey))
+    : boards.values || [];
+
+  let probed = null;
+  for (const board of candidates) {
+    const sprints = await jiraGet(`/rest/agile/1.0/board/${board.id}/sprint?state=active`);
+    const sprint = (sprints.values || [])[0];
+    if (sprint) { probed = { board, sprint }; break; }
+  }
+
+  if (!probed) {
+    console.log("    no active sprint on any visible board — spike not exercised");
+  } else {
+    const { board, sprint } = probed;
+    console.log(`    probing board #${board.id} ${board.name} / sprint #${sprint.id} ${sprint.name}`);
+
+    const agile = await jiraGet(
+      `/rest/agile/1.0/board/${board.id}/sprint/${sprint.id}/issue` +
+        `?fields=key,created,creator&expand=changelog&maxResults=50`
+    );
+    const withLog = (agile.issues || []).filter((i) => i.changelog);
+    assert(
+      withLog.length > 0,
+      `Q1: agile endpoint honours expand=changelog — ${withLog.length} of ${agile.issues?.length ?? 0} issues carry one` +
+        (withLog.length ? "" : " (FALLBACK NEEDED: use the JQL search path, one query per board)")
+    );
+
+    // `creator` and `created` are the other half of the feature and need no
+    // expand at all — confirm they are actually populated before anything is
+    // built on them.
+    const withCreator = (agile.issues || []).filter((i) => i.fields?.creator?.accountId);
+    assert(
+      withCreator.length > 0,
+      `creator + created populated on ${withCreator.length} of ${agile.issues?.length ?? 0} issues (issues-created-per-person needs no expand)`
+    );
+
+    if (withLog.length) {
+      // The cap, read rather than assumed. `maxResults` inside the changelog is
+      // what Jira applied; `total` is how many entries exist.
+      let capSeen = 0;
+      let truncatedCount = 0;
+      let deepest = null;
+      for (const issue of withLog) {
+        const log = issue.changelog;
+        const returned = (log.histories || []).length;
+        capSeen = Math.max(capSeen, log.maxResults ?? returned);
+        if ((log.total ?? returned) > returned) {
+          truncatedCount++;
+          if (!deepest || log.total > deepest.total) {
+            deepest = { key: issue.key, total: log.total, returned };
+          }
+        }
+      }
+      console.log(`    Q2: per-issue entry cap on this site: ${capSeen}`);
+      if (truncatedCount) {
+        console.log(
+          `    ${truncatedCount} of ${withLog.length} sampled issues exceed it` +
+            (deepest ? ` — deepest ${deepest.key}: ${deepest.returned} of ${deepest.total} entries` : "")
+        );
+      } else {
+        console.log(`    none of the ${withLog.length} sampled issues exceed it`);
+      }
+
+      // What a compact history entry costs, since whole changelogs would
+      // multiply a cached payload to carry data the app discards most of.
+      const entries = withLog.flatMap((i) => i.changelog.histories || []);
+      const rawBytes = JSON.stringify(withLog.map((i) => i.changelog)).length;
+      const compact = entries.flatMap((h) =>
+        (h.items || []).map((it) => [
+          h.author?.accountId ?? "", it.field ?? it.fieldId ?? "",
+          it.fromString ?? "", it.toString ?? "", h.created ?? "",
+        ])
+      );
+      const compactBytes = JSON.stringify(compact).length;
+      console.log(
+        `    ${entries.length} history entries -> ${compact.length} compact items: ` +
+          `${(rawBytes / 1024).toFixed(1)}kB raw vs ${(compactBytes / 1024).toFixed(1)}kB reduced ` +
+          `(${Math.round((1 - compactBytes / rawBytes) * 100)}% smaller)`
+      );
+
+      // The field names this site uses, since the reader matches on them and
+      // they are localised on some sites.
+      const fieldNames = [...new Set(entries.flatMap((h) => (h.items || []).map((i) => i.field)))];
+      console.log(`    fields appearing in history: ${fieldNames.slice(0, 12).join(", ")}`);
+    }
+
+    // Does the backlog twin take it too? Not used today — the app deliberately
+    // fetches the backlog without the expand, since every consumer of activity
+    // asks about a sprint — but worth knowing before a screen wants it.
+    const backlog = await jiraGet(
+      `/rest/agile/1.0/board/${board.id}/backlog?fields=key&expand=changelog&maxResults=10`
+    );
+    const backlogLogs = (backlog.issues || []).filter((i) => i.changelog).length;
+    console.log(
+      `    backlog endpoint (not used today): ${backlogLogs} of ${backlog.issues?.length ?? 0} sampled issues carry a changelog`
+    );
+  }
+} catch (e) {
+  console.error(`  ✗ ${e.status ?? ""}: ${e.message}`);
+  failed++;
+}
+
 console.log(`\n── Results: ${passed} passed, ${failed} failed ─────────────────────`);
 if (failed > 0) process.exit(1);

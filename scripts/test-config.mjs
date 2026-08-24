@@ -232,6 +232,11 @@ check("base fields present", fields.includes("summary") && fields.includes("dued
 check("discovered fields present", fields.includes("customfield_10016") && fields.includes("customfield_10015"));
 check("additional fields present", fields.includes("customfield_10050"));
 check("no duplicates", new Set(fields).size === fields.length);
+// Per-person activity counts issues created in the sprint from these two, and
+// they ride every board-wide query rather than being fetched separately.
+check("creator and created are fetched for per-person activity",
+  fields.includes("creator") && fields.includes("created"));
+check("creator is in the detail list too", cfg.detailIssueFields().includes("creator"));
 
 section("epic names");
 routes["/rest/api/3/field"] = [

@@ -49,11 +49,84 @@ const STATUSES = [
   ["Blocked", "indeterminate"], ["Done", "done"],
 ];
 
+// A plausible issue history, in the shape `expand=changelog` returns — the
+// per-person activity cell and panel read this and nothing else.
+//
+// Shaped to make the panel's distinctions visible rather than to look busy: a
+// ticket walks the workflow a step at a time so moves outnumber completions;
+// every fourth is moved by somebody other than its assignee, so "who moved it"
+// and "who owns it" come apart; every fifth was reassigned, so pick-ups exist;
+// and every seventh reports a `total` well above what it returns, which is what
+// makes the truncation caveat render. ?history=off drops the lot, which is the
+// site-returned-no-history case.
+const WORKFLOW = ["To Do", "In Progress", "In Review", "Done"];
+
+function historyFor(status, index, i, count) {
+  if (params.get("history") === "off") return undefined;
+  const target = WORKFLOW.indexOf(status);
+  const n = index * 20 + i;
+  const moverIdx = n % 4 === 0 ? (index + 2) % NAMES.length : index;
+  const author = { accountId: `acc-${moverIdx}`, displayName: NAMES[moverIdx][0] };
+  const histories = [];
+
+  if (n % 5 === 0) {
+    const fromIdx = (index + 3) % NAMES.length;
+    histories.push({
+      id: `h${n}-a`, author, created: daysAgo(8),
+      items: [{
+        field: "assignee", fieldId: "assignee",
+        from: `acc-${fromIdx}`, fromString: NAMES[fromIdx][0],
+        to: `acc-${index}`, toString: NAMES[index][0],
+      }],
+    });
+  }
+
+  for (let step = 1; step <= Math.max(0, target); step++) {
+    histories.push({
+      id: `h${n}-${step}`, author, created: daysAgo(8 - step),
+      items: [{
+        field: "status", fieldId: "status",
+        from: String(step), fromString: WORKFLOW[step - 1],
+        to: String(step + 1), toString: WORKFLOW[step],
+      }],
+    });
+  }
+
+  if (n % 6 === 0) {
+    histories.push({
+      id: `h${n}-p`, author, created: daysAgo(3),
+      items: [{ field: "Story Points", fieldId: "cf_sp", fromString: "3", toString: "5" }],
+    });
+  }
+
+  // An authorless entry: a Jira automation. A real change, but not a person's
+  // action, and it must not be pooled under anybody.
+  if (n % 11 === 0) {
+    histories.push({
+      id: `h${n}-auto`, author: null, created: daysAgo(2),
+      items: [{ field: "labels", fieldId: "labels", fromString: "", toString: "triaged" }],
+    });
+  }
+
+  if (!histories.length) return undefined;
+  return {
+    startAt: 0,
+    maxResults: histories.length,
+    total: n % 7 === 0 ? histories.length + 30 : histories.length,
+    histories,
+  };
+}
+
 function issuesFor(person, index, count) {
   return Array.from({ length: count }, (_, i) => {
     // Deterministic spread, so the preview looks the same on every reload.
     const s = STATUSES[(index * 3 + i) % STATUSES.length];
     const blocked = i < person[3];
+    const status = blocked ? "Blocked" : s[0];
+    // Not always the assignee: who raised a ticket and who is doing it are
+    // different questions, and a fixture where they always agree would hide the
+    // creation figure being its own number.
+    const creatorIdx = (index + i) % NAMES.length;
     return {
       id: `${index}-${i}`,
       key: `CTS-${100 + index * 20 + i}`,
@@ -64,8 +137,13 @@ function issuesFor(person, index, count) {
           ? { name: "Blocked", statusCategory: { key: "indeterminate" } }
           : { name: s[0], statusCategory: { key: s[1] } },
         assignee: { accountId: `acc-${index}`, displayName: person[0] },
+        creator: { accountId: `acc-${creatorIdx}`, displayName: NAMES[creatorIdx][0] },
+        // Half created inside the sprint window, so "created" is a spread rather
+        // than the same number for everybody.
+        created: i % 2 === 0 ? daysAgo(5) : daysAgo(20),
         issuetype: { name: "Task" },
       },
+      changelog: historyFor(status, index, i, count),
     };
   });
 }
@@ -74,7 +152,10 @@ const SPRINT_ISSUES = NAMES.flatMap((p, i) => issuesFor(p, i, p[1]));
 
 globalThis.fetch = async (input) => {
   const url = String(input);
-  const json = (body) => ({ ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) });
+  // Cloned: `compactChangelogs` reduces each issue's changelog in place at the
+  // API boundary, and handing out the fixture's own objects meant a second fetch
+  // saw what the first had consumed.
+  const json = (body) => ({ ok: true, status: 200, json: async () => structuredClone(body), text: async () => JSON.stringify(body) });
   if (url.includes("/sprint?") || url.endsWith("/sprint")) {
     // Named the way a board owner actually names one — identifier plus a
     // description — so the setup card's sprint line shows the trim doing its

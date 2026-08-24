@@ -9,7 +9,7 @@
   ],
   "manifest_version": 3,
   "name": "butter_jira",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Visualize your Jira in a Gantt chart, using a backlog list or Kanban views across all your Jira boards, run an efficient daily standup, and see your team's GitHub activity. Fast, lean, no AI. ButterJira: Fighting bloat since 2026.",
   "permissions": [
     "storage"

@@ -19,13 +19,14 @@ built the way it is, which is the part that gets forgotten.
 | Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
 | Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Issue detail (drawer + full page) |
 | Data access | HTTP Basic (email + API token), `js/api.js`. Reads, plus four writes: transitions, field edits, issue and sub-task creation, comments |
+| Derived reads | Per-person Jira activity (`js/activity.js`) from `expand=changelog` riding the sprint fetch — no requests of its own |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/api/3/issue/*` (incl. `createmeta`), `/rest/agile/1.0/board/*`, `/rest/agile/1.0/sprint/*/issue` |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping, GitHub block), overridable via `config.local.json` |
 | Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, and a 5-minute response cache. One accessor module (`js/browser.js`) |
 | Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
 | Version control | Git, `.gitignore` in place |
-| Tests | Sixteen `scripts/test-*.mjs` suites (1533 checks) + six preview harnesses + a manual smoke checklist |
+| Tests | Seventeen `scripts/test-*.mjs` suites (1633 checks) + six preview harnesses + a manual smoke checklist |
 
 ## Sizing
 
@@ -155,7 +156,7 @@ One person, one week: the sheet you would otherwise assemble by hand in the ten
 minutes before a 1:1.
 
 - **Pick a person** from the roster, and a week (defaulting to the one just ending).
-- **What they did** — issues closed and moved this week, PRs opened, merged and reviewed. M11 already fetches per-person GitHub activity; it currently windows on *since the last working day* for standup, so this needs a week window over the same query rather than a new source.
+- **What they did** — issues closed and moved this week, PRs opened, merged and reviewed. M11 already fetches per-person GitHub activity; it currently windows on *since the last working day* for standup, so this needs a week window over the same query rather than a new source. **The Jira half of this is already built:** `activityFrom(issues, { since, until })` (`js/activity.js`, done 2026-08-24) answers "closed and moved" per person over any window, and a week-long one is exercised in `scripts/test-activity.mjs` precisely so this milestone does not discover it. What is left here is the screen, and — the one real gap — a source of issues for a week that is not the current sprint, since the reader is fed the sprint fetch today.
 - **What is stuck** — their blocked and overdue items, and the PRs where they are the blocker or are being blocked, reusing M11's "changes requested → failing checks → approved-and-unmerged → waiting on review" ordering, which already sorts by how stuck rather than how recent.
 - **Load over time** — their points per sprint across stored snapshots. The `byPerson` field this needs exists as of 2026-08-20 (see M13), so this milestone reads it rather than adding it — bounded by how far back history had started accruing when the screen is built.
 - **Notes** — free text per person per week, saved as you type, with last week's notes and any open action items pinned at the top. A 1:1 tool that does not remember last week is a status meeting.
@@ -260,6 +261,7 @@ silly card. The superlatives and the PNG export are what is left to build.
 
 - Headline stats: points shipped, issues closed, cycle-time median, biggest single-day burn, scope added mid-sprint.
 - Light-hearted superlatives: *Deadline Whisperer* (most issues closed early), *The Ping-Pong Award* (most status transitions), *Carryover Champion*, *Epic Slayer* (finished the last child of an epic), *Ghost Ticket* (longest untouched issue still in sprint).
+  - **Two of these are already read.** *The Ping-Pong Award* is `transitions` and *Deadline Whisperer* is `completed`, both per person out of `activityFrom` (`js/activity.js`, done 2026-08-24) over whatever window this card wants. What is left for M10 is picking the winner and drawing the card — and note that the reader deliberately offers no sort-by-count, so the superlative does the ranking and owns the framing rather than inheriting it.
 - Export as PNG (canvas render) to paste into the retro or a channel.
 - Sprint-over-sprint trend strip: last five sprints, points and carryover.
 
@@ -337,73 +339,6 @@ plumbing.
 **Sizing: S–M** now that M11 exists, plus a spike on key-matching accuracy
 (short keys like `AB-1` produce false positives in commit messages).
 
-### Per-person Jira activity this sprint *(scoped 2026-08-20)*
-
-The standup and the recap both answer "what is assigned to this person" and, when
-GitHub is connected, "what did they push". Neither answers **what they did in
-Jira** — who moved which ticket, who picked work up, who created the things that
-appeared mid-sprint. Wanted as per-person panels on the standup screens and a
-matching block in the recap PDF.
-
-**Viable, and cheaper than it looks, because the data is already in flight.**
-
-- **Status transitions, assignee changes and field edits** come from
-  `expand=changelog` on the call that already fetches the sprint —
-  `getSprintIssues` (`js/api.js:130`) — and its backlog twin. No extra requests:
-  the expand rides the existing page loop. Every history entry carries author,
-  timestamp and from → to, which is the whole of what a panel needs.
-- **Issues created this sprint, per person**, needs nothing new whatsoever.
-  `fields.creator` and `fields.created` are fetched and cached today.
-
-**What is not cheap, and is therefore out of the first pass.** Comments and
-worklogs are per-issue endpoints (`/rest/api/3/issue/{key}/comment`, `/worklog`)
-— one request per issue against a sprint of a hundred, which is exactly the
-fan-out the risk register flags for M7 and M13. If comment counts turn out to be
-what people actually wanted, that is a second decision with a real cost attached
-rather than a free addition to this one.
-
-**Three things to get right, in the order they bite:**
-
-1. **Framing, and it is not a formality here.** This counts *actions taken by a
-   named colleague*, which is a much shorter step to a productivity metric than
-   anything shipped so far: points assigned describe work, transition counts
-   describe a person. The rules M10 and M14 already set are the floor — ordered
-   by name and never by output, "activity" and not "performance", no leaderboard,
-   and the same conversation-fuel note the recap carries. Settle it before the
-   panel is drawn, because a table sorted by transition count is very hard to
-   un-read once seen.
-2. **The changelog expand is bounded and does not paginate.** Jira returns the
-   most recent entries per issue alongside a total, and a ticket that has
-   ping-ponged for months can exceed it. The answer is the one `js/github.js`
-   already uses for the same problem: carry a `truncated` list through the model
-   and have the screen and the document say so, rather than printing an
-   undercount as though it were whole.
-3. **Cache size.** Sprint issues go through `cached()` into device-local storage
-   on a 5-minute TTL. Whole changelogs would multiply that payload to carry data
-   the app discards most of. Reduce each issue's history to a compact array —
-   author id, field, from, to, timestamp — at fetch time, before it is cached. A
-   pure function, so it tests without a browser.
-
-**It is a substrate rather than one feature, which is the real argument for
-building it.** M10's *Ping-Pong Award* is "most status transitions"; M14's "what
-they did" is "issues closed and moved this week". Both are this reader with a
-different window over it. So the window is a parameter from the first commit, the
-way `statsFor(stats, login, { since })` already takes one
-(`js/github.js:804`), and neither milestone pays for it a second time.
-
-**Sizing: S–M.** The reader and its model are S and carry the tests; the standup
-panel and the recap block are roughly S each, and both slot into structures that
-exist — `statSpecs()` (`js/views/standup.js:352`) already defines a per-person
-statistic once and renders it in two places, and the recap has a per-person row
-waiting for a column.
-
-**Spike first, and a small one.** Confirm `expand=changelog` is honoured by
-`/rest/agile/1.0/board/{id}/sprint/{id}/issue` and not only by the JQL search
-endpoint, and read what the per-issue entry cap actually is on this site.
-Everything above assumes the agile endpoint takes the expand; if it does not, the
-fallback is the JQL search path, which does — at the cost of one query per board
-rather than none.
-
 ### Icebox
 
 - **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. Pairs naturally with the M7 daily snapshots.
@@ -420,6 +355,107 @@ rather than none.
 # Completed
 
 Newest first.
+
+## Per-person Jira activity ✔ *(ad-hoc, 2026-08-24)*
+
+**Size: S–M** · Done. Scoped on 2026-08-20, built four days later. The standup
+and the recap both answered "what is assigned to this person" and, with GitHub
+connected, "what did they push". Neither answered **what they did in Jira** — who
+moved which ticket, who picked work up, who created the things that appeared
+mid-sprint. That is what this reads.
+
+**It cost no requests, which was the argument for building it.**
+`expand=changelog` rides `getSprintIssues` (`js/api.js`), the call that already
+fetches these issues, so the whole feature is a reader over data that was
+already in flight.
+
+**Two corrections to the scoping note, both cheap.** It claimed the
+issues-created figure "needs nothing new whatsoever" because `fields.creator` and
+`fields.created` are fetched today. `created` was; `creator` was not — it is now
+in `BASE_ISSUE_FIELDS` (`js/config.js`), one person object on a request already
+being made, so the claim held in spirit but not in fact. And the expand was
+scoped to the sprint call *and its backlog twin*; only the sprint call took it.
+Every consumer of activity asks about a sprint, so an expand on the backlog would
+have put a compacted history for every unstarted issue into the 5-minute cache
+for nothing to read. `getBoardBacklog` says so in place, and turning it on is one
+line the day a screen wants it.
+
+**The three things the note said to get right, in the order they bite.**
+
+1. **Framing, settled before the first panel was drawn** — and written into the
+   head of `js/activity.js` rather than left to each consumer. `activityFrom`
+   returns people ordered **by name**, and no sort-by-count is offered anywhere;
+   the module exposes no total, no score and no composite, because a table
+   sorted by transition count is very hard to un-read once seen. Every tooltip
+   says what the figure counts and none implies it should be larger — the
+   standup's read "conversation fuel, not a score", and the document's says
+   plainly that "a high count is not a better one, and ten moves can be one
+   ticket going back and forth between review and rework". The Jira numbers on
+   the setup row are also the one cluster on that screen deliberately *not*
+   given the success colour the GitHub figures carry: marking a count green
+   reads as praise.
+2. **The changelog expand is bounded and does not paginate** — carried, the way
+   `js/github.js` carries its own page caps. `compactHistory` keeps `total` and
+   `returned` beside the events and sets `truncated` when they disagree;
+   `activityFrom` collects the affected issue keys, the standup says "at least
+   this many" in every tooltip, and the recap prints a sentence naming the
+   issues and calling the figure a floor.
+3. **Cache size** — reduced at the fetch boundary, before `cached()` stores
+   anything. Jira's history entry is a nested record per change with an author
+   object and an avatar URL set; `compactChangelogs` replaces it with five
+   fields per event, so nothing downstream and nothing in device-local storage
+   ever sees the wide shape.
+
+**Two design points worth keeping.**
+
+- **Done-ness has to be decided from a status *name*.** A changelog carries
+  `fromString`/`toString`, not the `statusCategory` that `isDone` reads. So
+  `doneResolver` takes three sources in order: the issues in hand (every current
+  status carries both its name and its category, which is the only source correct
+  on a site with a custom done status nobody configured), then the configured
+  status groups (which cover a status transitioned *through* and away from, where
+  no current issue sits), then the regex `isDone` itself falls back to.
+- **The two halves of the model have different availability, and one flag would
+  have hidden it.** Issues created come from `fields.creator` and are answerable
+  whenever the issues were fetched; everything else needs the changelog. So
+  `historyKnown` sits on each bucket and a site returning no history dashes the
+  transition counts while still printing creations — visible on both consumers
+  under `?history=off`.
+
+**Where it landed.** A cell on the standup setup row and a "THIS SPRINT" panel on
+the speaker's stage, defined once in `jiraStatSpecs` and rendered in both places
+for the same reason `statSpecs` is shared. The panel also lists the ticket keys
+behind the numbers, done ones outlined, opening in the drawer rather than
+navigating away mid-turn — a prompt for a sentence rather than a list to read
+out. In the recap document, two columns on the per-person table (**Moved** and
+**Created**, which fit A4 portrait at eleven columns) plus a caption carrying the
+window and the truncation caveat. Deliberately not on the per-person cards,
+which are capped at five statistics on purpose.
+
+**It is a substrate, not one feature.** `activityFrom(issues, { since, until })`
+takes its window as a parameter from the first commit, the way
+`statsFor(stats, login, { since })` already does — so M10's *Ping-Pong Award*
+("most status transitions") and M14's "what they did this week" are this reader
+with a different window, and neither pays for it again. A week-long window is
+asserted in the suite so it is exercised rather than assumed.
+
+**Out of scope, as scoped:** comments and worklogs, which are per-issue endpoints
+and would mean one request per issue against a sprint of a hundred. If comment
+counts turn out to be what people wanted, that is a second decision with a real
+cost attached.
+
+**Still owed: the spike.** `scripts/jira-smoke.js` grew a Test 5 that answers
+both questions against a real site — whether the agile sprint-issue endpoint
+honours `expand=changelog` (if it does not, the fallback is the JQL search path,
+one query per board) and what the per-issue entry cap actually is here. It has
+not been run against the live site yet; the code works either way, but the cap is
+worth knowing.
+
+**Tests:** `scripts/test-activity.mjs`, 75 checks, plus 22 in
+`scripts/test-recap.mjs` and 2 in `scripts/test-config.mjs`. Seventeen suites,
+1633 checks.
+
+---
 
 ## M8 — Write layer + issue creation ✔ *(feature 8)*
 

@@ -93,6 +93,7 @@ function issue(o = {}) {
   const {
     status = "To Do", points = 3, board = 1, account = "acc-1", name = "Avery Quinn",
     created = "2026-08-01", subtask = false, avatarUrls, sprint, key, summary,
+    creator, log,
   } = o;
   seq++;
   const category = status === "Done" ? "done" : status === "To Do" ? "new" : "indeterminate";
@@ -105,8 +106,31 @@ function issue(o = {}) {
   };
   if (points !== null) fields.cf_sp = points;
   if (sprint !== undefined) fields.cf_sprint = sprint;
-  return { key: key || `CTS-${100 + seq}`, id: String(seq), boardId: board, fields };
+  if (creator) fields.creator = { accountId: creator, displayName: creator };
+  const built = { key: key || `CTS-${100 + seq}`, id: String(seq), boardId: board, fields };
+  if (log) built.changelog = log;
+  return built;
 }
+
+// An issue history, in the shape `expand=changelog` returns. `buildRecap` runs
+// it through the same compaction the API boundary does, so the fixture is the
+// raw shape and not the reduced one.
+function log(entries, total = null) {
+  return {
+    startAt: 0,
+    maxResults: entries.length,
+    total: total ?? entries.length,
+    histories: entries.map(({ by, at, items }) => ({
+      id: "h",
+      author: by ? { accountId: by, displayName: by } : null,
+      created: at,
+      items,
+    })),
+  };
+}
+const moved = (from, to) => ({
+  field: "status", fieldId: "status", from: "1", fromString: from, to: "2", toString: to,
+});
 
 // The GitHub window payload, in the shape fetchTeamStats returns.
 const STATS = {
@@ -337,6 +361,92 @@ check("no people", recap.people.length === 0);
 check("boards still listed, so the document is not silently short",
   recap.boards.length === 2);
 check("no tickets", recap.tickets.length === 0);
+
+section("per-person Jira activity");
+
+// Inside the sprint window (SPRINT_A starts 2026-08-03), so both the transition
+// and the creation count.
+const IN_SPRINT = "2026-08-05T10:00:00.000Z";
+const PRE_SPRINT = "2026-07-20T10:00:00.000Z";
+
+const activityRecap = build({
+  issues: [
+    issue({
+      account: "acc-1", name: "Avery Quinn", status: "Done", created: IN_SPRINT, creator: "acc-1",
+      log: log([
+        { by: "acc-1", at: IN_SPRINT, items: [moved("To Do", "In Progress")] },
+        { by: "acc-2", at: IN_SPRINT, items: [moved("In Progress", "Done")] },
+      ]),
+    }),
+    issue({
+      account: "acc-2", name: "Bo Ferreira", status: "In Progress", created: PRE_SPRINT, creator: "acc-2",
+      log: log([{ by: "acc-1", at: IN_SPRINT, items: [moved("To Do", "In Progress")] }]),
+    }),
+  ],
+});
+const aRow = activityRecap.people.find((p) => p.accountId === "acc-1");
+const bRow = activityRecap.people.find((p) => p.accountId === "acc-2");
+
+check("each person carries a jira block", Boolean(aRow.jira) && Boolean(bRow.jira));
+check("transitions are attributed to the mover, not the assignee", aRow.jira.transitions === 2);
+check("a completion goes to whoever made it", bRow.jira.completed === 1);
+check("...and not to the assignee of the issue", aRow.jira.completed === 0);
+check("distinct completed issues are counted", bRow.jira.completedIssues === 1);
+check("touched issues are counted", aRow.jira.touched === 2);
+check("an issue created in the sprint counts", aRow.jira.created === 1);
+check("an issue created before it does not", bRow.jira.created === 0);
+check("the history half is marked known", aRow.jira.historyKnown === true);
+
+check("the combined block sums the per-person figures",
+  activityRecap.combined.jira.transitions === 3 && activityRecap.combined.jira.created === 1);
+check("the combined block counts who it could answer for",
+  activityRecap.combined.jira.people === 2);
+check("the document is told history is available", activityRecap.activity.available === true);
+check("the window is reported for the caption, as the sprint's own start",
+  activityRecap.activity.from === new Date(activityRecap.window.start).toISOString());
+check("nothing truncated means an empty list", activityRecap.activity.truncated.length === 0);
+
+section("activity absence and truncation");
+
+// No changelog anywhere: the transition half is an absence, and the creation
+// half is still a real number because it never needed a history.
+const noHistory = build({
+  issues: [issue({ account: "acc-1", name: "Avery Quinn", created: IN_SPRINT, creator: "acc-1" })],
+});
+const noRow = noHistory.people.find((p) => p.accountId === "acc-1");
+check("a site with no issue history still answers for creations", noRow.jira.created === 1);
+check("...but marks the history half unknown", noRow.jira.historyKnown === false);
+check("the document is told history is unavailable", noHistory.activity.available === false);
+check("the combined block says so too", noHistory.combined.jira.historyKnown === false);
+
+const cut = build({
+  issues: [
+    issue({
+      key: "CTS-777", account: "acc-1", name: "Avery Quinn", created: PRE_SPRINT,
+      log: log([{ by: "acc-1", at: IN_SPRINT, items: [moved("To Do", "In Progress")] }], 90),
+    }),
+  ],
+});
+check("a truncated history names its issue so the page can caveat it",
+  cut.activity.truncated.length === 1 && cut.activity.truncated[0] === "CTS-777");
+check("counts still accrue from the part that arrived",
+  cut.people.find((p) => p.accountId === "acc-1").jira.transitions === 1);
+
+// An automation is a real change but not a person's action.
+const automated = build({
+  issues: [
+    issue({
+      account: "acc-1", name: "Avery Quinn", created: PRE_SPRINT,
+      log: log([{ by: null, at: IN_SPRINT, items: [moved("To Do", "In Progress")] }]),
+    }),
+  ],
+});
+check("an authorless entry is not attributed to anybody",
+  automated.people.find((p) => p.accountId === "acc-1").jira.transitions === 0);
+
+check("people stay in name order with the activity block attached",
+  activityRecap.people.filter((p) => p.accountId !== "__unassigned__")
+    .map((p) => p.label).join(",") === "Avery Quinn,Bo Ferreira");
 
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

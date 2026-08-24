@@ -186,6 +186,10 @@ Each of these is a real write. Use a scratch issue, not one somebody is working 
 - [ ] `s` or the STANDUP tab opens setup; empty roster → pointer to Settings
 - [ ] Attendance prefilled from the roster; yesterday's selection restored on a later visit
 - [ ] Each person shows their sprint issue count; zero shows in orange
+- [ ] Each row shows moved / closed / took / made beside the GitHub cluster, and hovering each gives a sentence saying what it counted and from when
+- [ ] Nobody's activity numbers are coloured green — that colour belongs to the GitHub figures, and on a count of a person's actions it would read as praise
+- [ ] Rows stay in roster order regardless of whose counts are highest, and no column header is clickable to sort by them
+- [ ] A ticket someone moved but does not own counts for the mover, not the assignee (check one against its Jira history)
 - [ ] "All in" / "None" work; per-person minutes and "Set all" apply
 - [ ] Totals line updates with attendance and shows both speaking and wall-clock time
 - [ ] Start → goes full-screen, nav and footer hidden, `dun-dun-dun` plays
@@ -193,6 +197,10 @@ Each of these is a real write. Use a scratch issue, not one somebody is working 
 - [ ] Board shows only that person's current-sprint issues, no assignee avatars
 - [ ] Cards are readable from across a room; clicking one still opens the drawer
 - [ ] Drawer opened from the standup board leaves the clock bar and parking lot visible
+- [ ] Speaker's stage shows a "THIS SPRINT" panel left of the GitHub one, with the same four numbers as that person's setup row
+- [ ] The panel lists the ticket keys behind the numbers, ones they finished outlined in green; clicking a key opens the drawer rather than navigating away
+- [ ] A person who did nothing this sprint gets no panel at all rather than a row of zeroes
+- [ ] With GitHub disconnected the activity panel is still there — it needs no credential and no roster login
 - [ ] Drag a card to another column → it moves, toast confirms, Jira reflects it
 - [ ] Drag to a column the workflow disallows → card snaps back, toast names the allowed statuses
 - [ ] Dragging does not open the drawer; the parking-lot text survives a drag
@@ -213,6 +221,17 @@ Each of these is a real write. Use a scratch issue, not one somebody is working 
 - [ ] Copy notes and Download .txt both work
 - [ ] Esc mid-session ends it and exits full-screen
 - [ ] Navigating away mid-session stops the timer and the audio (no ghost sounds)
+
+## 3e. Per-person Jira activity
+- [ ] A sprint containing a long-lived ticket (one moved dozens of times): its tooltips say "at least this many", naming how many issues Jira truncated
+- [ ] The recap's per-person table has **Moved** and **Created** columns, and all eleven columns fit the printed A4 page with nothing clipped
+- [ ] The caption under it says the figures are activity rather than performance, and names the window they were counted from
+- [ ] Where an issue's history was truncated the caption names it and calls **Moved** a floor rather than a total
+- [ ] Someone who created a ticket they did not end up owning is counted under **Created**, and its assignee is not
+- [ ] A ticket moved by a Jira automation rather than a person is attributed to nobody — not pooled under Unassigned
+- [ ] Open DevTools → Network on a standup load: the sprint request carries `expand=changelog` and there is **no** extra request per issue
+- [ ] Application → Local Storage: the cached sprint response holds compact history entries, not Jira's nested author records with avatar URLs
+- [ ] The backlog request does *not* carry the expand — nothing reads backlog history, and it would be cache weight for nothing
 
 ## 4. Branding and theme
 - [ ] No org logo configured → product logo only, nothing broken

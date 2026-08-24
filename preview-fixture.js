@@ -115,6 +115,92 @@ const CATEGORY = {
 let seq = 0;
 const ISSUES_BY_BOARD = new Map(BOARD_FIXTURE.map((b) => [b.id, []]));
 
+// A plausible issue history, in the shape `expand=changelog` actually returns —
+// the per-person activity panels read this and nothing else.
+//
+// Written to make the panels' distinctions visible rather than to look busy:
+// a ticket walks the workflow one step at a time so transitions outnumber
+// completions; every fourth one is moved by somebody other than its assignee, so
+// "moved" and "assigned" come apart; every seventh was reassigned, so pick-ups
+// exist; and every ninth reports a `total` far above what it returns, which is
+// what makes the truncation caveat render on both the standup and the document.
+const WORKFLOW = ["To Do", "In Progress", "In Code Review", "In Review", "Done"];
+
+function changelogFor(status, personIdx, n) {
+  if (params.get("history") === "off") return undefined;
+
+  const target = WORKFLOW.indexOf(status);
+  const histories = [];
+  // Whoever moved it: usually the assignee, sometimes a colleague, which is the
+  // whole reason the panel counts movers rather than assignees.
+  const moverIdx = n % 4 === 0 ? (personIdx + 2) % PEOPLE.length : personIdx;
+  const mover = {
+    accountId: `acc-${moverIdx}`,
+    displayName: PEOPLE[moverIdx][0],
+    avatarUrls: avatarUrlsFor(PEOPLE[moverIdx][0], moverIdx),
+  };
+
+  for (let step = 1; step <= Math.max(0, target); step++) {
+    histories.push({
+      id: `h${n}-${step}`,
+      author: mover,
+      created: daysAgo(8 - step),
+      items: [{
+        field: "status", fieldId: "status", fieldtype: "jira",
+        from: String(step), fromString: WORKFLOW[step - 1],
+        to: String(step + 1), toString: WORKFLOW[step],
+      }],
+    });
+  }
+
+  if (n % 7 === 0) {
+    const fromIdx = (personIdx + 3) % PEOPLE.length;
+    histories.unshift({
+      id: `h${n}-a`,
+      author: mover,
+      created: daysAgo(8),
+      items: [{
+        field: "assignee", fieldId: "assignee", fieldtype: "jira",
+        from: `acc-${fromIdx}`, fromString: PEOPLE[fromIdx][0],
+        to: `acc-${personIdx}`, toString: PEOPLE[personIdx][0],
+      }],
+    });
+  }
+
+  if (n % 6 === 0) {
+    histories.push({
+      id: `h${n}-p`,
+      author: mover,
+      created: daysAgo(4),
+      items: [{
+        field: "Story Points", fieldId: "cf_sp", fieldtype: "custom",
+        from: null, fromString: "3", to: null, toString: "5",
+      }],
+    });
+  }
+
+  // An authorless entry: a Jira automation, which is a real change but not a
+  // person's action, and must not be pooled under anybody.
+  if (n % 11 === 0) {
+    histories.push({
+      id: `h${n}-auto`,
+      author: null,
+      created: daysAgo(3),
+      items: [{ field: "labels", fieldId: "labels", fromString: "", toString: "triaged" }],
+    });
+  }
+
+  if (!histories.length) return undefined;
+  return {
+    startAt: 0,
+    maxResults: histories.length,
+    // Deliberately overstated on every ninth issue, so both consumers have to
+    // print "at least this many" rather than a total.
+    total: n % 9 === 0 ? histories.length + 40 : histories.length,
+    histories,
+  };
+}
+
 PEOPLE.forEach((person, i) => {
   person[2].forEach(([status, points], n) => {
     seq++;
@@ -136,10 +222,20 @@ PEOPLE.forEach((person, i) => {
       created: crept ? daysAgo(2) : daysAgo(12),
     };
     if (points !== null) fields.cf_sp = points;
+    // Not always the assignee: "who created this" and "who is doing it" are
+    // different questions, and a fixture where they always agree would hide the
+    // per-person creation figure being its own number.
+    const creatorIdx = crept ? (i + 1) % PEOPLE.length : i;
+    fields.creator = {
+      accountId: `acc-${creatorIdx}`,
+      displayName: PEOPLE[creatorIdx][0],
+      avatarUrls: avatarUrlsFor(PEOPLE[creatorIdx][0], creatorIdx),
+    };
     ISSUES_BY_BOARD.get(board.id).push({
       id: String(seq),
       key: `${board.projectKey}-${100 + seq}`,
       fields,
+      changelog: changelogFor(status, i, seq),
     });
   });
 });
@@ -170,9 +266,14 @@ globalThis.fetch = async (input) => {
   // delaying config.local.json too would hold up this fixture's own bootstrap and
   // the page would never even start.
   if (params.get("jira") === "slow" && url.includes("/rest/agile/")) await sleep(2000);
+  // Cloned, because a real response is a fresh parse every time and some
+  // readers reduce what they get in place — `compactChangelogs` replaces each
+  // issue's changelog with a compact form at the API boundary. Handing out the
+  // fixture's own objects meant the second fetch saw what the first had
+  // consumed.
   const json = (body) => ({
     ok: true, status: 200, headers: { get: () => null },
-    json: async () => body, text: async () => JSON.stringify(body),
+    json: async () => structuredClone(body), text: async () => JSON.stringify(body),
   });
 
   const sprintList = /\/board\/(\d+)\/sprint(\?|$)/.exec(url);
