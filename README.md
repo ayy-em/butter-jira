@@ -121,6 +121,12 @@ and need these read scopes: `read:jira-user`, `read:jira-work`,
 `read:sprint:jira-software`, `read:board-scope:jira-software`,
 `read:issue-details:jira`, `read:jql:jira`.
 
+Editing and creating issues need write scopes on top of those:
+`write:jira-work` (or the granular `write:issue:jira`), plus
+`write:comment:jira` for commenting. An unscoped token needs nothing added — it
+already has whatever you can do in Jira yourself. Either way the app only writes
+when you ask it to: dragging a card, editing a field, or creating an issue.
+
 ## Configuration
 
 Everything is editable from the Settings page (⚙ in the nav bar):
@@ -222,11 +228,30 @@ Shows the header (key, status, type, parent, project, links out to Jira),
 assignee and reporter, description, start/due dates, story points, sprint,
 linked issues grouped by relationship, sub-tasks, and comments.
 
-**Commenting** is the one thing the app writes back to Jira. Type in the reply
-box and press **Comment** or ⌘/Ctrl+Enter. Plain text only: blank lines become
-paragraphs, single newlines become line breaks, and any markup you type is
-posted literally rather than half-interpreted. Scoped-token setups need
-`write:comment:jira`; unscoped tokens inherit your own Jira permissions.
+**Assignee, due date and story points are editable in place.** Click the value,
+type or pick, and press Enter — or click away, which also saves, because losing
+typing to a stray click is worse than an unintended save you can undo. Escape
+cancels. The change appears immediately and the toast that confirms it carries an
+**Undo** for as long as it is on screen; if Jira refuses the write, the old value
+comes back and the toast says which field it objected to and why.
+
+Three of the six meta fields are deliberately *not* editable. Reporter is a
+permission most accounts do not have, start date only makes sense to edit
+alongside the roadmap's dates, and moving an issue between sprints needs the
+board's sprint list to choose from — the write layer supports the move, and the
+sprint planner is where it gets a UI.
+
+**+ Sub-task**, on the Linked issues heading, opens the create form with the
+parent fixed. The sub-task issue type is discovered from your project rather
+than matched by name, so it works on a site where it is called something else,
+or in another language; a project with sub-tasks switched off says so instead of
+offering a form that cannot be submitted. After creation the parent's sub-task
+list is re-read from Jira rather than patched from the form.
+
+**Commenting.** Type in the reply box and press **Comment** or ⌘/Ctrl+Enter.
+Plain text only: blank lines become paragraphs, single newlines become line
+breaks, and any markup you type is posted literally rather than
+half-interpreted.
 
 Descriptions and comments arrive from Jira as HTML written by whoever can
 comment on the issue, so everything passes through an allowlist sanitiser
@@ -237,6 +262,38 @@ Pull requests, branches and commits are **not** shown *on the issue*: Jira has
 no public API for them, and correlating GitHub work back to an issue key is its
 own problem — that's still in the roadmap's deferred backlog. GitHub sync does
 show pull requests per *person* during standup; see below.
+
+### Creating issues
+
+**+ New issue** on the Backlog toolbar, or "Create issue" in the command palette
+(⌘/Ctrl+K) — both open the same panel, in the same drawer the issue detail uses.
+
+**The form is not written into the app; it is read from your Jira.** Pick a
+project and an issue type and the panel asks Jira which fields that combination
+has and which of them are required
+(`/rest/api/3/issue/createmeta/{project}/issuetypes/{type}`), then builds the
+rows from the answer. So a project that insists on a component, a team, or an
+acceptance-criteria field shows those rows, and one that wants nothing but a
+summary shows one box. Switching issue type re-reads the layout, because a Bug
+and a Story genuinely do ask different questions on most sites.
+
+Consequences of doing it that way, all of them deliberate:
+
+- **Nothing is hardcoded**, including the field ids. Story points, sprint and
+  epic link are matched by their Jira field *types*, not by name or by a
+  `customfield_10016` baked into the source.
+- **A required field of a type the form cannot render stops the form**, naming
+  the field, rather than posting without it and showing you Jira's complaint
+  about something you were never asked for. Optional fields in that position are
+  listed as left unset, so the form never quietly pretends to be all of Jira's.
+- **A refused create is attributed.** Jira reports what was wrong per field, and
+  those messages land on the rows they belong to; anything it could not attribute
+  goes to a toast.
+- Sprint and epic dropdowns are filled from the board rather than from
+  createmeta, which does not carry them.
+
+The panel writes nothing else: it posts one issue, drops that board's cached
+lists, and offers to open what it created.
 
 ### Sprint dashboard
 
@@ -609,6 +666,11 @@ the product logo stands alone.
 | `d` | Sprint dashboard |
 | `Esc` | Close the issue drawer |
 
+Opening the extension with no view in the URL lands on the **Kanban, filtered to
+the current sprint** — the sprint in flight is what people arrive asking about.
+An unrecognised view in the URL still falls back to the Backlog, which lists
+everything.
+
 During a standup the keyboard belongs to the session: `Space` pauses, `→` moves
 to the next person, `Esc` ends it. View shortcuts are suspended so you can't
 navigate away mid-standup.
@@ -637,10 +699,13 @@ js/adf.js           # Atlassian Document Format <-> text (comment posting)
 js/roster-ui.js     # roster editor for the Settings page
 js/migrations.js    # numbered storage migrations
 js/portable.js      # config export/import
-js/api.js           # Jira REST client (read-only)
+js/api.js           # Jira REST client: reads, field writes, issue creation
+js/issue-edit.js    # field writes: optimistic paint, rollback, undo, bulk
+js/issue-create.js  # createmeta -> form spec -> create payload (DOM-free)
 js/utils.js         # board/field/date/theme helpers + response cache
 js/router.js        # hash routing, setup flow, board picker
-js/components/      # nav bar, filter bar, re-auth prompt, issue detail, board
+js/components/      # nav, filter bar, re-auth, issue detail, board, drawer,
+                    #   click-to-edit cells, create-issue panel
 js/views/           # dashboard, backlog, gantt, kanban, monitor, standup
 css/                # one stylesheet per view
 assets/sfx/         # standup sound cues
@@ -659,31 +724,40 @@ Config-layer unit checks — no dependencies, no network, no browser:
 ```bash
 node scripts/test-backlog.mjs      # grouping, paging, tones, views    (115 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
-node scripts/test-imports.mjs      # every module imports what it calls  (40 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (47 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (49 checks)
-node scripts/test-config.mjs       # config layer, field discovery      (76 checks)
+node scripts/test-config.mjs       # config layer, field discovery      (86 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
 node scripts/test-team.mjs         # roster, display names, filtering (127 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
 node scripts/test-standup.mjs      # session timing, order, resume   (165 checks)
-node scripts/test-dashboard.mjs    # aggregation, burndown, geometry  (151 checks)
-node scripts/test-recap.mjs        # recap model, flags, PDF caveats   (73 checks)
+node scripts/test-dashboard.mjs    # aggregation, burndown, geometry  (162 checks)
+node scripts/test-recap.mjs        # recap model, flags, PDF caveats   (83 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
 node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (206 checks)
+node scripts/test-write.mjs        # field writes, rollback, undo, bulk (93 checks)
+node scripts/test-create.mjs       # createmeta -> form -> payload      (71 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it:
-`preview-standup.html`, `preview-backlog.html`, `preview-dashboard.html` and
-`preview-recap.html` mount the real view against stubbed extension storage and a
-stubbed Jira/GitHub network, so a screen can be looked at in each of its states
-without a site, a token or a roster. The last two share their fixture
+`preview-standup.html`, `preview-backlog.html`, `preview-dashboard.html`,
+`preview-recap.html`, `preview-issue.html` and `preview-create.html` mount the
+real view against stubbed extension storage and a stubbed Jira/GitHub network, so
+a screen can be looked at in each of its states without a site, a token or a
+roster. The create panel in particular has no other way of being checked — its
+form is generated from whatever createmeta returns, so reading the code tells you
+very little about what appears. The last four share their fixture
 (`preview-fixture.js`) — three boards, three staggered sprints, synthetic people
 and generated avatars — so the dashboard and the recap are always previewed
 against the same sprint. Query parameters pick the state: `?theme=light`,
 `?github=off`, `?stats=slow`, `?stats=error`, `?sprint=undated`, `?push=off`,
 `?avatars=off`, `?logo=off`, `?jira=slow`, `?stats=partial`, plus `?sort=<column>` on the
-dashboard and `?print=1` on the recap. `?jira=slow` and `?stats=slow` hold the recap's
+dashboard, `?print=1` on the recap, `?edit=points|due|assignee` on the issue
+detail (which opens that cell, the one state a screenshot cannot reach on its
+own), and `?createmeta=minimal|blocked` · `?create=refuse` · `?parent=ABC-1` on
+the create panel — a project that asks for nothing, one that requires a field the
+form cannot render, a refused create, and the sub-task form. `?jira=slow` and `?stats=slow` hold the recap's
 loading states open long enough to look at — the states that must never offer a
 print button — and `?stats=partial` marks one repo half-answered and another
 truncated, which is what the undercount warning is for. None of them ships: `scripts/build.mjs` copies an
@@ -721,9 +795,23 @@ printing it — see the preview harnesses below.
 
 `test-dashboard.mjs` covers working-day arithmetic, carry-in and scope-change
 detection, the per-status/board/person buckets, review-versus-done classification
-and the points share built on it, snapshot storage and pruning, and the burndown
-series — plus chart geometry against a DOM shim, so a NaN coordinate
+and the points share built on it, snapshot storage and pruning including the
+per-person block written for the planner, and the burndown series — plus chart geometry against a DOM shim, so a NaN coordinate
 or a label placed outside the viewBox fails the suite rather than the eye.
+
+`test-write.mjs` covers the write layer against a stubbed transport: the
+domain-name → field-id mapping (so an estimate cannot go to the wrong custom
+field), the three ways Jira says no — a field error, a permission refusal, a dead
+token — the optimistic paint and its rollback, the undo writing the previous
+value back rather than reverting locally, a bulk edit reporting what landed and
+what did not, and sprint moves batching at Jira's 50-issue ceiling.
+
+`test-create.mjs` covers issue creation: a control derived for every field type
+createmeta can describe, a required field of an unknown type stopping the form
+rather than being guessed at, the payload shape each control produces (an option
+is `{id}` and not its label, a user is `{accountId}`, rich text is a document),
+Jira's own defaults prefilling the form, the sub-task type found by its flag and
+not its name, and both response shapes createmeta comes in.
 
 `test-github.mjs` covers the parts of GitHub sync that can be wrong quietly:
 repo-reference parsing (including the injection cases the GraphQL document would
@@ -835,21 +923,23 @@ built the way it is.
 
 **Done:** hygiene (M0), whitelabelling (M1), durable identity and config (M2),
 the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode
-(M6), the sprint dashboard (M7), the command palette (M9), GitHub sync (M11),
-and the Firefox and Edge ports (M12).
+(M6), the sprint dashboard (M7), the write layer and issue creation (M8), the
+command palette (M9), GitHub sync (M11), and the Firefox and Edge ports (M12).
 
 **Open, in the order they unblock things:**
 
 | | | |
 |---|---|---|
-| M8 | Write layer + issue creation | The first real writes. Gates M9's triage mode and M4's in-app fixing, both of which are otherwise finished |
 | M13 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
 | M14 | Weekly 1:1 screen | Per-person prep sheet. Scope is a first pass, not agreed |
 | M10 | Sprint Wrapped | End-of-sprint recap for the retro |
 | M15 | Sprint start state snapshot | Placeholder, no scope yet |
 
-Everything shipped so far is read-only against Jira, with one exception: posting
-a comment from the issue detail, pulled forward from M8 during M5.
+The app writes to Jira in four places and nowhere else: dragging a card between
+columns (a workflow transition), editing assignee, due date or story points on
+the issue detail, creating an issue or a sub-task, and posting a comment. Every
+one of them is something you asked for by clicking it, and every one reports what
+Jira said if it refused.
 
 ## Licence
 

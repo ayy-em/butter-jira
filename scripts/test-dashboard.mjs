@@ -375,6 +375,36 @@ check("kept in date order", stored.map((s) => s.date).join() === "2026-08-04,202
 check("other sprints isolated", (await snap.loadSnapshots("999")).length === 0);
 check("snapshot without a date is ignored", (await snap.recordSnapshot(key, {})).length === 2);
 
+section("snapshot per-person block");
+local = {};
+summary = dash.summarize({
+  issues: [
+    issue({ assignee: { accountId: "acc-1", displayName: "Ada" }, status: "Done", points: 5 }),
+    issue({ assignee: { accountId: "acc-1", displayName: "Ada" }, status: "To Do", points: 3 }),
+    issue({ assignee: { accountId: "acc-9", displayName: "Zoe" }, status: "In Progress", points: 2 }),
+    issue({ assignee: null, points: 1 }),
+  ],
+  sprints: [SPRINT], statusGroups: GROUPS, boards: BOARDS,
+});
+let people = snap.snapshotFrom(summary, "2026-08-06").byPerson;
+check("keyed by account id", Object.keys(people).sort().join() === "__unassigned__,acc-1,acc-9");
+check("assigned points per person", people["acc-1"].points === 8 && people["acc-9"].points === 2);
+check("issue counts per person", people["acc-1"].issues === 2 && people["acc-9"].issues === 1);
+check("done split per person", people["acc-1"].donePoints === 5 && people["acc-1"].doneIssues === 1);
+check("nothing done is zero, not absent", people["acc-9"].donePoints === 0 && people["acc-9"].doneIssues === 0);
+check("display name stored alongside the id", people["acc-1"].label === "Ada");
+check("unassigned is a row like any other", people["__unassigned__"].points === 1);
+check("rows sum to the day's totals",
+  Object.values(people).reduce((n, p) => n + p.points, 0) === summary.totalPoints &&
+  Object.values(people).reduce((n, p) => n + p.issues, 0) === summary.issueCount);
+check("no onTeam flag is stored", !("onTeam" in people["acc-1"]));
+await snap.recordSnapshot(key, snap.snapshotFrom(summary, "2026-08-06"));
+stored = await snap.loadSnapshots(key);
+check("per-person block survives the storage round trip",
+  stored[0].byPerson["acc-1"].donePoints === 5);
+check("a summary with no person buckets records an empty block",
+  Object.keys(snap.snapshotFrom({}, "2026-08-06").byPerson).length === 0);
+
 section("snapshot pruning");
 local = {};
 for (let i = 0; i < 12; i++) {

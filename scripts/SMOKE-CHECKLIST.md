@@ -44,6 +44,8 @@ override file. Anything else is a finding.
 - [ ] Kanban: cards grouped into the configured columns; click opens Jira
 - [ ] Filters: board and assignee filters apply across all three views
 - [ ] `b` / `r` / `k` / `m` switch views; typing in an input does not trigger them
+- [ ] Opening the app with no hash lands on the Kanban, filtered to the current sprint, with KANBAN lit under the SPRINT menu
+- [ ] A nonsense hash (`app.html#nope`) still lands on the Backlog
 
 ## 3z. Backlog screen
 - [ ] Header shows the icon, title, subtitle, and one tile per configured status group
@@ -127,7 +129,7 @@ override file. Anything else is a finding.
 - [ ] Links inside the description open in a new tab and are absolute
 - [ ] An issue with no description shows "No description."
 - [ ] Linked issues grouped with Jira's wording ("blocks" vs "is blocked by")
-- [ ] Sub-tasks appear under "has sub-task"; an issue with neither hides the section
+- [ ] Sub-tasks appear under "has sub-task"; an issue with neither still shows the section, for the + Sub-task button
 - [ ] Comments load oldest-first with avatars, relative time, exact time on hover
 - [ ] An edited comment shows the "edited" marker
 - [ ] Post a comment → appears at the bottom, count in the heading increments, box clears
@@ -139,6 +141,46 @@ override file. Anything else is a finding.
 - [ ] Open `issue.html?key=NOPE-1` → clean "not found" message
 - [ ] Open `issue.html` with no key → clean "no issue key" message
 - [ ] Full page in light theme is readable; drawer too
+
+## 3c-i. Editing fields on the issue detail (M8a)
+Each of these is a real write. Use a scratch issue, not one somebody is working on.
+- [ ] Assignee, Due date and Story points show a dotted underline on hover; the other three meta cells do not
+- [ ] Click Story points → input opens with the current value selected; type a number, Enter → value updates, toast names the change
+- [ ] The toast carries **Undo** → click it → the previous value is written back and the cell follows
+- [ ] Let the toast expire → the change stands; reload the view → still there (so Jira has it, not just the screen)
+- [ ] Click a cell, change nothing, click away → no toast, no request in the network tab
+- [ ] Type letters into Story points → nothing is written, the old value comes back
+- [ ] Clear Story points entirely → the estimate is cleared in Jira, not set to 0
+- [ ] Escape while editing → no write
+- [ ] Assignee picker lists the roster, plus the current assignee when they are not on it, plus Unassigned
+- [ ] Assign to someone, then Unassigned → both write; avatars and names follow
+- [ ] Due date: pick a past date → the value renders red after saving
+- [ ] Edit an issue in a project you cannot write to → old value returns, toast names the permission
+- [ ] Set an impossible value Jira rejects (e.g. a due date on a screen without it) → error names the field
+- [ ] While a Story points edit is in flight, the same cell cannot be started twice
+- [ ] Kanban and Backlog show the new value after a refresh — only that board refetches, not all of them
+
+## 3c-ii. Creating an issue (M8b)
+- [ ] Backlog **+ New issue** and the palette's "Create issue" open the same panel
+- [ ] With the Backlog filtered to one board, the panel opens on that project; with several, on the first
+- [ ] Changing project re-reads the type list; changing type re-reads the fields
+- [ ] Required fields are marked; submitting empty marks them rather than posting
+- [ ] Summary is focused on open; Escape and the backdrop both close the panel
+- [ ] A project with a required field the form cannot render says so and offers no submit
+- [ ] Optional unrenderable fields are listed as left unset
+- [ ] Create with only a summary → issue appears in Jira with the right project and type
+- [ ] Description with a blank line → two paragraphs in Jira; `<b>x</b>` posts literally
+- [ ] Assignee, priority, labels (comma separated, spaces hyphenated), components, estimate, sprint and epic all land as set
+- [ ] The success toast's **Open** button opens the new issue's drawer
+- [ ] The Backlog list includes the new issue after the panel closes
+- [ ] Force a refusal (a project you cannot create in) → the error is attributed, the form stays filled
+
+## 3c-iii. Creating a sub-task (M8c)
+- [ ] **+ Sub-task** appears on the Linked issues heading of a story, and not on a sub-task
+- [ ] It opens with the parent named, the project fixed, and the type read from Jira (not the string "Sub-task")
+- [ ] Create it → the parent's sub-task list shows it without a manual reload
+- [ ] The new sub-task's own detail shows the parent in its header
+- [ ] In a project with sub-tasks disabled, the panel says so instead of showing a form
 
 ## 3d. Standup mode
 - [ ] `s` or the STANDUP tab opens setup; empty roster → pointer to Settings

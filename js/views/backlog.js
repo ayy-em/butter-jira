@@ -30,6 +30,8 @@ import {
 } from "../utils.js";
 import { hasRoster, isOutsideTeam, isTeamOnly, setTeamOnly } from "../team.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
+import { openCreateIssue } from "../components/issue-create.js";
+import { BOARDS } from "../utils.js";
 import { applyFilters, takePendingAssignees } from "../components/filters.js";
 import {
   COLUMNS,
@@ -258,12 +260,37 @@ export async function mount(container, creds) {
     counts.id = "bl-counts";
     bar.appendChild(counts);
 
+    // The discoverable way to create an issue; the palette has the same action
+    // for people who never look at a toolbar. Both open the one panel.
+    const create = el("button", "bl-btn primary", "+ New issue");
+    create.title = "Create an issue (the form comes from your Jira's own required fields)";
+    create.addEventListener("click", () => {
+      openCreateIssue(creds, {
+        // Whichever board the filter is narrowed to, if it is narrowed to one.
+        projectKey: soleProjectKey(),
+        // A new issue is not in the list this view already fetched, and the
+        // panel has just dropped that board's cache — so remount rather than
+        // repaint, which is the same gesture the palette's refresh uses.
+        onCreated: () => window.dispatchEvent(new HashChangeEvent("hashchange")),
+      });
+    });
+    bar.appendChild(create);
+
     const save = el("button", "bl-btn", "Save view");
     save.addEventListener("click", saveCurrentView);
     bar.appendChild(save);
 
     bar.appendChild(columnsMenu());
     return bar;
+  }
+
+  // The project to pre-select in the create panel: only when the view is
+  // filtered to exactly one board is there an unambiguous answer. Guessing from
+  // the first of several would put new issues in the wrong project.
+  function soleProjectKey() {
+    if (state.filters.boards.length !== 1) return "";
+    const board = BOARDS.find((b) => String(b.id) === String(state.filters.boards[0]));
+    return board?.projectKey || board?.name || "";
   }
 
   function selectControl(label, options, value, onChange) {

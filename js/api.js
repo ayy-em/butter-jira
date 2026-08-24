@@ -3,9 +3,11 @@ import {
   FIELD_ROLES,
   detailIssueFields,
   fieldIds,
+  fieldLabel,
   fieldValue,
   issueFields,
   jiraUrl,
+  writeFieldId,
 } from "./config.js";
 
 function authHeader(email, token) {
@@ -35,10 +37,19 @@ async function jiraFetchUrl(url, creds) {
   return resp.json();
 }
 
-async function jiraPost(path, creds, body = {}) {
+// Every mutating request goes through here, so there is exactly one place that
+// knows how Jira reports a refused write.
+//
+// Which matters because Jira refuses writes in a specific and useful way: a 400
+// carries `errors`, a map of field id -> what is wrong with that field, and
+// `errorMessages` for anything not attributable to one field. Printing the raw
+// body loses that structure, and a write layer that says "Jira API 400" when
+// Jira said "customfield_10016: Story Points must be a number" has thrown away
+// the only sentence worth showing anyone.
+async function jiraWrite(method, path, creds, body = {}) {
   const url = new URL(jiraUrl(path));
   const resp = await fetch(url.toString(), {
-    method: "POST",
+    method,
     headers: {
       Authorization: authHeader(creds.email, creds.token),
       Accept: "application/json",
@@ -50,13 +61,82 @@ async function jiraPost(path, creds, body = {}) {
     document.dispatchEvent(new CustomEvent("jira-auth-error"));
     throw new Error("401 Unauthorized");
   }
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    throw new Error(`Jira API ${resp.status}: ${url.pathname} — ${text.slice(0, 120)}`);
-  }
-  // Transitions answer 204 with no body; comments answer 201 with one.
-  const text = await resp.text();
+  const text = resp.ok ? await resp.text() : await resp.text().catch(() => "");
+  if (!resp.ok) throw writeFailure(resp.status, text, url.pathname);
+  // Transitions and field updates answer 204 with no body; comments and issue
+  // creation answer 201 with one.
   return text ? JSON.parse(text) : null;
+}
+
+async function jiraPost(path, creds, body = {}) {
+  return jiraWrite("POST", path, creds, body);
+}
+
+async function jiraPut(path, creds, body = {}) {
+  return jiraWrite("PUT", path, creds, body);
+}
+
+// A refused write, with the attribution kept rather than flattened into a
+// string. `fieldErrors` is field id -> message straight from Jira; `message` is
+// the sentence to show, with ids translated to the names the site uses for them.
+export class JiraWriteError extends Error {
+  constructor({ status, path, messages = [], fieldErrors = {} }) {
+    const named = Object.entries(fieldErrors).map(
+      ([id, msg]) => `${fieldLabel(id)}: ${msg}`
+    );
+    const parts = [...named, ...messages];
+    super(parts.length ? parts.join("; ") : `Jira API ${status}: ${path}`);
+    this.name = "JiraWriteError";
+    this.status = status;
+    this.path = path;
+    this.messages = messages;
+    this.fieldErrors = fieldErrors;
+  }
+
+  // The field ids Jira objected to, for a form that wants to mark its rows.
+  get fields() {
+    return Object.keys(this.fieldErrors);
+  }
+
+  // 403 is the one a caller may want to act on differently: the write was
+  // understood and refused, which on a write endpoint usually means a missing
+  // token scope or Jira permission rather than anything about the values sent.
+  get isPermission() {
+    return this.status === 403 || this.status === 404;
+  }
+}
+
+function writeFailure(status, text, path) {
+  let payload = null;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    payload = null;
+  }
+  const messages = Array.isArray(payload?.errorMessages)
+    ? payload.errorMessages.filter(Boolean).map(String)
+    : [];
+  const fieldErrors =
+    payload?.errors && typeof payload.errors === "object"
+      ? Object.fromEntries(
+          Object.entries(payload.errors).map(([k, v]) => [k, String(v)])
+        )
+      : {};
+
+  // Nothing parseable, so fall back to the body itself — truncated, because a
+  // Jira error page can be a whole HTML document.
+  if (!messages.length && !Object.keys(fieldErrors).length && text) {
+    messages.push(text.slice(0, 200));
+  }
+  // The one status Jira reliably sends with an empty body. Say what it means
+  // for a write rather than leaving a bare number.
+  if (!messages.length && !Object.keys(fieldErrors).length && status === 403) {
+    messages.push(
+      "Jira refused the write — the account lacks permission on this issue, " +
+        "or the API token is scoped without write:jira-work"
+    );
+  }
+  return new JiraWriteError({ status, path, messages, fieldErrors });
 }
 
 async function searchAllPages(creds, jql, fields) {
@@ -365,6 +445,233 @@ export async function transitionIssue(issueKey, transitionId, creds) {
     creds,
     { transition: { id: String(transitionId) } }
   );
+}
+
+// ── Field writes ────────────────────────────────────────────────────────────
+
+// Everything above this line reads Jira; from here down the app changes it.
+//
+// One request per edit, carrying every changed field together, because Jira
+// validates the whole `fields` object before applying any of it: a rejected
+// edit leaves the issue exactly as it was, so the optimistic paint has one
+// outcome to roll back rather than a half-applied set. That is worth more than
+// saving a round trip.
+//
+// Two consequences of Jira's own rules, both of which surface as attributed
+// errors rather than as surprises:
+//
+//   - A field has to be on the project's Edit screen to be writable. When it is
+//     not, Jira says so per field ("cannot be set… not on the appropriate
+//     screen"), and that message reaches the user unchanged, because the fix is
+//     in Jira's project config and naming the field is the whole of the help we
+//     can give.
+//   - A scoped API token needs `write:jira-work` (or granular `write:issue:jira`)
+//     on top of the read scopes. An unscoped token inherits the account's own
+//     Jira permissions and needs nothing added. Both refusals arrive as a 403,
+//     which `JiraWriteError.isPermission` marks.
+
+// The domain names this layer accepts, mapped onto whatever field ids the site
+// turned out to use. Kept pure and exported so the mapping is tested without a
+// network: a story-points write going to the wrong custom field is exactly the
+// bug that would be invisible until someone noticed their estimates vanishing.
+//
+// `null` is a value here, not an absence — it is how a field is cleared — so
+// the caller's key set decides what gets written, never the values.
+// `issue` is optional and only affects which candidate field a role writes to —
+// see `writeFieldId`. Passing it is what keeps the write and the optimistic
+// paint pointed at the same field.
+export function fieldWritePayload(changes = {}, { issue = null } = {}) {
+  const fields = {};
+  const unmapped = [];
+
+  for (const [name, value] of Object.entries(changes)) {
+    switch (name) {
+      case "summary":
+        fields.summary = String(value ?? "");
+        break;
+      // Jira's own id for the due date is lowercase and one word; it is not a
+      // custom field on any site, so it needs no discovery.
+      case "dueDate":
+        fields.duedate = emptyish(value) ? null : String(value);
+        break;
+      // Tolerant of a whole person object as well as a bare id: the callers that
+      // paint an avatar hold the object, and `String({})` would put
+      // "[object Object]" in an accountId, which Jira accepts the shape of and
+      // then quietly fails to match to anyone.
+      case "assignee": {
+        const accountId =
+          value && typeof value === "object" ? value.accountId ?? null : value;
+        fields.assignee = emptyish(accountId) ? null : { accountId: String(accountId) };
+        break;
+      }
+      case "storyPoints": {
+        const id = writeFieldId("storyPoints", issue);
+        if (!id) {
+          unmapped.push("storyPoints");
+          break;
+        }
+        fields[id] = emptyish(value) ? null : Number(value);
+        break;
+      }
+      default:
+        unmapped.push(name);
+    }
+  }
+
+  return { fields, unmapped };
+}
+
+function emptyish(value) {
+  return value === null || value === undefined || value === "";
+}
+
+// Writes the given fields and nothing else. Resolves to the set of Jira field
+// ids that were sent, so a caller can say what it changed.
+export async function updateIssueFields(issueKey, changes, creds, { issue = null } = {}) {
+  const { fields, unmapped } = fieldWritePayload(changes, { issue });
+
+  // Refusing here rather than sending a partial edit: a site where story points
+  // were never discovered would otherwise take the rest of the change and drop
+  // the estimate silently, which is the failure mode this milestone exists to
+  // avoid.
+  if (unmapped.length) {
+    throw new JiraWriteError({
+      status: 0,
+      path: `/rest/api/3/issue/${issueKey}`,
+      messages: [
+        `This Jira site has no field configured for ${unmapped
+          .map((name) => FIELD_ROLES[name]?.label || name)
+          .join(", ")} — set it in Settings → Fields before editing it here`,
+      ],
+    });
+  }
+  if (!Object.keys(fields).length) return [];
+
+  await jiraPut(`/rest/api/3/issue/${encodeURIComponent(issueKey)}`, creds, {
+    fields,
+  });
+  return Object.keys(fields);
+}
+
+// ── Creating issues ─────────────────────────────────────────────────────────
+
+// The form is generated from these two calls rather than written, because which
+// fields a new issue *must* have is a per-project, per-issue-type question with
+// a different answer on every Jira site. A hand-written form is a guaranteed 400
+// on somebody else's instance — the class of assumption M1 spent a milestone
+// removing — so the app asks Jira what the form is.
+//
+// Cached like any other read: opening the create modal twice in five minutes
+// should not re-read a project's field layout, which changes about as often as
+// the project does.
+
+export async function getCreateIssueTypes(projectKey, creds) {
+  return cached(`cache_createTypes_${projectKey}`, async () => {
+    const types = await fetchAllPages(
+      `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes`,
+      creds,
+      {},
+      "issueTypes"
+    );
+    return types.map((t) => ({
+      id: String(t.id),
+      name: t.name || "",
+      description: t.description || "",
+      iconUrl: t.iconUrl || "",
+      // The flag that identifies a sub-task type. Never the name: "Sub-task",
+      // "Subtask" and its translations are all in the field, and matching on
+      // the string would break the same promise a hardcoded field id does.
+      subtask: t.subtask === true,
+      hierarchyLevel: Number.isFinite(t.hierarchyLevel) ? t.hierarchyLevel : null,
+    }));
+  });
+}
+
+// The field layout for one issue type in one project.
+//
+// Two response shapes are accepted deliberately. Current Jira Cloud answers
+// with `fields` as an array of descriptors; the older createmeta (and Data
+// Center) answers with a map keyed by field id. Normalising both here means the
+// form builder sees one shape and the difference never reaches it.
+export async function getCreateFields(projectKey, issueTypeId, creds) {
+  return cached(`cache_createFields_${projectKey}_${issueTypeId}`, async () => {
+    const path = `/rest/api/3/issue/createmeta/${encodeURIComponent(
+      projectKey
+    )}/issuetypes/${encodeURIComponent(issueTypeId)}`;
+    const first = await jiraFetch(path, creds, { startAt: 0, maxResults: 100 });
+    const collected = normalizeCreateFields(first);
+
+    // Only the array shape pages; the map shape arrives whole.
+    if (Array.isArray(first?.fields)) {
+      const total = first.total ?? collected.length;
+      let startAt = collected.length;
+      while (startAt < total) {
+        const page = await jiraFetch(path, creds, { startAt, maxResults: 100 });
+        const more = normalizeCreateFields(page);
+        if (!more.length) break;
+        collected.push(...more);
+        startAt += more.length;
+      }
+    }
+    return collected;
+  });
+}
+
+function normalizeCreateFields(payload) {
+  const fields = payload?.fields;
+  if (Array.isArray(fields)) {
+    return fields.map((f) => ({ ...f, fieldId: f.fieldId || f.key || f.id }));
+  }
+  if (fields && typeof fields === "object") {
+    return Object.entries(fields).map(([id, f]) => ({ ...f, fieldId: f.fieldId || f.key || id }));
+  }
+  return [];
+}
+
+// Answers 201 with the new issue's id, key and self link. The caller re-reads
+// the issue rather than trusting the form's own values, the same way a posted
+// comment is rendered from Jira's response.
+export async function createIssue(fields, creds) {
+  return jiraPost("/rest/api/3/issue", creds, { fields });
+}
+
+// ── Sprint membership ───────────────────────────────────────────────────────
+
+// Sprint is the one field on the M8 list that does not go through the issue PUT.
+//
+// The Sprint custom field is read-only through `PUT /rest/api/3/issue/{key}` on
+// team-managed projects and needs to be on the Edit screen on company-managed
+// ones, so writing it that way works on some sites and fails on others — the
+// class of difference M1 spent a milestone removing. The agile endpoint is the
+// documented move, works on both project types, and takes up to 50 issues per
+// call, which is also what a planner's batch push wants.
+const SPRINT_MOVE_LIMIT = 50;
+
+export async function moveIssuesToSprint(sprintId, issueKeys, creds) {
+  await inBatches(issueKeys, (batch) =>
+    jiraPost(`/rest/agile/1.0/sprint/${encodeURIComponent(sprintId)}/issue`, creds, {
+      issues: batch,
+    })
+  );
+}
+
+// The other direction: out of every sprint, back to the backlog. Jira has no
+// "clear the sprint field" write, so this is how an issue leaves one.
+export async function moveIssuesToBacklog(issueKeys, creds) {
+  await inBatches(issueKeys, (batch) =>
+    jiraPost("/rest/agile/1.0/backlog/issue", creds, { issues: batch })
+  );
+}
+
+// Sequential rather than parallel, deliberately. These are writes: a partial
+// failure should stop at the first refusal with the earlier batches applied and
+// the rest untouched, instead of firing every batch and leaving the caller to
+// work out which ones landed.
+async function inBatches(issueKeys, run) {
+  const keys = [...new Set((issueKeys || []).map(String).filter(Boolean))];
+  for (let i = 0; i < keys.length; i += SPRINT_MOVE_LIMIT) {
+    await run(keys.slice(i, i + SPRINT_MOVE_LIMIT));
+  }
 }
 
 // ── People ──────────────────────────────────────────────────────────────────

@@ -198,6 +198,28 @@ check("datetime trimmed to ISO date",
   utils.getStartDate(issue({ customfield_10015: "2026-03-01T00:00:00.000+0100" })) === "2026-03-01");
 check("absent start date -> null", utils.getStartDate(issue({})) === null);
 check("epic key from field", utils.getEpicKey(issue({ customfield_10014: "ABC-9" })) === "ABC-9");
+
+section("field names, for attributing a write");
+check("a system field has a readable name", cfg.fieldLabel("duedate") === "Due date");
+check("a custom field is named through the role it resolved to",
+  cfg.fieldLabel("customfield_10016") === "Story points");
+check("a second candidate for the same role gets the same name",
+  cfg.fieldLabel("customfield_10032") === "Story points");
+check("an unrecognised id is printed as itself — it is what an admin searches for",
+  cfg.fieldLabel("customfield_99999") === "customfield_99999");
+check("no id, no label", cfg.fieldLabel(null) === "");
+
+section("choosing a field to write to");
+check("with nothing to go on, the first configured candidate",
+  cfg.writeFieldId("storyPoints") === "customfield_10016");
+check("the candidate the issue already holds a value in wins",
+  cfg.writeFieldId("storyPoints", issue({ customfield_10032: 8 })) === "customfield_10032");
+check("a null in the first candidate does not claim it",
+  cfg.writeFieldId("storyPoints", issue({ customfield_10016: null, customfield_10032: 8 })) ===
+    "customfield_10032");
+check("zero counts as a value held",
+  cfg.writeFieldId("storyPoints", issue({ customfield_10032: 0 })) === "customfield_10032");
+check("an unresolved role has nothing to write to", cfg.writeFieldId("sprint") === null);
 check("epic key from object", utils.getEpicKey(issue({ customfield_10014: { key: "ABC-7" } })) === "ABC-7");
 check("epic key from parent",
   utils.getEpicKey(issue({ parent: { key: "ABC-4", fields: { issuetype: { name: "Epic" } } } })) === "ABC-4");

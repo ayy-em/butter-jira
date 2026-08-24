@@ -246,13 +246,47 @@ export const cache = {
   },
 };
 
+const TOAST_MS = 5000;
+let toastTimer = null;
+
 // Shared by the router and any view that needs to report a one-off outcome.
-export function showToast(message, isError = false) {
+//
+// `action` turns the toast into the app's undo window: `{ label, run }` draws a
+// button, and the window is however long the toast stays up. Which is why the
+// timer is now cleared rather than left to fire — a second toast used to cut the
+// first one short, and an undo that disappears early is worse than no undo.
+export function showToast(message, isError = false, action = null) {
   const toast = document.getElementById("toast");
   if (!toast) return;
-  toast.textContent = message;
-  toast.className = "visible" + (isError ? " error" : "");
-  setTimeout(() => {
-    toast.className = "";
-  }, 5000);
+  if (toastTimer) clearTimeout(toastTimer);
+
+  toast.textContent = "";
+  const text = document.createElement("span");
+  text.textContent = message;
+  toast.appendChild(text);
+
+  if (action?.label && typeof action.run === "function") {
+    const btn = document.createElement("button");
+    btn.className = "toast-action mono";
+    btn.type = "button";
+    btn.textContent = action.label;
+    btn.addEventListener("click", () => {
+      hideToast();
+      action.run();
+    });
+    toast.appendChild(btn);
+  }
+
+  // The toast is click-through by default so it never swallows a click on the
+  // board underneath; one with a button in it has to opt back in.
+  toast.className = "visible" + (isError ? " error" : "") + (action ? " actionable" : "");
+  toastTimer = setTimeout(hideToast, action?.timeout ?? TOAST_MS);
+}
+
+function hideToast() {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = null;
+  toast.className = "";
 }

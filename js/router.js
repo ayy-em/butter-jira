@@ -22,7 +22,7 @@ import {
   saveConfig,
   siteHost,
 } from "./config.js";
-import { renderNav, updateActiveTab, setLastSync } from "./components/nav.js";
+import { HOME_HASH, renderNav, updateActiveTab, setLastSync } from "./components/nav.js";
 import {
   closePalette,
   invalidatePaletteIndex,
@@ -131,7 +131,11 @@ async function mountView(creds) {
   }
 
   const container = document.getElementById("view-container");
-  const hash = location.hash || "#backlog";
+  // Home is the Kanban, which opens filtered to the current sprint: the
+  // question people actually arrive with is "where is the sprint", not "what
+  // is in the backlog". `#backlog` is still the fallback for an unrecognised
+  // hash — a stale bookmark should land somewhere that lists everything.
+  const hash = location.hash || HOME_HASH;
   updateActiveTab();
 
   container.innerHTML = '<div class="spinner-logo"><img src="assets/logo.png" alt="Loading"></div>';

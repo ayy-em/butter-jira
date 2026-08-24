@@ -268,6 +268,60 @@ export function detailIssueFields() {
   return [...new Set([...issueFields(), ...DETAIL_ONLY_FIELDS])];
 }
 
+// Field ids that carry a human name of their own, for attributing a failed
+// write to something the user recognises. Custom fields are resolved through
+// the discovered role mapping instead, so `customfield_10016` reads back as
+// "Story points" on a site where that is what it holds.
+const BASE_FIELD_LABELS = {
+  summary: "Summary",
+  description: "Description",
+  assignee: "Assignee",
+  reporter: "Reporter",
+  duedate: "Due date",
+  priority: "Priority",
+  labels: "Labels",
+  components: "Components",
+  issuetype: "Issue type",
+  project: "Project",
+  parent: "Parent",
+  status: "Status",
+};
+
+// The label to show for a field id in an error or a form row. Falls through to
+// the id itself rather than inventing a name: an unrecognised `customfield_*`
+// in a rejection is still the most useful thing to print, because it is what
+// the site admin will search for.
+export function fieldLabel(id) {
+  const key = String(id ?? "");
+  if (!key) return "";
+  if (BASE_FIELD_LABELS[key]) return BASE_FIELD_LABELS[key];
+  for (const [role, meta] of Object.entries(FIELD_ROLES)) {
+    if (fieldIds(role).includes(key)) return meta.label;
+  }
+  return key;
+}
+
+// The configured id for a role, for writes. Reads tolerate several candidate
+// ids and take the first with a value in it; a write has to pick exactly one.
+//
+// Which one matters more than it looks. Field discovery can resolve two ids for
+// the same role — a site with both company-managed and team-managed projects has
+// "Story Points" *and* "Story point estimate" — and `fieldValue` reads whichever
+// of them the issue actually holds. So a write that always took the first would
+// set a field nothing reads, and the estimate on screen would not budge. Given
+// the issue, the field it already uses wins; without one (a create, where there
+// is no issue yet) the first configured id is the answer.
+export function writeFieldId(role, issue = null) {
+  const ids = fieldIds(role);
+  if (issue?.fields) {
+    for (const id of ids) {
+      const value = issue.fields[id];
+      if (value !== undefined && value !== null && value !== "") return id;
+    }
+  }
+  return ids[0] || null;
+}
+
 // First non-empty value across the candidate fields for a role.
 export function fieldValue(issue, role) {
   const f = issue?.fields;
