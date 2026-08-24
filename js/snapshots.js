@@ -16,8 +16,8 @@
 // sprints that ran before the extension was installed. The view says so instead
 // of drawing a line it cannot support.
 //
-// Stored device-local. It is small — a few numbers per day — and pruned to the
-// most recent sprints.
+// Stored device-local. It is small — a few numbers per day, plus one short row
+// per person — and pruned to the most recent sprints.
 
 import { localGet, localSet } from "./browser.js";
 
@@ -44,7 +44,43 @@ export function snapshotFrom(summary, dayIso) {
     donePoints: round1(summary.donePoints),
     issueCount: summary.issueCount,
     doneIssues: summary.doneIssues,
+    byPerson: peopleFrom(summary.byPerson),
   };
+}
+
+// The per-person half of the same day, written for the sprint planner and the
+// 1:1 screen, which both need per-person history and can only have it if the
+// field starts accruing before they are built.
+//
+// Three decisions worth stating, because they are hard to change once days of
+// history exist in the field:
+//
+//   - **Keyed by account id, not an array.** Every reader asks "this person,
+//     across days" rather than "this day, across people", so a map is one index
+//     instead of a scan per stored day.
+//   - **Unassigned is kept.** It is a row like any other, and dropping it would
+//     make the rows stop summing to the day's totals — a trap for anyone who
+//     later checks one figure against the other.
+//   - **The display name is stored, not resolved on read.** The roster is
+//     current; history is not. Someone who leaves the team should still be
+//     named in the weeks they were on it, rather than decaying to an opaque id.
+//
+// `onTeam` is deliberately absent: unlike a name, it is a question about now,
+// and the roster answers it at read time without going stale in storage.
+function peopleFrom(buckets) {
+  const people = {};
+  if (!Array.isArray(buckets)) return people;
+  for (const bucket of buckets) {
+    if (bucket?.key === undefined || bucket?.key === null) continue;
+    people[String(bucket.key)] = {
+      label: bucket.label || String(bucket.key),
+      points: round1(bucket.points),
+      issues: Number(bucket.issues) || 0,
+      donePoints: round1(bucket.donePoints),
+      doneIssues: Number(bucket.doneIssues) || 0,
+    };
+  }
+  return people;
 }
 
 function round1(n) {

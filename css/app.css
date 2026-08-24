@@ -112,6 +112,20 @@ html, body {
   opacity: 1;
 }
 #toast.error { border-color: #EF4444; color: #EF4444; }
+/* A toast carrying an Undo button has to be clickable; a plain one stays
+   click-through so it never intercepts a click on the board beneath it. */
+#toast.actionable { pointer-events: auto; }
+#toast .toast-action {
+  margin-left: 14px;
+  background: none;
+  border: 1px solid var(--accent-primary);
+  color: var(--accent-primary);
+  font-size: calc(12px * var(--font-scale));
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#toast .toast-action:hover { background: var(--accent-primary); color: var(--bg); }
 
 .setup-overlay {
   display: flex;

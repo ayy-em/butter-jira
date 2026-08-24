@@ -198,10 +198,185 @@ globalThis.fetch = async (input) => {
     return json({ issues, total: issues.length });
   }
 
+  // ── One issue, for the detail panel ──────────────────────────────────────
+  // The detail is the screen the field-edit cells live on, so the fixture has to
+  // answer for a single issue as well as for a board's worth. Any key resolves —
+  // the harness is for looking at the layout, not for navigating a graph.
+  const comments = /\/rest\/api\/3\/issue\/([^/?]+)\/comment/.exec(url);
+  if (comments) return json(COMMENT_FIXTURE);
+
+  const transitions = /\/rest\/api\/3\/issue\/([^/?]+)\/transitions/.exec(url);
+  if (transitions) return json({ transitions: [] });
+
+  const single = /\/rest\/api\/3\/issue\/([A-Za-z]+-\d+)(\?|$)/.exec(url);
+  if (single) return json(issueDetailFixture(single[1]));
+
+  // ── createmeta, for the create-issue panel ────────────────────────────────
+  // The panel's whole premise is that the form is whatever the site says it is,
+  // so the fixture answers with a field list that exercises every control once:
+  // required text, rich text, a person, a single select, a date, a label list, a
+  // multi-select, a number, and agile's two board-backed fields.
+  //
+  // ?createmeta=blocked adds a required field of a type the form does not
+  // render, which is the case the panel has to refuse rather than guess at.
+  // ?createmeta=minimal strips it back to a summary, which is what a
+  // team-managed project with no required fields actually looks like.
+  const createTypes = /\/issue\/createmeta\/([^/]+)\/issuetypes(\?|$)/.exec(url);
+  if (createTypes) {
+    return json({ maxResults: 50, startAt: 0, total: 4, isLast: true, issueTypes: CREATE_TYPES });
+  }
+
+  const createFields = /\/issue\/createmeta\/([^/]+)\/issuetypes\/(\d+)/.exec(url);
+  if (createFields) {
+    const fields = createFieldsFor(createFields[2]);
+    return json({ maxResults: 100, startAt: 0, total: fields.length, isLast: true, fields });
+  }
+
+  // ?create=refuse answers the way Jira refuses a create it understood: a 400
+  // with the field named, which is what the panel puts on the row.
+  if (/\/rest\/api\/3\/issue$/.test(url)) {
+    if (params.get("create") === "refuse") {
+      return {
+        ok: false, status: 400, headers: { get: () => null },
+        text: async () =>
+          JSON.stringify({
+            errorMessages: [],
+            errors: { customfield_10099: "Acceptance criteria is required." },
+          }),
+        json: async () => ({}),
+      };
+    }
+    return json({ id: "10500", key: "ABC-4242", self: "https://example.atlassian.net/rest/api/3/issue/10500" });
+  }
+
   // ?stats=error: no cache and no token, so the window query fails the way a
   // missing token fails in the product.
   return json({ values: [], issues: [], total: 0 });
 };
+
+// A detail-shaped issue: renderedFields for the description, sub-tasks and a
+// link so both groups in that section draw, and an estimate and a due date so
+// the editable cells have something to show before anything is typed.
+//
+// ?detail=bare strips it to an unassigned, unestimated, unlinked issue, which is
+// the state the cells are most likely to be wrong in — every one of them showing
+// an em dash and still having to be clickable.
+function issueDetailFixture(key) {
+  const bare = params.get("detail") === "bare";
+  return {
+    id: "9001",
+    key,
+    renderedFields: {
+      description: bare
+        ? ""
+        : "<p>The description, as Jira renders it — <strong>ADF</strong> arrives " +
+          "as HTML and goes through the sanitiser before it reaches the page.</p>" +
+          "<ul><li>a list item</li><li>and another</li></ul>",
+    },
+    fields: {
+      summary: "Move the estimate onto the card without opening Jira",
+      status: { name: "In Progress", statusCategory: { key: "indeterminate" } },
+      issuetype: { name: "Story", subtask: false },
+      priority: { name: "Medium" },
+      assignee: bare
+        ? null
+        : { accountId: "acc-0", displayName: PEOPLE[0][0], avatarUrls: avatarUrlsFor(PEOPLE[0][0], 0) },
+      reporter: { accountId: "acc-1", displayName: PEOPLE[1][0], avatarUrls: avatarUrlsFor(PEOPLE[1][0], 1) },
+      created: daysAgo(12),
+      updated: daysAgo(1),
+      duedate: bare ? null : new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
+      labels: bare ? [] : ["frontend", "sprint-goal"],
+      components: [],
+      project: { key: key.split("-")[0], name: "Carbon trading system" },
+      cf_sp: bare ? undefined : 5,
+      cf_sprint: [{ id: 501, name: "Sprint 42", state: "active" }],
+      subtasks: bare
+        ? []
+        : [{
+            key: `${key.split("-")[0]}-901`,
+            fields: {
+              summary: "A sub-task that already exists",
+              status: { name: "Done", statusCategory: { key: "done" } },
+              issuetype: { name: "Deeltaak", subtask: true },
+            },
+          }],
+      issuelinks: bare
+        ? []
+        : [{
+            type: { outward: "blocks", inward: "is blocked by" },
+            outwardIssue: {
+              key: `${key.split("-")[0]}-950`,
+              fields: {
+                summary: "The thing this one is holding up",
+                status: { name: "To Do", statusCategory: { key: "new" } },
+                issuetype: { name: "Story", subtask: false },
+              },
+            },
+          }],
+    },
+  };
+}
+
+const COMMENT_FIXTURE = {
+  total: 1,
+  comments: [{
+    id: "1",
+    author: { accountId: "acc-1", displayName: PEOPLE[1][0], avatarUrls: avatarUrlsFor(PEOPLE[1][0], 1) },
+    created: daysAgo(1),
+    renderedBody: "<p>Bumped the estimate — the migration is bigger than it looked.</p>",
+  }],
+};
+
+const CREATE_TYPES = [
+  { id: "10001", name: "Story", subtask: false, hierarchyLevel: 0 },
+  { id: "10002", name: "Task", subtask: false, hierarchyLevel: 0 },
+  { id: "10004", name: "Bug", subtask: false, hierarchyLevel: 0 },
+  // Named in Dutch on purpose: the sub-task type is discovered by its `subtask`
+  // flag, and a fixture that called it "Sub-task" would let a name match pass.
+  { id: "10003", name: "Deeltaak", subtask: true, hierarchyLevel: -1 },
+];
+
+function createFieldsFor(typeId) {
+  const f = (fieldId, name, schema, extra = {}) => ({ fieldId, name, schema, required: false, ...extra });
+  const fields = [
+    f("summary", "Summary", { type: "string", system: "summary" }, { required: true }),
+    f("description", "Description", { type: "string", system: "description" }),
+    f("assignee", "Assignee", { type: "user", system: "assignee" }),
+    f("duedate", "Due date", { type: "date", system: "duedate" }),
+    f("priority", "Priority", { type: "priority", system: "priority" }, {
+      allowedValues: [
+        { id: "1", name: "Highest" }, { id: "2", name: "High" },
+        { id: "3", name: "Medium" }, { id: "4", name: "Low" },
+      ],
+      hasDefaultValue: true, defaultValue: { id: "3" },
+    }),
+  ];
+  if (params.get("createmeta") === "minimal") return [fields[0]];
+
+  fields.push(
+    f("labels", "Labels", { type: "array", items: "string", system: "labels" }),
+    f("components", "Components", { type: "array", items: "component", system: "components" }, {
+      allowedValues: [{ id: "9", name: "api" }, { id: "10", name: "web" }, { id: "11", name: "infra" }],
+    }),
+    f("cf_sp", "Story Points", { type: "number", custom: "com.atlassian.jira.plugin.system.customfieldtypes:float" }),
+    f("cf_sprint", "Sprint", { type: "array", items: "string", custom: "com.pyxis.greenhopper.jira:gh-sprint" }),
+    f("customfield_10014", "Epic Link", { type: "any", custom: "com.pyxis.greenhopper.jira:gh-epic-link" }),
+    // Optional and unrenderable: the panel lists it as left unset rather than
+    // pretending the form is the whole of Jira's.
+    f("customfield_10098", "Request participants", { type: "sd-request-participants" })
+  );
+  // A bug asks one more question than a story does, which is the point of
+  // reading the layout per issue type rather than per project.
+  if (typeId === "10004") {
+    fields.push(f("customfield_10097", "Steps to reproduce", {
+      type: "string", custom: "com.atlassian.jira.plugin.system.customfieldtypes:textarea",
+    }, { required: true }));
+  }
+  if (params.get("createmeta") === "blocked") {
+    fields.push(f("customfield_10096", "Approvers", { type: "sd-approvals" }, { required: true }));
+  }
+  return fields;
+}
 
 // ── Seed config, roster and the GitHub window cache ──────────────────────────
 

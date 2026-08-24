@@ -31,6 +31,11 @@ const TABS = [
   { hash: "#standup", label: "STANDUP", key: "S", flair: true, prewarm: prewarmGithub },
 ];
 
+// Where the app lands with no hash — the sprint Kanban, which opens filtered to
+// the current sprint. Lives beside TABS rather than in the router so the tab
+// highlight and the mounted view read the same constant; the router imports it.
+export const HOME_HASH = "#kanban";
+
 // External tools get their own marks rather than text labels — the icons carry
 // their own background plate, so they read in both themes without inversion.
 const SITE_LINKS = [
@@ -629,7 +634,7 @@ export function updateMonitorBadge(count) {
 }
 
 export function updateActiveTab() {
-  const hash = location.hash || "#backlog";
+  const hash = location.hash || HOME_HASH;
   document.querySelectorAll(".nav-tab, .nav-menu-item").forEach((el) => {
     el.classList.toggle("active", el.dataset.hash === hash);
   });

@@ -7,10 +7,14 @@
 // underlying view. The full page is the linkable, reloadable form.
 
 import { runtimeUrl } from "../browser.js";
+import { openDrawerPanel } from "./drawer.js";
+import { openCreateIssue } from "./issue-create.js";
 import { addIssueComment, getIssue, getIssueComments } from "../api.js";
 import { CONFIG, browseUrl, fieldValue } from "../config.js";
 import { assigneeLabel, fmtDate, getStartDate, getStoryPoints, relDate } from "../utils.js";
 import { avatarOverrideFor } from "../team.js";
+import { createFieldEditor } from "../issue-edit.js";
+import { assigneeCell, dateCell, pointsCell } from "./field-edit.js";
 import { sanitizeToFragment } from "../sanitize.js";
 import { adfToPlainText, isEmptyAdf, textToAdf } from "../adf.js";
 
@@ -38,86 +42,9 @@ export function attachIssueOpener(anchor, issueKey, creds) {
   return anchor;
 }
 
-let openDrawer = null;
-
-// The drawer occupies the band between whatever the current view has pinned to
-// the top and bottom of the window, so the chrome stays visible while an issue
-// is open. Views with their own frame opt in with data-drawer-top /
-// data-drawer-bottom — standup does, so its clock and parking lot survive a
-// card being opened mid-turn.
-const TOP_CHROME = ["[data-drawer-top]", "#nav"];
-const BOTTOM_CHROME = ["[data-drawer-bottom]", "#app-footer", ".expiry-banner"];
-
-// Largest inset from `edge` across the visible chrome. Height rather than
-// offsetParent as the visibility test: offsetParent is null for position:fixed
-// elements, which is exactly what the nav and footer are.
-function chromeInset(selectors, edge) {
-  let inset = 0;
-  for (const selector of selectors) {
-    for (const el of document.querySelectorAll(selector)) {
-      const rect = el.getBoundingClientRect();
-      if (rect.height <= 0) continue;
-      inset = Math.max(inset, edge === "top" ? rect.bottom : window.innerHeight - rect.top);
-    }
-  }
-  // A view whose chrome fills the window would otherwise collapse the drawer to
-  // nothing; leave it at least half the height to land in.
-  return Math.min(Math.max(0, Math.round(inset)), Math.round(window.innerHeight / 4));
-}
-
 export async function openIssueDrawer(issueKey, creds) {
-  openDrawer?.close();
-
-  const overlay = document.createElement("div");
-  overlay.className = "issue-drawer-overlay";
-  const panel = document.createElement("div");
-  panel.className = "issue-drawer";
-  panel.setAttribute("role", "dialog");
-  panel.setAttribute("aria-label", `Issue ${issueKey}`);
-
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "issue-drawer-close";
-  closeBtn.textContent = "✕";
-  closeBtn.title = "Close (Esc)";
-  panel.appendChild(closeBtn);
-
-  const body = document.createElement("div");
-  body.className = "issue-detail-scroll";
+  const { body, close } = openDrawerPanel({ label: `Issue ${issueKey}` });
   body.innerHTML = '<div class="spinner" style="height:180px"></div>';
-  panel.appendChild(body);
-
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
-
-  // Re-measured on resize because standup's top bar wraps its controls onto a
-  // second row at narrow widths, which moves the band.
-  function applyBounds() {
-    overlay.style.setProperty("--drawer-top", `${chromeInset(TOP_CHROME, "top")}px`);
-    overlay.style.setProperty("--drawer-bottom", `${chromeInset(BOTTOM_CHROME, "bottom")}px`);
-  }
-  applyBounds();
-  window.addEventListener("resize", applyBounds);
-
-  function close() {
-    overlay.remove();
-    document.removeEventListener("keydown", onKey);
-    window.removeEventListener("resize", applyBounds);
-    window.removeEventListener("hashchange", close);
-    openDrawer = null;
-  }
-  function onKey(e) {
-    if (e.key === "Escape") close();
-  }
-  document.addEventListener("keydown", onKey);
-  // The nav stays clickable behind the drawer now, so a view change has to take
-  // the drawer with it rather than leaving it floating over the new view.
-  window.addEventListener("hashchange", close);
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) close();
-  });
-  closeBtn.addEventListener("click", close);
-  openDrawer = { close };
-
   await renderIssueInto(body, issueKey, creds, { mode: "drawer" });
   return { close };
 }
@@ -145,9 +72,29 @@ export async function renderIssueInto(container, issueKey, creds, { mode = "page
   const root = document.createElement("article");
   root.className = `issue-detail issue-detail-${mode}`;
   root.appendChild(renderHeader(issue, creds, mode));
-  root.appendChild(renderContent(issue));
-  const links = renderLinkedIssues(issue, creds);
-  if (links) root.appendChild(links);
+  root.appendChild(renderContent(issue, creds));
+
+  // The links section owns the "add sub-task" button, so it has to be able to
+  // redraw itself after one is created. Re-read rather than patched from the
+  // create response: that response carries an id and a key and nothing a row
+  // needs to print, and the parent's own `subtasks` array is the authority.
+  let links = renderLinkedIssues(issue, creds, refreshLinks);
+  root.appendChild(links);
+
+  async function refreshLinks() {
+    try {
+      issue = await getIssue(issueKey, creds);
+    } catch {
+      // The sub-task was created; failing to re-read the parent is a stale
+      // list, not a lost issue, and the section says nothing rather than an
+      // error about a write that worked.
+      return;
+    }
+    const fresh = renderLinkedIssues(issue, creds, refreshLinks);
+    links.replaceWith(fresh);
+    links = fresh;
+  }
+
   root.appendChild(renderComments(issue, comments, creds));
   container.appendChild(root);
 }
@@ -280,32 +227,12 @@ function statusBadge(status) {
 
 // ── Content ──────────────────────────────────────────────────────────────────
 
-function renderContent(issue) {
+function renderContent(issue, creds) {
   const f = issue.fields;
   const section = document.createElement("section");
   section.className = "issue-content";
 
-  const meta = document.createElement("div");
-  meta.className = "issue-meta-grid";
-  const points = getStoryPoints(issue);
-  const rows = [
-    ["Assignee", personCell(f.assignee)],
-    ["Reporter", personCell(f.reporter)],
-    ["Start date", textCell(getStartDate(issue) ? fmtDate(getStartDate(issue)) : "—")],
-    ["Due date", dueDateCell(f.duedate)],
-    ["Story points", textCell(points === null ? "—" : String(points))],
-    ["Sprint", textCell(sprintLabel(issue))],
-  ];
-  for (const [label, valueEl] of rows) {
-    const cell = document.createElement("div");
-    cell.className = "issue-meta-cell";
-    const key = document.createElement("div");
-    key.className = "issue-meta-label mono";
-    key.textContent = label;
-    cell.append(key, valueEl);
-    meta.appendChild(cell);
-  }
-  section.appendChild(meta);
+  section.appendChild(renderMetaGrid(issue, creds));
 
   const descHeading = document.createElement("h2");
   descHeading.className = "issue-section-title mono";
@@ -330,6 +257,77 @@ function renderContent(issue) {
   section.appendChild(description);
 
   return section;
+}
+
+// Three of these six fields are writable, and they are the three M8a covers.
+// The cells that are not — reporter, start date, sprint — stay plain text
+// rather than pretending to be editable and refusing: reporter is a Jira
+// permission most accounts lack, start date is a custom field whose write is
+// only meaningful once the roadmap edits dates too, and sprint moves through the
+// agile endpoint with the board's sprint list to choose from, which this view
+// does not have. The write layer supports the sprint move; the planner is where
+// it gets a UI.
+//
+// The editor's repaint replaces this grid in place. Not the whole detail: a
+// re-render would take the comment box with it, and losing half-typed text to
+// someone else's assignee change is exactly the sort of thing that stops people
+// trusting inline editing.
+function renderMetaGrid(issue, creds) {
+  let grid = buildGrid();
+  return grid;
+
+  function buildGrid() {
+    const f = issue.fields;
+    const editor = createFieldEditor({
+      creds,
+      repaint: () => {
+        const fresh = buildGrid();
+        grid.replaceWith(fresh);
+        grid = fresh;
+      },
+    });
+    const points = getStoryPoints(issue);
+    const el = document.createElement("div");
+    el.className = "issue-meta-grid";
+
+    const rows = [
+      [
+        "Assignee",
+        assigneeCell({
+          person: f.assignee,
+          commit: (person) => editor.write(issue, { assignee: person }),
+        }),
+      ],
+      ["Reporter", personCell(f.reporter)],
+      ["Start date", textCell(getStartDate(issue) ? fmtDate(getStartDate(issue)) : "—")],
+      [
+        "Due date",
+        dateCell({
+          value: f.duedate || null,
+          commit: (value) => editor.write(issue, { dueDate: value }),
+        }),
+      ],
+      [
+        "Story points",
+        pointsCell({
+          value: points,
+          commit: (value) => editor.write(issue, { storyPoints: value }),
+        }),
+      ],
+      ["Sprint", textCell(sprintLabel(issue))],
+    ];
+
+    for (const [label, valueEl] of rows) {
+      const cell = document.createElement("div");
+      cell.className = "issue-meta-cell";
+      const key = document.createElement("div");
+      key.className = "issue-meta-label mono";
+      key.textContent = label;
+      cell.append(key, valueEl);
+      el.appendChild(cell);
+    }
+    return el;
+  }
 }
 
 function personCell(person) {
@@ -364,15 +362,6 @@ function textCell(text) {
   return el;
 }
 
-function dueDateCell(duedate) {
-  const el = textCell(duedate ? `${fmtDate(duedate)} · ${relDate(duedate)}` : "—");
-  if (duedate) {
-    const overdue = new Date(duedate).getTime() < Date.now();
-    if (overdue) el.classList.add("overdue");
-  }
-  return el;
-}
-
 // The sprint field is an array; the active one is what matters, but a carried
 // issue also carries its closed sprints, which is useful context.
 export function sprintLabel(issue) {
@@ -394,18 +383,43 @@ export function sprintLabel(issue) {
 
 // ── Linked issues ────────────────────────────────────────────────────────────
 
-function renderLinkedIssues(issue, creds) {
+// Always rendered, even with nothing to show, because this is where a sub-task
+// is added from — and an issue with no sub-tasks yet is exactly when someone
+// wants that button.
+function renderLinkedIssues(issue, creds, onSubtaskCreated) {
   const links = issue.fields?.issuelinks || [];
   const subtasks = issue.fields?.subtasks || [];
-  if (!links.length && !subtasks.length) return null;
 
   const section = document.createElement("section");
   section.className = "issue-links";
 
   const heading = document.createElement("h2");
-  heading.className = "issue-section-title mono";
-  heading.textContent = "Linked issues";
+  heading.className = "issue-section-title mono issue-links-heading";
+  heading.textContent = links.length || subtasks.length ? "Linked issues" : "Sub-tasks";
+
+  // Jira does not nest sub-tasks, so a sub-task offers no button of its own —
+  // the alternative is a form that can only ever be refused.
+  if (issue.fields?.issuetype?.subtask !== true) {
+    const add = document.createElement("button");
+    add.className = "issue-add-subtask mono";
+    add.type = "button";
+    add.textContent = "+ Sub-task";
+    add.title = `Create a sub-task of ${issue.key}`;
+    add.addEventListener("click", () =>
+      openCreateIssue(creds, {
+        parentKey: issue.key,
+        parentSummary: issue.fields?.summary || "",
+        onCreated: () => onSubtaskCreated?.(),
+      })
+    );
+    heading.appendChild(add);
+  }
   section.appendChild(heading);
+
+  if (!links.length && !subtasks.length) {
+    section.appendChild(emptyNote("No sub-tasks or linked issues."));
+    return section;
+  }
 
   // Group by relationship so "blocks" and "is blocked by" read correctly.
   const groups = new Map();

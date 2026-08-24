@@ -18,6 +18,7 @@ import { allMembers, avatarOverrideFor, memberLabel } from "../team.js";
 import { requestAssigneeFilter } from "./filters.js";
 import { buildExport, downloadJson, exportFilename } from "../portable.js";
 import { openIssueDrawer, issuePageUrl } from "./issue-detail.js";
+import { openCreateIssue } from "./issue-create.js";
 import {
   JQL_PREFIX,
   RECENTS_KEY,
@@ -154,6 +155,16 @@ export async function openPalette(creds) {
 
   function actions() {
     return [
+      {
+        kind: "action",
+        id: "create",
+        label: "Create issue",
+        keywords: ["new", "add", "ticket", "story", "bug", "task"],
+        // The palette is the cheap way in; the Backlog toolbar is the
+        // discoverable one. Same panel, and the form in it comes from the
+        // project's own createmeta either way.
+        run: () => openCreateIssue(creds),
+      },
       {
         kind: "action",
         id: "settings",
