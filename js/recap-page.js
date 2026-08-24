@@ -413,6 +413,11 @@ function tile(label, value, detail, { flag = false } = {}) {
 const PENDING = "…";
 const absent = (statsPending) => (statsPending ? PENDING : "—");
 
+// Jira activity is never pending: it is derived from the sprint issues this page
+// was built from, so it has either arrived with them or the site does not return
+// issue history at all. Hence a dash and never the pending marker.
+const NO_HISTORY = absent(false);
+
 function renderGlance(recap, { statsPending = false } = {}) {
   const c = recap.combined;
   const section = el("section", "recap-section");
@@ -520,6 +525,13 @@ function renderPeopleSummary(recap, { statsPending = false } = {}) {
     ["SPs complete %", "recap-num"],
     ["PRs opened", "recap-num"],
     ["Reviews", "recap-num"],
+    // Two columns, not five. "Moved" and "Created" are the facts nothing else on
+    // the page carries — everything else the activity reader knows (completions,
+    // pick-ups, edits) either restates a column already here or is detail for a
+    // screen rather than a document. Deliberately not "Closed": this table
+    // already answers completion three ways.
+    ["Moved", "recap-num"],
+    ["Created", "recap-num"],
   ]) {
     headRow.appendChild(el("th", cls, label));
   }
@@ -542,6 +554,19 @@ function renderPeopleSummary(recap, { statsPending = false } = {}) {
     tr.appendChild(
       el("td", "recap-num mono", person.github ? String(person.github.reviews) : absent(statsPending))
     );
+    // A dash where the site returned no issue history, a number where it did —
+    // the same absent-is-not-zero rule the GitHub columns follow. `created`
+    // needs no history, so it prints whenever the person has a row at all.
+    tr.appendChild(
+      el(
+        "td",
+        "recap-num mono",
+        person.jira?.historyKnown ? String(person.jira.transitions) : NO_HISTORY
+      )
+    );
+    tr.appendChild(
+      el("td", "recap-num mono", person.jira ? String(person.jira.created) : NO_HISTORY)
+    );
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
@@ -561,6 +586,8 @@ function renderPeopleSummary(recap, { statsPending = false } = {}) {
     pct(c.wrappedUpByPoints),
     c.github ? String(c.github.prsOpened) : absent(statsPending),
     c.github ? String(c.github.reviews) : absent(statsPending),
+    c.jira?.historyKnown ? String(c.jira.transitions) : NO_HISTORY,
+    c.jira ? String(c.jira.created) : NO_HISTORY,
   ]) {
     totalRow.appendChild(el("td", "recap-num mono", value));
   }
@@ -580,6 +607,7 @@ function renderPeopleSummary(recap, { statsPending = false } = {}) {
         " people's pull requests."
     )
   );
+  section.appendChild(el("p", "recap-note", activityNote(recap)));
   return section;
 }
 
@@ -733,6 +761,40 @@ function renderPeople(recap, { statsError, dated, statsPending = false }) {
 
   section.appendChild(el("p", "recap-note", peopleNote(recap, { statsError, dated, statsPending })));
   return section;
+}
+
+// What the two activity columns count, and — the part that matters — where they
+// are a floor rather than a total. Jira's changelog expand is bounded per issue
+// and does not paginate, so a ticket that has been moved a hundred times reports
+// only its most recent history and anything older is simply not there. Printing
+// that as a whole number would be the undercount-as-total the rest of this
+// document goes out of its way to avoid.
+function activityNote(recap) {
+  const parts = [
+    "“Moved” counts status changes a person made, the same issue twice if they" +
+      " moved it twice; “Created” counts issues they raised inside the sprint" +
+      " window. Both describe activity, not performance — a high count is not a" +
+      " better one, and ten moves can be one ticket going back and forth between" +
+      " review and rework.",
+  ];
+  if (!recap.activity.available) {
+    parts.push(
+      "This site returned no issue history, so “Moved” is a dash rather than a" +
+        " zero. “Created” does not need history and is counted regardless."
+    );
+    return parts.join(" ");
+  }
+  parts.push(`Counted from ${fmtDate(recap.activity.from)}.`);
+  const cut = recap.activity.truncated;
+  if (cut.length) {
+    const listed = cut.slice(0, 6).join(", ");
+    parts.push(
+      `${cut.length} ${cut.length === 1 ? "issue has" : "issues have"} more history than Jira` +
+        ` returns in one read (${listed}${cut.length > 6 ? ", and others" : ""}), so “Moved” is` +
+        ` a floor for anyone who worked on ${cut.length === 1 ? "it" : "them"} rather than a total.`
+    );
+  }
+  return parts.join(" ");
 }
 
 function peopleNote(recap, { statsError, dated, statsPending = false }) {

@@ -18,8 +18,13 @@ import {
   isGithubConfigured,
   statsFor,
 } from "../github.js";
+import {
+  activityFor as jiraActivityFor,
+  activityFrom as jiraActivityFrom,
+} from "../activity.js";
 import * as confetti from "../confetti.js";
 import { renderColumns } from "../components/board.js";
+import { openIssueDrawer } from "../components/issue-detail.js";
 import { createIssueMover } from "../issue-move.js";
 import * as sfx from "../sfx.js";
 import {
@@ -112,6 +117,15 @@ export async function mount(container, creds) {
   );
   const sprintStartIso = sprintStart.toISOString();
   const sprintDated = sprintStarts.length > 0;
+
+  // Per-person Jira activity over the same window the GitHub numbers use, so
+  // "this sprint" means one thing across the whole table. Derived from the
+  // changelog that rode the `getAllSprintIssues` request above — no fetch of its
+  // own, which is why this is computed eagerly rather than behind a flag.
+  const jiraActivity = jiraActivityFrom(sprintIssues, {
+    since: sprintStartIso,
+    statusGroups,
+  });
 
   const roster = activeMembers();
   // A discarded resume has to stick: the banner is hidden by this going null,
@@ -408,6 +422,81 @@ export async function mount(container, creds) {
     ];
   }
 
+  // One person's Jira activity this sprint, or null when there is nothing to
+  // answer with. Unlike the GitHub half this needs no credential and no roster
+  // entry — it is derived from the sprint issues already on screen — so the only
+  // reason it is absent is a site that did not return issue history.
+  function jiraStatsFor(accountId) {
+    return jiraActivityFor(jiraActivity, accountId);
+  }
+
+  // One definition of the four Jira statistics, rendered twice — compactly on
+  // the setup row and as tiles on the speaker's panel. Same reason `statSpecs`
+  // is shared: it is what stops the two from drifting into meaning different
+  // things.
+  //
+  // **These are activity, not performance.** A high count is not a good number
+  // and a low one is not a bad one — ten transitions can be one ticket bouncing
+  // between review and rework — so every tooltip says what the figure counts and
+  // none of them implies it should be larger. The table is ordered by name, and
+  // no sort-by-count is offered. See the note at the top of `js/activity.js`.
+  function jiraStatSpecs(stats) {
+    const known = stats.historyKnown;
+    // The counts are a floor, not a total, when Jira truncated a history: the
+    // expand is bounded per issue and does not paginate. Saying so beats
+    // printing an undercount as though it were whole — the same answer
+    // `js/github.js` gives for its own page caps.
+    const floor = jiraActivity.truncated.length
+      ? ` At least this many: Jira returned only the most recent history for ${jiraActivity.truncated.length} ${plural(jiraActivity.truncated.length, "issue")} in this sprint, so older changes are not counted.`
+      : "";
+    const note = known
+      ? ` Sprint to date, from ${fmtDate(jiraActivity.window.from)}.${floor}`
+      : " Unavailable — this site returned no issue history.";
+    const val = (n) => (known ? n : null);
+
+    return [
+      {
+        key: "moved",
+        label: "Moved",
+        short: "moved",
+        value: val(stats.transitions),
+        title:
+          `Status changes they made, counting the same issue twice if they moved it twice.` +
+          `${known && stats.reopened ? ` ${stats.reopened} of their moves took something back out of done.` : ""}` +
+          ` Conversation fuel, not a score.${note}`,
+      },
+      {
+        key: "closed",
+        label: "Closed",
+        short: "closed",
+        value: val(stats.completed),
+        title:
+          `Transitions they made into a done status — ${known ? `${stats.completedIssues.length} distinct ${plural(stats.completedIssues.length, "issue")}` : "distinct issues"}, which differs from the count when something was reopened and closed again.${note}`,
+      },
+      {
+        key: "took",
+        label: "Picked up",
+        short: "took",
+        value: val(stats.pickedUp),
+        title:
+          `Issues that became theirs this sprint, whether they assigned it to themselves or someone else did.` +
+          `${known && stats.assignedOut ? ` They also moved ${stats.assignedOut} off their own name.` : ""}${note}`,
+      },
+      {
+        key: "made",
+        label: "Created",
+        short: "made",
+        // The one figure that needs no changelog: `fields.creator` is fetched
+        // with every issue, so this is a real number even where history is not.
+        value: stats.created,
+        title:
+          `Issues they created this sprint — the work that appeared after it started.` +
+          `${known && stats.edits ? ` They also made ${stats.edits} field ${plural(stats.edits, "edit")} — points, dates and the like.` : ""}` +
+          ` Sprint to date, from ${fmtDate(jiraActivity.window.from)}.`,
+      },
+    ];
+  }
+
   // Which of the four absent cases this is, because each has a different fix:
   // connect GitHub, wait, add a login to the roster, or nothing at all.
   function githubAbsentReason() {
@@ -691,6 +780,7 @@ export async function mount(container, creds) {
     if (!n) count.classList.add("none");
     row.append(count, pipsEl(n, busiest));
 
+    row.appendChild(jiraCell(jiraStatsFor(id)));
     row.appendChild(githubCell(githubStatsFor(id)));
 
     const flag = flagFor(id);
@@ -702,6 +792,33 @@ export async function mount(container, creds) {
 
     row.appendChild(minsSelect(id, memberLabel(member)));
     return row;
+  }
+
+  // The Jira half of the same row: what this person did to tickets this sprint,
+  // as against the GitHub cell's what they pushed. Built exactly like it so the
+  // two read as one table rather than two bolted together.
+  function jiraCell(stats) {
+    const cell = el("span", "su-person-jira mono");
+    if (!stats) {
+      cell.classList.add("absent");
+      cell.textContent = "—";
+      cell.title = "No issue history for this sprint — this site did not return any.";
+      return cell;
+    }
+    // No mark at all, unlike the GitHub cell's. That one names an external
+    // source; these numbers come from the same Jira every other column on this
+    // row already does, and a glyph at this size read as a stray bullet. The
+    // GitHub mark to the right is what separates the two clusters.
+    for (const spec of jiraStatSpecs(stats)) {
+      const stat = el("span", `su-jira-stat ${spec.key}`);
+      stat.title = spec.title;
+      const shown = spec.value === null ? "—" : String(spec.value);
+      const num = el("span", "su-jira-num" + (spec.value ? " on" : ""), shown);
+      if (spec.value === null) num.classList.add("absent");
+      stat.append(num, el("span", "su-jira-key", spec.short));
+      cell.appendChild(stat);
+    }
+    return cell;
   }
 
   // Four numbers in one cell, each with the word it means underneath rather than
@@ -1178,6 +1295,11 @@ export async function mount(container, creds) {
       work.appendChild(boardWrap);
     }
 
+    // Jira activity first, GitHub second: this one needs no credential and no
+    // roster entry, so it is the panel that is there for everybody.
+    const jiraPanel = renderJiraActivityPanel(id);
+    if (jiraPanel) work.appendChild(jiraPanel);
+
     const panel = renderGithubPanel(id);
     if (panel) work.appendChild(panel);
     el.appendChild(work);
@@ -1229,6 +1351,88 @@ export async function mount(container, creds) {
       emptyLabel: "—",
       onIssueMove: moveIssue,
     });
+  }
+
+  // ── Jira activity panel ────────────────────────────────────────────────────
+
+  // What this person did to tickets this sprint. Absent rather than apologetic
+  // when the site returned no issue history, on the same principle the GitHub
+  // panel follows — except this one is not gated on a credential, because the
+  // data rode the request the standup already made.
+  function renderJiraActivityPanel(accountId) {
+    const stats = jiraStatsFor(accountId);
+    if (!stats) return null;
+    // Nothing to say is not worth a panel. Creations survive without history,
+    // so check the figures rather than the flag.
+    const anything =
+      stats.created ||
+      (stats.historyKnown &&
+        (stats.transitions || stats.pickedUp || stats.assignedOut || stats.edits));
+    if (!anything) return null;
+
+    const panel = document.createElement("aside");
+    panel.className = "standup-jira";
+
+    const title = document.createElement("div");
+    title.className = "standup-jira-title mono";
+    title.textContent = "THIS SPRINT";
+    panel.appendChild(title);
+
+    panel.appendChild(jiraStatStrip(stats));
+
+    // The tickets behind the numbers, so the panel prompts a sentence rather
+    // than inviting a comparison. Capped, because this is read out loud.
+    const touched = (stats.touchedIssues || []).slice(0, 8);
+    if (touched.length) {
+      const heading = document.createElement("div");
+      heading.className = "standup-jira-heading mono";
+      const total = stats.touchedIssues.length;
+      heading.textContent =
+        total > touched.length ? `Touched · ${touched.length} of ${total}` : `Touched · ${total}`;
+      panel.appendChild(heading);
+
+      const keys = document.createElement("div");
+      keys.className = "standup-jira-keys";
+      for (const key of touched) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "standup-jira-key mono";
+        chip.textContent = key;
+        if (stats.completedIssues.includes(key)) chip.classList.add("done");
+        // The drawer, not a route: the board cards on this same screen open
+        // issues that way, and a standup should not navigate away mid-turn.
+        chip.addEventListener("click", () => openIssueDrawer(key, creds));
+        keys.appendChild(chip);
+      }
+      panel.appendChild(keys);
+    }
+
+    return panel;
+  }
+
+  // Four tiles, sized to be read from across the room — the same statistics as
+  // the setup row's cluster, from the same `jiraStatSpecs`.
+  function jiraStatStrip(stats) {
+    const strip = document.createElement("div");
+    strip.className = "standup-jira-stats";
+    for (const spec of jiraStatSpecs(stats)) {
+      const tile = document.createElement("div");
+      tile.className = `standup-jira-stat ${spec.key}`;
+      tile.title = spec.title;
+
+      const num = document.createElement("span");
+      num.className = "standup-jira-stat-num mono";
+      num.textContent = spec.value === null ? "—" : String(spec.value);
+      if (spec.value === null) num.classList.add("absent");
+
+      const key = document.createElement("span");
+      key.className = "standup-jira-stat-key";
+      key.textContent = spec.label;
+
+      tile.append(num, key);
+      strip.appendChild(tile);
+    }
+    return strip;
   }
 
   // ── GitHub panel ───────────────────────────────────────────────────────────

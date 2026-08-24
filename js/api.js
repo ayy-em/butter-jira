@@ -1,4 +1,5 @@
 import { BOARDS, cache } from "./utils.js";
+import { compactChangelogs } from "./activity.js";
 import {
   FIELD_ROLES,
   detailIssueFields,
@@ -207,17 +208,34 @@ export async function getEpicChildren(epicKey, creds) {
   });
 }
 
+// `expand=changelog` rides the request rather than adding one. Per-person Jira
+// activity — who moved which ticket, who picked work up — is derived from issue
+// history, and this is the call that already fetches these issues, so the
+// feature costs no extra round trip.
+//
+// `compactChangelogs` runs before `cached()` stores anything, which is the part
+// that matters: sprint issues go into device-local storage on a 5-minute TTL,
+// and Jira's raw history is a nested record per entry with author objects and
+// avatar URL sets. Reduced to five fields per event it is a fraction of the
+// payload, and nothing downstream ever sees the wide shape.
+const HISTORY_EXPAND = "changelog";
+
 export async function getSprintIssues(boardId, sprintId, creds) {
   return cached(`cache_sprintIssues_${boardId}_${sprintId}`, async () => {
     const issues = await fetchAllPages(
       `/rest/agile/1.0/board/${boardId}/sprint/${sprintId}/issue`,
       creds,
-      { fields: issueFields().join(",") }
+      { fields: issueFields().join(","), expand: HISTORY_EXPAND }
     );
-    return tagged(issues, boardId);
+    return tagged(compactChangelogs(issues), boardId);
   });
 }
 
+// Deliberately *without* the history expand, unlike the sprint call above. The
+// backlog is what has not been started, and every consumer of per-person
+// activity asks about a sprint — so an expand here would add a compacted history
+// to every backlog issue in the 5-minute cache for nothing to read. Cheap to
+// turn on the day a screen wants it.
 export async function getBoardBacklog(boardId, creds) {
   return cached(`cache_backlog_${boardId}`, async () => {
     const issues = await fetchAllPages(

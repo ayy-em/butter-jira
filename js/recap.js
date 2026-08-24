@@ -23,6 +23,7 @@
 
 import { reviewOrDone, wasAddedAfterStart, wasCarriedIn } from "./dashboard.js";
 import { statsFor } from "./github.js";
+import { activityFor as jiraActivityFor, activityFrom as jiraActivityFrom } from "./activity.js";
 import { getStoryPoints, resolveStatusGroup } from "./utils.js";
 import { avatarOverrideFor, displayNameFor, isOnTeam, memberFor } from "./team.js";
 import { isDone, isSubtask } from "./monitor.js";
@@ -67,6 +68,16 @@ export function buildRecap({
   // their points duplicate the parent's. Counting them in the ticket list but
   // not the totals would make the two disagree.
   const counted = issues.filter((issue) => !isSubtask(issue));
+
+  // Per-person Jira activity over the sprint window — who moved which ticket,
+  // who picked work up, who created what appeared after the start. Derived from
+  // the issue history that rode the same fetch, so the block costs the document
+  // no requests. Windowed on the sprint's own start, which is the window every
+  // other figure on the page uses.
+  const activity = jiraActivityFrom(counted, {
+    since: summary.window?.start || "",
+    statusGroups,
+  });
   const activeSprintIds = boardSprints
     .flatMap(({ sprints = [] }) => sprints.map((s) => s?.id))
     .filter((id) => id !== undefined);
@@ -132,6 +143,7 @@ export function buildRecap({
       const extra = perPerson.get(bucket.key) || bump(new Map(), bucket.key);
       const login = memberFor(bucket.key)?.githubLogin || "";
       const gh = login && stats ? statsFor(stats, login, { since }) : null;
+      const jira = jiraActivityFor(activity, bucket.key);
       return {
         accountId: bucket.key,
         label: bucket.label,
@@ -161,6 +173,23 @@ export function buildRecap({
           lines: gh.lines,
           additions: gh.additions,
           deletions: gh.deletions,
+        },
+        // What they *did*, as against what was assigned to them. Null — not a
+        // row of zeroes — where the site returned no issue history, and
+        // `historyKnown` distinguishes the two halves within it: `created`
+        // comes from `fields.creator` and is answerable regardless, the rest
+        // needs the changelog.
+        jira: jira && {
+          historyKnown: jira.historyKnown,
+          transitions: jira.transitions,
+          completed: jira.completed,
+          completedIssues: jira.completedIssues.length,
+          reopened: jira.reopened,
+          pickedUp: jira.pickedUp,
+          assignedOut: jira.assignedOut,
+          edits: jira.edits,
+          created: jira.created,
+          touched: jira.touchedIssues.length,
         },
       };
     })
@@ -219,6 +248,7 @@ export function buildRecap({
   const reviewOrDoneTotals = reviewOrDone(summary.totals);
   const teamPeople = people.filter((p) => p.accountId !== "__unassigned__");
   const withGithub = teamPeople.filter((p) => p.github);
+  const withJira = teamPeople.filter((p) => p.jira);
   const sample = withGithub[0]?.github ? statsFor(stats, withGithub[0].githubLogin, { since }) : null;
 
   return {
@@ -274,8 +304,33 @@ export function buildRecap({
             lines: sumOf(withGithub, "lines"),
           }
         : null,
+      // The same for the Jira half. `created` is summed separately from the
+      // rest because it survives a site with no issue history, so a document
+      // can print it while dashing the others.
+      jira: withJira.length
+        ? {
+            people: withJira.length,
+            historyKnown: activity.hasHistory,
+            transitions: sumJira(withJira, "transitions"),
+            completed: sumJira(withJira, "completed"),
+            reopened: sumJira(withJira, "reopened"),
+            pickedUp: sumJira(withJira, "pickedUp"),
+            edits: sumJira(withJira, "edits"),
+            created: sumJira(withJira, "created"),
+          }
+        : null,
     },
     byStatus: summary.byStatus.filter((b) => b.issues > 0),
+    // Where the per-person activity block stands, so the document can caption
+    // it rather than print bare numbers. `truncated` is the one that matters:
+    // Jira's changelog expand is bounded per issue and does not paginate, so a
+    // long-running ticket's older history is simply not there — and a count
+    // built over it is a floor, which the page has to say.
+    activity: {
+      available: activity.hasHistory,
+      from: activity.window.from,
+      truncated: activity.truncated,
+    },
     people,
     boards,
     tickets,
@@ -322,4 +377,8 @@ function bump(map, key) {
 
 function sumOf(people, field) {
   return people.reduce((n, person) => n + (person.github?.[field] || 0), 0);
+}
+
+function sumJira(people, field) {
+  return people.reduce((n, person) => n + (person.jira?.[field] || 0), 0);
 }

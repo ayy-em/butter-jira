@@ -364,7 +364,7 @@ What is in it, in order:
 | Header, on every page | Your organisation's logo — the `org-logo-dark.png` sibling of `brand.orgLogo`, this being a document that always prints on white paper — or your organisation's name, and `Sprint Recap` on the right |
 | Title | `Sprint Recap DD.MM.YYYY - DD.MM.YYYY` over the combined window, the calendar and working day counts, then a bullet per active sprint with its name and goal, the bullet coloured by its board |
 | The sprint, combined | Four cards — **issues started with**, **crept in**, **in PR + ready**, **LoC in main** — then points done, in review, still open, carried in and review traffic as a single supporting line rather than eight more cards |
-| Per person, at a glance | One table across the page, sorted by story-point completion: issues, PRs & done, completion %, SP assigned, SP done & in PRs, SPs complete %, PRs opened, reviews — with an `All` row from the combined figures |
+| Per person, at a glance | One table across the page, sorted by story-point completion: issues, PRs & done, completion %, SP assigned, SP done & in PRs, SPs complete %, PRs opened, reviews, **moved** and **created** — with an `All` row from the combined figures. The last two come from issue history: *moved* is status changes that person made, *created* is issues they raised inside the window. A caption says what they count, that they describe activity rather than performance, and — where Jira returned only part of an issue's history — that *moved* is a floor rather than a total |
 | Where the points ended up | The status split as a labelled bar, with every figure also written out |
 | Contribution by person | One full-width row each, in name order: photo, name and GitHub handle on the left, then points planned, points wrapped (with its share), crept in, commits to main (merged pull requests plus commits pushed straight to the default branch) and lines to main, divided evenly across the rest of the row so every figure lines up with the one above it |
 | Board by board | One block per board with its sprint name, dates and goal, then issues, done, points, completion, crept in and carried in |
@@ -485,6 +485,27 @@ board in a randomised order, one at a time, full-screen.
 - A parking-lot box is saved as you type and appears in the end summary, with
   copy and download buttons.
 - The summary shows actual vs planned time per person and who never got reached.
+
+**What each person actually did this sprint** shows on the setup row and again as
+a **This sprint** panel on their turn: how many tickets they *moved*, how many
+they *closed*, how many they *picked up*, and how many they *created*. The panel
+also lists the ticket keys behind those numbers — the ones they finished outlined
+— and clicking one opens it in the drawer rather than navigating away mid-turn.
+
+This is read from issue history, which rides the sprint request the standup
+already makes, so it costs no extra call and needs no GitHub. Two things it is
+careful about:
+
+- **It is activity, not performance.** A high count is not a better one — ten
+  moves can be one ticket going back and forth between review and rework. Rows
+  are ordered by name, there is no sort-by-count anywhere, and the figures carry
+  no total or score. They are a prompt for "tell us about ACME-118", not a
+  scoreboard.
+- **A dash is not a zero.** Jira's history is capped per issue and does not
+  paginate, so where a long-running ticket's older changes are missing the
+  tooltip says "at least this many" rather than presenting a floor as a total.
+  On a site that returns no history at all, the three history-based numbers are
+  dashes — "created" still counts, because it does not need history.
 
 Sound cues live in `assets/sfx/` (`dun-dun-dun.mp3` at the start,
 `countdown.mp3` before each handover). They're bundled rather than fetched — the
@@ -700,6 +721,7 @@ js/roster-ui.js     # roster editor for the Settings page
 js/migrations.js    # numbered storage migrations
 js/portable.js      # config export/import
 js/api.js           # Jira REST client: reads, field writes, issue creation
+js/activity.js      # per-person Jira activity from issue history (DOM-free)
 js/issue-edit.js    # field writes: optimistic paint, rollback, undo, bulk
 js/issue-create.js  # createmeta -> form spec -> create payload (DOM-free)
 js/utils.js         # board/field/date/theme helpers + response cache
@@ -724,20 +746,21 @@ Config-layer unit checks — no dependencies, no network, no browser:
 ```bash
 node scripts/test-backlog.mjs      # grouping, paging, tones, views    (115 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
-node scripts/test-imports.mjs      # every module imports what it calls  (47 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (48 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (49 checks)
-node scripts/test-config.mjs       # config layer, field discovery      (86 checks)
+node scripts/test-config.mjs       # config layer, field discovery      (88 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
 node scripts/test-team.mjs         # roster, display names, filtering (127 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
 node scripts/test-standup.mjs      # session timing, order, resume   (165 checks)
 node scripts/test-dashboard.mjs    # aggregation, burndown, geometry  (162 checks)
-node scripts/test-recap.mjs        # recap model, flags, PDF caveats   (83 checks)
+node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (105 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
 node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (206 checks)
 node scripts/test-write.mjs        # field writes, rollback, undo, bulk (93 checks)
 node scripts/test-create.mjs       # createmeta -> form -> payload      (71 checks)
+node scripts/test-activity.mjs     # issue history -> per-person activity (75 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it:
@@ -752,7 +775,9 @@ very little about what appears. The last four share their fixture
 and generated avatars — so the dashboard and the recap are always previewed
 against the same sprint. Query parameters pick the state: `?theme=light`,
 `?github=off`, `?stats=slow`, `?stats=error`, `?sprint=undated`, `?push=off`,
-`?avatars=off`, `?logo=off`, `?jira=slow`, `?stats=partial`, plus `?sort=<column>` on the
+`?avatars=off`, `?logo=off`, `?jira=slow`, `?stats=partial`, `?history=off` — which
+strips issue history, the case that dashes the per-person activity figures while
+leaving "created" counted — plus `?sort=<column>` on the
 dashboard, `?print=1` on the recap, `?edit=points|due|assignee` on the issue
 detail (which opens that cell, the one state a screenshot cannot reach on its
 own), and `?createmeta=minimal|blocked` · `?create=refuse` · `?parent=ABC-1` on
@@ -788,10 +813,22 @@ ordering, phase transitions, pause arithmetic (including multiple pauses),
 overrun, resume-after-reload, and the board grouping shared with Kanban.
 
 `test-recap.mjs` covers the recap model: the combined figures and their shares,
-per-person contribution rows with the GitHub half attached or absent, the board
-split, the ticket list's ordering and its scope-creep and carry-in flags, and the
-three separate ways GitHub can have no answer. The document itself is verified by
-printing it — see the preview harnesses below.
+per-person contribution rows with the GitHub and Jira-activity halves attached or
+absent, the board split, the ticket list's ordering and its scope-creep and
+carry-in flags, and the three separate ways GitHub can have no answer. The
+document itself is verified by printing it — see the preview harnesses below.
+
+`test-activity.mjs` covers per-person Jira activity: the compaction that reduces
+a raw changelog at the fetch boundary (and drops the nested author records that
+would otherwise triple the cached payload), attribution of a transition to
+whoever *made* it rather than whoever owns the ticket, the three sources
+done-ness is resolved from when a changelog gives a status name but no category,
+assignment split into picked-up versus handed-out, the window as a parameter —
+exercised over a week as well as a sprint, so M14 does not discover it — and the
+framing rules the module commits to: people ordered by name whatever their
+counts, no total or score exposed, an authorless automation entry attributed to
+nobody, a truncated history reported rather than silently undercounted, and
+absence kept distinct from zero on each half separately.
 
 `test-dashboard.mjs` covers working-day arithmetic, carry-in and scope-change
 detection, the per-status/board/person buckets, review-versus-done classification
@@ -853,9 +890,14 @@ JIRA_PROJEACME=ABC,DEF \
 node scripts/jira-smoke.js
 ```
 
-Verifies credentials, resolves field roles, lists boards, and exercises search
-pagination. Useful for telling "my token is dead" apart from "the extension is
-broken". It reads only from the environment — no credentials on disk.
+Verifies credentials, resolves field roles, lists boards, exercises search
+pagination, and reports what your site's issue history actually looks like — that
+the agile sprint endpoint honours `expand=changelog`, the per-issue entry cap it
+applies, how many of your tickets exceed that cap, and how much the compaction
+saves on the cached payload. Useful for telling "my token is dead" apart from
+"the extension is broken", and the per-issue cap is worth knowing because it is
+what makes the activity figures a floor rather than a total. It reads only from
+the environment — no credentials on disk.
 
 ## Data handling
 

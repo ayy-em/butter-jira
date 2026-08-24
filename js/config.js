@@ -50,7 +50,12 @@ export const FIELD_ROLES = {
 // Fields every view needs, independent of Jira instance.
 const BASE_ISSUE_FIELDS = [
   "key", "id", "summary", "issuetype", "status", "priority",
-  "assignee", "created", "updated", "duedate",
+  // `creator` is here for per-person activity — who created the things that
+  // appeared mid-sprint. It is immutable, unlike `reporter`, which is editable
+  // and answers a different question ("on whose behalf"). One person object per
+  // issue on a request already being made, which is why the figure costs
+  // nothing beyond this line.
+  "assignee", "creator", "created", "updated", "duedate",
   "parent", "subtasks", "components", "labels",
 ];
 
