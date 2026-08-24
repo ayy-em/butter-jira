@@ -221,7 +221,38 @@ html, body {
   transition: opacity 0.15s;
 }
 .setup-save:hover { opacity: 0.85; }
-.setup-save:disabled { opacity: 0.5; cursor: default; }
+/* A disabled primary button has to stop looking like a primary button. At 0.5
+   opacity a bright accent fill still reads as "click me" on a dark surface, so
+   the first thing a new user does on the board picker is press a button that
+   does nothing and says nothing about why. Drop the fill entirely. */
+.setup-save:disabled {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  opacity: 1;
+  cursor: default;
+}
+.setup-save:disabled:hover { opacity: 1; }
+/* Was an inline-styled 11px link — the single most important thing on the
+   screen for somebody who does not have a token yet, set smaller than the
+   labels above it. */
+.setup-help-link {
+  display: block;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(12px * var(--font-scale));
+  color: var(--accent-primary);
+  margin-bottom: 12px;
+  text-decoration: none;
+}
+.setup-help-link:hover { text-decoration: underline; }
+
+.setup-reassure {
+  font-size: calc(11.5px * var(--font-scale));
+  line-height: 1.5;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
 .setup-status {
   text-align: center;
   margin-top: 12px;

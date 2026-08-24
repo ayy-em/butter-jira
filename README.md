@@ -9,32 +9,147 @@ Runs on **Chrome, Firefox and Edge**. Works against any Jira Cloud site —
 nothing about your instance is baked into the code. Board IDs, project keys,
 custom field IDs, and branding all come from configuration you supply at setup.
 
-## Install (unpacked)
+## Install on Chrome — step by step
 
-**Chrome** needs no build step: the repo directory *is* the extension.
+**No command line, no developer tools, nothing to build.** You download one
+file, unzip it, and point Chrome at the folder. It takes about two minutes, and
+you need nothing installed beyond Chrome itself (version 111 or newer — anything
+from 2023 onwards).
+
+There are two halves: getting the extension into Chrome, then connecting it to
+your Jira. Do them in order.
+
+### Part 1 — Put the extension in Chrome
+
+**1. Download it.** Go to the
+[Releases page](https://github.com/ayy-em/butter-jira/releases) and, under the
+newest release, download the file named **`chrome-<version>.zip`** (for example
+`chrome-0.5.0.zip`). Ignore the Firefox and Edge files, and ignore the two
+"Source code" links — those are not what you want.
+
+**2. Unzip it.** Double-click the downloaded file. You will get a folder with a
+name like `chrome-0.5.0`.
+
+**3. Move the folder somewhere permanent.** Your Documents folder is fine.
+Anywhere except Downloads.
+
+> **This matters more than it sounds.** Chrome does not copy the extension in —
+> it reads it from this folder every time it starts. If you later delete the
+> folder, empty your Downloads, or move it elsewhere, the extension stops
+> working. Put it somewhere you will not tidy up.
+
+**4. Open Chrome's extensions page.** Copy `chrome://extensions` into the
+address bar and press Enter. (Clicking a link to it does not work — Chrome
+blocks that. Type or paste it.)
+
+**5. Turn on Developer mode.** There is a switch labelled **Developer mode** in
+the *top right* of that page. Click it on. Three new buttons appear below.
+
+**6. Click "Load unpacked"** — the leftmost of the three new buttons.
+
+**7. Pick the folder.** In the file chooser, select the folder from step 3 — the
+one that has a file called **`manifest.json`** directly inside it. Select the
+*folder itself*; do not open it and do not select a file inside it. Then click
+**Select** / **Open**.
+
+butter_jira now appears in your list of extensions.
+
+**8. Pin it to your toolbar** so you can find it again. Click the small
+jigsaw-piece icon to the right of Chrome's address bar, find butter_jira in the
+list, and click the pin next to it. Its icon now sits in the toolbar.
+
+**9. Click the butter_jira icon.** The app opens in a new tab.
+
+### Part 2 — Connect it to your Jira
+
+The app opens on a short form asking for three things.
+
+**1. Jira site URL.** The address you normally use for Jira, without the
+`https://`. If your Jira lives at `https://acme.atlassian.net/jira/...`, type
+`acme.atlassian.net`.
+
+**2. Email.** The email address you sign in to Jira with.
+
+**3. API token.** This is *not* your Jira password — it is a separate key you
+generate, and it is what lets the extension read your boards.
+
+- Click **"Need an API token? Create one here"** on the form. Atlassian's own
+  page opens in a new tab.
+- Click **Create API token**, give it any name you like (`butter_jira` is a
+  fine choice), and confirm.
+- Atlassian shows the token **once**. Click **Copy**.
+- Go back to the butter_jira tab and paste it into the API token box.
+
+If Atlassian offers you a choice, take the **unscoped** token — it simply
+inherits whatever you can already do in Jira yourself, so there is nothing to
+configure. Tokens expire (a year by default) and you make a new one the same way.
+
+> Your token stays on the computer you typed it into. It is deliberately kept
+> out of Chrome's account sync, so it is never copied to your other machines or
+> to Google. See [Data handling](#data-handling).
+
+**4. Click Connect.** Chrome may ask permission to access your Jira address —
+say yes, it is how the extension reads anything at all. The extension then
+checks your details, works out this Jira's custom field IDs on its own, and
+shows you every board your account can see.
+
+**5. Tick the boards you care about** and click **Save**. You can change this
+later in Settings.
+
+That's it — the Backlog opens on your own data.
+
+### If something goes wrong
+
+| What you see | What it means |
+|---|---|
+| *"Invalid credentials — check email and token"* | Almost always a mistyped or expired token, or the wrong email. Generate a fresh token and paste it again — do not retype it by hand. |
+| *"Site reachable but Jira API not found"* | The URL is not a Jira site. Check for a typo, and leave off any `/jira/...` path — just the host. |
+| *"Connection failed"* | Network or VPN. If your Jira is only reachable on a company network, connect to it first. |
+| *"No boards are visible to this account"* | Your Jira account can see projects but not boards. Ask whoever administers your Jira for board access. |
+| Chrome warns about *"extensions in developer mode"* on startup | Expected, and harmless — it is how Chrome treats every extension not installed from its store. Keep the extension enabled. |
+| The extension icon disappeared or shows an error after a restart | The folder from step 3 was moved or deleted. Put it back, or repeat Part 1. |
+
+Chrome keeps the extension across restarts and updates. To move to a newer
+version, download the new zip, unzip it over the old folder, and press the
+refresh arrow on butter_jira's card in `chrome://extensions`. Your settings and
+boards survive — they live in Chrome's storage, not in the folder.
+
+## Install on Firefox and Edge
+
+Both are packaged in each release the same way Chrome is: download
+**`firefox-<version>.zip`** or **`edge-<version>.zip`** from the
+[Releases page](https://github.com/ayy-em/butter-jira/releases) and unzip it
+somewhere permanent, exactly as in Part 1 above. Their manifests differ from
+Chrome's in ways one file cannot hold, which is why they are separate downloads
+— see [Browser targets](#browser-targets).
+
+- **Edge**: `edge://extensions` → turn on **Developer mode** → **Load unpacked**
+  → select the unzipped folder. Then Part 2 above is identical.
+- **Firefox**: `about:debugging` → *This Firefox* → **Load Temporary Add-on** →
+  select the `manifest.json` file inside the unzipped folder (Firefox asks for
+  the file, not the folder). Note the word *temporary*: Firefox drops it when
+  you quit, and a permanent install needs a signed build from
+  addons.mozilla.org.
+
+## Install from source (developers)
+
+**Chrome needs no build step: the repo directory *is* the extension.**
 
 1. Clone this repo.
 2. Open `chrome://extensions`, enable **Developer mode**.
 3. **Load unpacked** → select the repo directory.
 4. Click the butter_jira toolbar icon.
 
-**Firefox and Edge** need a package first, because their manifests differ from
-Chrome's in ways one file cannot hold — see [Browser targets](#browser-targets).
+Firefox and Edge need a package first:
 
 ```bash
 node scripts/build.mjs                  # writes dist/chrome, dist/firefox, dist/edge
-node scripts/build.mjs --zip            # …and a zip per target, for store uploads
+node scripts/build.mjs --zip            # …and a zip per target, for releases and store uploads
 node scripts/build.mjs --local-assets   # …including your own avatars and brand marks
 ```
 
 `--local-assets` is for an install on your own machine. It refuses to combine
 with `--zip`: a store package must not carry colleagues' photographs.
-
-- **Firefox**: `about:debugging` → *This Firefox* → **Load Temporary Add-on** →
-  pick `dist/firefox/manifest.json`. Temporary add-ons go away when Firefox
-  closes; a permanent install needs a signed build from addons.mozilla.org.
-- **Edge**: `edge://extensions` → **Developer mode** → **Load unpacked** →
-  select `dist/edge`.
 
 ## Moving between browsers
 
@@ -97,7 +212,9 @@ a stray `chrome.` reference fails a test rather than a Firefox user.
 
 ## First run
 
-The setup screen asks for three things:
+Walked through click by click in [Part 2](#part-2--connect-it-to-your-jira)
+above; this is the same thing as a reference. The setup screen asks for three
+things:
 
 | Field | Example | Notes |
 |---|---|---|
@@ -108,6 +225,10 @@ The setup screen asks for three things:
 On connect it verifies the credentials, resolves this site's custom field IDs
 automatically, then offers every board your account can see so you can pick the
 ones you care about. No board IDs to look up by hand.
+
+A Data Center host on a custom domain is requested as an optional origin at this
+point, which is why Chrome may show a permission prompt — `*.atlassian.net` is
+granted in the manifest up front, anything else has to be asked for.
 
 ### API tokens
 

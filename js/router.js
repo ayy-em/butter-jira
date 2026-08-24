@@ -206,9 +206,15 @@ function showSetup() {
           <input class="setup-input" type="password" id="setup-token" name="password" autocomplete="current-password" placeholder="Paste Jira API token" />
           <button type="button" class="setup-token-toggle" id="setup-toggle">Show</button>
         </div>
-        <a href="${TOKEN_HELP_URL}" target="_blank" rel="noopener"
-           style="display:block;font-family:'Ubuntu Sans Mono',ui-monospace,monospace;font-size:11px;color:var(--accent-primary);margin-bottom:14px;text-decoration:none;">
-          Need an API token? Create one here</a>
+        <a href="${TOKEN_HELP_URL}" target="_blank" rel="noopener" class="setup-help-link">
+          Need an API token? Create one here ↗</a>
+        <!-- The one thing a first-timer most wants to know, and the one place
+             they are being asked to paste a credential into something they have
+             just sideloaded. Saying where it goes is worth four lines. -->
+        <div class="setup-reassure">
+          Your token is stored on this device only — never synced to your
+          browser account, and never sent anywhere except your own Jira.
+        </div>
         <button type="submit" class="setup-save" id="setup-save">Connect</button>
         </form>
         <div class="setup-status" id="setup-status"></div>
@@ -336,7 +342,12 @@ async function showBoardPicker(creds) {
 
   if (!boards.length) {
     optionsEl.innerHTML =
-      '<div style="padding:16px;color:var(--muted);font-size:13px;">No boards visible to this account. Add them manually in Settings.</div>';
+      '<div style="padding:16px;color:var(--muted);font-size:13px;line-height:1.5;">' +
+      "No boards are visible to this account. That usually means the account can " +
+      "see projects but not their boards \u2014 ask whoever administers Jira for " +
+      "board access. You can also add a board by its ID yourself: open " +
+      "<strong>Settings</strong> with the \u2699 button at the top right." +
+      "</div>";
     return;
   }
 
