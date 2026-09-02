@@ -584,7 +584,7 @@ says which of the three it was.
 
 **Framing is deliberate.** The per-person section is ordered by name, never by
 output, and it is headed "contribution", not "performance" — the same discipline
-the roadmap sets for M10 and M14. It is material for a retro conversation, and a
+the roadmap sets for M16 and M14. It is material for a retro conversation, and a
 document that ranked colleagues would be read as an assessment however it was
 labelled. The footer says so on every copy.
 
@@ -1088,18 +1088,22 @@ built the way it is.
 the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode
 (M6), the sprint dashboard (M7), the write layer and issue creation (M8), the
 command palette (M9), GitHub sync (M11), and the Firefox and Edge ports (M12).
+M10 is vacant: it was Sprint Wrapped, re-aimed at the quarter and renumbered to
+M16 on 2026-09-03, and the number is retired rather than reused.
 
-**Open, in the order they are queued** (re-sequenced 2026-09-03 — the numbers
-are identifiers, not positions):
+**Open, in queue order** — re-sequenced on 2026-09-03 and renumbered the same
+day so the number and the position agree. Anything written before that date uses
+the old numbers, and M13 and M15 swapped; ROADMAP.md has the reconciliation
+table.
 
 | | | |
 |---|---|---|
-| M15 | Sprint freeze and diff | Freeze the sprint on day one; on the last day, what crept in, left, or was re-estimated |
+| M13 | Sprint freeze and diff | Freeze the sprint on day one; on the last day, what crept in, left, or was re-estimated |
 | M14 | Weekly 1:1 screen | Per-person prep sheet. Scope is a first pass, not agreed |
-| M13 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
-| M10 | Quarter Wrapped | Quarter-to-date stats recap, printed to PDF on demand |
-| M16 | Per-sprint history | Issues, completion, PRs and lines per sprint, from rollups written at each rollover |
-| M17 | Linked issues | *blocks* / *duplicates* / *relates to*, readable today, editable next |
+| M15 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
+| M16 | Quarter Wrapped | Quarter-to-date stats recap, printed to PDF on demand |
+| M17 | Per-sprint history | Issues, completion, PRs and lines per sprint, from rollups written at each rollover |
+| M18 | Linked issues | *blocks* / *duplicates* / *relates to*, readable today, editable next |
 
 The app writes to Jira in four places and nowhere else: dragging a card between
 columns (a workflow transition), editing assignee, due date or story points on

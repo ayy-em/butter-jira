@@ -33,6 +33,47 @@ built the way it is, which is the part that gets forgotten.
 T-shirt sizes, not dates: **S** ≈ a sitting, **M** ≈ a few sittings, **L** ≈ a
 sustained chunk of work, **XL** ≈ needs breaking down further once started.
 
+## Milestone numbering
+
+**Renumbered 2026-09-03.** The open milestones were renumbered so the number
+matches the queue position: reading down the list and reading up the numbers now
+give the same order. The queue had been re-sequenced the same day and the numbers
+had been left alone, which meant M13 was third and M10 fourth — a list that
+needs a decoder ring to read in order.
+
+The cost is paid here, once, in this table. Every completed milestone keeps its
+number: M0–M9, M11 and M12 are cited in commit subjects (`M8:`, `M11:`, `M12:`)
+and in code comments, and renumbering shipped work would strand all of it.
+
+| Old | New | Milestone |
+|---|---|---|
+| M15 | **M13** | Sprint freeze and diff |
+| M14 | **M14** | Weekly 1:1 screen (unchanged) |
+| M13 | **M15** | Sprint planner |
+| M10 | **M16** | Quarter Wrapped |
+| M16 | **M17** | Per-sprint history |
+| M17 | **M18** | Linked issues |
+
+**M13 and M15 swapped**, which is the one genuinely dangerous row: anything
+written before this renumbering that says "M13" means the *planner*, and "M15"
+means the sprint freeze — under its earlier placeholder name in `45e560c`
+("split M8, add M13/M14/M15"), and fully scoped in `44a55a8` ("re-sequence the
+queue, scope M15/M16/M17"), which is dated the same day and landed hours before
+the renumbering. Commit history is not rewritable, so this table is the only
+place those two subjects can be reconciled.
+
+**M10 is retired unbuilt.** It was Sprint Wrapped, re-aimed at the quarter on
+2026-09-03 and renumbered to M16 the same day, so the number now names nothing
+and stays vacant rather than being recycled onto a different feature. The
+completed run therefore reads M0–M9, M11, M12 with a hole where a milestone was
+planned and never shipped.
+
+**The rule going forward:** a new milestone takes the next free number and joins
+the queue at its number. If the queue is re-sequenced again, either the numbers
+follow it and a dated row lands in the table above, or the sequence is stated
+separately — and the second option is what produced the mess this table cleans
+up, so the first is the default.
+
 ## Milestone sequence at a glance
 
 **Dependencies** — what each thing needs, not the order it gets built in:
@@ -43,24 +84,25 @@ M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 P
                                                                         ├──▶ M6 Standup ✔ ─▶ M11 GitHub sync ✔ ─▶ M12 Firefox + Edge ✔
                                                                         │
                                                                         ├──▶ M7 Dashboard ✔ ──┬──▶ M9 Palette + Triage ✔
-                                                                        │                     ├──▶ M8 Writes ✔ ──┬──▶ M13 Sprint planner
-                                                                        │                     │                  └──▶ M17 Linked issues
-                                                                        │                     ├──▶ M15 Sprint freeze + diff
-                                                                        │                     └──▶ M16 Per-sprint history ─▶ M10 Quarter Wrapped
+                                                                        │                     ├──▶ M8 Writes ✔ ──┬──▶ M15 Sprint planner
+                                                                        │                     │                  └──▶ M18 Linked issues
+                                                                        │                     ├──▶ M13 Sprint freeze + diff
+                                                                        │                     └──▶ M17 Per-sprint history ─▶ M16 Quarter Wrapped
                                                                         │
                                                                         └──▶ M14 Weekly 1:1
 ```
 
-**Order of work, re-sequenced 2026-09-03** — the numbers are identifiers, so the
-queue is stated separately rather than encoded in them:
+**Order of work** — re-sequenced 2026-09-03, and the numbers were renumbered the
+same day to match it, so this is the dependency graph's rows read in queue order
+rather than a second scheme to keep in your head:
 
 ```
-M15 Freeze + diff ─▶ M14 Weekly 1:1 ─▶ M13 Sprint planner ─▶ M10 Quarter Wrapped ─▶ M16 Per-sprint history ─▶ M17 Linked issues
+M13 Freeze + diff ─▶ M14 Weekly 1:1 ─▶ M15 Sprint planner ─▶ M16 Quarter Wrapped ─▶ M17 Per-sprint history ─▶ M18 Linked issues
 ```
 
-M10 is queued ahead of M16 because the button is the ask and the history is the
-machinery behind it — but the arrow above runs the other way, and M10's GitHub
-half is capped at 45 days until M16's rollups exist. That tension is stated in
+M16 is queued ahead of M17 because the button is the ask and the history is the
+machinery behind it — but the arrow above runs the other way, and M16's GitHub
+half is capped at 45 days until M17's rollups exist. That tension is stated in
 both entries rather than resolved on this diagram.
 
 Ordering logic: config plumbing first (M0–M2), because every later feature reads
@@ -77,7 +119,7 @@ was a gate — M9's triage mode and M4's in-app fixing both sat behind it, and b
 were otherwise finished — while the planner is a screen that happens to need
 writes at the very end of its flow. Bundled, the gate could not ship until the
 screen did. Split, M8 is a shippable milestone that unblocks two others, and the
-planner (now M13) is honestly sized on its own. Issue and sub-task creation
+planner (now M15) is honestly sized on its own. Issue and sub-task creation
 joined M8 rather than standing alone: they are the smallest useful thing the
 write layer can carry, and they exercise it end to end.
 
@@ -90,37 +132,41 @@ rather than the M8 chain, is read-only against a second API, and shares nothing
 with the Jira write path — so it could be pulled forward without stranding
 anything, and the planner keeps its place in the queue rather than losing it.
 
-**The queue was re-sequenced on 2026-09-03, and the planner did lose its place.**
+**The queue was re-sequenced on 2026-09-03, the milestones were renumbered to
+match, and the planner did lose its place — twice over, its position and its
+number.**
 Not for the reason the sentence above guarded against — nothing was pulled ahead
-of it opportunistically. M15 went first because it writes history, and history
+of it opportunistically. M13 went first because it writes history, and history
 only accrues forward: a sprint boundary that passes unfrozen cannot be
-reconstructed later, so every week M15 waits costs a data point M13's successors
+reconstructed later, so every week M13 waits costs a data point M15's successors
 would have wanted. M14 went ahead of it too, being an M whose dependencies were
-all paid against the planner's L. The planner is still fully unblocked, and is
-still the largest thing in the file.
+all paid against the planner's L. The planner is still fully unblocked, is still
+the largest thing in the file, and is now **M15** — it was M13 for three weeks,
+and M8b before that, which is a third label for one screen and the reason the
+renumbering rule is written down rather than left to judgement.
 
-**Three entries changed shape the same day.** M15 went from a one-paragraph
-placeholder to an agreed scope. M10 was re-aimed from a per-sprint PNG card to a
+**Three entries changed shape the same day.** M13 went from a one-paragraph
+placeholder to an agreed scope. M16 was re-aimed from a per-sprint PNG card to a
 quarter-to-date PDF, because the formal sprint document already shipped on
 2026-08-18 and nothing in the app looks past the current sprint. And the
-*recapping closed sprints* follow-up was dropped in favour of M16, which keeps a
+*recapping closed sprints* follow-up was dropped in favour of M17, which keeps a
 per-sprint rollup written forward at rollover instead of re-fetching a closed
 sprint from Jira — the same build-history-forward argument as the burndown and
-open question 3, applied a third time. M17 was added new.
+open question 3, applied a third time. M18 was added new.
 
 ## Risk register
 
 | Risk | Milestone | Mitigation |
 |---|---|---|
-| Request fan-out across boards hits rate limits | M7, M13 | Reuse cached aggregates, per-resource TTLs, batch where the API allows |
-| Writes corrupt real sprint data | M8, M13 | Draft mode, batch confirmation, undo window, isolated write helpers |
+| Request fan-out across boards hits rate limits | M7, M15 | Reuse cached aggregates, per-resource TTLs, batch where the API allows |
+| Writes corrupt real sprint data | M8, M15 | Draft mode, batch confirmation, undo window, isolated write helpers |
 | A generated create form still 400s on an unfamiliar site | M8 | Fields come from `createmeta` per project and type; the sub-task type is read from `subtask: true`, never matched by name |
 | Notes about a named colleague are the app's most sensitive data | M14 | Device-local, never synced, own export checkbox and confirm, bounded retention, no ranking or evaluation framing |
-| A per-issue freeze for eight sprints is the largest thing kept on device | M15 | Measure it against a real sprint before shipping; prune on the snapshot schedule so the two histories cannot diverge |
-| Scope-added silently changes meaning depending on whether a freeze exists | M15 | The figure states which of the two it is, exact or approximate, everywhere it is printed |
-| A quarter is ~90 days and the GitHub window is 45 | M10, M16 | Store per-sprint rollups at rollover; until they exist, the quarter document states the shorter window it actually covers |
-| Lines of code read as a productivity measure | M16, M10 | Team-level per sprint only, never per person, labelled as lines reaching the default branch |
-| Unlinking an issue is destructive and Jira offers no undo | M17 | A confirm naming both issues and the relationship; the app's first DELETE gets its own helper path |
+| A per-issue freeze for eight sprints is the largest thing kept on device | M13 | Measure it against a real sprint before shipping; prune on the snapshot schedule so the two histories cannot diverge |
+| Scope-added silently changes meaning depending on whether a freeze exists | M13 | The figure states which of the two it is, exact or approximate, everywhere it is printed |
+| A quarter is ~90 days and the GitHub window is 45 | M16, M17 | Store per-sprint rollups at rollover; until they exist, the quarter document states the shorter window it actually covers |
+| Lines of code read as a productivity measure | M16, M17 | Team-level per sprint only, never per person, labelled as lines reaching the default branch |
+| Unlinking an issue is destructive and Jira offers no undo | M18 | A confirm naming both issues and the relationship; the app's first DELETE gets its own helper path |
 | ~~`/rest/dev-status/1.0/` is undocumented~~ | M5 → deferred | Avoided entirely: dev links move to the GitHub API in the deferred backlog |
 | ~~Untrusted Jira HTML reaching the DOM~~ | M5 ✔ | Allowlist sanitiser with the element walk unit-tested; CSP as defence in depth |
 | ~~First write path (comments) misfiring~~ | M5 ✔ | Single narrow endpoint, comment re-rendered from Jira's response, explicit 403 handling |
@@ -136,39 +182,41 @@ open question 3, applied a third time. M17 was added new.
 
 1. ~~**Distribution**~~ — answered 2026-08-05: unpacked now, possible Web Store listing later. The manifest `key` is in place for unpacked use and must be deleted before any store upload.
 2. ~~**Board-per-project assumption**~~ — answered 2026-08-12: the fix is chosen and written up under *Several boards over one project* in the deferred backlog, but not scheduled. The current deployment is one board per project, so neither of the two bugs is live here; the entry names which half to pull forward first if that changes.
-3. ~~**Velocity source for the planner**~~ (originally "for M8"; the planner is M13 since the split) — answered 2026-08-12: **historical, from the app's own stored history.** Not from closed-sprint data mined out of Jira — same reasoning as the M7 burndown, which is the precedent this follows: build history forward in `js/snapshots.js` rather than lean on `sprintreport`. **Consequence acted on 2026-08-20, ahead of M13:** snapshots recorded team totals only, and per-person velocity needs a `byPerson` block. Since a forward-built history accrues only from the day it starts being written, the field was added on its own rather than waiting for the planner — `snapshotFrom` (`js/snapshots.js:39`) now writes one row per person, keyed by account id, carrying assigned and completed points and issue counts plus the display name as it read that day. M14 reads the same field.
+3. ~~**Velocity source for the planner**~~ (originally "for M8"; the planner became M13 at the split and is **M15** since the 2026-09-03 renumbering) — answered 2026-08-12: **historical, from the app's own stored history.** Not from closed-sprint data mined out of Jira — same reasoning as the M7 burndown, which is the precedent this follows: build history forward in `js/snapshots.js` rather than lean on `sprintreport`. **Consequence acted on 2026-08-20, ahead of M15:** snapshots recorded team totals only, and per-person velocity needs a `byPerson` block. Since a forward-built history accrues only from the day it starts being written, the field was added on its own rather than waiting for the planner — `snapshotFrom` (`js/snapshots.js:39`) now writes one row per person, keyed by account id, carrying assigned and completed points and issue counts plus the display name as it read that day. M14 reads the same field.
 4. ~~**Team scope**~~ — answered 2026-08-05: one roster, but stored under a team key from the start so a switcher can be added later without a migration.
 5. ~~**Repo list per board?**~~ — answered 2026-08-12: no, one flat list stays. Revisited only if a real team runs into it. The allowlist is already the only scope, so scoping it per board stays cheap whenever it is actually wanted.
 
-6. **How much history should the app keep?** Open, raised 2026-09-03 by M16. Daily snapshots are capped at eight sprints (`MAX_SPRINTS_KEPT`), which is right for sixty rows per sprint and wrong for one rollup row per sprint — a trend chart wants years of those. M15's per-issue freezes pull the other way, being the bulkiest thing stored. Three stores with three different right answers, so the cap stops being one constant and becomes a decision about what the extension keeps on the device.
-7. ~~**Lines of code as a metric**~~ — answered 2026-09-03, when it was asked for in M16: **team-level per sprint, never per person.** It sits next to issue counts as a volume signal, and `fetchTeamStats` measures lines reaching the default branch, so that is what it is labelled. Same rule M10 and M14 already carry, and the reason the recap PDF prints its own framing.
-8. **Where does a quarter start?** Open, raised 2026-09-03 by M10. Sprints straddle quarter boundaries, so a quarter-to-date document either cuts a sprint in half or counts a sprint that started in the previous quarter. Calendar quarters with whole sprints assigned to the quarter they end in is the likely answer, but it needs stating on the document rather than implying.
+6. **How much history should the app keep?** Open, raised 2026-09-03 by M17. Daily snapshots are capped at eight sprints (`MAX_SPRINTS_KEPT`), which is right for sixty rows per sprint and wrong for one rollup row per sprint — a trend chart wants years of those. M13's per-issue freezes pull the other way, being the bulkiest thing stored. Three stores with three different right answers, so the cap stops being one constant and becomes a decision about what the extension keeps on the device.
+7. ~~**Lines of code as a metric**~~ — answered 2026-09-03, when it was asked for in M17: **team-level per sprint, never per person.** It sits next to issue counts as a volume signal, and `fetchTeamStats` measures lines reaching the default branch, so that is what it is labelled. Same rule M16 and M14 already carry, and the reason the recap PDF prints its own framing.
+8. **Where does a quarter start?** Open, raised 2026-09-03 by M16. Sprints straddle quarter boundaries, so a quarter-to-date document either cuts a sprint in half or counts a sprint that started in the previous quarter. Calendar quarters with whole sprints assigned to the quarter they end in is the likely answer, but it needs stating on the document rather than implying.
 
 ---
 
 # Open
 
-**Re-sequenced 2026-09-03.** The order of work is now: **M15** (sprint freeze
-and diff) → **M14** (weekly 1:1) → **M13** (sprint planner) → **M10** (Quarter
-Wrapped) → **M16** (per-sprint history) → **M17** (linked issues). The sections
+**Re-sequenced 2026-09-03.** The order of work is now: **M13** (sprint freeze
+and diff) → **M14** (weekly 1:1) → **M15** (sprint planner) → **M16** (Quarter
+Wrapped) → **M17** (per-sprint history) → **M18** (linked issues). The sections
 below are in that order.
 
-Milestone numbers stay where they are. They are identifiers, not positions —
-three of them are cited by number and date in commit messages, in code comments
-and in the completed entries below, and renumbering to match a queue is exactly
-what left "M8b — Planner" needing a footnote for a month after the M8 split.
+**The numbers were renumbered to match**, the same day and for the obvious
+reason: a queue whose numbers run 13, 14, 15, 16, 17, 18 can be read in order,
+and one that ran 15, 14, 13, 10, 16, 17 could not. The old numbers, and the two
+commit subjects that use them, are reconciled in the table under *Milestone
+numbering* above — M13 and M15 swapped, so that table is worth reading before
+trusting any pre-2026-09-03 reference to either.
 
 Why this order:
 
-- **M15 first**, though it was the vaguest of the three, because a forward-built history only accrues from the day it ships. Every sprint boundary that passes without a freeze is one that cannot be reconstructed afterwards — the same argument that pulled the snapshot `byPerson` block forward ahead of M13 on 2026-08-20, and the same argument `js/snapshots.js` opens with. It also makes M7's approximate scope-added figure exact, which is a caveat currently printed in the UI and in the recap PDF.
+- **M13 first**, though it was the vaguest of the three, because a forward-built history only accrues from the day it ships. Every sprint boundary that passes without a freeze is one that cannot be reconstructed afterwards — the same argument that pulled the snapshot `byPerson` block forward ahead of M15 on 2026-08-20, and the same argument `js/snapshots.js` opens with. It also makes M7's approximate scope-added figure exact, which is a caveat currently printed in the UI and in the recap PDF.
 - **M14 next**: an M whose dependencies are already paid (the roster, `activityFrom`, the `byPerson` block), against the planner's L. It has four open questions that want answering before any work starts, and answering them is cheap.
-- **M13 after that.** Still the biggest thing in the file, still fully unblocked; it loses its "next up" position rather than any of its readiness.
-- **M10 then M16**, in that order because the button is the ask and the history is the machinery behind it — but see M16's note on the 45-day GitHub window, which the quarter document runs straight into. If M10 is started first, its GitHub half is scoped to what one window covers until M16 lands.
-- **M17 last** only because it is an S that unblocks nothing. It is the obvious thing to pick up in a gap, or ahead of anything else here if the linking is wanted sooner.
+- **M15 after that.** Still the biggest thing in the file, still fully unblocked; it loses its "next up" position rather than any of its readiness.
+- **M16 then M17**, in that order because the button is the ask and the history is the machinery behind it — but see M17's note on the 45-day GitHub window, which the quarter document runs straight into. If M16 is started first, its GitHub half is scoped to what one window covers until M17 lands.
+- **M18 last** only because it is an S that unblocks nothing. It is the obvious thing to pick up in a gap, or ahead of anything else here if the linking is wanted sooner.
 
 ---
 
-## M15 — Sprint freeze and diff
+## M13 — Sprint freeze and diff
 
 **Size: M** · Depends on M7 (the dashboard's aggregates and its snapshot writer).
 Independent of the write layer — it reads Jira and writes only to local storage.
@@ -176,7 +224,10 @@ Independent of the write layer — it reads Jira and writes only to local storag
 
 **Scope agreed 2026-09-03**, replacing the placeholder recorded 2026-08-12. The
 placeholder said "sprint start state snapshot" and nothing else; the shape below
-is what it was actually for.
+is what it was actually for. **This was M15 until 2026-09-03** — it took M13's
+number in the renumbering when it took first place in the queue, and M13 had
+been the planner, so that swap is the one worth checking in anything written
+earlier.
 
 Freeze the sprint's state on day one, and on the last day show what happened to
 it. Not "how much got done" — the dashboard already answers that — but **what
@@ -222,9 +273,9 @@ One person, one week: the sheet you would otherwise assemble by hand in the ten
 minutes before a 1:1.
 
 - **Pick a person** from the roster, and a week (defaulting to the one just ending).
-- **What they did** — issues closed and moved this week, PRs opened, merged and reviewed. M11 already fetches per-person GitHub activity; it currently windows on *since the last working day* for standup, so this needs a week window over the same query rather than a new source. **The Jira half of this is already built:** `activityFrom(issues, { since, until })` (`js/activity.js`, done 2026-08-24) answers "closed and moved" per person over any window, and a week-long one is exercised in `scripts/test-activity.mjs` precisely so this milestone does not discover it. What is left here is the screen, and — the one real gap — a source of issues for a week that is not the current sprint, since the reader is fed the sprint fetch today. **M10 needs the same thing over a quarter**, so whichever lands first should build it as a shared reader taking a window, not a private one.
+- **What they did** — issues closed and moved this week, PRs opened, merged and reviewed. M11 already fetches per-person GitHub activity; it currently windows on *since the last working day* for standup, so this needs a week window over the same query rather than a new source. **The Jira half of this is already built:** `activityFrom(issues, { since, until })` (`js/activity.js`, done 2026-08-24) answers "closed and moved" per person over any window, and a week-long one is exercised in `scripts/test-activity.mjs` precisely so this milestone does not discover it. What is left here is the screen, and — the one real gap — a source of issues for a week that is not the current sprint, since the reader is fed the sprint fetch today. **M16 needs the same thing over a quarter**, so whichever lands first should build it as a shared reader taking a window, not a private one.
 - **What is stuck** — their blocked and overdue items, and the PRs where they are the blocker or are being blocked, reusing M11's "changes requested → failing checks → approved-and-unmerged → waiting on review" ordering, which already sorts by how stuck rather than how recent.
-- **Load over time** — their points per sprint across stored snapshots. The `byPerson` field this needs exists as of 2026-08-20 (see M13), so this milestone reads it rather than adding it — bounded by how far back history had started accruing when the screen is built.
+- **Load over time** — their points per sprint across stored snapshots. The `byPerson` field this needs exists as of 2026-08-20 (see M15), so this milestone reads it rather than adding it — bounded by how far back history had started accruing when the screen is built.
 - **Notes** — free text per person per week, saved as you type, with last week's notes and any open action items pinned at the top. A 1:1 tool that does not remember last week is a status meeting.
 
 **Personal data — the part to get right first.** Everything else in this app
@@ -236,7 +287,7 @@ floor and not the ceiling:
 - Device-local, never `storage.sync`. The roster is already local for weaker reasons than this.
 - Excluded from config export behind **its own** checkbox and its own confirm naming what the file would contain — the M2 pattern of one prompt per secret, because a single "this file has sensitive stuff in it" dialog teaches people to click past it.
 - Bounded retention with a visible clear action, the way snapshots are pruned. Notes about people should not accumulate silently and forever.
-- **Not a performance dashboard.** Same discipline M10 imposes on Quarter Wrapped, and the reason that entry keeps lines of code and pull-request counts team-level: activity is conversation fuel, not a score. No rankings, no per-person trend line framed as evaluation, no comparison between colleagues on one screen.
+- **Not a performance dashboard.** Same discipline M16 imposes on Quarter Wrapped, and the reason that entry keeps lines of code and pull-request counts team-level: activity is conversation fuel, not a score. No rankings, no per-person trend line framed as evaluation, no comparison between colleagues on one screen.
 
 **Open questions:**
 
@@ -247,19 +298,21 @@ floor and not the ceiling:
 
 ---
 
-## M13 — Sprint planner
+## M15 — Sprint planner
 
 **Size: L** · Depends on M8 (write layer, done 2026-08-20), M7 (aggregates) and
 M3 (roster). **Fully unblocked, third in the queue** — every dependency is in
 place, including the two things added ahead of time for it: the snapshot's
 `byPerson` block and the write layer's 50-issue sprint-move batching. It held
-"next up" from 2026-08-20 until the 2026-09-03 re-sequence put M15 and M14 in
+"next up" from 2026-08-20 until the 2026-09-03 re-sequence put M13 and M14 in
 front of it; nothing about its readiness changed.
 
 Split out of M8 on 2026-08-12 so the write layer could ship without waiting for
-a screen this size. Referred to as "M8b — Planner" in anything written before
-that date; M8's own sub-parts were renumbered when issue creation joined it, so
-the old label does not point here any more.
+a screen this size. **Three labels, in order: "M8b — Planner" before 2026-08-12,
+M13 from then until 2026-09-03, M15 since.** M8's own sub-parts were renumbered
+when issue creation joined it, so the M8b label does not point here any more —
+and M13 now points at the sprint freeze, so a pre-2026-09-03 reference to "M13
+Sprint planner" is this entry while a bare "M13" is not.
 
 - Inputs: sprint length, total working days, per-person OOO days, optional focus factor.
 - Capacity: per-person points capacity from historical velocity (open question 3, answered — the app's own snapshot history, not Jira's closed-sprint data), with a manual points-per-day rate as the fallback for a team with no history yet.
@@ -286,14 +339,15 @@ write clearly attributed rather than silently dropped.
 
 ---
 
-## M10 — Quarter Wrapped *(was "Sprint Wrapped", suggested feature 10)*
+## M16 — Quarter Wrapped *(was "Sprint Wrapped", suggested feature 10)*
 
-**Size: M** · Depends on M7 aggregates. Reads M16's per-sprint rollups for its
+**Size: M** · Depends on M7 aggregates. Reads M17's per-sprint rollups for its
 GitHub half — see the window problem below.
 
-**Re-aimed 2026-09-03 from a sprint card to a quarter document.** Anything
-written before that date calls this "Sprint Wrapped" and describes a PNG card
-for the retro. The reason for the change: the formal end-of-sprint artefact
+**Re-aimed 2026-09-03 from a sprint card to a quarter document, and renumbered
+from M10 to M16 the same day.** Anything written before that date calls this
+"M10 — Sprint Wrapped" and describes a PNG card for the retro; M10 itself is
+retired rather than reused, so nothing else will ever answer to it. The reason for the change: the formal end-of-sprint artefact
 already shipped (Sprint recap PDF, 2026-08-18), so a second sprint-shaped
 document had nothing left to say, while nothing in the app looks further back
 than the sprint it is in. The quarter is the window the team is actually asked
@@ -302,8 +356,8 @@ about and has no artefact at all.
 **Quarter-to-date, on demand, as a PDF.** A button in the UI opens a
 print-styled page that recaps the quarter so far.
 
-- **Headline figures for the quarter:** points shipped, issues closed and opened, completion rate, sprints run, carryover across sprint boundaries, scope added mid-sprint — the last of which is exact only for sprints M15 froze, and is labelled accordingly.
-- **A per-sprint strip** — the same series M16 draws, embedded rather than recomputed. This is the part that makes it a quarter document rather than three sprint recaps stapled together.
+- **Headline figures for the quarter:** points shipped, issues closed and opened, completion rate, sprints run, carryover across sprint boundaries, scope added mid-sprint — the last of which is exact only for sprints M13 froze, and is labelled accordingly.
+- **A per-sprint strip** — the same series M17 draws, embedded rather than recomputed. This is the part that makes it a quarter document rather than three sprint recaps stapled together.
 - **The GitHub half:** pull requests opened, merged and reviewed, and lines reaching the default branch. Team-level per sprint, never per person — see the framing note below.
 - **The superlatives, kept.** They are the point of "Wrapped" and the only genuinely fun thing in the roadmap: *Deadline Whisperer* (most issues closed early), *The Ping-Pong Award* (most status transitions), *Carryover Champion*, *Epic Slayer* (finished the last child of an epic), *Ghost Ticket* (longest untouched issue still in sprint). Two are already read — *Ping-Pong* is `transitions` and *Deadline Whisperer* is `completed`, both per person out of `activityFrom` (`js/activity.js`) over whatever window the caller wants. What is left is picking a winner and drawing it. Note that the reader deliberately offers no sort-by-count: the superlative does its own ranking and owns the framing rather than inheriting one.
 - **Where the button goes:** the Sprint Dashboard header, beside **Generate recap** (`js/views/dashboard.js:160-170`). Two buttons opening two print-styled documents from the same header need wording that separates them at a glance — "Generate recap" is the sprint, so this one names the quarter and the period it covers rather than saying "Wrapped", which tells a reader nothing about which document they are about to print.
@@ -320,7 +374,7 @@ space, and per-source failures printed rather than degraded to a confident zero.
 
 **Two data problems it cannot assume away:**
 
-1. **The GitHub window is 45 days** (`STATS_LOOKBACK_DAYS`, `js/github.js:504`) and a quarter is about 90. The quarter's GitHub figures therefore cannot come from one live window. Either M16's stored per-sprint rollups supply the earlier half, or this document states that its GitHub figures cover only the last 45 days — which is a caveat, not a fix. This is the reason M16 sits next to it in the sequence.
+1. **The GitHub window is 45 days** (`STATS_LOOKBACK_DAYS`, `js/github.js:504`) and a quarter is about 90. The quarter's GitHub figures therefore cannot come from one live window. Either M17's stored per-sprint rollups supply the earlier half, or this document states that its GitHub figures cover only the last 45 days — which is a caveat, not a fix. This is the reason M17 sits next to it in the sequence.
 2. **`activityFrom` rides the sprint fetch.** The superlatives read per-person activity out of changelogs that arrive with the current sprint's issues, so a quarter of activity needs an issue source spanning the quarter — a JQL search over the period rather than the sprint fetch. **This is the same gap M14 names** for its week window; whichever milestone lands first should build it as a shared reader rather than a private one.
 
 **Keep it team-facing.** Superlatives name individuals, so: opt-in per team,
@@ -334,10 +388,10 @@ window, and it should stay too obviously silly to be mistaken for a metric.
 
 ---
 
-## M16 — Per-sprint history
+## M17 — Per-sprint history
 
 **Size: M** · Depends on M7 (snapshots) and M11 (GitHub stats). Sits naturally
-next to M15, which is the other thing that writes a record once per sprint.
+next to M13, which is the other thing that writes a record once per sprint.
 
 **Scoped 2026-09-03.** Replaces the deferred *recapping closed sprints*
 follow-up, which was dropped the same day: that entry proposed reading
@@ -351,7 +405,7 @@ completion rate, pull requests merged, and lines reaching the default branch,
 across the last N sprints.
 
 - **A rollup record written once per sprint, not recomputed on demand.** This is the whole design, and it follows the precedent `js/snapshots.js` sets and the answer to open question 3: build history forward rather than mine it back out of Jira. Neither source can be re-read far back (see the bounds below), so a figure not stored when it was available is gone.
-- **When it is written:** at sprint rollover, from the last daily snapshot of the outgoing sprint plus a GitHub window over that sprint's own dates. `sprintKey()` already detects the rollover for the snapshot store, and M15 hooks the same moment for its freeze — one detection, three writers.
+- **When it is written:** at sprint rollover, from the last daily snapshot of the outgoing sprint plus a GitHub window over that sprint's own dates. `sprintKey()` already detects the rollover for the snapshot store, and M13 hooks the same moment for its freeze — one detection, three writers.
 - **What a row holds:** sprint id, name, start and end dates, issues opened and closed, points committed and completed, completion rate, and the GitHub figures — PRs opened, merged and reviewed, additions and deletions. Plus a per-source `partial` flag, because a row assembled from a truncated GitHub window or a snapshot series that started mid-sprint must be drawable as incomplete rather than as a dip.
 
 **Two bounds to design around rather than discover:**
@@ -362,7 +416,7 @@ across the last N sprints.
 **Lines of code is a volume signal, not a productivity one — and it is
 team-level only.** It answers "how much moved" alongside issue counts, which is
 the only reason it is in the list. Never per person, never in a ranking, never
-next to a name: the same rule M10 and M14 carry, and the reason the recap PDF
+next to a name: the same rule M16 and M14 carry, and the reason the recap PDF
 prints its own framing rather than trusting the reader to supply one. The chart
 labels it as lines reaching the default branch, which is what
 `fetchTeamStats` actually measures — PR diffs merged to default plus direct
@@ -378,7 +432,7 @@ different magnitude) is a legibility problem before it is a code problem — sma
 multiples are likelier to be the right answer than one chart with three y-axes.
 
 **Where it lives:** a section on the Sprint Dashboard, below the burndown, and
-embedded in M10's quarter document.
+embedded in M16's quarter document.
 
 **Exit criteria:** after two sprint rollovers with the extension installed, the
 dashboard draws a real per-sprint series for both halves, with partial rows
@@ -391,7 +445,7 @@ visibly partial and the empty case explained rather than drawn as zero.
 
 ---
 
-## M17 — Linked issues, read and write
+## M18 — Linked issues, read and write
 
 **Size: S** · Depends on M8 (write layer). The smallest thing left in the file.
 
@@ -488,7 +542,7 @@ plumbing.
 
 ### Icebox
 
-- **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. **Kept separate from M15 deliberately:** same diff machinery, different anchor — M15 compares against sprint start, this compares against your last visit, and the second is only worth building once the first has proved the comparison is useful. It would also need a per-issue record written per session rather than per sprint.
+- **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. **Kept separate from M13 deliberately:** same diff machinery, different anchor — M13 compares against sprint start, this compares against your last visit, and the second is only worth building once the first has proved the comparison is useful. It would also need a per-issue record written per session rather than per sprint.
 - WIP limits and blocked-chain visualisation on the Kanban.
 - Multi-site support (several Jira Cloud instances in one install).
 - Multi-org GitHub sync — one fine-grained token has exactly one resource owner, so a second org means a second credential. The config block and the credential keys would both become maps; deliberately not built until someone actually needs it.
@@ -581,7 +635,7 @@ which are capped at five statistics on purpose.
 
 **It is a substrate, not one feature.** `activityFrom(issues, { since, until })`
 takes its window as a parameter from the first commit, the way
-`statsFor(stats, login, { since })` already does — so M10's *Ping-Pong Award*
+`statsFor(stats, login, { since })` already does — so M16's *Ping-Pong Award*
 ("most status transitions") and M14's "what they did this week" are this reader
 with a different window, and neither pays for it again. A week-long window is
 asserted in the suite so it is exercised rather than assumed.
@@ -631,7 +685,7 @@ Three decisions worth keeping:
   on some sites and fail on others, which is the class of difference M1 spent a
   milestone removing. `moveIssuesToSprint` uses the documented agile endpoint,
   which works on both and takes 50 issues a call. That batching is also what
-  M13's reviewed push wants, so the planner inherits it.
+  M15's reviewed push wants, so the planner inherits it.
 - **A field this site has no id for is refused before the request**, naming the
   field and pointing at Settings. The alternative — sending the rest of the edit
   and dropping the estimate — is the exact silent failure the milestone existed
@@ -651,7 +705,7 @@ story points, click-to-edit. Reporter, start date and sprint stay plain text
 rather than pretending to be editable — a permission most accounts lack, a field
 only meaningful once the roadmap edits dates, and a move that needs the board's
 sprint list respectively. `writeMany` has no multi-select UI to call it yet; it is
-built and tested for M13's batch push and for whichever screen grows selection
+built and tested for M15's batch push and for whichever screen grows selection
 first.
 
 **8b — Create issue.** The form is generated, and `js/issue-create.js` is where
@@ -692,7 +746,7 @@ permission that caused it — asserted in `scripts/test-write.mjs` and
 `scripts/test-create.mjs`, 164 checks between them.
 
 **What this unblocks, and what it did not do.** M9's triage mode and M4's in-app
-fixing were both waiting on nothing but this. M13 gets the sprint move, the
+fixing were both waiting on nothing but this. M15 gets the sprint move, the
 batching and the bulk path. Not done here: a multi-select on any board, editing
 from the Kanban card or the Backlog row, and the sprint picker on the issue
 detail — each a screen-level addition on top of a write layer that already
@@ -702,7 +756,7 @@ supports it.
 
 ## Per-person block in the daily snapshot ✔ *(ad-hoc, 2026-08-20)*
 
-The one dependency on this roadmap with a lead time rather than a cost: M13's
+The one dependency on this roadmap with a lead time rather than a cost: M15's
 per-person velocity and M14's load-over-time both read snapshot history, and
 history built forward only exists from the day the field starts being written.
 So the field was added on its own, ahead of either milestone — `snapshotFrom`
@@ -733,9 +787,9 @@ than on one that hides most of it.
 
 ## Sprint recap PDF ✔ *(ad-hoc, 2026-08-18)*
 
-**Size: M** · Done. Shipped on request, and it was **not** M10 — a warning that
-mattered while M10 was also a per-sprint recap. It stopped mattering on
-2026-09-03, when M10 was re-aimed at the quarter precisely because this document
+**Size: M** · Done. Shipped on request, and it was **not** M16 — a warning that
+mattered while M16 was also a per-sprint recap. It stopped mattering on
+2026-09-03, when M16 was re-aimed at the quarter precisely because this document
 had already taken the sprint.
 
 **Generate recap** on the Sprint Dashboard opens `recap.html`, a print-styled
@@ -749,7 +803,7 @@ through the browser's own print dialog.
 - **Print-to-PDF, not a PDF library.** No dependency in a repo with no build step, and the output is real vector text rather than the rasterised page a jsPDF-plus-canvas route would produce. Costs one click in the print dialog.
 - **A page of its own, recomputed rather than handed a payload.** `css/app.css` is deliberately not loaded: its `html, body { overflow: hidden }` app-shell rule clips a print job to exactly one page, which is how the first draft lost two thirds of the document. Fonts are re-declared in `css/recap.css` instead.
 - **It recaps the sprints the dashboard is showing** — the active ones, which on retro day are the ones ending. Recapping *closed* sprints needs new fetches and was deliberately not built; noted below as the follow-up if the team starts closing sprints before running the retro.
-- **Ordered by name, headed "contribution", footed with a line saying it is not an assessment.** M10 and M14 both set the rule that per-colleague numbers are conversation fuel, not a score. This document carries named people, photographs and pull-request counts, so it states its own framing rather than relying on whoever opens it to supply one.
+- **Ordered by name, headed "contribution", footed with a line saying it is not an assessment.** M16 and M14 both set the rule that per-colleague numbers are conversation fuel, not a score. This document carries named people, photographs and pull-request counts, so it states its own framing rather than relying on whoever opens it to supply one.
 
 **One bug worth remembering.** The first version offered its print button over an
 empty page while it was still fetching, so printing in that window produced a
@@ -783,9 +837,9 @@ the render rather than during it, looking at page one rather than every page, an
 setting a deadline without measuring what the work actually costs.
 
 **Follow-up:** the *recapping closed sprints* follow-up recorded here was dropped
-on 2026-09-03 in favour of M16, which keeps a per-sprint rollup written forward
-at rollover rather than re-fetching a closed sprint out of Jira. M15's freeze
-replaces the scope-creep approximation this document inherits, and M10's quarter
+on 2026-09-03 in favour of M17, which keeps a per-sprint rollup written forward
+at rollover rather than re-fetching a closed sprint out of Jira. M13's freeze
+replaces the scope-creep approximation this document inherits, and M16's quarter
 document reuses this page's print route and all four of its lessons.
 
 ---
@@ -1219,7 +1273,7 @@ in M8.
 
 ## M3 — People layer: team mapping ✔ *(feature 3)*
 
-**Size: M** · Done. Depends on M2. Hard dependency for M6, M8, M9, M10, M11, M13, M14.
+**Size: M** · Done. Depends on M2. Hard dependency for M6, M8, M9, M11, M14, M15, M16.
 
 **What was built**
 
@@ -1228,7 +1282,7 @@ in M8.
   1. **Harvest from boards** — `getAllSprintIssues` + `getAllBacklogIssues`, no extra Jira permission, ranked by issue count. Only finds people with an assigned issue right now, which is why it is not the only path.
   2. **Directory search** — `GET /rest/api/3/user/search`, filtered to human accounts. Needs "Browse users and groups", which many sites restrict to admins, so a 403 degrades to an explanatory note rather than an error.
   3. **Manual entry** — account ID (reliable) or email. An email-only member is stored **unlinked**, flagged in the UI, and gets its accountId filled in automatically the next time that person appears in a harvest.
-- **Per-member**: display-name override, emoji, avatar override, Slack handle, GitHub login (added in M11), active flag, and a `capacity` object carried through untouched for the planner (M13).
+- **Per-member**: display-name override, emoji, avatar override, Slack handle, GitHub login (added in M11), active flag, and a `capacity` object carried through untouched for the planner (M15).
 - **Team Only filter** in the filter bar, persisted, honoured by all three views. It hides work assigned *outside* the roster but keeps unassigned issues — hiding those would make the M4 hygiene checks lie.
 - **Outsiders are marked, not hidden**: the assignee dropdown labels them `· outside team`, and `extractAssignees` sorts roster members first.
 - Display names resolve through the roster everywhere (`assigneeLabel`), falling back to the Jira name shortened to first + last.

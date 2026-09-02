@@ -12,8 +12,8 @@
 //
 // This counts *actions taken by a named colleague*, which is a much shorter step
 // to a productivity metric than anything else in this app. Points assigned
-// describe work; transition counts describe a person. So the rules M10 set for
-// Sprint Wrapped and M14 sets for the 1:1 screen are the floor here, not the
+// describe work; transition counts describe a person. So the rules M16 set for
+// Quarter Wrapped and M14 sets for the 1:1 screen are the floor here, not the
 // ceiling:
 //
 //   * **Ordered by name, never by output.** `activityFrom` returns people sorted
@@ -29,7 +29,7 @@
 //
 // ── The window is a parameter from the first commit ──────────────────────────
 //
-// M10's *Ping-Pong Award* is "most status transitions"; M14's "what they did" is
+// M16's *Ping-Pong Award* is "most status transitions"; M14's "what they did" is
 // "issues closed and moved this week". Both are this reader with a different
 // window over it, so `activityFrom` takes `{ since, until }` the way
 // `statsFor(stats, login, { since })` already does in `js/github.js`, and

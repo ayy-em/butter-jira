@@ -13,7 +13,7 @@
 //
 // **Framing, decided rather than drifted into.** The per-person cards are
 // ordered by name, never by output, and the heading over them says
-// "contribution", not "performance". The roadmap's own rule for M10 and M14 is
+// "contribution", not "performance". The roadmap's own rule for M16 and M14 is
 // that this kind of per-colleague number is conversation fuel for a retro and
 // not a score. The at-a-glance table above them is the one exception, sorted by
 // story-point completion on request: it is a table of figures being scanned for
