@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-08-20
+Last updated: 2026-09-03
 
 An MV3 browser extension for Chrome, Firefox and Edge, giving Gantt, Backlog,
 and Kanban views over Jira Cloud boards. This roadmap takes it from an internal single-tenant tool to a
@@ -35,18 +35,33 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 
 ## Milestone sequence at a glance
 
+**Dependencies** — what each thing needs, not the order it gets built in:
+
 ```
 M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ✔ ─▶ M5 Issue detail ✔
                                                                         │
                                                                         ├──▶ M6 Standup ✔ ─▶ M11 GitHub sync ✔ ─▶ M12 Firefox + Edge ✔
                                                                         │
                                                                         ├──▶ M7 Dashboard ✔ ──┬──▶ M9 Palette + Triage ✔
-                                                                        │                     ├──▶ M8 Writes + issue creation ✔ ─▶ M13 Sprint planner
-                                                                        │                     ├──▶ M10 Sprint Wrapped
-                                                                        │                     └──▶ M15 Sprint start snapshot (note only)
+                                                                        │                     ├──▶ M8 Writes ✔ ──┬──▶ M13 Sprint planner
+                                                                        │                     │                  └──▶ M17 Linked issues
+                                                                        │                     ├──▶ M15 Sprint freeze + diff
+                                                                        │                     └──▶ M16 Per-sprint history ─▶ M10 Quarter Wrapped
                                                                         │
                                                                         └──▶ M14 Weekly 1:1
 ```
+
+**Order of work, re-sequenced 2026-09-03** — the numbers are identifiers, so the
+queue is stated separately rather than encoded in them:
+
+```
+M15 Freeze + diff ─▶ M14 Weekly 1:1 ─▶ M13 Sprint planner ─▶ M10 Quarter Wrapped ─▶ M16 Per-sprint history ─▶ M17 Linked issues
+```
+
+M10 is queued ahead of M16 because the button is the ask and the history is the
+machinery behind it — but the arrow above runs the other way, and M10's GitHub
+half is capped at 45 days until M16's rollups exist. That tension is stated in
+both entries rather than resolved on this diagram.
 
 Ordering logic: config plumbing first (M0–M2), because every later feature reads
 from it and because losing your settings on every extension reload makes the
@@ -75,6 +90,24 @@ rather than the M8 chain, is read-only against a second API, and shares nothing
 with the Jira write path — so it could be pulled forward without stranding
 anything, and the planner keeps its place in the queue rather than losing it.
 
+**The queue was re-sequenced on 2026-09-03, and the planner did lose its place.**
+Not for the reason the sentence above guarded against — nothing was pulled ahead
+of it opportunistically. M15 went first because it writes history, and history
+only accrues forward: a sprint boundary that passes unfrozen cannot be
+reconstructed later, so every week M15 waits costs a data point M13's successors
+would have wanted. M14 went ahead of it too, being an M whose dependencies were
+all paid against the planner's L. The planner is still fully unblocked, and is
+still the largest thing in the file.
+
+**Three entries changed shape the same day.** M15 went from a one-paragraph
+placeholder to an agreed scope. M10 was re-aimed from a per-sprint PNG card to a
+quarter-to-date PDF, because the formal sprint document already shipped on
+2026-08-18 and nothing in the app looks past the current sprint. And the
+*recapping closed sprints* follow-up was dropped in favour of M16, which keeps a
+per-sprint rollup written forward at rollover instead of re-fetching a closed
+sprint from Jira — the same build-history-forward argument as the burndown and
+open question 3, applied a third time. M17 was added new.
+
 ## Risk register
 
 | Risk | Milestone | Mitigation |
@@ -83,6 +116,11 @@ anything, and the planner keeps its place in the queue rather than losing it.
 | Writes corrupt real sprint data | M8, M13 | Draft mode, batch confirmation, undo window, isolated write helpers |
 | A generated create form still 400s on an unfamiliar site | M8 | Fields come from `createmeta` per project and type; the sub-task type is read from `subtask: true`, never matched by name |
 | Notes about a named colleague are the app's most sensitive data | M14 | Device-local, never synced, own export checkbox and confirm, bounded retention, no ranking or evaluation framing |
+| A per-issue freeze for eight sprints is the largest thing kept on device | M15 | Measure it against a real sprint before shipping; prune on the snapshot schedule so the two histories cannot diverge |
+| Scope-added silently changes meaning depending on whether a freeze exists | M15 | The figure states which of the two it is, exact or approximate, everywhere it is printed |
+| A quarter is ~90 days and the GitHub window is 45 | M10, M16 | Store per-sprint rollups at rollover; until they exist, the quarter document states the shorter window it actually covers |
+| Lines of code read as a productivity measure | M16, M10 | Team-level per sprint only, never per person, labelled as lines reaching the default branch |
+| Unlinking an issue is destructive and Jira offers no undo | M17 | A confirm naming both issues and the relationship; the app's first DELETE gets its own helper path |
 | ~~`/rest/dev-status/1.0/` is undocumented~~ | M5 → deferred | Avoided entirely: dev links move to the GitHub API in the deferred backlog |
 | ~~Untrusted Jira HTML reaching the DOM~~ | M5 ✔ | Allowlist sanitiser with the element walk unit-tested; CSP as defence in depth |
 | ~~First write path (comments) misfiring~~ | M5 ✔ | Single narrow endpoint, comment re-rendered from Jira's response, explicit 403 handling |
@@ -102,16 +140,121 @@ anything, and the planner keeps its place in the queue rather than losing it.
 4. ~~**Team scope**~~ — answered 2026-08-05: one roster, but stored under a team key from the start so a switcher can be added later without a migration.
 5. ~~**Repo list per board?**~~ — answered 2026-08-12: no, one flat list stays. Revisited only if a real team runs into it. The allowlist is already the only scope, so scoping it per board stays cheap whenever it is actually wanted.
 
+6. **How much history should the app keep?** Open, raised 2026-09-03 by M16. Daily snapshots are capped at eight sprints (`MAX_SPRINTS_KEPT`), which is right for sixty rows per sprint and wrong for one rollup row per sprint — a trend chart wants years of those. M15's per-issue freezes pull the other way, being the bulkiest thing stored. Three stores with three different right answers, so the cap stops being one constant and becomes a decision about what the extension keeps on the device.
+7. ~~**Lines of code as a metric**~~ — answered 2026-09-03, when it was asked for in M16: **team-level per sprint, never per person.** It sits next to issue counts as a volume signal, and `fetchTeamStats` measures lines reaching the default branch, so that is what it is labelled. Same rule M10 and M14 already carry, and the reason the recap PDF prints its own framing.
+8. **Where does a quarter start?** Open, raised 2026-09-03 by M10. Sprints straddle quarter boundaries, so a quarter-to-date document either cuts a sprint in half or counts a sprint that started in the previous quarter. Calendar quarters with whole sprints assigned to the quarter they end in is the likely answer, but it needs stating on the document rather than implying.
+
 ---
 
 # Open
 
+**Re-sequenced 2026-09-03.** The order of work is now: **M15** (sprint freeze
+and diff) → **M14** (weekly 1:1) → **M13** (sprint planner) → **M10** (Quarter
+Wrapped) → **M16** (per-sprint history) → **M17** (linked issues). The sections
+below are in that order.
+
+Milestone numbers stay where they are. They are identifiers, not positions —
+three of them are cited by number and date in commit messages, in code comments
+and in the completed entries below, and renumbering to match a queue is exactly
+what left "M8b — Planner" needing a footnote for a month after the M8 split.
+
+Why this order:
+
+- **M15 first**, though it was the vaguest of the three, because a forward-built history only accrues from the day it ships. Every sprint boundary that passes without a freeze is one that cannot be reconstructed afterwards — the same argument that pulled the snapshot `byPerson` block forward ahead of M13 on 2026-08-20, and the same argument `js/snapshots.js` opens with. It also makes M7's approximate scope-added figure exact, which is a caveat currently printed in the UI and in the recap PDF.
+- **M14 next**: an M whose dependencies are already paid (the roster, `activityFrom`, the `byPerson` block), against the planner's L. It has four open questions that want answering before any work starts, and answering them is cheap.
+- **M13 after that.** Still the biggest thing in the file, still fully unblocked; it loses its "next up" position rather than any of its readiness.
+- **M10 then M16**, in that order because the button is the ask and the history is the machinery behind it — but see M16's note on the 45-day GitHub window, which the quarter document runs straight into. If M10 is started first, its GitHub half is scoped to what one window covers until M16 lands.
+- **M17 last** only because it is an S that unblocks nothing. It is the obvious thing to pick up in a gap, or ahead of anything else here if the linking is wanted sooner.
+
+---
+
+## M15 — Sprint freeze and diff
+
+**Size: M** · Depends on M7 (the dashboard's aggregates and its snapshot writer).
+Independent of the write layer — it reads Jira and writes only to local storage.
+**Next up.**
+
+**Scope agreed 2026-09-03**, replacing the placeholder recorded 2026-08-12. The
+placeholder said "sprint start state snapshot" and nothing else; the shape below
+is what it was actually for.
+
+Freeze the sprint's state on day one, and on the last day show what happened to
+it. Not "how much got done" — the dashboard already answers that — but **what
+changed underneath the plan**: what crept in, what was pulled out, what was
+re-estimated, what moved its due date.
+
+- **The freeze is per-issue, not an aggregate.** `js/snapshots.js` records one row of team totals per day plus a short `byPerson` block, which is right for a burndown and useless for a diff: it cannot say *which* issue changed. So this is a second record with its own key, not a field added to the daily snapshot.
+- **What each frozen row holds:** issue key, summary, type, status and status group, assignee account id, story points, due date, parent/epic key, board id, sprint id, and the issue's own created date. That set answers every question below without re-reading changelogs later — which matters, because a changelog is one request per issue and the diff has to work for a whole sprint.
+- **When it is taken:** automatically on the first dashboard load after a new sprint key appears — `sprintKey()` (`js/snapshots.js:30`) already keys history by the Jira sprint ids and already detects the rollover — plus a manual **Freeze now** with a confirm, because the extension can be installed mid-sprint and a mid-sprint freeze is worth more than none. A re-freeze overwrites and says what it is discarding.
+- **The diff, in five buckets:**
+  - **Crept in**, split in two: issues *created* after the freeze, and issues that already existed and were *dragged into* the sprint later. M7 cannot tell these apart today — its scope-added figure compares issue creation against sprint start and is labelled approximate in the UI for exactly this reason. A freeze separates them exactly.
+  - **Pulled out** — gone from the sprint, and where to: backlog, another sprint, or deleted.
+  - **Re-estimated** — story points then → now, with the delta, and the sprint's total delta from re-estimation alone.
+  - **Due date moved** — then → now, with the direction and the number of days.
+  - **Re-assigned**, and **status regressions** (an issue that was Done at freeze and is not now). Plus an unchanged count, so the buckets and the sprint total reconcile visibly rather than leaving the reader to wonder what is missing.
+- **Where it shows:** a diff panel on the Sprint Dashboard, and printed into the recap PDF — which currently carries scope-creep and carry-in flags derived from the approximation, and would carry exact ones instead.
+- **The M7 caveat becomes conditional, not deleted.** With a freeze for the current sprint, the scope-added figure is exact and says so; without one it falls back to today's approximation and keeps saying so. The wording has to distinguish the two, or the number silently changes meaning depending on when the extension was installed.
+- **Retention:** one frozen record per sprint key, pruned on the same schedule as snapshots (`MAX_SPRINTS_KEPT = 8`, `js/snapshots.js:25`) so the two histories cannot end up different lengths and produce a diff for a sprint with no burndown or the reverse. Device-local, like every other derived store. Per-issue rows for eight sprints is the largest thing the extension would keep, so the size wants measuring against a real sprint rather than assumed small.
+
+**Exit criteria:** on the last day of a sprint, the dashboard can show — without
+any new per-issue requests — which issues entered late and how, which left,
+which were re-estimated or re-dated, and by how much; and M7's scope-added figure
+is exact whenever a freeze exists.
+
+**Open questions:**
+
+1. **Diff against now, or against the last day only?** Freeze-versus-now works on any day of the sprint and is strictly more useful; the ask was framed around the last day. Building the general one and defaulting the framing to end-of-sprint costs nothing extra.
+2. **An issue that left and came back** reads as unchanged in a two-point diff. Accept that — the honest answer for a freeze-and-compare design — or note it as a known blind spot in the panel?
+3. **Does the freeze also cover the backlog?** Everything above is sprint-scoped. "What left the sprint" can be answered without it; "where did it go" is easier with it.
+
+---
+
+## M14 — Weekly 1:1 screen
+
+**Size: M** · Depends on M3 (roster). Reads M7 aggregates and M11 GitHub
+activity. Independent of the write layer unless it grows follow-up actions.
+
+**Scope below is a first pass, not an agreed spec** — recorded 2026-08-12 from a
+one-line request so the intent is not lost. The open questions at the end are
+the parts that would change the shape of it.
+
+One person, one week: the sheet you would otherwise assemble by hand in the ten
+minutes before a 1:1.
+
+- **Pick a person** from the roster, and a week (defaulting to the one just ending).
+- **What they did** — issues closed and moved this week, PRs opened, merged and reviewed. M11 already fetches per-person GitHub activity; it currently windows on *since the last working day* for standup, so this needs a week window over the same query rather than a new source. **The Jira half of this is already built:** `activityFrom(issues, { since, until })` (`js/activity.js`, done 2026-08-24) answers "closed and moved" per person over any window, and a week-long one is exercised in `scripts/test-activity.mjs` precisely so this milestone does not discover it. What is left here is the screen, and — the one real gap — a source of issues for a week that is not the current sprint, since the reader is fed the sprint fetch today. **M10 needs the same thing over a quarter**, so whichever lands first should build it as a shared reader taking a window, not a private one.
+- **What is stuck** — their blocked and overdue items, and the PRs where they are the blocker or are being blocked, reusing M11's "changes requested → failing checks → approved-and-unmerged → waiting on review" ordering, which already sorts by how stuck rather than how recent.
+- **Load over time** — their points per sprint across stored snapshots. The `byPerson` field this needs exists as of 2026-08-20 (see M13), so this milestone reads it rather than adding it — bounded by how far back history had started accruing when the screen is built.
+- **Notes** — free text per person per week, saved as you type, with last week's notes and any open action items pinned at the top. A 1:1 tool that does not remember last week is a status meeting.
+
+**Personal data — the part to get right first.** Everything else in this app
+derives from Jira and GitHub and could be re-fetched. A 1:1 note is *written by
+the user, about a named colleague*, and exists nowhere else. That makes it the
+most sensitive thing the extension would hold, so the roster's treatment is the
+floor and not the ceiling:
+
+- Device-local, never `storage.sync`. The roster is already local for weaker reasons than this.
+- Excluded from config export behind **its own** checkbox and its own confirm naming what the file would contain — the M2 pattern of one prompt per secret, because a single "this file has sensitive stuff in it" dialog teaches people to click past it.
+- Bounded retention with a visible clear action, the way snapshots are pruned. Notes about people should not accumulate silently and forever.
+- **Not a performance dashboard.** Same discipline M10 imposes on Quarter Wrapped, and the reason that entry keeps lines of code and pull-request counts team-level: activity is conversation fuel, not a score. No rankings, no per-person trend line framed as evaluation, no comparison between colleagues on one screen.
+
+**Open questions:**
+
+1. **Whose screen is it?** Manager preparing for a report, or each person prepping their own? That decides whether "pick a person" is a roster dropdown or fixed to the logged-in account, and it changes the personal-data answer considerably.
+2. **Do notes ever leave the device?** Confluence export of notes is already in the icebox for standup. If 1:1 notes are ever exportable that needs deciding up front, not retrofitted.
+3. **Week or sprint as the window?** A week matches the meeting's cadence; a sprint matches every other screen in the app and every number already computed.
+4. **Read-only, or does it create follow-ups?** Turning an action item into a Jira issue is a natural ending and would make this depend on M8. Left out of the sketch above deliberately.
+
+---
+
 ## M13 — Sprint planner
 
 **Size: L** · Depends on M8 (write layer, done 2026-08-20), M7 (aggregates) and
-M3 (roster). **Next up** — every dependency is in place, including the two things
-added ahead of time for it: the snapshot's `byPerson` block and the write layer's
-50-issue sprint-move batching.
+M3 (roster). **Fully unblocked, third in the queue** — every dependency is in
+place, including the two things added ahead of time for it: the snapshot's
+`byPerson` block and the write layer's 50-issue sprint-move batching. It held
+"next up" from 2026-08-20 until the 2026-09-03 re-sequence put M15 and M14 in
+front of it; nothing about its readiness changed.
 
 Split out of M8 on 2026-08-12 so the write layer could ship without waiting for
 a screen this size. Referred to as "M8b — Planner" in anything written before
@@ -143,132 +286,136 @@ write clearly attributed rather than silently dropped.
 
 ---
 
-## M14 — Weekly 1:1 screen
+## M10 — Quarter Wrapped *(was "Sprint Wrapped", suggested feature 10)*
 
-**Size: M** · Depends on M3 (roster). Reads M7 aggregates and M11 GitHub
-activity. Independent of the write layer unless it grows follow-up actions.
+**Size: M** · Depends on M7 aggregates. Reads M16's per-sprint rollups for its
+GitHub half — see the window problem below.
 
-**Scope below is a first pass, not an agreed spec** — recorded 2026-08-12 from a
-one-line request so the intent is not lost. The open questions at the end are
-the parts that would change the shape of it.
+**Re-aimed 2026-09-03 from a sprint card to a quarter document.** Anything
+written before that date calls this "Sprint Wrapped" and describes a PNG card
+for the retro. The reason for the change: the formal end-of-sprint artefact
+already shipped (Sprint recap PDF, 2026-08-18), so a second sprint-shaped
+document had nothing left to say, while nothing in the app looks further back
+than the sprint it is in. The quarter is the window the team is actually asked
+about and has no artefact at all.
 
-One person, one week: the sheet you would otherwise assemble by hand in the ten
-minutes before a 1:1.
+**Quarter-to-date, on demand, as a PDF.** A button in the UI opens a
+print-styled page that recaps the quarter so far.
 
-- **Pick a person** from the roster, and a week (defaulting to the one just ending).
-- **What they did** — issues closed and moved this week, PRs opened, merged and reviewed. M11 already fetches per-person GitHub activity; it currently windows on *since the last working day* for standup, so this needs a week window over the same query rather than a new source. **The Jira half of this is already built:** `activityFrom(issues, { since, until })` (`js/activity.js`, done 2026-08-24) answers "closed and moved" per person over any window, and a week-long one is exercised in `scripts/test-activity.mjs` precisely so this milestone does not discover it. What is left here is the screen, and — the one real gap — a source of issues for a week that is not the current sprint, since the reader is fed the sprint fetch today.
-- **What is stuck** — their blocked and overdue items, and the PRs where they are the blocker or are being blocked, reusing M11's "changes requested → failing checks → approved-and-unmerged → waiting on review" ordering, which already sorts by how stuck rather than how recent.
-- **Load over time** — their points per sprint across stored snapshots. The `byPerson` field this needs exists as of 2026-08-20 (see M13), so this milestone reads it rather than adding it — bounded by how far back history had started accruing when the screen is built.
-- **Notes** — free text per person per week, saved as you type, with last week's notes and any open action items pinned at the top. A 1:1 tool that does not remember last week is a status meeting.
+- **Headline figures for the quarter:** points shipped, issues closed and opened, completion rate, sprints run, carryover across sprint boundaries, scope added mid-sprint — the last of which is exact only for sprints M15 froze, and is labelled accordingly.
+- **A per-sprint strip** — the same series M16 draws, embedded rather than recomputed. This is the part that makes it a quarter document rather than three sprint recaps stapled together.
+- **The GitHub half:** pull requests opened, merged and reviewed, and lines reaching the default branch. Team-level per sprint, never per person — see the framing note below.
+- **The superlatives, kept.** They are the point of "Wrapped" and the only genuinely fun thing in the roadmap: *Deadline Whisperer* (most issues closed early), *The Ping-Pong Award* (most status transitions), *Carryover Champion*, *Epic Slayer* (finished the last child of an epic), *Ghost Ticket* (longest untouched issue still in sprint). Two are already read — *Ping-Pong* is `transitions` and *Deadline Whisperer* is `completed`, both per person out of `activityFrom` (`js/activity.js`) over whatever window the caller wants. What is left is picking a winner and drawing it. Note that the reader deliberately offers no sort-by-count: the superlative does its own ranking and owns the framing rather than inheriting one.
+- **Where the button goes:** the Sprint Dashboard header, beside **Generate recap** (`js/views/dashboard.js:160-170`). Two buttons opening two print-styled documents from the same header need wording that separates them at a glance — "Generate recap" is the sprint, so this one names the quarter and the period it covers rather than saying "Wrapped", which tells a reader nothing about which document they are about to print.
 
-**Personal data — the part to get right first.** Everything else in this app
-derives from Jira and GitHub and could be re-fetched. A 1:1 note is *written by
-the user, about a named colleague*, and exists nowhere else. That makes it the
-most sensitive thing the extension would hold, so the roster's treatment is the
-floor and not the ceiling:
+**Print-to-PDF, not a canvas PNG.** The PNG export in the original sketch made
+sense for a card to paste into a channel. A quarter document is a document, and
+`recap.html` already established the route: print-styled page of its own, real
+vector text, no PDF library in a repo with no build step. It also inherits four
+paid-for lessons from that page, and re-learning any of them would be
+inexcusable — `css/app.css` deliberately not loaded (its `html, body { overflow:
+hidden }` clips a print job to one page), a readiness gate on every route to the
+print dialog, the running header in a `thead` so it repeats *and* reserves
+space, and per-source failures printed rather than degraded to a confident zero.
 
-- Device-local, never `storage.sync`. The roster is already local for weaker reasons than this.
-- Excluded from config export behind **its own** checkbox and its own confirm naming what the file would contain — the M2 pattern of one prompt per secret, because a single "this file has sensitive stuff in it" dialog teaches people to click past it.
-- Bounded retention with a visible clear action, the way snapshots are pruned. Notes about people should not accumulate silently and forever.
-- **Not a performance dashboard.** Same discipline M10 imposes on Sprint Wrapped: activity is conversation fuel, not a score. No rankings, no per-person trend line framed as evaluation, no comparison between colleagues on one screen.
+**Two data problems it cannot assume away:**
 
-**Open questions:**
-
-1. **Whose screen is it?** Manager preparing for a report, or each person prepping their own? That decides whether "pick a person" is a roster dropdown or fixed to the logged-in account, and it changes the personal-data answer considerably.
-2. **Do notes ever leave the device?** Confluence export of notes is already in the icebox for standup. If 1:1 notes are ever exportable that needs deciding up front, not retrofitted.
-3. **Week or sprint as the window?** A week matches the meeting's cadence; a sprint matches every other screen in the app and every number already computed.
-4. **Read-only, or does it create follow-ups?** Turning an action item into a Jira issue is a natural ending and would make this depend on M8. Left out of the sketch above deliberately.
-
----
-
-## M15 — Sprint start state snapshot
-
-**Placeholder, recorded 2026-08-12.** No scope agreed yet — this entry exists so
-the idea is not lost, and should be filled in before any work starts.
-
-The one adjacency worth writing down now: `js/snapshots.js` already records a
-daily aggregate, and M7's scope-added figure is explicitly approximate because
-it compares issue creation against sprint start and therefore misses an older
-issue dragged in mid-sprint. A real start-of-sprint state is what would make
-that number exact rather than caveated.
-
----
-
-## Sprint recap PDF ✔ *(ad-hoc, 2026-08-18)*
-
-**Size: M** · Done. Shipped on request, and it is **not** M10 — the two should
-not be conflated when M10 is picked up.
-
-**Generate recap** on the Sprint Dashboard opens `recap.html`, a print-styled
-document over the M7 aggregates plus the M11 GitHub window: combined figures for
-every active sprint, a per-person contribution card with photo, a per-board block
-and the full ticket list with scope-creep and carry-in flags. Saved as a PDF
-through the browser's own print dialog.
-
-**Four decisions worth keeping:**
-
-- **Print-to-PDF, not a PDF library.** No dependency in a repo with no build step, and the output is real vector text rather than the rasterised page a jsPDF-plus-canvas route would produce. Costs one click in the print dialog.
-- **A page of its own, recomputed rather than handed a payload.** `css/app.css` is deliberately not loaded: its `html, body { overflow: hidden }` app-shell rule clips a print job to exactly one page, which is how the first draft lost two thirds of the document. Fonts are re-declared in `css/recap.css` instead.
-- **It recaps the sprints the dashboard is showing** — the active ones, which on retro day are the ones ending. Recapping *closed* sprints needs new fetches and was deliberately not built; noted below as the follow-up if the team starts closing sprints before running the retro.
-- **Ordered by name, headed "contribution", footed with a line saying it is not an assessment.** M10 and M14 both set the rule that per-colleague numbers are conversation fuel, not a score. This document carries named people, photographs and pull-request counts, so it states its own framing rather than relying on whoever opens it to supply one.
-
-**One bug worth remembering.** The first version offered its print button over an
-empty page while it was still fetching, so printing in that window produced a
-blank A4 sheet — one page whose only content was Chrome's own header and footer.
-Every check had used `?print=0` and printed through DevTools *after* the render,
-so the window in which the page is printable but not yet built was never
-exercised. The fix is a readiness gate on both routes to the dialog plus a visible
-build state; the harness gained `?jira=slow` so that window can be held open and
-looked at.
-
-**A second print bug, same root cause — a print job is not a scrolling page.**
-The running header was `position: fixed`, which Blink repeats on every page but
-reserves no space for, so every page after the first had its top card sliced in
-half behind it. Fixed by laying the document out as a one-column table and putting
-the header in a `thead`, which repeats *and* reserves. Verified by printing each
-page separately (`printToPDF` takes a `pageRanges`, and a one-page PDF is
-something `sips` can rasterise) rather than by looking at page one and assuming.
-
-**A third print bug, and the lesson behind all three.** The 30-second deadline put
-on the GitHub window fired on real repositories: adding the default-branch commit
-query had roughly doubled the requests per repo, and the recap was the only caller
-with a deadline at all. Raised to 180s, and — more to the point — the document now
-renders the Jira half immediately and fills the GitHub figures in, so the wait is
-visible rather than blank. Per-repo failures and truncation, which `fetchTeamStats`
-had been reporting all along, are now printed too: without them a repo whose token
-cannot read commit history produced a confident zero.
-
-Each of the three was the same mistake in a different costume — verifying the
-artefact while skipping the conditions under which it is produced: printing after
-the render rather than during it, looking at page one rather than every page, and
-setting a deadline without measuring what the work actually costs.
-
-**Follow-up, not scheduled:** recapping a sprint after it is closed in Jira —
-`/board/{id}/sprint?state=closed` plus its issues, and a GitHub window derived
-from the closed sprint's own dates rather than the live one. M15's start-of-sprint
-snapshot would also fix the scope-creep approximation this inherits.
-
----
-
-## M10 — Sprint Wrapped *(suggested feature 10)*
-
-**Size: M** · Depends on M7 aggregates.
-
-An end-of-sprint recap card for the retro — the fun one, built almost entirely
-from data M7 already computes. **Distinct from the Sprint recap PDF shipped
-ad-hoc on 2026-08-18** (above): that one is the formal document, this one is the
-silly card. The superlatives and the PNG export are what is left to build.
-
-- Headline stats: points shipped, issues closed, cycle-time median, biggest single-day burn, scope added mid-sprint.
-- Light-hearted superlatives: *Deadline Whisperer* (most issues closed early), *The Ping-Pong Award* (most status transitions), *Carryover Champion*, *Epic Slayer* (finished the last child of an epic), *Ghost Ticket* (longest untouched issue still in sprint).
-  - **Two of these are already read.** *The Ping-Pong Award* is `transitions` and *Deadline Whisperer* is `completed`, both per person out of `activityFrom` (`js/activity.js`, done 2026-08-24) over whatever window this card wants. What is left for M10 is picking the winner and drawing the card — and note that the reader deliberately offers no sort-by-count, so the superlative does the ranking and owns the framing rather than inheriting it.
-- Export as PNG (canvas render) to paste into the retro or a channel.
-- Sprint-over-sprint trend strip: last five sprints, points and carryover.
+1. **The GitHub window is 45 days** (`STATS_LOOKBACK_DAYS`, `js/github.js:504`) and a quarter is about 90. The quarter's GitHub figures therefore cannot come from one live window. Either M16's stored per-sprint rollups supply the earlier half, or this document states that its GitHub figures cover only the last 45 days — which is a caveat, not a fix. This is the reason M16 sits next to it in the sequence.
+2. **`activityFrom` rides the sprint fetch.** The superlatives read per-person activity out of changelogs that arrive with the current sprint's issues, so a quarter of activity needs an issue source spanning the quarter — a JQL search over the period rather than the sprint fetch. **This is the same gap M14 names** for its week window; whichever milestone lands first should build it as a shared reader rather than a private one.
 
 **Keep it team-facing.** Superlatives name individuals, so: opt-in per team,
 per-person opt-out in the roster, aim the jokes at tickets rather than people,
-and no persistence of individual histories. It is a retro toy, and it should
-stay too obviously silly to be mistaken for a performance metric.
+and no persistence of individual histories. A quarter is long enough that
+per-person figures over it start to look like a performance review, which is
+precisely what this must not be — so lines of code and pull-request counts stay
+team-level, and the document carries the same explicit "this is not an
+assessment" footer the recap PDF prints. It is a retro toy that grew a longer
+window, and it should stay too obviously silly to be mistaken for a metric.
+
+---
+
+## M16 — Per-sprint history
+
+**Size: M** · Depends on M7 (snapshots) and M11 (GitHub stats). Sits naturally
+next to M15, which is the other thing that writes a record once per sprint.
+
+**Scoped 2026-09-03.** Replaces the deferred *recapping closed sprints*
+follow-up, which was dropped the same day: that entry proposed reading
+`/board/{id}/sprint?state=closed` and re-fetching a finished sprint's issues to
+produce a second recap document. This does the useful half of it — the trend
+across sprints — without depending on Jira retaining anything, and without a
+second document.
+
+**One chart, several series, one row per sprint.** Issues opened, issues closed,
+completion rate, pull requests merged, and lines reaching the default branch,
+across the last N sprints.
+
+- **A rollup record written once per sprint, not recomputed on demand.** This is the whole design, and it follows the precedent `js/snapshots.js` sets and the answer to open question 3: build history forward rather than mine it back out of Jira. Neither source can be re-read far back (see the bounds below), so a figure not stored when it was available is gone.
+- **When it is written:** at sprint rollover, from the last daily snapshot of the outgoing sprint plus a GitHub window over that sprint's own dates. `sprintKey()` already detects the rollover for the snapshot store, and M15 hooks the same moment for its freeze — one detection, three writers.
+- **What a row holds:** sprint id, name, start and end dates, issues opened and closed, points committed and completed, completion rate, and the GitHub figures — PRs opened, merged and reviewed, additions and deletions. Plus a per-source `partial` flag, because a row assembled from a truncated GitHub window or a snapshot series that started mid-sprint must be drawable as incomplete rather than as a dip.
+
+**Two bounds to design around rather than discover:**
+
+1. **`MAX_SPRINTS_KEPT = 8`** (`js/snapshots.js:25`) caps the daily-snapshot history at eight sprints, so "the last year" is not available from snapshots today. The rollup rows are tiny by comparison — one row per sprint against sixty days of rows per sprint — so they want their **own, much longer retention** rather than inheriting that constant. That is a deliberate decision about what the extension keeps on the device, not an implementation detail: it should be set explicitly, with a visible clear action, the way snapshots are.
+2. **`STATS_LOOKBACK_DAYS = 45`** (`js/github.js:504`) caps a live GitHub window at 45 days, and `STATS_MAX_PAGES` truncates a busy repo at 300 PRs. So the GitHub half of any sprint older than roughly three sprints cannot be fetched at all — which is exactly why it is stored at rollover instead. A history built forward starts empty here too, and the chart says so rather than drawing a line from zero.
+
+**Lines of code is a volume signal, not a productivity one — and it is
+team-level only.** It answers "how much moved" alongside issue counts, which is
+the only reason it is in the list. Never per person, never in a ranking, never
+next to a name: the same rule M10 and M14 carry, and the reason the recap PDF
+prints its own framing rather than trusting the reader to supply one. The chart
+labels it as lines reaching the default branch, which is what
+`fetchTeamStats` actually measures — PR diffs merged to default plus direct
+commits — and not "lines written".
+
+**A fourth chart primitive.** `js/charts.js` has three — `horizontalBars`,
+`stackedBar` and `burndownChart` — and none of them draws several series over an
+ordinal axis of sprints. Expect one more primitive there, following the mark
+specs already stated at the top of that file, rather than a per-view SVG or a
+charting library the CSP would block anyway. Five series on one axis with two
+different units (counts and a percentage, plus lines of code at a wholly
+different magnitude) is a legibility problem before it is a code problem — small
+multiples are likelier to be the right answer than one chart with three y-axes.
+
+**Where it lives:** a section on the Sprint Dashboard, below the burndown, and
+embedded in M10's quarter document.
+
+**Exit criteria:** after two sprint rollovers with the extension installed, the
+dashboard draws a real per-sprint series for both halves, with partial rows
+visibly partial and the empty case explained rather than drawn as zero.
+
+**Open questions:**
+
+1. **Active sprint on the chart, or closed sprints only?** A partial current sprint plotted next to complete ones reads as a drop every time someone looks mid-sprint. Excluding it is honest and slightly disappointing; including it needs distinct styling for "in progress".
+2. **Sprints, or calendar months?** Everything above is per sprint, which matches the app. A quarter document may want the calendar, and sprints straddle quarter boundaries.
+
+---
+
+## M17 — Linked issues, read and write
+
+**Size: S** · Depends on M8 (write layer). The smallest thing left in the file.
+
+**Added 2026-09-03.** Issue links — *blocks*, *is blocked by*, *duplicates*,
+*relates to* — readable and editable from the issue detail.
+
+**The read half already exists.** `renderLinkedIssues`
+(`js/components/issue-detail.js:389`) renders `issuelinks` grouped by
+relationship, reading `type.outward` / `type.inward` per direction so "blocks"
+and "is blocked by" read correctly, alongside sub-tasks and the **+ Sub-task**
+button. `issuelinks` is already in the requested field set (`js/config.js:268`)
+and already in the preview fixture. So this milestone is the **write** half plus
+type discovery.
+
+- **Discover the types, never hardcode them:** `GET /rest/api/3/issueLinkType`. Link types are instance configuration — a site can rename them, add its own, or delete the ones you assumed. Same discipline as `customfield_*` discovery in M1 and reading the sub-task type from `subtask: true` rather than by name in M8, both of which exist because a hardcoded assumption broke on a real site.
+- **Create:** `POST /rest/api/3/issueLink` with the type name plus inward and outward keys. Direction comes from which side of the chosen type the user picked, so the picker offers "blocks" and "is blocked by" as two choices over one type rather than a type plus a direction toggle.
+- **Remove:** `DELETE /rest/api/3/issueLink/{linkId}`. This is **the app's first DELETE** — `jiraWrite` (`js/api.js:50`) currently backs only POST and PUT, so the method is new even though the helper is not. Jira offers no undo, so it takes a confirm naming both issues and the relationship, in the M8 pattern.
+- **The picker reuses issue search.** A raw key field is a typo waiting to 400; `searchIssuesByJql` (`js/api.js:329`) already backs the command palette's issue lookup, and this is the same interaction with a different destination.
+- **A + Link button beside + Sub-task** in the section heading, which is already rendered even when there is nothing to show — deliberately, because an issue with no links yet is exactly when someone wants that button.
+- **Re-render from Jira's response**, not from the local guess, the way the comment path does: a link involves a second issue whose state this view does not own.
+
+**Exit criteria:** a link can be created and removed from the issue detail
+against a site whose link types were never seen before, with a refusal reported
+as Jira worded it and nothing removed without a confirm that names it.
 
 ---
 
@@ -341,12 +488,12 @@ plumbing.
 
 ### Icebox
 
-- **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. Pairs naturally with the M7 daily snapshots.
+- **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. **Kept separate from M15 deliberately:** same diff machinery, different anchor — M15 compares against sprint start, this compares against your last visit, and the second is only worth building once the first has proved the comparison is useful. It would also need a per-issue record written per session rather than per sprint.
 - WIP limits and blocked-chain visualisation on the Kanban.
 - Multi-site support (several Jira Cloud instances in one install).
 - Multi-org GitHub sync — one fine-grained token has exactly one resource owner, so a second org means a second credential. The config block and the credential keys would both become maps; deliberately not built until someone actually needs it.
 - OOO import from a calendar feed to prefill planner absences.
-- Confluence export of standup notes and Wrapped cards.
+- Confluence export of standup notes and the Quarter Wrapped document.
 - Slack integration (press a button -> bot posts standup's recap on Slack via webhook)
 - A real build step + test runner, once module count justifies it.
 
@@ -583,6 +730,65 @@ highlight both read it, and the Kanban already defaulted to current-sprint-only
 so no filtering work was needed. An unrecognised hash still falls back to the
 Backlog — a stale bookmark should land on the view that lists everything rather
 than on one that hides most of it.
+
+## Sprint recap PDF ✔ *(ad-hoc, 2026-08-18)*
+
+**Size: M** · Done. Shipped on request, and it was **not** M10 — a warning that
+mattered while M10 was also a per-sprint recap. It stopped mattering on
+2026-09-03, when M10 was re-aimed at the quarter precisely because this document
+had already taken the sprint.
+
+**Generate recap** on the Sprint Dashboard opens `recap.html`, a print-styled
+document over the M7 aggregates plus the M11 GitHub window: combined figures for
+every active sprint, a per-person contribution card with photo, a per-board block
+and the full ticket list with scope-creep and carry-in flags. Saved as a PDF
+through the browser's own print dialog.
+
+**Four decisions worth keeping:**
+
+- **Print-to-PDF, not a PDF library.** No dependency in a repo with no build step, and the output is real vector text rather than the rasterised page a jsPDF-plus-canvas route would produce. Costs one click in the print dialog.
+- **A page of its own, recomputed rather than handed a payload.** `css/app.css` is deliberately not loaded: its `html, body { overflow: hidden }` app-shell rule clips a print job to exactly one page, which is how the first draft lost two thirds of the document. Fonts are re-declared in `css/recap.css` instead.
+- **It recaps the sprints the dashboard is showing** — the active ones, which on retro day are the ones ending. Recapping *closed* sprints needs new fetches and was deliberately not built; noted below as the follow-up if the team starts closing sprints before running the retro.
+- **Ordered by name, headed "contribution", footed with a line saying it is not an assessment.** M10 and M14 both set the rule that per-colleague numbers are conversation fuel, not a score. This document carries named people, photographs and pull-request counts, so it states its own framing rather than relying on whoever opens it to supply one.
+
+**One bug worth remembering.** The first version offered its print button over an
+empty page while it was still fetching, so printing in that window produced a
+blank A4 sheet — one page whose only content was Chrome's own header and footer.
+Every check had used `?print=0` and printed through DevTools *after* the render,
+so the window in which the page is printable but not yet built was never
+exercised. The fix is a readiness gate on both routes to the dialog plus a visible
+build state; the harness gained `?jira=slow` so that window can be held open and
+looked at.
+
+**A second print bug, same root cause — a print job is not a scrolling page.**
+The running header was `position: fixed`, which Blink repeats on every page but
+reserves no space for, so every page after the first had its top card sliced in
+half behind it. Fixed by laying the document out as a one-column table and putting
+the header in a `thead`, which repeats *and* reserves. Verified by printing each
+page separately (`printToPDF` takes a `pageRanges`, and a one-page PDF is
+something `sips` can rasterise) rather than by looking at page one and assuming.
+
+**A third print bug, and the lesson behind all three.** The 30-second deadline put
+on the GitHub window fired on real repositories: adding the default-branch commit
+query had roughly doubled the requests per repo, and the recap was the only caller
+with a deadline at all. Raised to 180s, and — more to the point — the document now
+renders the Jira half immediately and fills the GitHub figures in, so the wait is
+visible rather than blank. Per-repo failures and truncation, which `fetchTeamStats`
+had been reporting all along, are now printed too: without them a repo whose token
+cannot read commit history produced a confident zero.
+
+Each of the three was the same mistake in a different costume — verifying the
+artefact while skipping the conditions under which it is produced: printing after
+the render rather than during it, looking at page one rather than every page, and
+setting a deadline without measuring what the work actually costs.
+
+**Follow-up:** the *recapping closed sprints* follow-up recorded here was dropped
+on 2026-09-03 in favour of M16, which keeps a per-sprint rollup written forward
+at rollover rather than re-fetching a closed sprint out of Jira. M15's freeze
+replaces the scope-creep approximation this document inherits, and M10's quarter
+document reuses this page's print route and all four of its lessons.
+
+---
 
 ## Standup setup UX refresh ✔ *(ad-hoc, 2026-08-07)*
 

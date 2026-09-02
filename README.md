@@ -1089,14 +1089,17 @@ the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode
 (M6), the sprint dashboard (M7), the write layer and issue creation (M8), the
 command palette (M9), GitHub sync (M11), and the Firefox and Edge ports (M12).
 
-**Open, in the order they unblock things:**
+**Open, in the order they are queued** (re-sequenced 2026-09-03 — the numbers
+are identifiers, not positions):
 
 | | | |
 |---|---|---|
-| M13 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
+| M15 | Sprint freeze and diff | Freeze the sprint on day one; on the last day, what crept in, left, or was re-estimated |
 | M14 | Weekly 1:1 screen | Per-person prep sheet. Scope is a first pass, not agreed |
-| M10 | Sprint Wrapped | End-of-sprint recap for the retro |
-| M15 | Sprint start state snapshot | Placeholder, no scope yet |
+| M13 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
+| M10 | Quarter Wrapped | Quarter-to-date stats recap, printed to PDF on demand |
+| M16 | Per-sprint history | Issues, completion, PRs and lines per sprint, from rollups written at each rollover |
+| M17 | Linked issues | *blocks* / *duplicates* / *relates to*, readable today, editable next |
 
 The app writes to Jira in four places and nowhere else: dragging a card between
 columns (a workflow transition), editing assignee, due date or story points on
