@@ -129,7 +129,7 @@ override file. Anything else is a finding.
 - [ ] Links inside the description open in a new tab and are absolute
 - [ ] An issue with no description shows "No description."
 - [ ] Linked issues grouped with Jira's wording ("blocks" vs "is blocked by")
-- [ ] Sub-tasks appear under "has sub-task"; an issue with neither still shows the section, for the + Sub-task button
+- [ ] Sub-tasks appear under "has sub-task"; an issue with neither still shows the section, for the + Sub-task and + Link buttons
 - [ ] Comments load oldest-first with avatars, relative time, exact time on hover
 - [ ] An edited comment shows the "edited" marker
 - [ ] Post a comment → appears at the bottom, count in the heading increments, box clears
@@ -181,6 +181,25 @@ Each of these is a real write. Use a scratch issue, not one somebody is working 
 - [ ] Create it → the parent's sub-task list shows it without a manual reload
 - [ ] The new sub-task's own detail shows the parent in its header
 - [ ] In a project with sub-tasks disabled, the panel says so instead of showing a form
+
+## 3c-iv. Linking issues (M18)
+Creating and removing a link are both real writes, and the removal has no undo.
+Use a pair of scratch issues.
+- [ ] **+ Link** appears on the Linked issues heading of every issue, including a sub-task
+- [ ] The relationship list is this site's own — a renamed or locally-added type appears, and the phrases are the site's wording
+- [ ] A symmetric type ("relates to") appears once, not twice
+- [ ] Typing one character searches nothing; two or more searches, and the list narrows as you type
+- [ ] An issue key finds that issue exactly; words find issues by summary
+- [ ] The issue being linked from, and anything already linked to it, are not offered
+- [ ] Picking a result shows the sentence the link will make, in the direction chosen
+- [ ] Create with the outward phrase ("blocks") → **check the other issue in Jira**: it must read "is blocked by", not "blocks"
+- [ ] Create with the inward phrase ("is blocked by") → the other issue reads "blocks"
+- [ ] After creating, the section redraws with the new link without a manual reload
+- [ ] The ✕ on a link row appears on hover and is reachable by keyboard; sub-task rows have none
+- [ ] ✕ → the confirm names both issues and the relationship; cancelling removes nothing
+- [ ] Confirm → the link goes from Jira, the row goes from the list, the toast says which link
+- [ ] Remove a link from a project you cannot write to → the row stays and the toast names the permission
+- [ ] On a site with no link types configured, the panel says so instead of showing an empty dropdown
 
 ## 3d. Standup mode
 - [ ] `s` or the STANDUP tab opens setup; empty roster → pointer to Settings

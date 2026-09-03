@@ -329,6 +329,27 @@ body.issue-page-body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Unlinking is destructive and has no undo, so the control is quiet until the
+   row is under the cursor — and always reachable from the keyboard, which is
+   why it is hidden by opacity rather than by display. */
+.issue-link-remove {
+  margin-left: auto;
+  flex: none;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: calc(11px * var(--font-scale));
+  line-height: 1;
+  padding: 3px 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.issue-link-row:hover .issue-link-remove,
+.issue-link-remove:focus-visible { opacity: 1; }
+.issue-link-remove:hover { color: var(--accent-danger); border-color: var(--accent-danger); }
+.issue-link-remove:disabled { cursor: default; opacity: 0.4; }
 
 /* ── Comments ─────────────────────────────────────────────────────────────── */
 
@@ -396,12 +417,12 @@ body.issue-page-body {
 .issue-links { margin-bottom: 8px; }
 .issue-comments { margin-bottom: 8px; }
 
-/* The sub-task button sits on the section heading rather than under the list:
-   the list is what changes when one is added, and a button below it would move
-   every time. */
+/* The sub-task and link buttons sit on the section heading rather than under
+   the list: the list is what changes when either is used, and a button below it
+   would move every time. */
 .issue-links-heading { display: flex; align-items: center; gap: 12px; }
-.issue-add-subtask {
-  margin-left: auto;
+.issue-links-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.issue-links-action {
   background: none;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -412,7 +433,7 @@ body.issue-page-body {
   padding: 3px 9px;
   cursor: pointer;
 }
-.issue-add-subtask:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
+.issue-links-action:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
 
 /* ── Create issue / sub-task panel ────────────────────────────────────────── */
 /* Generated from createmeta, so the layout cannot assume how many rows there
@@ -488,3 +509,39 @@ textarea.create-input { resize: vertical; line-height: 1.5; }
   cursor: pointer;
 }
 .create-cancel:hover { color: var(--text); border-color: var(--muted); }
+
+/* ── Link picker ──────────────────────────────────────────────────────────── */
+/* Shares the create panel's chrome — it is the same drawer, the same rows and
+   the same buttons — and adds only the results list, which the create form has
+   no equivalent of. */
+
+.link-results {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.link-result {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: calc(13px * var(--font-scale));
+  padding: 7px 9px;
+  cursor: pointer;
+}
+.link-result:last-child { border-bottom: none; }
+.link-result:hover { background: var(--surface); }
+.link-result.picked { background: var(--surface); box-shadow: inset 2px 0 0 var(--accent-primary); }
+.link-results .create-note, .link-results .create-error { padding: 9px; }
+/* The sentence the link will make, in the direction chosen — the last chance to
+   notice it reads backwards. */
+.link-preview { min-height: calc(11px * var(--font-scale) * 1.5); }

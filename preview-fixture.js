@@ -259,7 +259,7 @@ ISSUES_BY_BOARD.get(1).push({
   },
 });
 
-globalThis.fetch = async (input) => {
+globalThis.fetch = async (input, options = {}) => {
   const url = String(input);
   // ?jira=slow holds the *agile* endpoints back — the sprint reads a view waits
   // on — so the fetching state can be looked at. Deliberately not every request:
@@ -274,6 +274,16 @@ globalThis.fetch = async (input) => {
   const json = (body) => ({
     ok: true, status: 200, headers: { get: () => null },
     json: async () => structuredClone(body), text: async () => JSON.stringify(body),
+  });
+  const refusal = (status, body) => ({
+    ok: false, status, headers: { get: () => null },
+    json: async () => structuredClone(body), text: async () => JSON.stringify(body),
+  });
+  // What Jira answers a link create and a link delete with: nothing at all,
+  // which is why both re-read the issue rather than rendering a response.
+  const noContent = () => ({
+    ok: true, status: 204, headers: { get: () => null },
+    json: async () => null, text: async () => "",
   });
 
   const sprintList = /\/board\/(\d+)\/sprint(\?|$)/.exec(url);
@@ -311,6 +321,38 @@ globalThis.fetch = async (input) => {
 
   const single = /\/rest\/api\/3\/issue\/([A-Za-z]+-\d+)(\?|$)/.exec(url);
   if (single) return json(issueDetailFixture(single[1]));
+
+  // ── Issue links, for the link picker ──────────────────────────────────────
+  // Four types, and none of them is matched by name anywhere in the app: the
+  // picker offers whatever phrases come back. "Relates" has the same word on
+  // both sides, which is the case that must appear once rather than twice, and
+  // "Veroorzaakt" is named the way a site names its own — a fixture that called
+  // everything by its English default would let a name match pass unnoticed.
+  if (/\/rest\/api\/3\/issueLinkType/.test(url)) {
+    return json({ issueLinkTypes: LINK_TYPES });
+  }
+
+  // ?link=refuse answers the way Jira refuses a link it understood — the panel
+  // puts the sentence above the results rather than on a field, because a link
+  // failure is about the pair and not about one input.
+  if (/\/rest\/api\/3\/issueLink(\/|$|\?)/.test(url)) {
+    if (options.method === "DELETE") {
+      return params.get("link") === "refuse"
+        ? refusal(403, { errorMessages: ["You do not have permission to unlink these issues."] })
+        : noContent();
+    }
+    return params.get("link") === "refuse"
+      ? refusal(400, { errorMessages: ["An issue cannot be linked to itself."] })
+      : noContent();
+  }
+
+  // The link picker's own search. Matched on the query rather than on the path
+  // because `getEpicNames` posts to the same endpoint, and answering both with
+  // issues would put epics in the epic dropdown twice over.
+  if (/\/rest\/api\/3\/search\/jql/.test(url)) {
+    const jql = options.body ? String(JSON.parse(options.body).jql || "") : "";
+    if (/^(summary ~|key =)/.test(jql)) return json({ issues: LINK_SEARCH_RESULTS, isLast: true });
+  }
 
   // ── createmeta, for the create-issue panel ────────────────────────────────
   // The panel's whole premise is that the form is whatever the site says it is,
@@ -401,10 +443,13 @@ function issueDetailFixture(key) {
               issuetype: { name: "Deeltaak", subtask: true },
             },
           }],
+      // `id` is what makes a row removable — without one there is no link to
+      // DELETE, and the ✕ is correctly absent.
       issuelinks: bare
         ? []
         : [{
-            type: { outward: "blocks", inward: "is blocked by" },
+            id: "20001",
+            type: { name: "Blocks", outward: "blocks", inward: "is blocked by" },
             outwardIssue: {
               key: `${key.split("-")[0]}-950`,
               fields: {
@@ -417,6 +462,46 @@ function issueDetailFixture(key) {
     },
   };
 }
+
+// The site's own link types. Deliberately not the English defaults throughout:
+// nothing in the app matches a link type by name, and a fixture that used only
+// familiar names could not show that.
+const LINK_TYPES = [
+  { id: "10000", name: "Blocks", inward: "is blocked by", outward: "blocks" },
+  { id: "10001", name: "Duplicate", inward: "is duplicated by", outward: "duplicates" },
+  // Symmetric: one phrase for both directions, so the picker must offer it once.
+  { id: "10002", name: "Relates", inward: "relates to", outward: "relates to" },
+  { id: "10003", name: "Veroorzaakt", inward: "wordt veroorzaakt door", outward: "veroorzaakt" },
+];
+
+// What the picker's search finds. One of them is already linked in the detail
+// fixture, so the filtered-out case is visible without typing a second query.
+const LINK_SEARCH_RESULTS = [
+  {
+    id: "9101", key: "ACME-950",
+    fields: {
+      summary: "The thing this one is holding up",
+      status: { name: "To Do", statusCategory: { key: "new" } },
+      issuetype: { name: "Story", subtask: false },
+    },
+  },
+  {
+    id: "9102", key: "ACME-311",
+    fields: {
+      summary: "Storage adapter rewrite",
+      status: { name: "In Progress", statusCategory: { key: "indeterminate" } },
+      issuetype: { name: "Task", subtask: false },
+    },
+  },
+  {
+    id: "9103", key: "GOS-64",
+    fields: {
+      summary: "Bulk delete is slow on large exports",
+      status: { name: "Done", statusCategory: { key: "done" } },
+      issuetype: { name: "Bug", subtask: false },
+    },
+  },
+];
 
 const COMMENT_FIXTURE = {
   total: 1,

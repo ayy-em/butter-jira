@@ -347,7 +347,8 @@ Escape closes it, as does clicking the dimmed area or navigating away.
 
 Shows the header (key, status, type, parent, project, links out to Jira),
 assignee and reporter, description, start/due dates, story points, sprint,
-linked issues grouped by relationship, sub-tasks, and comments.
+linked issues grouped by relationship (creatable and removable), sub-tasks, and
+comments.
 
 **Assignee, due date and story points are editable in place.** Click the value,
 type or pick, and press Enter — or click away, which also saves, because losing
@@ -368,6 +369,30 @@ than matched by name, so it works on a site where it is called something else,
 or in another language; a project with sub-tasks switched off says so instead of
 offering a form that cannot be submitted. After creation the parent's sub-task
 list is re-read from Jira rather than patched from the form.
+
+**+ Link**, beside it, adds a relationship to another issue — blocks, duplicates,
+relates to, or whatever your site calls its own.
+
+- **The relationships are read from your Jira** (`/rest/api/3/issueLinkType`),
+  never written into the app. A site can rename them, add its own or delete the
+  ones you assumed, so a hardcoded list would offer relationships that fail on
+  creation. Same rule as field discovery and the sub-task type.
+- **Direction is a choice of phrase, not a toggle.** "blocks" and "is blocked
+  by" are two entries over one type, because that is how you say what you mean;
+  a symmetric type like "relates to" appears once. The sentence the link will
+  make is shown before you commit it, in the direction you picked — a link
+  created backwards does not fail, and reads wrong only on the *other* issue.
+- **The other issue is searched for, not typed.** Two characters start a
+  search; an issue key finds that issue, anything else searches summaries. What
+  is already linked, and the issue itself, are not offered.
+- **Removing a link asks first.** The ✕ on a link row is the app's only DELETE,
+  and Jira has no undo for it, so the confirm names both issues and the
+  relationship rather than saying "remove the link". Sub-task rows carry no ✕:
+  a sub-task is a parent/child field, not a link, and there is nothing to remove.
+
+Both writes re-read the issue afterwards rather than patching the list — Jira
+answers a link create with an empty body, and the second issue in a link is one
+this view does not own.
 
 **Commenting.** Type in the reply box and press **Comment** or ⌘/Ctrl+Enter.
 Plain text only: blank lines become paragraphs, single newlines become line
@@ -841,14 +866,15 @@ js/adf.js           # Atlassian Document Format <-> text (comment posting)
 js/roster-ui.js     # roster editor for the Settings page
 js/migrations.js    # numbered storage migrations
 js/portable.js      # config export/import
-js/api.js           # Jira REST client: reads, field writes, issue creation
+js/api.js           # Jira REST client: reads, field writes, creation, links
 js/activity.js      # per-person Jira activity from issue history (DOM-free)
 js/issue-edit.js    # field writes: optimistic paint, rollback, undo, bulk
 js/issue-create.js  # createmeta -> form spec -> create payload (DOM-free)
+js/issue-link.js    # issue links: direction, grouping, picker JQL (DOM-free)
 js/utils.js         # board/field/date/theme helpers + response cache
 js/router.js        # hash routing, setup flow, board picker
 js/components/      # nav, filter bar, re-auth, issue detail, board, drawer,
-                    #   click-to-edit cells, create-issue panel
+                    #   click-to-edit cells, create-issue panel, link picker
 js/views/           # dashboard, backlog, gantt, kanban, monitor, standup
 css/                # one stylesheet per view
 assets/sfx/         # standup sound cues
@@ -867,7 +893,7 @@ Config-layer unit checks — no dependencies, no network, no browser:
 ```bash
 node scripts/test-backlog.mjs      # grouping, paging, tones, views    (115 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
-node scripts/test-imports.mjs      # every module imports what it calls  (48 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (50 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (49 checks)
 node scripts/test-config.mjs       # config layer, field discovery      (88 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
@@ -879,7 +905,7 @@ node scripts/test-dashboard.mjs    # aggregation, burndown, geometry  (162 check
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (105 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
 node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (206 checks)
-node scripts/test-write.mjs        # field writes, rollback, undo, bulk (93 checks)
+node scripts/test-write.mjs        # field writes, undo, bulk, links  (136 checks)
 node scripts/test-create.mjs       # createmeta -> form -> payload      (71 checks)
 node scripts/test-activity.mjs     # issue history -> per-person activity (75 checks)
 ```
@@ -899,9 +925,11 @@ against the same sprint. Query parameters pick the state: `?theme=light`,
 `?avatars=off`, `?logo=off`, `?jira=slow`, `?stats=partial`, `?history=off` — which
 strips issue history, the case that dashes the per-person activity figures while
 leaving "created" counted — plus `?sort=<column>` on the
-dashboard, `?print=1` on the recap, `?edit=points|due|assignee` on the issue
-detail (which opens that cell, the one state a screenshot cannot reach on its
-own), and `?createmeta=minimal|blocked` · `?create=refuse` · `?parent=ABC-1` on
+dashboard, `?print=1` on the recap, `?edit=points|due|assignee` and
+`?link=open|search|refuse` on the issue
+detail (which open that cell and the link picker — the states a screenshot
+cannot reach on its own; `?link=search` types a query, lists results and picks
+one, and `?link=refuse` submits it and has Jira say no), and `?createmeta=minimal|blocked` · `?create=refuse` · `?parent=ABC-1` on
 the create panel — a project that asks for nothing, one that requires a field the
 form cannot render, a refused create, and the sub-task form. `?jira=slow` and `?stats=slow` hold the recap's
 loading states open long enough to look at — the states that must never offer a
@@ -962,7 +990,13 @@ domain-name → field-id mapping (so an estimate cannot go to the wrong custom
 field), the three ways Jira says no — a field error, a permission refusal, a dead
 token — the optimistic paint and its rollback, the undo writing the previous
 value back rather than reverting locally, a bulk edit reporting what landed and
-what did not, and sprint moves batching at Jira's 50-issue ceiling.
+what did not, and sprint moves batching at Jira's 50-issue ceiling. Issue links
+are in the same suite and get the most attention per line of code in the app,
+because their one failure mode is silent: a link built the wrong way round reads
+correctly on the issue you made it from and wrong on the other one, so both
+directions of `inwardIssue <outward phrase> outwardIssue` are pinned, alongside
+the symmetric type appearing once, the JQL the picker builds (with its escaping),
+and the DELETE sending no body.
 
 `test-create.mjs` covers issue creation: a control derived for every field type
 createmeta can describe, a required field of an unknown type stopping the form

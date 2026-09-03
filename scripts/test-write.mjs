@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Unit checks for the Jira write layer (M8a): the domain-name -> field-id
-// mapping, how a refused write is attributed, the optimistic paint and its
-// rollback, the undo window, and sprint-move batching.
+// Unit checks for the Jira write layer: the domain-name -> field-id mapping,
+// how a refused write is attributed, the optimistic paint and its rollback, the
+// undo window, sprint-move batching, and — since M18 — issue links, whose
+// direction is the one thing here that fails silently rather than loudly.
 //
 // The transport is stubbed rather than skipped, because the behaviours that
 // matter here are transport-shaped: what body reaches Jira, and what the app
@@ -112,6 +113,7 @@ const utils = await import(new URL("../js/utils.js", import.meta.url));
 const api = await import(new URL("../js/api.js", import.meta.url));
 const edit = await import(new URL("../js/issue-edit.js", import.meta.url));
 const fe = await import(new URL("../js/components/field-edit.js", import.meta.url));
+const link = await import(new URL("../js/issue-link.js", import.meta.url));
 await cfg.loadConfig();
 await utils.loadBoards();
 
@@ -390,6 +392,166 @@ check("a refused move says why", ok === false && readToast().error);
 reset();
 ok = await editor.moveToSprint([issue()], {});
 check("a move with no sprint is not attempted", ok === false && requests.length === 0);
+
+// ── Issue links (M18) ───────────────────────────────────────────────────────
+
+section("the relationships a site offers");
+const LINK_TYPES = [
+  { id: "10000", name: "Blocks", inward: "is blocked by", outward: "blocks" },
+  { id: "10002", name: "Relates", inward: "relates to", outward: "relates to" },
+  { id: "10003", name: "Veroorzaakt", inward: "wordt veroorzaakt door", outward: "veroorzaakt" },
+];
+let choices = link.linkChoices(LINK_TYPES);
+check("both directions of an asymmetric type are offered",
+  choices.filter((c) => c.typeName === "Blocks").map((c) => c.phrase).join("|") ===
+    "blocks|is blocked by");
+check("a symmetric type is offered once, not twice",
+  choices.filter((c) => c.typeName === "Relates").length === 1);
+check("the phrase is the site's own wording, not a translated guess",
+  choices.some((c) => c.phrase === "wordt veroorzaakt door"));
+check("the option value is inert — the type name is what a request carries",
+  choices.every((c) => c.id.includes(":") && c.typeName && !c.id.includes(" ")));
+check("a type with no name cannot be posted, so it is not offered",
+  link.linkChoices([{ id: "1", name: "", inward: "x", outward: "y" }]).length === 0);
+check("a type with no phrasing at all is not offered either",
+  link.linkChoices([{ id: "1", name: "Odd", inward: "", outward: "" }]).length === 0);
+
+section("which side of the link each key goes on");
+// The rule is `inwardIssue <type.outward> outwardIssue`, and getting it backwards
+// is invisible from the issue you created the link on — it reads wrong only on
+// the other one. So both directions are pinned here.
+const blocks = choices.find((c) => c.phrase === "blocks");
+const blockedBy = choices.find((c) => c.phrase === "is blocked by");
+let payload = link.linkPayloadFor(blocks, { issueKey: "ABC-1", otherKey: "ABC-2" });
+check("\"ABC-1 blocks ABC-2\" puts ABC-1 on the inward side",
+  payload.inwardIssue.key === "ABC-1" && payload.outwardIssue.key === "ABC-2");
+check("the type travels by name, which is what the endpoint takes",
+  payload.type.name === "Blocks" && !("id" in payload.type));
+payload = link.linkPayloadFor(blockedBy, { issueKey: "ABC-1", otherKey: "ABC-2" });
+check("\"ABC-1 is blocked by ABC-2\" inverts the sides",
+  payload.inwardIssue.key === "ABC-2" && payload.outwardIssue.key === "ABC-1");
+check("the two directions are the same link with the keys swapped",
+  payload.type.name === "Blocks");
+check("an issue cannot be linked to itself",
+  link.linkPayloadFor(blocks, { issueKey: "ABC-1", otherKey: "abc-1" }) === null);
+check("a missing key builds nothing rather than a half-formed body",
+  link.linkPayloadFor(blocks, { issueKey: "ABC-1" }) === null);
+check("no relationship chosen builds nothing",
+  link.linkPayloadFor(null, { issueKey: "ABC-1", otherKey: "ABC-2" }) === null);
+check("the sentence reads in the direction chosen",
+  link.describeLink(blockedBy, "ABC-1", "ABC-2") === "ABC-1 is blocked by ABC-2");
+
+section("reading an issue's links back");
+const linked = {
+  key: "ABC-1",
+  fields: {
+    issuelinks: [
+      { id: "5001", type: { name: "Blocks", inward: "is blocked by", outward: "blocks" },
+        outwardIssue: { key: "ABC-2", fields: { summary: "downstream" } } },
+      { id: "5002", type: { name: "Blocks", inward: "is blocked by", outward: "blocks" },
+        inwardIssue: { key: "ABC-3", fields: { summary: "upstream" } } },
+      { id: "5003", type: { name: "Blocks", inward: "is blocked by", outward: "blocks" },
+        outwardIssue: { key: "ABC-4", fields: { summary: "also downstream" } } },
+    ],
+    subtasks: [{ key: "ABC-9", fields: { summary: "a sub-task" } }],
+  },
+};
+let groups = link.groupedLinks(linked);
+check("the outward side reads with the outward phrase",
+  groups[0].label === "blocks" && groups[0].rows.map((r) => r.key).join() === "ABC-2,ABC-4");
+check("the inward side reads with the inward phrase",
+  groups[1].label === "is blocked by" && groups[1].rows[0].key === "ABC-3");
+check("sub-tasks join the same section, last",
+  groups[groups.length - 1].label === "has sub-task");
+check("the link id is kept, because removing a link needs it",
+  groups[0].rows[0].linkId === "5001");
+check("a sub-task carries no link id and cannot be unlinked",
+  groups[groups.length - 1].rows[0].removable === false);
+check("a link with no id renders but offers no remove it could not make",
+  link.groupedLinks({ fields: { issuelinks: [
+    { type: { outward: "blocks" }, outwardIssue: { key: "ABC-7" } },
+  ] } })[0].rows[0].removable === false);
+check("a link with neither side is skipped rather than throwing",
+  link.groupedLinks({ fields: { issuelinks: [{ id: "1", type: {} }] } }).length === 0);
+check("an unnamed relationship falls back to the neutral phrase",
+  link.groupedLinks({ fields: { issuelinks: [
+    { id: "1", type: {}, outwardIssue: { key: "ABC-7" } },
+  ] } })[0].label === "relates to");
+check("what is already linked is known, so it need not be offered again",
+  [...link.alreadyLinked(linked)].sort().join() === "ABC-1,ABC-2,ABC-3,ABC-4,ABC-9");
+
+section("the picker's search");
+check("something shaped like a key is looked up as one",
+  link.pickerJql("ABC-12", { excludeKey: "ABC-1" }) ===
+    'key = "ABC-12" AND key != "ABC-1" ORDER BY updated DESC');
+check("a lowercased key still finds the issue",
+  link.pickerJql("abc-12").startsWith('key = "ABC-12"'));
+check("anything else is a summary search that narrows as you type",
+  link.pickerJql("regist").startsWith('summary ~ "regist*"'));
+check("the issue being linked from is excluded",
+  link.pickerJql("regist", { excludeKey: "ABC-1" }).includes('key != "ABC-1"'));
+check("one character is not a query", link.pickerJql("a") === "");
+check("blank is not a query", link.pickerJql("   ") === "");
+check("a quote is escaped rather than closing the literal",
+  link.pickerJql('say "hi"') === 'summary ~ "say \\"hi\\"*" ORDER BY updated DESC');
+check("a backslash is escaped too", link.escapeJql("a\\b") === "a\\\\b");
+check("a newline is flattened, not carried into the literal",
+  link.escapeJql("a\nb") === "a b");
+
+section("the requests Jira receives for a link");
+reset();
+responses = [{ status: 200, body: { issueLinkTypes: LINK_TYPES } }];
+let types = await api.getIssueLinkTypes(CREDS);
+check("link types are read from the site, never assumed",
+  requests[0].method === "GET" &&
+  requests[0].url === "https://x.atlassian.net/rest/api/3/issueLinkType");
+check("every configured type comes back", types.length === 3);
+resetRequests();
+types = await api.getIssueLinkTypes(CREDS);
+check("and are cached, so opening the picker twice costs one request",
+  requests.length === 0 && types.length === 3);
+await utils.cache.clear();
+
+reset();
+responses = [{ status: 201, body: "" }];
+await api.createIssueLink(link.linkPayloadFor(blocks, { issueKey: "ABC-1", otherKey: "ABC-2" }), CREDS);
+check("a create is a POST on the link collection",
+  requests[0].method === "POST" &&
+  requests[0].url === "https://x.atlassian.net/rest/api/3/issueLink");
+check("the body carries the type name and both sides",
+  requests[0].body.type.name === "Blocks" &&
+  requests[0].body.inwardIssue.key === "ABC-1" &&
+  requests[0].body.outwardIssue.key === "ABC-2");
+
+reset();
+responses = [{ status: 204, body: "" }];
+await api.deleteIssueLink("5001", CREDS);
+check("a remove is the app's first DELETE",
+  requests[0].method === "DELETE" &&
+  requests[0].url === "https://x.atlassian.net/rest/api/3/issueLink/5001");
+check("and sends no body at all", requests[0].body === null);
+reset();
+responses = [{ status: 204, body: "" }];
+await api.deleteIssueLink("a/b 1", CREDS);
+check("the id is encoded into the path rather than concatenated",
+  requests[0].url.endsWith("/issueLink/a%2Fb%201"));
+
+reset();
+responses = [{ status: 400, body: { errorMessages: ["An issue cannot be linked to itself."], errors: {} } }];
+err = await api.createIssueLink({ type: { name: "Blocks" } }, CREDS).catch((e) => e);
+check("a refused link is attributed like any other refused write",
+  err.name === "JiraWriteError" && err.message === "An issue cannot be linked to itself.");
+reset();
+responses = [{ status: 403, body: "" }];
+err = await api.deleteIssueLink("5001", CREDS).catch((e) => e);
+check("a refused remove is flagged as a permission problem, not a bad value",
+  err.isPermission === true && /lacks permission/.test(err.message));
+reset();
+authEvents = 0;
+responses = [{ status: 401, body: "" }];
+err = await api.deleteIssueLink("5001", CREDS).catch((e) => e);
+check("a dead token on a DELETE raises the reauth event like every other write",
+  authEvents === 1);
 
 section("what a cell will accept");
 check("blank clears the estimate", fe.parsePointsInput("") === null);

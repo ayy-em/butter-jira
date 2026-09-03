@@ -9,11 +9,13 @@
 import { runtimeUrl } from "../browser.js";
 import { openDrawerPanel } from "./drawer.js";
 import { openCreateIssue } from "./issue-create.js";
-import { addIssueComment, getIssue, getIssueComments } from "../api.js";
+import { openLinkIssue } from "./issue-link.js";
+import { addIssueComment, deleteIssueLink, getIssue, getIssueComments } from "../api.js";
 import { CONFIG, browseUrl, fieldValue } from "../config.js";
-import { assigneeLabel, fmtDate, getStartDate, getStoryPoints, relDate } from "../utils.js";
+import { assigneeLabel, fmtDate, getStartDate, getStoryPoints, relDate, showToast } from "../utils.js";
 import { avatarOverrideFor } from "../team.js";
 import { createFieldEditor } from "../issue-edit.js";
+import { groupedLinks } from "../issue-link.js";
 import { assigneeCell, dateCell, pointsCell } from "./field-edit.js";
 import { sanitizeToFragment } from "../sanitize.js";
 import { adfToPlainText, isEmptyAdf, textToAdf } from "../adf.js";
@@ -74,10 +76,12 @@ export async function renderIssueInto(container, issueKey, creds, { mode = "page
   root.appendChild(renderHeader(issue, creds, mode));
   root.appendChild(renderContent(issue, creds));
 
-  // The links section owns the "add sub-task" button, so it has to be able to
-  // redraw itself after one is created. Re-read rather than patched from the
-  // create response: that response carries an id and a key and nothing a row
-  // needs to print, and the parent's own `subtasks` array is the authority.
+  // The links section owns the three buttons that change it — add a sub-task,
+  // add a link, remove a link — so it has to be able to redraw itself after any
+  // of them. Re-read rather than patched from the write's response: creating a
+  // sub-task answers with an id and a key and nothing a row needs to print,
+  // creating a link answers with nothing at all, and the issue's own
+  // `subtasks` and `issuelinks` arrays are the authority either way.
   let links = renderLinkedIssues(issue, creds, refreshLinks);
   root.appendChild(links);
 
@@ -85,9 +89,9 @@ export async function renderIssueInto(container, issueKey, creds, { mode = "page
     try {
       issue = await getIssue(issueKey, creds);
     } catch {
-      // The sub-task was created; failing to re-read the parent is a stale
-      // list, not a lost issue, and the section says nothing rather than an
-      // error about a write that worked.
+      // The write landed; failing to re-read the issue is a stale list, not a
+      // lost sub-task or a link that did not happen, and the section says
+      // nothing rather than an error about a write that worked.
       return;
     }
     const fresh = renderLinkedIssues(issue, creds, refreshLinks);
@@ -384,57 +388,57 @@ export function sprintLabel(issue) {
 // ── Linked issues ────────────────────────────────────────────────────────────
 
 // Always rendered, even with nothing to show, because this is where a sub-task
-// is added from — and an issue with no sub-tasks yet is exactly when someone
-// wants that button.
-function renderLinkedIssues(issue, creds, onSubtaskCreated) {
-  const links = issue.fields?.issuelinks || [];
-  const subtasks = issue.fields?.subtasks || [];
+// and a link are added from — and an issue with neither yet is exactly when
+// someone wants those buttons.
+//
+// `onChanged` covers all three writes this section can make: a sub-task
+// created, a link created, a link removed. Every one of them re-reads the issue
+// rather than patching the list locally — Jira answers a link create with an
+// empty body and a link delete with nothing at all, and the second issue in a
+// link is one this view does not own.
+function renderLinkedIssues(issue, creds, onChanged) {
+  const groups = groupedLinks(issue);
 
   const section = document.createElement("section");
   section.className = "issue-links";
 
   const heading = document.createElement("h2");
   heading.className = "issue-section-title mono issue-links-heading";
-  heading.textContent = links.length || subtasks.length ? "Linked issues" : "Sub-tasks";
+  heading.textContent = groups.length ? "Linked issues" : "Sub-tasks";
+
+  const actions = document.createElement("span");
+  actions.className = "issue-links-actions";
 
   // Jira does not nest sub-tasks, so a sub-task offers no button of its own —
   // the alternative is a form that can only ever be refused.
   if (issue.fields?.issuetype?.subtask !== true) {
-    const add = document.createElement("button");
-    add.className = "issue-add-subtask mono";
-    add.type = "button";
-    add.textContent = "+ Sub-task";
-    add.title = `Create a sub-task of ${issue.key}`;
-    add.addEventListener("click", () =>
-      openCreateIssue(creds, {
-        parentKey: issue.key,
-        parentSummary: issue.fields?.summary || "",
-        onCreated: () => onSubtaskCreated?.(),
-      })
+    actions.appendChild(
+      headingButton(`Create a sub-task of ${issue.key}`, "+ Sub-task", () =>
+        openCreateIssue(creds, {
+          parentKey: issue.key,
+          parentSummary: issue.fields?.summary || "",
+          onCreated: () => onChanged?.(),
+        })
+      )
     );
-    heading.appendChild(add);
   }
+
+  // A link, unlike a sub-task, is offered on every issue: a sub-task can be
+  // blocked by something too.
+  actions.appendChild(
+    headingButton(`Link another issue to ${issue.key}`, "+ Link", () =>
+      openLinkIssue(creds, { issue, onLinked: () => onChanged?.() })
+    )
+  );
+  heading.appendChild(actions);
   section.appendChild(heading);
 
-  if (!links.length && !subtasks.length) {
+  if (!groups.length) {
     section.appendChild(emptyNote("No sub-tasks or linked issues."));
     return section;
   }
 
-  // Group by relationship so "blocks" and "is blocked by" read correctly.
-  const groups = new Map();
-  for (const link of links) {
-    const related = link.outwardIssue || link.inwardIssue;
-    if (!related) continue;
-    const label = link.outwardIssue
-      ? link.type?.outward || "relates to"
-      : link.type?.inward || "relates to";
-    if (!groups.has(label)) groups.set(label, []);
-    groups.get(label).push(related);
-  }
-  if (subtasks.length) groups.set("has sub-task", subtasks);
-
-  for (const [label, related] of groups) {
+  for (const { label, rows } of groups) {
     const group = document.createElement("div");
     group.className = "issue-link-group";
 
@@ -443,34 +447,79 @@ function renderLinkedIssues(issue, creds, onSubtaskCreated) {
     groupLabel.textContent = label;
     group.appendChild(groupLabel);
 
-    for (const rel of related) {
-      group.appendChild(linkedRow(rel, creds));
+    for (const row of rows) {
+      group.appendChild(linkedRow(row, issue, creds, onChanged));
     }
     section.appendChild(group);
   }
   return section;
 }
 
-function linkedRow(related, creds) {
-  const row = document.createElement("div");
-  row.className = "issue-link-row";
+function headingButton(title, text, onClick) {
+  const button = document.createElement("button");
+  button.className = "issue-links-action mono";
+  button.type = "button";
+  button.textContent = text;
+  button.title = title;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function linkedRow(row, issue, creds, onChanged) {
+  const el = document.createElement("div");
+  el.className = "issue-link-row";
 
   const key = document.createElement("a");
   key.className = "issue-key mono";
-  key.textContent = related.key;
-  attachIssueOpener(key, related.key, creds);
-  row.appendChild(key);
+  key.textContent = row.key;
+  attachIssueOpener(key, row.key, creds);
+  el.appendChild(key);
 
-  row.appendChild(statusBadge(related.fields?.status));
+  el.appendChild(statusBadge(row.issue?.fields?.status));
 
   const summary = document.createElement("span");
   summary.className = "issue-link-summary";
-  const text = related.fields?.summary || "";
+  const text = row.issue?.fields?.summary || "";
   summary.textContent = text.length > 70 ? `${text.slice(0, 70)}…` : text;
   summary.title = text;
-  row.appendChild(summary);
+  el.appendChild(summary);
 
-  return row;
+  // Only a real issue link can be removed. A sub-task row carries no link id
+  // because there is no link — its relationship is the parent field, and a ✕
+  // there would be a button that can only ever fail.
+  if (row.removable) el.appendChild(removeLinkButton(row, issue, creds, onChanged));
+  return el;
+}
+
+// Jira offers no undo for an unlink, so this is the one place in the app where a
+// single-item write asks before it happens rather than offering to reverse
+// itself afterwards — the same trade the bulk field edit makes. The confirm
+// names both issues and the relationship, in that order, because "remove the
+// link" on its own does not say which of several links is about to go.
+function removeLinkButton(row, issue, creds, onChanged) {
+  const button = document.createElement("button");
+  button.className = "issue-link-remove mono";
+  button.type = "button";
+  button.textContent = "✕";
+  const sentence = `${issue.key} ${row.relationship} ${row.key}`;
+  button.title = `Remove the link: ${sentence}`;
+  button.setAttribute("aria-label", `Remove the link: ${sentence}`);
+
+  button.addEventListener("click", async () => {
+    if (!confirm(`Remove this link?\n\n${sentence}\n\nJira has no undo for this.`)) return;
+    button.disabled = true;
+    try {
+      await deleteIssueLink(row.linkId, creds);
+      showToast(`Link removed — ${sentence}`);
+      await onChanged?.();
+    } catch (err) {
+      button.disabled = false;
+      const detail = err?.message || String(err);
+      if (String(detail).includes("401")) return; // the router's reauth flow owns this
+      showToast(`Link not removed — ${detail}`, true);
+    }
+  });
+  return button;
 }
 
 // ── Comments ─────────────────────────────────────────────────────────────────

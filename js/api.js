@@ -47,17 +47,23 @@ async function jiraFetchUrl(url, creds) {
 // body loses that structure, and a write layer that says "Jira API 400" when
 // Jira said "customfield_10016: Story Points must be a number" has thrown away
 // the only sentence worth showing anyone.
-async function jiraWrite(method, path, creds, body = {}) {
+//
+// `body` is optional rather than defaulted, because DELETE has none: Jira's
+// issue-link removal carries the id in the path, and sending a JSON body with a
+// Content-Type on a DELETE is the kind of request intermediaries are entitled to
+// reject. A missing body means no body and no content type, not an empty object.
+async function jiraWrite(method, path, creds, body) {
   const url = new URL(jiraUrl(path));
-  const resp = await fetch(url.toString(), {
-    method,
-    headers: {
-      Authorization: authHeader(creds.email, creds.token),
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const headers = {
+    Authorization: authHeader(creds.email, creds.token),
+    Accept: "application/json",
+  };
+  const init = { method, headers };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  const resp = await fetch(url.toString(), init);
   if (resp.status === 401) {
     document.dispatchEvent(new CustomEvent("jira-auth-error"));
     throw new Error("401 Unauthorized");
@@ -75,6 +81,10 @@ async function jiraPost(path, creds, body = {}) {
 
 async function jiraPut(path, creds, body = {}) {
   return jiraWrite("PUT", path, creds, body);
+}
+
+async function jiraDelete(path, creds) {
+  return jiraWrite("DELETE", path, creds);
 }
 
 // A refused write, with the attribution kept rather than flattened into a
@@ -651,6 +661,61 @@ function normalizeCreateFields(payload) {
 // comment is rendered from Jira's response.
 export async function createIssue(fields, creds) {
   return jiraPost("/rest/api/3/issue", creds, { fields });
+}
+
+// ── Issue links ─────────────────────────────────────────────────────────────
+
+// Which relationships this site actually has, read rather than assumed.
+//
+// Link types are instance configuration: a site can rename "Blocks", add its
+// own, or delete the ones a hardcoded list would have offered — and a picker
+// built on names this file invented would offer relationships that 400 on
+// creation. Same discipline as `customfield_*` discovery and as reading the
+// sub-task type off `subtask: true` rather than matching "Sub-task", both of
+// which exist because a hardcoded assumption broke on a real site.
+//
+// Cached like createmeta, and for the same reason: the set changes about as
+// often as a project does, and opening the picker twice in five minutes should
+// not re-read it.
+export async function getIssueLinkTypes(creds) {
+  return cached("cache_issueLinkTypes", async () => {
+    const data = await jiraFetch("/rest/api/3/issueLinkType", creds);
+    return (data?.issueLinkTypes || [])
+      .map((t) => ({
+        id: String(t.id ?? ""),
+        name: t.name || "",
+        inward: t.inward || "",
+        outward: t.outward || "",
+      }))
+      // A type with no name cannot be posted — the create endpoint takes the
+      // name, not the id — so it is not offered.
+      .filter((t) => t.name);
+  });
+}
+
+// `link` is the whole body: `{ type: { name }, inwardIssue, outwardIssue }`.
+// Which key goes on which side is the direction, and getting it backwards is
+// silent — see `linkPayloadFor` in js/issue-link.js, where that decision lives
+// and is tested.
+//
+// Answers 201 with an empty body, so there is nothing to render from: the
+// caller re-reads the issue instead. That is stricter than the comment path
+// rather than looser — a link involves a second issue whose state this app does
+// not own, and Jira is the only thing that knows the new link's id.
+export async function createIssueLink(link, creds) {
+  return jiraPost("/rest/api/3/issueLink", creds, link);
+}
+
+// The app's first DELETE. The helper is not new — every mutating request has
+// gone through `jiraWrite` since M8, so a refusal here is attributed the same
+// way a refused field edit is — but the method is, which is why `jiraWrite`
+// learned to send no body at all.
+//
+// Jira offers no undo for this, so the confirm is not optional: see
+// `js/components/issue-detail.js`, which names both issues and the relationship
+// before calling it.
+export async function deleteIssueLink(linkId, creds) {
+  return jiraDelete(`/rest/api/3/issueLink/${encodeURIComponent(linkId)}`, creds);
 }
 
 // ── Sprint membership ───────────────────────────────────────────────────────

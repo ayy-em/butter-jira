@@ -18,15 +18,15 @@ built the way it is, which is the part that gets forgotten.
 |---|---|
 | Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
 | Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Issue detail (drawer + full page) |
-| Data access | HTTP Basic (email + API token), `js/api.js`. Reads, plus four writes: transitions, field edits, issue and sub-task creation, comments |
+| Data access | HTTP Basic (email + API token), `js/api.js`. Reads, plus five writes: transitions, field edits, issue and sub-task creation, comments, issue links (the app's only DELETE) |
 | Derived reads | Per-person Jira activity (`js/activity.js`) from `expand=changelog` riding the sprint fetch — no requests of its own |
-| Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/api/3/issue/*` (incl. `createmeta`), `/rest/agile/1.0/board/*`, `/rest/agile/1.0/sprint/*/issue` |
+| Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/api/3/issue/*` (incl. `createmeta`), `/rest/api/3/issueLinkType`, `/rest/api/3/issueLink/*`, `/rest/agile/1.0/board/*`, `/rest/agile/1.0/sprint/*/issue` |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping, GitHub block), overridable via `config.local.json` |
 | Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, and a 5-minute response cache. One accessor module (`js/browser.js`) |
 | Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
 | Version control | Git, `.gitignore` in place |
-| Tests | Seventeen `scripts/test-*.mjs` suites (1633 checks) + six preview harnesses + a manual smoke checklist |
+| Tests | Seventeen `scripts/test-*.mjs` suites (1678 checks) + six preview harnesses + a manual smoke checklist |
 
 ## Sizing
 
@@ -85,7 +85,7 @@ M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 P
                                                                         │
                                                                         ├──▶ M7 Dashboard ✔ ──┬──▶ M9 Palette + Triage ✔
                                                                         │                     ├──▶ M8 Writes ✔ ──┬──▶ M15 Sprint planner
-                                                                        │                     │                  └──▶ M18 Linked issues
+                                                                        │                     │                  └──▶ M18 Linked issues ✔
                                                                         │                     ├──▶ M13 Sprint freeze + diff
                                                                         │                     └──▶ M17 Per-sprint history ─▶ M16 Quarter Wrapped
                                                                         │
@@ -97,8 +97,17 @@ same day to match it, so this is the dependency graph's rows read in queue order
 rather than a second scheme to keep in your head:
 
 ```
-M13 Freeze + diff ─▶ M14 Weekly 1:1 ─▶ M15 Sprint planner ─▶ M16 Quarter Wrapped ─▶ M17 Per-sprint history ─▶ M18 Linked issues
+M18 Linked issues ✔ ─▶ M13 Freeze + diff ─▶ M14 Weekly 1:1 ─▶ M15 Sprint planner ─▶ M16 Quarter Wrapped ─▶ M17 Per-sprint history
 ```
+
+**M18 was taken first, out of order, on 2026-09-03** — the second time the queue
+has been jumped, after M11, and for the same reason both times: it hangs off a
+finished dependency and strands nothing behind it. It was the S at the end of a
+queue of Ms and Ls, its write layer had been sitting finished since M8, and
+pulling it forward cost the rest of the queue a sitting. The order above is
+otherwise the one the re-sequencing settled on, and the reason M13 leads it —
+history only accrues forward — is unaffected by a milestone that touches no
+history at all.
 
 M16 is queued ahead of M17 because the button is the ask and the history is the
 machinery behind it — but the arrow above runs the other way, and M16's GitHub
@@ -166,7 +175,7 @@ open question 3, applied a third time. M18 was added new.
 | Scope-added silently changes meaning depending on whether a freeze exists | M13 | The figure states which of the two it is, exact or approximate, everywhere it is printed |
 | A quarter is ~90 days and the GitHub window is 45 | M16, M17 | Store per-sprint rollups at rollover; until they exist, the quarter document states the shorter window it actually covers |
 | Lines of code read as a productivity measure | M16, M17 | Team-level per sprint only, never per person, labelled as lines reaching the default branch |
-| Unlinking an issue is destructive and Jira offers no undo | M18 | A confirm naming both issues and the relationship; the app's first DELETE gets its own helper path |
+| ~~Unlinking an issue is destructive and Jira offers no undo~~ | M18 ✔ | Resolved: a confirm naming both issues and the relationship, and no ✕ at all on a sub-task row, which has no link to remove. The DELETE goes through the same `jiraWrite` every other write does — `jiraWrite` learned to send no body rather than the method getting a path of its own |
 | ~~`/rest/dev-status/1.0/` is undocumented~~ | M5 → deferred | Avoided entirely: dev links move to the GitHub API in the deferred backlog |
 | ~~Untrusted Jira HTML reaching the DOM~~ | M5 ✔ | Allowlist sanitiser with the element walk unit-tested; CSP as defence in depth |
 | ~~First write path (comments) misfiring~~ | M5 ✔ | Single narrow endpoint, comment re-rendered from Jira's response, explicit 403 handling |
@@ -194,9 +203,10 @@ open question 3, applied a third time. M18 was added new.
 
 # Open
 
-**Re-sequenced 2026-09-03.** The order of work is now: **M13** (sprint freeze
-and diff) → **M14** (weekly 1:1) → **M15** (sprint planner) → **M16** (Quarter
-Wrapped) → **M17** (per-sprint history) → **M18** (linked issues). The sections
+**Re-sequenced 2026-09-03**, and **M18 shipped the same day**, out of order and
+ahead of the rest — see the note under *Order of work* above. What is left, in
+order: **M13** (sprint freeze and diff) → **M14** (weekly 1:1) → **M15** (sprint
+planner) → **M16** (Quarter Wrapped) → **M17** (per-sprint history). The sections
 below are in that order.
 
 **The numbers were renumbered to match**, the same day and for the obvious
@@ -445,34 +455,6 @@ visibly partial and the empty case explained rather than drawn as zero.
 
 ---
 
-## M18 — Linked issues, read and write
-
-**Size: S** · Depends on M8 (write layer). The smallest thing left in the file.
-
-**Added 2026-09-03.** Issue links — *blocks*, *is blocked by*, *duplicates*,
-*relates to* — readable and editable from the issue detail.
-
-**The read half already exists.** `renderLinkedIssues`
-(`js/components/issue-detail.js:389`) renders `issuelinks` grouped by
-relationship, reading `type.outward` / `type.inward` per direction so "blocks"
-and "is blocked by" read correctly, alongside sub-tasks and the **+ Sub-task**
-button. `issuelinks` is already in the requested field set (`js/config.js:268`)
-and already in the preview fixture. So this milestone is the **write** half plus
-type discovery.
-
-- **Discover the types, never hardcode them:** `GET /rest/api/3/issueLinkType`. Link types are instance configuration — a site can rename them, add its own, or delete the ones you assumed. Same discipline as `customfield_*` discovery in M1 and reading the sub-task type from `subtask: true` rather than by name in M8, both of which exist because a hardcoded assumption broke on a real site.
-- **Create:** `POST /rest/api/3/issueLink` with the type name plus inward and outward keys. Direction comes from which side of the chosen type the user picked, so the picker offers "blocks" and "is blocked by" as two choices over one type rather than a type plus a direction toggle.
-- **Remove:** `DELETE /rest/api/3/issueLink/{linkId}`. This is **the app's first DELETE** — `jiraWrite` (`js/api.js:50`) currently backs only POST and PUT, so the method is new even though the helper is not. Jira offers no undo, so it takes a confirm naming both issues and the relationship, in the M8 pattern.
-- **The picker reuses issue search.** A raw key field is a typo waiting to 400; `searchIssuesByJql` (`js/api.js:329`) already backs the command palette's issue lookup, and this is the same interaction with a different destination.
-- **A + Link button beside + Sub-task** in the section heading, which is already rendered even when there is nothing to show — deliberately, because an issue with no links yet is exactly when someone wants that button.
-- **Re-render from Jira's response**, not from the local guess, the way the comment path does: a link involves a second issue whose state this view does not own.
-
-**Exit criteria:** a link can be created and removed from the issue detail
-against a site whose link types were never seen before, with a refusal reported
-as Jira worded it and nothing removed without a confirm that names it.
-
----
-
 # Deferred backlog
 
 Scoped, wanted, and deliberately not scheduled yet.
@@ -556,6 +538,68 @@ plumbing.
 # Completed
 
 Newest first.
+
+## M18 — Linked issues, read and write ✔ *(2026-09-03)*
+
+**Size: S** · Done the day it was scoped, and taken out of order — it was the
+smallest thing in the file, its dependency (M8's write layer) had been finished
+since 2026-08-20, and nothing in the queue was waiting on it. Issue links —
+*blocks*, *is blocked by*, *duplicates*, *relates to* — readable and editable
+from the issue detail.
+
+**The read half already existed**, which is what made this an S:
+`renderLinkedIssues` had grouped `issuelinks` by relationship since M5, reading
+`type.outward` / `type.inward` per direction. What shipped is the write half plus
+type discovery — and a grouping that now hands back link ids, because a row you
+cannot identify is a row you cannot remove.
+
+**The thing this milestone is actually about is direction.** Everything else here
+is ordinary CRUD; the direction of a link is the one part that fails *silently*.
+A link built the wrong way round does not 400, does not warn, and reads correctly
+on the issue you created it from — it reads wrong on the other issue, which is
+the one you were not looking at. So the rule lives in a pure function with a test
+on each direction rather than inside a click handler:
+
+```
+inwardIssue  <type.outward>  outwardIssue
+```
+
+`linkPayloadFor` (`js/issue-link.js`) is that rule. Picking the outward phrase
+("blocks") from issue X puts **X on the inward side**; picking the inward phrase
+("is blocked by") swaps them. Which is also why the picker offers *phrases* and
+not a type plus a direction toggle: "blocks" and "is blocked by" are two entries
+over one type, because that is how someone says what they mean, and the direction
+falls out of what they said. A symmetric type — "Relates", the same word both
+ways — appears once; offering "relates to" twice is a picker that looks broken
+while being correct.
+
+**Five decisions worth keeping:**
+
+- **The types are read, never written into the app** — `GET /rest/api/3/issueLinkType`, cached like createmeta. Link types are instance configuration: a site can rename them, add its own, or delete the ones a hardcoded list would have offered. Same discipline as `customfield_*` discovery in M1 and the sub-task type read off `subtask: true` in M8, both of which exist because a hardcoded assumption broke on a real site. The fixture names one of its types in Dutch for that reason — a fixture using only the English defaults could not show that nothing matches by name.
+- **The app's first DELETE went through the helper that already existed.** `jiraWrite` (`js/api.js`) has been the single place that knows how Jira refuses a write since M8, so a refused unlink is attributed exactly like a refused field edit — including the 403 that explains itself and the 401 that raises the reauth event. What was new is that `jiraWrite` now sends *no body at all* when it is given none, rather than an empty object with a Content-Type on a DELETE.
+- **Removal asks first, and names what it is removing.** Jira has no undo, so this is the one single-item write in the app that confirms beforehand instead of offering to reverse afterwards — the trade the bulk field edit already makes. The confirm is the sentence, both keys and the relationship: "remove the link" alone does not say *which* of several links is about to go. A sub-task row carries no ✕ at all: a sub-task is a parent/child field, not a link, and there is no link id to DELETE — a button there could only ever fail.
+- **The picker reuses issue search.** A raw key field is a typo waiting to 400. `searchIssuesByJql` already backed the palette's issue lookup, so this is the same interaction with a different destination: two characters start a search, a key-shaped query is looked up as a key and anything else searches summaries with a trailing wildcard. The issue itself and everything already linked to it are filtered out — offering a duplicate link is offering a 400 the user had no way to predict.
+- **Both writes re-read the issue.** Jira answers a link create with an empty body and a delete with nothing, so there is no response to render from even if we wanted one — and a link involves a second issue whose state this view does not own. The same `refreshLinks` the sub-task path already used now covers all three writes the section can make.
+
+**Where the code went:** `js/issue-link.js` is the DOM-free half — choices,
+payload, grouping, and the picker's JQL with its escaping — mirroring the
+`issue-create.js` / `components/issue-create.js` split, and for the same reason:
+the parts that are silently wrong when wrong are the parts that get a unit test.
+`js/components/issue-link.js` is the panel, in the create form's own chrome.
+
+**Checks:** 43 new in `scripts/test-write.mjs` (136 total there, 1678 across the
+suite), plus `?link=open|search|refuse` on `preview-issue.html` — the second of
+which types a query, lists results and picks one through the real input handlers,
+so the debounce and the out-of-order guard are exercised rather than described.
+`scripts/SMOKE-CHECKLIST.md` gained 3c-iv, whose load-bearing line is *create with
+"blocks", then go and look at the other issue in Jira*: no unit test can catch a
+reversed link, because both directions are internally consistent.
+
+**Exit criteria, met:** a link can be created and removed from the issue detail
+against a site whose link types were never seen before, with a refusal reported
+as Jira worded it and nothing removed without a confirm that names it.
+
+---
 
 ## Per-person Jira activity ✔ *(ad-hoc, 2026-08-24)*
 
