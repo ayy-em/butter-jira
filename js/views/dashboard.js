@@ -1,4 +1,4 @@
-import { getActiveSprint, getAllSprintIssues } from "../api.js";
+import { getActiveSprint, getAllSprintIssues, getIssuesByKeys } from "../api.js";
 import { runtimeUrl } from "../browser.js";
 import { BOARDS, compactNum, fmtDate, loadStatusGroups, relDate } from "../utils.js";
 import { CONFIG } from "../config.js";
@@ -11,6 +11,15 @@ import {
   summarize,
 } from "../dashboard.js";
 import { loadSnapshots, recordSnapshot, snapshotFrom, sprintKey } from "../snapshots.js";
+import {
+  departedKeys,
+  diffFreeze,
+  freezeFrom,
+  loadFreeze,
+  recordFreeze,
+  scopeBasis,
+} from "../freeze.js";
+import { attachIssueOpener } from "../components/issue-detail.js";
 import { memberFor } from "../team.js";
 import {
   FALLBACK_SPRINT_DAYS,
@@ -94,6 +103,24 @@ export async function mount(container, creds) {
   ]);
   const sprintLists = await Promise.all(BOARDS.map((b) => getActiveSprint(b.id, creds)));
   const sprints = sprintLists.flat();
+  const key = sprintKey(sprints);
+
+  // The freeze is read — and taken, if this sprint has none — *before* the
+  // summary, because it decides what "added after start" means.
+  //
+  // Taken unasked on the first load of a sprint, and that is the whole argument
+  // for the feature: history only accrues forward, and a sprint boundary that
+  // passes unfrozen cannot be reconstructed afterwards. That covers both cases
+  // the scope asked for — a new sprint key appearing, and the extension being
+  // installed mid-sprint — identically, because they are the same condition
+  // from here: no freeze exists. Which of the two it was is recorded rather
+  // than assumed (`atStart`), so the panel and the scope figure can say what
+  // they are actually measuring against.
+  let freeze = sprints.length ? await loadFreeze(key) : null;
+  if (sprints.length && !freeze) {
+    freeze = freezeFrom({ issues, sprints, statusGroups });
+    await recordFreeze(key, freeze);
+  }
 
   const summary = summarize({
     issues,
@@ -101,6 +128,7 @@ export async function mount(container, creds) {
     statusGroups,
     monitorSettings: CONFIG.monitorChecks,
     boards: BOARDS,
+    freeze,
     now: new Date(),
   });
 
@@ -113,7 +141,6 @@ export async function mount(container, creds) {
   ).toISOString();
 
   // Record today's aggregate, then read the series back including it.
-  const key = sprintKey(sprints);
   const today = isoDay(new Date());
   await recordSnapshot(key, snapshotFrom(summary, today));
   const snapshots = await loadSnapshots(key);
@@ -127,8 +154,17 @@ export async function mount(container, creds) {
   const wrap = document.createElement("div");
   wrap.className = "dash-wrap";
   wrap.appendChild(renderHeader(summary));
-  wrap.appendChild(renderKpis(summary));
+  wrap.appendChild(renderKpis(summary, freeze));
   wrap.appendChild(renderBurndown(summary, burndown, snapshots));
+
+  // The diff sits under the burndown: both are "what happened over the sprint",
+  // and this one answers the question the chart raises — a line that flattens or
+  // jumps is scope moving, and this says which issues moved it.
+  const diff = freeze
+    ? renderFreezeDiff({ freeze, issues, sprints, statusGroups, creds, refreeze })
+    : null;
+  if (diff) wrap.appendChild(diff.el);
+
   wrap.appendChild(renderProgress(summary));
   wrap.appendChild(renderBreakdowns(summary));
 
@@ -138,6 +174,39 @@ export async function mount(container, creds) {
   repaintDelivery = delivery.repaint;
   wrap.appendChild(delivery.el);
   container.appendChild(wrap);
+
+  // Where the issues that left the sprint went. Deliberately after the first
+  // paint and never on it: an unchanged sprint asks nothing, and even a churned
+  // one is a single batched lookup the view should not be held up by. The panel
+  // says it is still looking rather than pretending they are all deleted.
+  if (diff) {
+    const missing = departedKeys(freeze, issues);
+    if (!missing.length) diff.setDeparted([]);
+    else {
+      getIssuesByKeys(missing, creds)
+        .then((found) => diff.setDeparted(found))
+        .catch(() => diff.setDeparted([]));
+    }
+  }
+
+  // A re-freeze discards a record that cannot be recovered, so it confirms with
+  // what it is about to throw away — not "are you sure".
+  async function refreeze() {
+    const held =
+      `Taken ${freeze.takenOn}, holding ${freeze.issueCount} ` +
+      `issue${freeze.issueCount === 1 ? "" : "s"} and ${trimNum(freeze.totalPoints)} points.`;
+    if (
+      !confirm(
+        `Re-freeze ${summary.sprintNames.join(" · ") || "this sprint"}?\n\n${held}\n\n` +
+          "It will be replaced by the sprint as it stands now, and the diff will " +
+          "start again from today. There is no way back to the old one."
+      )
+    ) {
+      return;
+    }
+    await recordFreeze(key, freezeFrom({ issues, sprints, statusGroups }));
+    await mount(container, creds);
+  }
 }
 
 function renderHeader(summary) {
@@ -201,7 +270,7 @@ function renderHeader(summary) {
 
 // KPI row of stat tiles — headline numbers are figures, not a bar chart. The
 // completion figure is the one hero number on the view.
-function renderKpis(summary) {
+function renderKpis(summary, freeze = null) {
   const row = document.createElement("div");
   row.className = "dash-kpis";
 
@@ -242,15 +311,26 @@ function renderKpis(summary) {
     })
   );
 
+  // The one tile whose meaning depends on whether a freeze exists, so the
+  // wording comes from `scopeBasis` rather than being written here. Three
+  // states, not two: no freeze is the old creation-date approximation, a
+  // start-of-sprint freeze is exact, and a mid-sprint freeze is exact only from
+  // the day it was taken — and says so, because calling that exact would be the
+  // same overclaim in a new coat.
+  const scope = scopeBasis(freeze);
+  const scopeQualifier = scope.exact ? "exact" : "approx.";
   row.appendChild(
     statTile({
       label: "Added after start",
       value: String(summary.addedAfterStart),
-      detail: summary.addedAfterStart
-        ? `${trimNum(summary.addedAfterStartPoints)} points of scope change`
-        : "Scope held",
-      hint:
-        "Counted from issue creation date, so an older issue dragged in mid-sprint isn't caught.",
+      // The qualifier is on the visible line rather than only in the hover
+      // note: a figure that is exact on one machine and approximate on another
+      // has to say which it is without being asked.
+      detail:
+        (summary.addedAfterStart
+          ? `${trimNum(summary.addedAfterStartPoints)} points of scope change`
+          : "Scope held") + ` · ${scopeQualifier}`,
+      hint: scope.note,
     })
   );
 
@@ -403,6 +483,222 @@ function renderBurndown(summary, burndown, snapshots) {
     ])
   );
   return card;
+}
+
+// ── The freeze diff ─────────────────────────────────────────────────────────
+
+// What changed underneath the plan, in six buckets, plus the arithmetic that
+// ties them back to the sprint total.
+//
+// The reconciliation line is not decoration. Six buckets of issues invite
+// exactly one question — "so what about the rest?" — and a panel that cannot
+// answer it reads as a panel that is hiding something. Frozen, minus pulled
+// out, plus crept in, is the sprint now; and of what carried through, this many
+// changed and this many did not.
+//
+// `departed` is three-valued on purpose: null while the lookup is in flight,
+// then whatever came back. Rendering "deleted" for an issue nobody has looked
+// for yet would be a confident wrong answer to the one question this panel
+// cannot answer from local state.
+function renderFreezeDiff({ freeze, issues, sprints, statusGroups, creds, refreeze }) {
+  const card = document.createElement("section");
+  card.className = "dash-card dash-freeze";
+  let departed = null;
+  let bodyEl = null;
+
+  const head = document.createElement("div");
+  head.className = "dash-card-head";
+  const title = document.createElement("h2");
+  title.className = "dash-card-title";
+  title.textContent = "Since the freeze";
+  head.appendChild(title);
+
+  const readout = document.createElement("span");
+  readout.className = "dash-readout mono";
+  readout.textContent = freeze.atStart
+    ? `frozen ${freeze.takenOn}, at the sprint start`
+    : `frozen ${freeze.takenOn}, on day ${freeze.dayOfSprint} of the sprint`;
+  head.appendChild(readout);
+
+  const button = document.createElement("button");
+  button.className = "dash-freeze-btn mono";
+  button.type = "button";
+  button.textContent = "Freeze now";
+  button.title =
+    "Replace the frozen state with the sprint as it stands now — for a sprint " +
+    "that was re-planned, or one frozen before the planning finished";
+  button.addEventListener("click", () => refreeze());
+  head.appendChild(button);
+  card.appendChild(head);
+
+  paint();
+  return { el: card, setDeparted };
+
+  function setDeparted(found) {
+    departed = found || [];
+    paint();
+  }
+
+  function paint() {
+    if (bodyEl) bodyEl.remove();
+    bodyEl = document.createElement("div");
+    bodyEl.className = "dash-freeze-body";
+
+    const diff = diffFreeze({
+      freeze,
+      issues,
+      sprints,
+      statusGroups,
+      departed: departed || [],
+    });
+    const c = diff.counts;
+
+    const sums = document.createElement("p");
+    sums.className = "dash-freeze-sums mono";
+    sums.textContent =
+      `${c.frozen} frozen − ${c.pulledOut} pulled out + ${c.creptIn} crept in ` +
+      `= ${c.now} now · ${c.changed} of the ${c.carriedThrough} that carried ` +
+      `through changed, ${c.unchanged} did not`;
+    bodyEl.appendChild(sums);
+
+    const buckets = [
+      creptBucket(diff),
+      bucket("Pulled out", diff.pulledOut, {
+        points: diff.points.pulledOut,
+        row: (r) => issueRow(r.key, r.summary, departureLabel(r), creds),
+      }),
+      bucket("Re-estimated", diff.reEstimated, {
+        points: diff.points.reEstimated,
+        signed: true,
+        row: (r) =>
+          issueRow(r.key, r.summary, `${fmtPoints(r.from)} → ${fmtPoints(r.to)}`, creds),
+      }),
+      bucket("Due date moved", diff.reDated, {
+        row: (r) => issueRow(r.key, r.summary, dateMoveLabel(r), creds),
+      }),
+      bucket("Re-assigned", diff.reassigned, {
+        row: (r) => issueRow(r.key, r.summary, `${r.fromName} → ${r.toName}`, creds),
+      }),
+      bucket("Went backwards", diff.regressed, {
+        row: (r) => issueRow(r.key, r.summary, `${r.from} → ${r.to}`, creds),
+      }),
+    ].filter(Boolean);
+
+    if (!buckets.length) {
+      bodyEl.appendChild(
+        emptyState(
+          `Nothing has moved since the freeze — all ${c.frozen} issues are as they were.`
+        )
+      );
+    }
+    for (const el of buckets) bodyEl.appendChild(el);
+
+    const notes = [diff.scope.note];
+    if (departed === null && c.pulledOut) {
+      notes.push("Still checking where the issues that left the sprint went.");
+    }
+    // The blind spot, named rather than left for someone to discover. A freeze
+    // compares two points in time, not the path between them.
+    notes.push(
+      "An issue that left the sprint and came back reads here as unchanged: " +
+        "a freeze compares two points in time, not the route between them."
+    );
+    const note = document.createElement("p");
+    note.className = "dash-freeze-note";
+    note.textContent = notes.join(" ");
+    bodyEl.appendChild(note);
+
+    card.appendChild(bodyEl);
+  }
+}
+
+// Crept in is one bucket with two halves, because the split is the whole reason
+// a freeze beats a creation date: work that did not exist when the sprint
+// started is a different fact from work that existed and was pulled in.
+function creptBucket(diff) {
+  const rows = [...diff.createdAfter, ...diff.draggedIn];
+  if (!rows.length) return null;
+  const el = bucketShell("Crept in", rows.length, diff.points.creptIn, false);
+  for (const [label, list] of [
+    ["created after the freeze", diff.createdAfter],
+    ["already existed, pulled in later", diff.draggedIn],
+  ]) {
+    if (!list.length) continue;
+    const sub = document.createElement("div");
+    sub.className = "dash-freeze-sub mono";
+    sub.textContent = `${label} (${list.length})`;
+    el.appendChild(sub);
+    for (const row of list) {
+      el.appendChild(issueRow(row.key, row.summary, fmtPoints(row.points), null));
+    }
+  }
+  return el;
+}
+
+function bucket(label, rows, { points = null, signed = false, row } = {}) {
+  if (!rows.length) return null;
+  const el = bucketShell(label, rows.length, points, signed);
+  for (const entry of rows) el.appendChild(row(entry));
+  return el;
+}
+
+function bucketShell(label, count, points, signed) {
+  const el = document.createElement("div");
+  el.className = "dash-freeze-bucket";
+  const head = document.createElement("div");
+  head.className = "dash-freeze-bucket-head mono";
+  head.textContent = `${label} (${count})`;
+  if (points !== null && points !== 0) {
+    const pts = document.createElement("span");
+    pts.className = "dash-freeze-points";
+    pts.textContent = signed
+      ? `${points > 0 ? "+" : "−"}${trimNum(Math.abs(points))} points`
+      : `${trimNum(points)} points`;
+    head.appendChild(pts);
+  }
+  el.appendChild(head);
+  return el;
+}
+
+// `creds` may be null: the crept-in rows are issues the view already holds, and
+// wiring an opener needs credentials the sub-renderer is not always given.
+function issueRow(key, summary, detail, creds) {
+  const row = document.createElement("div");
+  row.className = "dash-freeze-row";
+
+  const link = document.createElement(creds ? "a" : "span");
+  link.className = "issue-key mono";
+  link.textContent = key;
+  if (creds) attachIssueOpener(link, key, creds);
+  row.appendChild(link);
+
+  const text = document.createElement("span");
+  text.className = "dash-freeze-summary";
+  text.textContent = summary || "";
+  text.title = summary || "";
+  row.appendChild(text);
+
+  const value = document.createElement("span");
+  value.className = "dash-freeze-detail mono";
+  value.textContent = detail;
+  row.appendChild(value);
+  return row;
+}
+
+function departureLabel(row) {
+  return row.where === "gone" ? row.whereLabel : `→ ${row.whereLabel}`;
+}
+
+function dateMoveLabel(row) {
+  if (row.direction === "set") return `set to ${fmtDate(row.to)}`;
+  if (row.direction === "cleared") return `cleared, was ${fmtDate(row.from)}`;
+  const days = Math.abs(row.days ?? 0);
+  const word = row.direction === "later" ? "later" : "earlier";
+  return `${fmtDate(row.from)} → ${fmtDate(row.to)} · ${days} day${days === 1 ? "" : "s"} ${word}`;
+}
+
+function fmtPoints(value) {
+  return value === null || value === undefined ? "—" : trimNum(value);
 }
 
 function renderProgress(summary) {

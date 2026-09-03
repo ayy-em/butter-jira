@@ -8,7 +8,11 @@
 //   open preview-dashboard.html          (or serve the folder over http)
 //
 // Fixture states: ?theme=light · ?github=off · ?stats=slow · ?stats=error ·
-// ?sprint=undated · ?push=off. This harness adds ?sort=<column> · ?flip=1
+// ?sprint=undated · ?push=off · ?freeze=mid|none — the freeze the diff panel
+// compares against, taken four days into the sprint (so the scope figure reads
+// "approx.") or not seeded at all, in which case the view takes its own on load
+// and the panel reads "nothing has moved", which is what a first-ever load looks
+// like. This harness adds ?sort=<column> · ?flip=1
 import { params } from "./preview-fixture.js";
 
 const { mount } = await import("./js/views/dashboard.js");

@@ -15,13 +15,15 @@
 // generated once and kept, so it is worth a second of waiting to have the pull
 // request numbers in it rather than a row of dashes.
 
-import { getActiveSprint, getAllSprintIssues } from "./api.js";
+import { getActiveSprint, getAllSprintIssues, getIssuesByKeys } from "./api.js";
 import { getCredentials } from "./credentials.js";
 import { CONFIG, isConfigured } from "./config.js";
 import { loadTeam } from "./team.js";
 import { BOARDS, compactNum, fmtDate, loadBoards, loadStatusGroups } from "./utils.js";
 import { summarize } from "./dashboard.js";
 import { buildRecap } from "./recap.js";
+import { departedKeys, loadFreeze } from "./freeze.js";
+import { sprintKey } from "./snapshots.js";
 import { FALLBACK_SPRINT_DAYS, getTeamStats, isGithubConfigured } from "./github.js";
 
 // How long each source gets before the document gives up on it. Generous on
@@ -120,12 +122,30 @@ async function init() {
   const sprints = boardSprints.flatMap(({ sprints: list }) => list);
 
   const now = new Date();
+
+  // Read, never taken. Taking a freeze is a write to local history, and a
+  // document generator has no business creating the record it is reporting on —
+  // opening the recap on a sprint the dashboard has never seen would otherwise
+  // freeze it mid-sprint and then print "nothing has changed". The dashboard
+  // takes it; this reads whatever is there, and says so when there is nothing.
+  const freeze = sprints.length ? await loadFreeze(sprintKey(sprints)).catch(() => null) : null;
+
+  // Where the issues that left the sprint went — one batched lookup, and never
+  // fatal: without it those rows print as "deleted, or no longer visible", which
+  // is wrong, so the document would rather print nothing about them than a
+  // confident wrong answer. Hence the empty diff on failure.
+  const missing = departedKeys(freeze, issues);
+  const departed = missing.length
+    ? await withTimeout(getIssuesByKeys(missing, creds), JIRA_TIMEOUT_MS, "Jira").catch(() => [])
+    : [];
+
   const summary = summarize({
     issues,
     sprints,
     statusGroups,
     monitorSettings: CONFIG.monitorChecks,
     boards: BOARDS,
+    freeze,
     now,
   });
 
@@ -135,7 +155,9 @@ async function init() {
 
   const dated = Boolean(summary.window.start);
   const build = (stats) =>
-    buildRecap({ summary, issues, boardSprints, statusGroups, stats, since, now });
+    buildRecap({
+      summary, issues, boardSprints, statusGroups, stats, since, freeze, departed, now,
+    });
 
   const firstPass = build(null);
   document.title = firstPass.sprintNames.length
@@ -272,6 +294,7 @@ function render(recap, { statsError, dated, statsPending = false }) {
   body.appendChild(renderGlance(recap, { statsPending }));
   body.appendChild(renderPeopleSummary(recap, { statsPending }));
   body.appendChild(renderStatusSplit(recap));
+  body.appendChild(renderChanges(recap));
   body.appendChild(renderPeople(recap, { statsError, dated, statsPending }));
   body.appendChild(renderBoards(recap));
   body.appendChild(renderTickets(recap));
@@ -489,8 +512,10 @@ function renderGlance(recap, { statsPending = false } = {}) {
   }
   notes.push(
     "\u201cIn PR + ready\u201d counts issues in a review column or already done." +
-      " Issues started with, and what crept in, are counted from issue creation date," +
-      " so an older issue dragged in mid-sprint is not caught."
+      " Issues started with, and what crept in: " +
+      // One sentence, from `scopeBasis`, so the document and the dashboard tile
+      // cannot end up making different claims about the same number.
+      (c.scope?.note || "counted from issue creation date.")
   );
   section.appendChild(el("p", "recap-note", notes.join(" ")));
   return section;
@@ -620,6 +645,101 @@ function byPointCompletion(people) {
   return [...people].sort(
     (a, b) => rank(a) - rank(b) || (b.share ?? 0) - (a.share ?? 0) || a.label.localeCompare(b.label)
   );
+}
+
+// What changed underneath the plan, from the freeze — the section a retro
+// actually argues about, and the one figure on this page that a completion
+// percentage cannot contain. Same six buckets as the dashboard panel, from the
+// same `diffFreeze`, so the document and the screen cannot disagree.
+//
+// Printed as counts and a handful of named rows rather than every issue: the
+// ticket list at the end of the document already has all of them, and a recap
+// that reprinted the sprint twice would be a recap nobody finished reading.
+const CHANGES_SHOWN = 6;
+
+function renderChanges(recap) {
+  const section = el("section", "recap-section");
+  section.appendChild(el("h2", "recap-section-title", "What changed underneath the plan"));
+
+  const diff = recap.diff;
+  if (!diff) {
+    section.appendChild(
+      el(
+        "p",
+        "recap-note",
+        "No frozen state for this sprint, so there is nothing to compare against." +
+          " The dashboard takes a freeze the first time it sees a sprint, and this" +
+          " section appears on the next recap."
+      )
+    );
+    return section;
+  }
+
+  const c = diff.counts;
+  const stats = el("div", "recap-inline-stats");
+  stats.appendChild(
+    stat("Crept in", String(c.creptIn), c.creptIn ? `${num(diff.points.creptIn)} pts` : "")
+  );
+  stats.appendChild(
+    stat("New work", String(c.createdAfter), "created after the freeze")
+  );
+  stats.appendChild(
+    stat("Dragged in", String(c.draggedIn), "existed already")
+  );
+  stats.appendChild(
+    stat("Pulled out", String(c.pulledOut), c.pulledOut ? `${num(diff.points.pulledOut)} pts` : "")
+  );
+  stats.appendChild(
+    stat(
+      "Re-estimated",
+      String(diff.reEstimated.length),
+      diff.points.reEstimated ? `${diff.points.reEstimated > 0 ? "+" : "\u2212"}${num(Math.abs(diff.points.reEstimated))} pts` : ""
+    )
+  );
+  stats.appendChild(stat("Dates moved", String(diff.reDated.length)));
+  stats.appendChild(stat("Re-assigned", String(diff.reassigned.length)));
+  stats.appendChild(stat("Went backwards", String(diff.regressed.length)));
+  stats.appendChild(stat("Untouched", String(c.unchanged), `of ${c.carriedThrough} carried through`));
+  section.appendChild(stats);
+
+  const lists = [
+    ["Created after the freeze", diff.createdAfter.map((r) => `${r.key} — ${r.summary}`)],
+    ["Dragged into the sprint", diff.draggedIn.map((r) => `${r.key} — ${r.summary}`)],
+    ["Pulled out", diff.pulledOut.map((r) => `${r.key} — ${r.summary} (${r.whereLabel})`)],
+    [
+      "Re-estimated",
+      diff.reEstimated.map(
+        (r) => `${r.key} — ${r.from ?? "\u2014"} \u2192 ${r.to ?? "\u2014"} points`
+      ),
+    ],
+    ["Went backwards", diff.regressed.map((r) => `${r.key} — ${r.from} \u2192 ${r.to}`)],
+  ];
+  for (const [label, rows] of lists) {
+    if (!rows.length) continue;
+    const block = el("div", "recap-change-block");
+    block.appendChild(el("div", "recap-change-label", label));
+    const shown = rows.slice(0, CHANGES_SHOWN);
+    for (const line of shown) block.appendChild(el("div", "recap-change-row", line));
+    if (rows.length > shown.length) {
+      block.appendChild(
+        el("div", "recap-change-row recap-change-more", `and ${rows.length - shown.length} more`)
+      );
+    }
+    section.appendChild(block);
+  }
+
+  section.appendChild(
+    el(
+      "p",
+      "recap-note",
+      `Frozen ${diff.takenOn}` +
+        (diff.atStart ? ", at the sprint start. " : `, on day ${diff.dayOfSprint} of the sprint. `) +
+        `${c.frozen} frozen \u2212 ${c.pulledOut} pulled out + ${c.creptIn} crept in = ${c.now} now.` +
+        " An issue that left the sprint and came back reads here as unchanged:" +
+        " a freeze compares two points in time, not the route between them."
+    )
+  );
+  return section;
 }
 
 function renderStatusSplit(recap) {

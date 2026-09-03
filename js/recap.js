@@ -22,6 +22,7 @@
 // renderer re-sorts its own copy, so nothing else inherits the ranking.
 
 import { reviewOrDone, wasAddedAfterStart, wasCarriedIn } from "./dashboard.js";
+import { diffFreeze, frozenKeySet, scopeBasis } from "./freeze.js";
 import { statsFor } from "./github.js";
 import { activityFor as jiraActivityFor, activityFrom as jiraActivityFrom } from "./activity.js";
 import { getStoryPoints, resolveStatusGroup } from "./utils.js";
@@ -62,6 +63,8 @@ export function buildRecap({
   statusGroups = [],
   stats = null,
   since = "",
+  freeze = null,
+  departed = [],
   now = new Date(),
 } = {}) {
   // Sub-tasks are excluded here for the same reason `summarize` excludes them:
@@ -78,9 +81,17 @@ export function buildRecap({
     since: summary.window?.start || "",
     statusGroups,
   });
-  const activeSprintIds = boardSprints
-    .flatMap(({ sprints = [] }) => sprints.map((s) => s?.id))
-    .filter((id) => id !== undefined);
+  const allSprints = boardSprints.flatMap(({ sprints = [] }) => sprints);
+  const activeSprintIds = allSprints.map((s) => s?.id).filter((id) => id !== undefined);
+
+  // With a freeze for this sprint, the scope-creep flags stop being an
+  // approximation: "was this issue in the sprint when it was frozen" is set
+  // membership, where the creation date can only ask "did this issue exist".
+  // The document says which of the two it printed — `combined.scope` carries
+  // the sentence — because a flag that means one thing on one machine and
+  // something else on another is worse than one that is honestly approximate.
+  const frozen = frozenKeySet(freeze);
+  const hasFreeze = Boolean(freeze?.rows);
 
   const boardName = new Map(boardSprints.map(({ board }) => [board.id, board.name]));
   const boardColor = new Map(boardSprints.map(({ board }) => [board.id, board.color]));
@@ -100,7 +111,9 @@ export function buildRecap({
     }
 
     const points = getStoryPoints(issue);
-    const addedAfterStart = wasAddedAfterStart(issue, summary.window?.start);
+    const addedAfterStart = hasFreeze
+      ? !frozen.has(issue.key)
+      : wasAddedAfterStart(issue, summary.window?.start);
     const carriedIn = wasCarriedIn(issue, activeSprintIds);
     const statusName = issue.fields?.status?.name || "";
 
@@ -253,6 +266,12 @@ export function buildRecap({
 
   return {
     generatedAt: now.toISOString(),
+    // The freeze diff, or null when this sprint has none. Computed here rather
+    // than in the renderer so the document and the dashboard panel print the
+    // same six buckets from the same function — a recap that disagreed with the
+    // screen it was generated from would be worse than no recap, which is the
+    // rule this whole module already follows for `summarize`.
+    diff: diffFreeze({ freeze, issues, sprints: allSprints, statusGroups, departed, now }),
     window: { start: summary.window?.start || null, end: summary.window?.end || null },
     days: {
       working: summary.daysTotal,
@@ -266,9 +285,11 @@ export function buildRecap({
     combined: {
       issues: summary.issueCount,
       // What the sprint set out to do: everything in it now, less whatever was
-      // added after it started. The same approximation `addedAfterStart` carries
-      // — creation date, not a real start-of-sprint state — so an older issue
-      // dragged in mid-sprint still counts as having been there from the off.
+      // added after it started. Exact when a freeze exists — that *is* the
+      // start-of-sprint state — and otherwise the creation-date approximation
+      // this figure has always carried, under which an older issue dragged in
+      // mid-sprint still counts as having been there from the off. `scope`
+      // below says which one this document is printing.
       issuesStartedWith: Math.max(0, summary.issueCount - summary.addedAfterStart),
       subtasksExcluded: summary.subtaskCount,
       unestimated: summary.unestimated,
@@ -287,6 +308,7 @@ export function buildRecap({
       addedAfterStart: summary.addedAfterStart,
       addedAfterStartPoints: summary.addedAfterStartPoints,
       scopeCreepShare: share(summary.addedAfterStartPoints, summary.totalPoints),
+      scope: scopeBasis(freeze),
       carriedIn: summary.carriedIn,
       carriedInPoints: summary.carriedInPoints,
       projectedCarryOut: summary.projectedCarryOut,

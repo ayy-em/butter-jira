@@ -352,6 +352,15 @@ globalThis.fetch = async (input, options = {}) => {
   if (/\/rest\/api\/3\/search\/jql/.test(url)) {
     const jql = options.body ? String(JSON.parse(options.body).jql || "") : "";
     if (/^(summary ~|key =)/.test(jql)) return json({ issues: LINK_SEARCH_RESULTS, isLast: true });
+    // The freeze diff's "where did it go" lookup. One of the two answers, in the
+    // backlog with no sprint; the other is absent, which is the fixture showing
+    // the case the app cannot distinguish — deleted, or no longer visible.
+    if (/^key in \(/.test(jql)) {
+      return json({
+        issues: jql.includes("ACME-880") ? [DEPARTED_FIXTURE] : [],
+        isLast: true,
+      });
+    }
   }
 
   // ── createmeta, for the create-issue panel ────────────────────────────────
@@ -466,6 +475,18 @@ function issueDetailFixture(key) {
 // The site's own link types. Deliberately not the English defaults throughout:
 // nothing in the app matches a link type by name, and a fixture that used only
 // familiar names could not show that.
+// An issue that left the sprint, answered by the batched key lookup: no sprint
+// field at all, which is what "back in the backlog" looks like.
+const DEPARTED_FIXTURE = {
+  id: "f1", key: "ACME-880",
+  fields: {
+    summary: "Descoped: the second import pass",
+    status: { name: "To Do", statusCategory: { key: "new" } },
+    issuetype: { name: "Story", subtask: false },
+    cf_sprint: [],
+  },
+};
+
 const LINK_TYPES = [
   { id: "10000", name: "Blocks", inward: "is blocked by", outward: "blocks" },
   { id: "10001", name: "Duplicate", inward: "is duplicated by", outward: "duplicates" },
@@ -733,3 +754,108 @@ if (params.get("stats") !== "error") {
   };
 }
 
+
+// ── A frozen sprint, so the diff panel has something to show ────────────────
+//
+// The dashboard takes a freeze the first time it sees a sprint, so a preview
+// with an empty store would show a panel saying nothing has moved — the one
+// state of it that needs no looking at. So the harness seeds a freeze that
+// differs from the sprint as the fixture serves it: two issues frozen and no
+// longer there (one back in the backlog, one moved to the next sprint), several
+// re-estimated, one re-dated, one re-assigned, one that went backwards, and two
+// in the sprint now that were never in the freeze.
+//
+//   ?freeze=none  no freeze seeded — the dashboard takes its own on load, and
+//                 the panel reads "nothing has moved", which is also what a
+//                 first-ever load looks like
+//   ?freeze=mid   the same freeze, taken on day 4 rather than day 1, so the
+//                 scope tile reads "approx." and says what it is blind to
+const freezeMode = (params.get("freeze") || "").toLowerCase();
+if (freezeMode !== "none") {
+  const { freezeFrom, recordFreeze } = await import("./js/freeze.js");
+  const { sprintKey } = await import("./js/snapshots.js");
+  const { loadStatusGroups } = await import("./js/utils.js");
+
+  const sprints = BOARD_FIXTURE.map((b) => ({
+    id: b.sprint.id,
+    name: b.sprint.name,
+    startDate: daysAgo(b.sprint.startsAgo),
+    endDate: daysAgo(-b.sprint.endsIn),
+  }));
+  const groups = await loadStatusGroups();
+
+  // The sprint as it "was": every current issue, plus two that have since left,
+  // with a handful of values rolled back so the buckets are populated.
+  const asFrozen = [];
+  for (const [, issues] of ISSUES_BY_BOARD) {
+    for (const issue of issues) asFrozen.push(structuredClone(issue));
+  }
+  // Two the freeze does not contain, so they read as crept in — and they are
+  // deliberately one of each kind, because the split is the whole reason a
+  // freeze beats a creation date. `CREPT_IN` is set from the fixture's own
+  // issues so the rows carry real summaries.
+  const creptKeys = pickCreptKeys(asFrozen);
+  for (const key of creptKeys) {
+    const at = asFrozen.findIndex((i) => i.key === key);
+    if (at >= 0) asFrozen.splice(at, 1);
+  }
+  const nudge = (index, mutate) => {
+    const target = asFrozen.filter((i) => !i.fields.issuetype?.subtask)[index];
+    if (target) mutate(target);
+  };
+  nudge(0, (i) => { i.fields.cf_sp = (i.fields.cf_sp ?? 3) - 2; });
+  nudge(1, (i) => { i.fields.cf_sp = (i.fields.cf_sp ?? 3) + 5; });
+  nudge(2, (i) => { i.fields.duedate = "2026-01-15"; });
+  nudge(3, (i) => { i.fields.assignee = { accountId: "acc-1", displayName: PEOPLE[1][0] }; });
+  nudge(4, (i) => { i.fields.status = { name: "Done", statusCategory: { key: "done" } }; });
+  // Two the fixture no longer serves, so they read as pulled out. `?link=` and
+  // the search route answer for neither, which is exactly the "gone" case for
+  // one of them; the other is answered by the key lookup below.
+  asFrozen.push({
+    id: "f1", key: "ACME-880",
+    fields: {
+      summary: "Descoped: the second import pass", cf_sp: 5,
+      status: { name: "To Do", statusCategory: { key: "new" } },
+      issuetype: { name: "Story", subtask: false },
+      assignee: { accountId: "acc-0", displayName: PEOPLE[0][0] },
+      created: daysAgo(20),
+    },
+  });
+  asFrozen.push({
+    id: "f2", key: "PLAT-410",
+    fields: {
+      summary: "Index writer: the flag removal", cf_sp: 3,
+      status: { name: "In Progress", statusCategory: { key: "indeterminate" } },
+      issuetype: { name: "Task", subtask: false },
+      assignee: { accountId: "acc-2", displayName: PEOPLE[2][0] },
+      created: daysAgo(18),
+    },
+  });
+
+  // The default freeze is taken on the sprint's own first day, which is the
+  // state the panel is for and the only one that lets the scope tile read
+  // "exact". ?freeze=mid takes it four days in, the case the wording has to
+  // distinguish rather than quietly round up to exact.
+  const earliestStart = Math.max(...BOARD_FIXTURE.map((b) => b.sprint.startsAgo));
+  const takenAgo = freezeMode === "mid" ? earliestStart - 4 : earliestStart;
+
+  // The oldest issue in the sprint and the newest: one that existed long before
+  // the freeze and was dragged in off the backlog, and one created since. Both
+  // halves, because the split is the whole reason a freeze beats a creation
+  // date, and a preview showing only one of them shows the easy half.
+  function pickCreptKeys(rows) {
+    const real = rows
+      .filter((i) => !i.fields.issuetype?.subtask)
+      .sort((a, b) => String(a.fields.created).localeCompare(String(b.fields.created)));
+    if (real.length < 2) return [];
+    return [real[0].key, real[real.length - 1].key];
+  }
+
+  const freeze = freezeFrom({
+    issues: asFrozen,
+    sprints,
+    statusGroups: groups,
+    now: new Date(daysAgo(takenAgo)),
+  });
+  await recordFreeze(sprintKey(sprints), freeze);
+}

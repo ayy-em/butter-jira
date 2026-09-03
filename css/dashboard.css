@@ -344,3 +344,77 @@
   gap: 8px;
 }
 .dash-share .dash-meter { max-width: 72px; }
+
+/* ── Freeze diff ──────────────────────────────────────────────────────────── */
+/* Six buckets of issue rows plus the arithmetic that ties them to the sprint
+   total. The rows are deliberately quieter than the Kanban's cards: this is a
+   list to be scanned for a name you recognise, not a board to be worked. */
+
+.dash-freeze-btn {
+  flex: none;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(10px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dash-freeze-btn:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
+/* `dash-readout` claims the auto margin, so the button sits beside it rather
+   than being pushed to the far edge on its own. */
+.dash-freeze .dash-readout { margin-left: auto; }
+
+.dash-freeze-sums {
+  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.dash-freeze-bucket { margin-bottom: 14px; }
+.dash-freeze-bucket-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: calc(10px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.dash-freeze-points { margin-left: auto; color: var(--muted); letter-spacing: 0; }
+.dash-freeze-sub {
+  font-size: calc(10px * var(--font-scale));
+  color: var(--muted);
+  margin: 7px 0 2px;
+}
+.dash-freeze-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: calc(12px * var(--font-scale));
+}
+.dash-freeze-summary {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-freeze-detail {
+  margin-left: auto;
+  flex: none;
+  color: var(--muted);
+  font-size: calc(11px * var(--font-scale));
+}
+.dash-freeze-note {
+  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
+  line-height: 1.55;
+  margin-top: 10px;
+}

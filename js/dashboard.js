@@ -67,26 +67,45 @@ export function sprintGoals(sprints) {
   return sprints.map((s) => (s.goal || "").trim()).filter(Boolean);
 }
 
-// The sprint field carries every sprint an issue has belonged to. A closed one
-// in that list means the issue did not finish last time.
-export function wasCarriedIn(issue, activeSprintIds = []) {
+// Every sprint an issue has belonged to, in one shape.
+//
+// Jira answers this field two ways — an array of objects on current Cloud, and a
+// serialised blob per sprint on older instances ("...id=42,state=CLOSED,name=
+// Sprint 7,...") — and the difference is not the caller's business. Extracted
+// when the freeze needed it: carry-in detection, the issue detail's sprint cell
+// and "where did this issue go" all parse the same field, and a fourth private
+// copy of the blob regex is how the three quietly stop agreeing.
+export function sprintEntries(issue) {
   const value = fieldValue(issue, "sprint");
-  if (!value) return false;
+  if (!value) return [];
   const list = Array.isArray(value) ? value : [value];
-  const active = new Set(activeSprintIds.map(String));
-
-  let sawOther = false;
+  const out = [];
   for (const entry of list) {
     if (typeof entry === "string") {
-      // Older Jira serialises the sprint as a blob; state=CLOSED is enough.
-      if (/state=closed/i.test(entry)) return true;
-      const id = /id=(\d+)/.exec(entry)?.[1];
-      if (id && !active.has(id)) sawOther = true;
+      const id = /id=(\d+)/.exec(entry)?.[1] || null;
+      const name = /name=([^,\]]+)/.exec(entry)?.[1] || "";
+      const state = /state=([A-Za-z]+)/.exec(entry)?.[1] || "";
+      out.push({ id: id === null ? null : String(id), name, state: state.toLowerCase() });
       continue;
     }
     if (!entry) continue;
-    if (String(entry.state || "").toLowerCase() === "closed") return true;
-    if (entry.id !== undefined && !active.has(String(entry.id))) sawOther = true;
+    out.push({
+      id: entry.id === undefined || entry.id === null ? null : String(entry.id),
+      name: entry.name || "",
+      state: String(entry.state || "").toLowerCase(),
+    });
+  }
+  return out;
+}
+
+// The sprint field carries every sprint an issue has belonged to. A closed one
+// in that list means the issue did not finish last time.
+export function wasCarriedIn(issue, activeSprintIds = []) {
+  const active = new Set(activeSprintIds.map(String));
+  let sawOther = false;
+  for (const entry of sprintEntries(issue)) {
+    if (entry.state === "closed") return true;
+    if (entry.id !== null && !active.has(entry.id)) sawOther = true;
   }
   return sawOther;
 }
@@ -160,16 +179,29 @@ function bucketAdd(map, key, issue, { done = false, review = false } = {}) {
 }
 
 // One pass over the sprint issues produces everything the view renders.
+//
+// `freeze` is optional and changes exactly one figure: scope added. With a
+// freeze for this sprint, "added after start" is set membership against what
+// the sprint actually held — exact, and able to count an old issue dragged in,
+// which a creation date cannot see. Without one it stays the creation-date
+// approximation it has always been. `scopeFromFreeze` says which of the two
+// this summary is carrying, because a number that silently changes meaning
+// depending on when the extension was installed is worse than an approximate
+// one that says so. The *wording* lives in `scopeBasis` (js/freeze.js), which
+// is not imported here: freeze.js reads this module, and a cycle for one
+// sentence is not a trade worth making.
 export function summarize({
   issues = [],
   sprints = [],
   statusGroups = [],
   monitorSettings = {},
   boards = [],
+  freeze = null,
   now = new Date(),
 } = {}) {
   const window = sprintWindow(sprints);
   const activeSprintIds = sprints.map((s) => s.id).filter((id) => id !== undefined);
+  const frozenKeys = freeze?.rows ? new Set(freeze.rows.map((row) => row.key)) : null;
 
   // Sub-tasks are excluded from the totals: their points (when they have any)
   // duplicate the parent story's, which would inflate the sprint total.
@@ -210,7 +242,7 @@ export function summarize({
       carriedIn++;
       carriedInPoints += value;
     }
-    if (wasAddedAfterStart(issue, window.start)) {
+    if (frozenKeys ? !frozenKeys.has(issue.key) : wasAddedAfterStart(issue, window.start)) {
       addedAfterStart++;
       addedAfterStartPoints += value;
     }
@@ -282,6 +314,7 @@ export function summarize({
     carriedInPoints,
     addedAfterStart,
     addedAfterStartPoints,
+    scopeFromFreeze: Boolean(frozenKeys),
     // Everything not finished when the sprint closes carries into the next one.
     projectedCarryOut: notDone,
     projectedCarryOutPoints: openPoints,

@@ -345,6 +345,35 @@ export async function searchIssuesByJql(jql, creds, maxResults = 50) {
   return tagByProject(data?.issues || []);
 }
 
+// The current state of a named set of issues, in as few requests as possible.
+//
+// Written for the sprint freeze's "pulled out — and where to": an issue that
+// left the sprint is by definition not in any list this app already fetched, so
+// its whereabouts have to be asked for. One JQL over up to fifty keys rather
+// than a request per issue, which is the cost the whole freeze design exists to
+// avoid — a diff that needed sixty requests to render would never be opened
+// twice.
+//
+// Keys Jira does not answer for are simply absent from the result, which is the
+// useful answer: the issue was deleted, or the account can no longer see it.
+const KEY_LOOKUP_LIMIT = 50;
+
+export async function getIssuesByKeys(issueKeys, creds) {
+  const keys = [...new Set((issueKeys || []).map(String).filter(Boolean))];
+  const found = [];
+  for (let i = 0; i < keys.length; i += KEY_LOOKUP_LIMIT) {
+    const batch = keys.slice(i, i + KEY_LOOKUP_LIMIT);
+    const jql = `key in (${batch.map((k) => `"${k.replace(/"/g, '\\"')}"`).join(",")})`;
+    const data = await jiraPost("/rest/api/3/search/jql", creds, {
+      jql,
+      fields: issueFields(),
+      maxResults: KEY_LOOKUP_LIMIT,
+    });
+    found.push(...tagByProject(data?.issues || []));
+  }
+  return found;
+}
+
 // JQL results aren't scoped to a board, so board colour and name are resolved
 // from the project key the same way getAllEpics does it.
 function tagByProject(issues) {

@@ -34,6 +34,7 @@ const cfg = await import(new URL("../js/config.js", import.meta.url));
 const team = await import(new URL("../js/team.js", import.meta.url));
 const dash = await import(new URL("../js/dashboard.js", import.meta.url));
 const recapMod = await import(new URL("../js/recap.js", import.meta.url));
+const frz = await import(new URL("../js/freeze.js", import.meta.url));
 
 let pass = 0;
 let fail = 0;
@@ -150,9 +151,13 @@ const STATS = {
   ],
 };
 
-function build({ issues, stats = STATS, now = new Date("2026-08-10T09:00:00") } = {}) {
+function build({
+  issues, stats = STATS, freeze = null, departed = [], now = new Date("2026-08-10T09:00:00"),
+} = {}) {
   const sprints = [SPRINT_A, SPRINT_B];
-  const summary = dash.summarize({ issues, sprints, statusGroups: GROUPS, boards: BOARDS, now });
+  const summary = dash.summarize({
+    issues, sprints, statusGroups: GROUPS, boards: BOARDS, freeze, now,
+  });
   return recapMod.buildRecap({
     summary,
     issues,
@@ -160,6 +165,8 @@ function build({ issues, stats = STATS, now = new Date("2026-08-10T09:00:00") } 
     statusGroups: GROUPS,
     stats,
     since: SPRINT_A.startDate,
+    freeze,
+    departed,
     now,
   });
 }
@@ -447,6 +454,50 @@ check("an authorless entry is not attributed to anybody",
 check("people stay in name order with the activity block attached",
   activityRecap.people.filter((p) => p.accountId !== "__unassigned__")
     .map((p) => p.label).join(",") === "Avery Quinn,Bo Ferreira");
+
+section("the freeze, in the document");
+// Without a freeze the document prints the creation-date approximation it always
+// has, and says so; with one, the same two figures become set membership against
+// what the sprint actually held.
+const OLD_DRAG = issue({ key: "ACME-500", points: 4, created: "2026-07-01" });
+const PLANNED = [issue({ key: "ACME-501", points: 5 }), issue({ key: "ACME-502", points: 3 })];
+const frozen = frz.freezeFrom({
+  issues: PLANNED,
+  sprints: [SPRINT_A, SPRINT_B],
+  statusGroups: GROUPS,
+  now: new Date(SPRINT_A.startDate),
+});
+
+const loose = build({ issues: [...PLANNED, OLD_DRAG], stats: null });
+check("without a freeze the document keeps the approximation",
+  loose.combined.addedAfterStart === 0 && loose.combined.scope.exact === false);
+check("and prints which basis it used", /creation date/.test(loose.combined.scope.note));
+check("with no freeze there is no diff section to print", loose.diff === null);
+
+const exactRecap = build({ issues: [...PLANNED, OLD_DRAG], stats: null, freeze: frozen });
+check("with a freeze, the dragged-in issue is counted",
+  exactRecap.combined.addedAfterStart === 1);
+check("and the document says the figure is exact", exactRecap.combined.scope.exact === true);
+check("issues started with is the frozen count, not a subtraction from creation dates",
+  exactRecap.combined.issuesStartedWith === 2);
+check("the per-ticket flag follows the same basis",
+  exactRecap.tickets.find((t) => t.key === "ACME-500").addedAfterStart === true &&
+  exactRecap.tickets.find((t) => t.key === "ACME-501").addedAfterStart === false);
+check("and so does the per-person creep count",
+  exactRecap.people.find((p) => p.accountId === "acc-1").addedAfterStart === 1);
+check("the diff is carried on the document, from the same function as the panel",
+  exactRecap.diff.counts.frozen === 2 && exactRecap.diff.counts.creptIn === 1);
+
+const shrunk = build({ issues: [PLANNED[0]], stats: null, freeze: frozen });
+check("an issue in the freeze and gone from the sprint is pulled out",
+  shrunk.diff.pulledOut.map((r) => r.key).join() === "ACME-502");
+check("with nowhere looked up, a departure says it cannot tell deleted from hidden",
+  shrunk.diff.pulledOut[0].where === "gone");
+check("given the lookup, it says where the issue went",
+  build({
+    issues: [PLANNED[0]], stats: null, freeze: frozen,
+    departed: [{ key: "ACME-502", fields: { cf_sprint: [] } }],
+  }).diff.pulledOut[0].where === "backlog");
 
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

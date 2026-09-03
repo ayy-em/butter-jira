@@ -74,7 +74,7 @@ override file. Anything else is a finding.
 - [ ] Points complete matches Jira's own sprint total, sub-tasks excluded
 - [ ] A sprint with no estimates shows "—" for points, not 0%
 - [ ] Carried in matches the issues that were in a previous sprint
-- [ ] Added after start looks plausible; the "?" tooltip explains the caveat
+- [ ] Added after start looks plausible; the tile reads "exact" or "approx." and the "?" tooltip says which and why
 - [ ] Hygiene tile shows an icon AND a word; clicking it goes to Monitor
 - [ ] First visit → burndown says it is collecting history and explains why
 - [ ] Second day → burndown draws, with the ideal line dashed and a legend present
@@ -87,7 +87,36 @@ override file. Anything else is a finding.
 - [ ] Light theme: charts re-pick colours, everything still readable
 - [ ] Opening the tab straight after Kanban issues no new Jira requests (check the Network tab)
 - [ ] Opening it twice in a day does not add a second snapshot row (Storage → `sprintSnapshots`)
+- [ ] Opening it twice does not take a second freeze either (Storage → `sprintFreezes` — `takenAt` unchanged)
 - [ ] No console errors; no chart drawn outside its card
+
+## 3a-i. Sprint freeze and diff (M13)
+The freeze is taken on the first load of a sprint, so most of this needs a sprint
+that has actually moved since. A scratch sprint you can drag issues in and out of
+is the fastest way to see all six buckets.
+- [ ] First ever load of a sprint → a freeze is written (Storage → `sprintFreezes`) and the panel says nothing has moved
+- [ ] The readout says whether it was taken at the sprint start or on day N of it, and matches when you first opened the tab
+- [ ] Drag an issue into the sprint in Jira, reload → it appears under **Crept in**, in the *already existed* half
+- [ ] Create a new issue in the sprint, reload → it appears under **Crept in**, in the *created after the freeze* half
+- [ ] Drag an issue out to the backlog → **Pulled out**, "→ backlog"
+- [ ] Move an issue to a different sprint → **Pulled out**, naming that sprint
+- [ ] Delete an issue that was in the freeze → **Pulled out**, "deleted, or no longer visible to you"
+- [ ] Change an estimate → **Re-estimated**, then → now, and the bucket's total point change is the sum of the deltas
+- [ ] Clear an estimate → reads as "→ —", not as 0
+- [ ] Move a due date → the direction and the number of days are right; setting one that was absent reads "set to …"
+- [ ] Reassign an issue → both people are **named**, and the "from" name is the one it had at the freeze even if they have since left the roster
+- [ ] Reopen a Done issue → **Went backwards**
+- [ ] The arithmetic line reconciles: frozen − pulled out + crept in = the issue count in the KPI row above
+- [ ] Sub-tasks appear in no bucket and in no count
+- [ ] Every issue key in the panel opens the drawer; ⌘/Ctrl-click opens the page
+- [ ] The blind-spot note is present, and says a round trip in and out of the sprint reads as unchanged
+- [ ] The departure lookup is **one** request for all of them, after the first paint (Network tab, `search/jql` with `key in (...)`)
+- [ ] **Freeze now** → the confirm names the date, issue count and points it is discarding; cancelling changes nothing
+- [ ] Confirm it → the panel redraws empty and the readout shows today
+- [ ] With a start-of-sprint freeze the "Added after start" tile reads **exact**; with one taken mid-sprint it reads **approx.** and names the day
+- [ ] The recap PDF's "What changed underneath the plan" section matches the panel, and its scope note matches the tile
+- [ ] A recap opened for a sprint the dashboard has never seen says there is no frozen state — and writes no freeze (Storage unchanged)
+- [ ] After nine sprints, `sprintFreezes` and `sprintSnapshots` hold the same eight keys
 
 ## 3b. Monitor tab
 - [ ] Opens with `m` or the MONITOR tab; nav badge shows the total, hidden at zero

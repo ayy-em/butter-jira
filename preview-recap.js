@@ -8,7 +8,10 @@
 //   open preview-recap.html              (or serve the folder over http)
 //
 // Fixture states: ?theme=light · ?github=off · ?stats=error · ?sprint=undated ·
-// ?push=off · ?avatars=off · ?roster=empty
+// ?push=off · ?avatars=off · ?roster=empty · ?freeze=mid|none — the last of
+// which is the one to check before changing the scope wording: with no freeze
+// the document prints the creation-date approximation and the "what changed"
+// section says there is nothing to compare against.
 import { params } from "./preview-fixture.js";
 
 // The print dialog is opt-in here. Previewing is reading, and a dialog opening

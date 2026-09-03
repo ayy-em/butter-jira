@@ -447,9 +447,10 @@ Press `d` or the SPRINT tab. Sprint name, goal, dates and working days left, the
 a KPI row: points complete, issues done, carried in, added after start, projected
 carry-out, and a hygiene score that links through to the Monitor tab.
 
-Below that: a burndown, sprint progression by status, and breakdowns by board and
-by person. Everything is derived from data the other views already fetched, so
-opening the tab normally costs no Jira requests at all.
+Below that: a burndown, **what changed since the freeze**, sprint progression by
+status, and breakdowns by board and by person. Everything is derived from data
+the other views already fetched, so opening the tab normally costs no Jira
+requests at all.
 
 At the foot of the view, **delivery by person** — tickets assigned, how many are
 in review or done, points planned, points in review or done, that last pair as a
@@ -486,13 +487,63 @@ That means:
 
 The chart says which of these applies instead of drawing a line it can't support.
 
-Two figures are approximations, and the UI marks them: **added after start** is
-counted from issue creation date, so an older issue dragged into the sprint
-mid-flight isn't caught; **hygiene** is a coarse share of issues with no finding,
-meant as a nudge rather than a KPI to optimise.
+**Hygiene** is a coarse share of issues with no finding, meant as a nudge rather
+than a KPI to optimise. **Added after start** used to be an approximation too;
+with a freeze it is not — see below, and note that the tile says which of the two
+it is printing on every load.
 
 Sub-tasks are excluded from point totals — their estimates duplicate the parent
 story's — and the excluded count is shown rather than hidden.
+
+### Sprint freeze, and what changed under the plan
+
+The dashboard answers "how much got done". The freeze answers the other question
+a sprint review asks: **what changed underneath the plan.**
+
+The first time the tab sees a sprint it records a per-issue snapshot of it — key,
+summary, type, status, assignee, estimate, due date, parent, board and sprint —
+and from then on the **Since the freeze** panel shows what moved:
+
+- **Crept in**, split in two: issues *created* after the freeze, and issues that
+  already existed and were *dragged into* the sprint later. Nothing before this
+  could tell those apart.
+- **Pulled out** — gone from the sprint, and where to: the backlog, another
+  sprint, or gone entirely (deleted and no-longer-visible look the same from
+  here, and the wording says so rather than picking one).
+- **Re-estimated** — then → now per issue, and the sprint's total point change
+  from re-estimation alone, which a burndown cannot separate from work finishing.
+- **Due date moved** — then → now, with the direction and the number of days.
+- **Re-assigned**, naming both people, and **went backwards** — an issue that was
+  Done at the freeze and is not now.
+- An **unchanged** count, and a line of arithmetic: frozen − pulled out + crept
+  in = the sprint now. The buckets have to reconcile on screen.
+
+It is taken **automatically**, unasked, on the first load of a sprint — history
+only accrues forward, and a sprint boundary that passes unfrozen cannot be
+reconstructed later. **Freeze now**, on the panel, replaces it for a sprint that
+was re-planned; it confirms with what it is about to discard, because there is no
+way back to the old one.
+
+**Added after start becomes exact, conditionally.** With a freeze taken on the
+sprint's first day the figure is set membership rather than a date comparison,
+and the tile says `exact`. With a freeze taken mid-sprint — which is what you get
+if you install the extension in week two — it is exact from that day and blind to
+what came before, and it says `approx.` and names the day it can see from. With
+no freeze it is the old creation-date approximation and says so. Three states,
+because a number that silently means different things on different machines is
+worse than one that is honestly approximate.
+
+**What it deliberately cannot see.** A freeze compares two points in time, not
+the route between them, so an issue that left the sprint and came back reads as
+unchanged. Catching that needs a changelog request per issue — 60 issues, 60
+requests, every time you open the tab — which is the cost this whole design
+exists to avoid. The panel names the blind spot rather than leaving it to be
+discovered.
+
+Stored device-local and pruned to the same eight sprints the burndown keeps, from
+the same constant, so the two histories cannot end up different lengths. A
+60-issue sprint freezes to roughly 22 KB; eight of them, under 200 KB — measured
+in `scripts/test-dashboard.mjs` rather than assumed.
 
 ### Sprint recap (PDF)
 
@@ -858,6 +909,7 @@ js/dashboard.js     # sprint aggregation (pure derivation)
 js/recap.js         # sprint recap model (pure derivation)
 js/recap-page.js    # the printable recap document
 js/snapshots.js     # daily sprint snapshots — the burndown's history
+js/freeze.js        # per-issue sprint freeze and the diff over it (DOM-free)
 js/charts.js        # inline SVG chart primitives, no libraries
 js/standup.js       # standup session: order, phases, timing (DOM-free)
 js/sfx.js           # bundled sound cues
@@ -901,8 +953,8 @@ node scripts/test-team.mjs         # roster, display names, filtering (127 check
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
 node scripts/test-standup.mjs      # session timing, order, resume   (165 checks)
-node scripts/test-dashboard.mjs    # aggregation, burndown, geometry  (162 checks)
-node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (105 checks)
+node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (226 checks)
+node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (117 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
 node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (206 checks)
 node scripts/test-write.mjs        # field writes, undo, bulk, links  (136 checks)
@@ -924,7 +976,9 @@ against the same sprint. Query parameters pick the state: `?theme=light`,
 `?github=off`, `?stats=slow`, `?stats=error`, `?sprint=undated`, `?push=off`,
 `?avatars=off`, `?logo=off`, `?jira=slow`, `?stats=partial`, `?history=off` — which
 strips issue history, the case that dashes the per-person activity figures while
-leaving "created" counted — plus `?sort=<column>` on the
+leaving "created" counted — and `?freeze=mid|none`, which takes the seeded freeze
+four days into the sprint or seeds none at all, the two states the scope wording
+has to distinguish — plus `?sort=<column>` on the
 dashboard, `?print=1` on the recap, `?edit=points|due|assignee` and
 `?link=open|search|refuse` on the issue
 detail (which open that cell and the link picker — the states a screenshot
@@ -964,7 +1018,10 @@ overrun, resume-after-reload, and the board grouping shared with Kanban.
 `test-recap.mjs` covers the recap model: the combined figures and their shares,
 per-person contribution rows with the GitHub and Jira-activity halves attached or
 absent, the board split, the ticket list's ordering and its scope-creep and
-carry-in flags, and the three separate ways GitHub can have no answer. The
+carry-in flags, the three separate ways GitHub can have no answer, and — since
+the freeze exists — that the document's per-ticket, per-person and headline creep
+figures all switch basis together, so a page cannot print an exact tile over
+approximate rows. The
 document itself is verified by printing it — see the preview harnesses below.
 
 `test-activity.mjs` covers per-person Jira activity: the compaction that reduces
@@ -983,7 +1040,16 @@ absence kept distinct from zero on each half separately.
 detection, the per-status/board/person buckets, review-versus-done classification
 and the points share built on it, snapshot storage and pruning including the
 per-person block written for the planner, and the burndown series — plus chart geometry against a DOM shim, so a NaN coordinate
-or a label placed outside the viewBox fails the suite rather than the eye.
+or a label placed outside the viewBox fails the suite rather than the eye. The
+sprint freeze is in the same suite: what a frozen row keeps and what it
+deliberately excludes, all six diff buckets, the crept-in split the creation-date
+approximation cannot make, the arithmetic reconciling the buckets with the sprint
+total, both departure answers, and the three states the scope figure can be in —
+including the one that matters most, a mid-sprint freeze **not** being allowed to
+call itself exact. It also *measures* what a freeze costs on the device, and
+prints the figure, because the roadmap's own risk register calls this the largest
+thing the extension keeps and "assume it is small" is how a storage quota gets
+discovered by a user instead of by a test.
 
 `test-write.mjs` covers the write layer against a stubbed transport: the
 domain-name → field-id mapping (so an estimate cannot go to the wrong custom

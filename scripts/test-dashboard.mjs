@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Unit checks for sprint dashboard aggregation: working-day arithmetic, the
 // sprint window across several boards, carry-in and scope-change detection,
-// per-status/board/person buckets, hygiene scoring, snapshot storage, and the
-// burndown series. No dependencies, no network, no browser.
+// per-status/board/person buckets, hygiene scoring, snapshot storage, the sprint
+// freeze and its diff, and the burndown series. No dependencies, no network, no
+// browser.
 //
 // Usage: node scripts/test-dashboard.mjs
 
@@ -34,6 +35,7 @@ const cfg = await import(new URL("../js/config.js", import.meta.url));
 const team = await import(new URL("../js/team.js", import.meta.url));
 const dash = await import(new URL("../js/dashboard.js", import.meta.url));
 const snap = await import(new URL("../js/snapshots.js", import.meta.url));
+const frz = await import(new URL("../js/freeze.js", import.meta.url));
 
 // ── Minimal DOM shim, so the SVG builders can be exercised headlessly ────────
 // The palette validator checks colour; it cannot catch NaN coordinates, a bar
@@ -414,6 +416,253 @@ const all = (await chrome.storage.local.get(["sprintSnapshots"])).sprintSnapshot
 check("old sprints pruned", Object.keys(all).length === 8);
 check("most recent sprint kept", Boolean(all["sprint-11"]));
 check("oldest sprint dropped", !all["sprint-0"]);
+
+// ── Sprint freeze and diff (M13) ────────────────────────────────────────────
+
+section("taking a freeze");
+local = {};
+const withDue = (o, duedate) => {
+  const i = issue(o);
+  i.fields.duedate = duedate;
+  return i;
+};
+const FROZEN_ISSUES = [
+  issue({ key: "ABC-1", points: 3, status: "To Do" }),
+  withDue({ key: "ABC-2", points: 5, status: "In Progress" }, "2026-08-10"),
+  issue({ key: "ABC-3", points: 2, status: "Done" }),
+  issue({ key: "ABC-4", points: null, status: "To Do", assignee: null }),
+  // A sub-task, which must not be frozen: its points duplicate the parent's,
+  // and a diff whose counts disagreed with the dashboard above it is worse than
+  // no diff.
+  issue({ key: "ABC-90", points: 8, subtask: true }),
+];
+let freeze = frz.freezeFrom({
+  issues: FROZEN_ISSUES, sprints: [SPRINT], statusGroups: GROUPS,
+  now: new Date("2026-08-03T09:00:00Z"),
+});
+check("sub-tasks are excluded, as they are from the totals", freeze.rows.length === 4);
+check("the points frozen match the countable issues", freeze.totalPoints === 10);
+check("a freeze on the sprint's start day knows it is one", freeze.atStart === true);
+check("and records which working day it was taken on", freeze.dayOfSprint === 1);
+const row = freeze.rows.find((r) => r.key === "ABC-2");
+check("a row carries the estimate", row.points === 5);
+check("a row carries the due date", row.dueDate === "2026-08-10");
+check("a row carries the status and its group", row.status === "In Progress" && row.statusGroup === "In Progress");
+check("a row carries the status category, not just the name",
+  freeze.rows.find((r) => r.key === "ABC-3").category === "done");
+check("a row carries the assignee id", row.assignee === "acc-1");
+check("and the name as it read that day — the roster is current, history is not",
+  row.assigneeName === "Ada Lovelace");
+check("an unassigned issue freezes as unassigned, not as missing",
+  freeze.rows.find((r) => r.key === "ABC-4").assignee === null);
+check("no estimate freezes as null, distinct from zero",
+  freeze.rows.find((r) => r.key === "ABC-4").points === null);
+check("the board id is kept, so a multi-board diff can say which sprint",
+  row.boardId === 1);
+
+const late = frz.freezeFrom({
+  issues: FROZEN_ISSUES, sprints: [SPRINT], statusGroups: GROUPS,
+  now: new Date("2026-08-06T09:00:00Z"),
+});
+check("a mid-sprint freeze does not claim to be a start-of-sprint one", late.atStart === false);
+check("and says which day it is", late.dayOfSprint === 4);
+
+section("what the freeze lets the app claim");
+check("no freeze is the creation-date approximation, and says so",
+  frz.scopeBasis(null).exact === false && /creation date/.test(frz.scopeBasis(null).note));
+check("a start-of-sprint freeze is exact", frz.scopeBasis(freeze).exact === true);
+check("a mid-sprint freeze is NOT called exact — it is blind to what came before",
+  frz.scopeBasis(late).exact === false && frz.scopeBasis(late).basis === "freeze");
+check("and it says which day it can see from", /day 4/.test(frz.scopeBasis(late).note));
+
+section("the scope figure changes basis, not silently");
+// Dragged in: created long before the sprint, so the creation-date figure
+// cannot see it. This is the whole reason a freeze is worth keeping.
+const draggedIn = issue({ key: "ABC-7", points: 4, created: "2026-07-01" });
+const bornLate = issue({ key: "ABC-8", points: 1, created: "2026-08-05" });
+const NOW_ISSUES = [...FROZEN_ISSUES, draggedIn, bornLate];
+let plain = dash.summarize({ issues: NOW_ISSUES, sprints: [SPRINT], statusGroups: GROUPS, boards: BOARDS });
+check("without a freeze, an old issue dragged in is invisible", plain.addedAfterStart === 1);
+check("and the summary says the figure is not from a freeze", plain.scopeFromFreeze === false);
+let exact = dash.summarize({
+  issues: NOW_ISSUES, sprints: [SPRINT], statusGroups: GROUPS, boards: BOARDS, freeze,
+});
+check("with a freeze, both are counted", exact.addedAfterStart === 2);
+check("and their points with them", exact.addedAfterStartPoints === 5);
+check("the summary says which basis it used", exact.scopeFromFreeze === true);
+check("nothing else about the summary moves",
+  exact.totalPoints === plain.totalPoints && exact.doneIssues === plain.doneIssues);
+
+section("the diff");
+const changed = [
+  // Two buckets at once: re-estimated *and* re-assigned, which is also the case
+  // the reconciliation has to count as one changed issue rather than two.
+  issue({ key: "ABC-1", points: 8, status: "To Do", assignee: { accountId: "acc-9", displayName: "Zoe" } }),
+  withDue({ key: "ABC-2", points: 5, status: "In Progress" }, "2026-08-17"), // re-dated
+  issue({ key: "ABC-3", points: 2, status: "In Progress" }),              // regressed
+  issue({ key: "ABC-4", points: null, status: "To Do", assignee: { accountId: "acc-9", displayName: "Zoe" } }),
+  draggedIn,
+  bornLate,
+  issue({ key: "ABC-90", points: 8, subtask: true }),
+];
+// ABC-... nothing: every frozen issue is still here, so nothing is pulled out
+// yet. The pulled-out case gets its own scenario below.
+let diff = frz.diffFreeze({
+  freeze, issues: changed, sprints: [SPRINT], statusGroups: GROUPS, departed: [],
+});
+check("crept in is split in two, which the approximation cannot do",
+  diff.counts.createdAfter === 1 && diff.counts.draggedIn === 1);
+check("the new issue is the one created after the freeze",
+  diff.createdAfter[0].key === "ABC-8");
+check("the old one is the one dragged in", diff.draggedIn[0].key === "ABC-7");
+check("re-estimation is then -> now with a delta",
+  diff.reEstimated[0].key === "ABC-1" && diff.reEstimated[0].from === 3 &&
+  diff.reEstimated[0].to === 8 && diff.reEstimated[0].delta === 5);
+check("the sprint's total change from re-estimation alone", diff.points.reEstimated === 5);
+check("a moved due date carries the direction and the number of days",
+  diff.reDated[0].key === "ABC-2" && diff.reDated[0].days === 7 &&
+  diff.reDated[0].direction === "later");
+const moved = diff.reassigned.find((r) => r.key === "ABC-1");
+check("a re-assignment names both people rather than both ids",
+  moved.fromName === "Ada Lovelace" && moved.toName === "Zoe");
+check("the name it prints for 'from' is the one stored at the freeze, not resolved now",
+  moved.from === "acc-1" && moved.fromName === "Ada Lovelace");
+check("picking up an unassigned issue reads as Unassigned, not as a blank",
+  diff.reassigned.find((r) => r.key === "ABC-4").fromName === "Unassigned");
+check("done at the freeze and not done now is a regression",
+  diff.regressed[0].key === "ABC-3" && diff.regressed[0].from === "Done");
+check("an unchanged issue is in no bucket",
+  !diff.reEstimated.concat(diff.reDated, diff.reassigned, diff.regressed).some((r) => r.key === "ABC-90"));
+
+section("the diff reconciles with the sprint total");
+check("frozen − pulled out + crept in = now",
+  diff.counts.frozen - diff.counts.pulledOut + diff.counts.creptIn === diff.counts.now);
+check("changed + unchanged = what carried through",
+  diff.counts.changed + diff.counts.unchanged === diff.counts.carriedThrough);
+check("an issue in two buckets is counted as changed once",
+  diff.counts.changed === 4);
+check("the sub-task is in neither total", diff.counts.now === 6);
+
+section("what left the sprint, and where it went");
+const remaining = changed.filter((i) => i.key !== "ABC-1" && i.key !== "ABC-3");
+check("the keys to look up are exactly the ones that left",
+  frz.departedKeys(freeze, remaining).sort().join() === "ABC-1,ABC-3");
+const backInBacklog = issue({ key: "ABC-1" });
+const movedOn = issue({ key: "ABC-3", sprint: [{ id: 77, name: "Sprint 43", state: "future" }] });
+diff = frz.diffFreeze({
+  freeze, issues: remaining, sprints: [SPRINT], statusGroups: GROUPS,
+  departed: [backInBacklog, movedOn],
+});
+check("an issue with no sprint went back to the backlog",
+  diff.pulledOut.find((r) => r.key === "ABC-1").where === "backlog");
+check("an issue in another sprint says which one",
+  diff.pulledOut.find((r) => r.key === "ABC-3").whereLabel === "Sprint 43");
+check("the points that left are counted", diff.points.pulledOut === 5);
+diff = frz.diffFreeze({
+  freeze, issues: remaining, sprints: [SPRINT], statusGroups: GROUPS, departed: [],
+});
+check("an issue Jira did not answer for is gone, and the wording admits both reasons",
+  diff.pulledOut[0].where === "gone" && /no longer visible/.test(diff.pulledOut[0].whereLabel));
+check("the serialised sprint blob older instances send is read too",
+  frz.diffFreeze({
+    freeze, issues: remaining, sprints: [SPRINT], statusGroups: GROUPS,
+    departed: [{ key: "ABC-1", fields: { cf_sprint: ["com.x.Sprint@1[id=77,state=FUTURE,name=Sprint 43]"] } }],
+  }).pulledOut.find((r) => r.key === "ABC-1").whereLabel === "Sprint 43");
+
+section("the diff's edges");
+check("no freeze means no diff, not an empty one",
+  frz.diffFreeze({ freeze: null, issues: changed }) === null);
+const unchangedDiff = frz.diffFreeze({
+  freeze, issues: FROZEN_ISSUES, sprints: [SPRINT], statusGroups: GROUPS, departed: [],
+});
+check("a sprint nobody touched has empty buckets and a full unchanged count",
+  unchangedDiff.counts.changed === 0 && unchangedDiff.counts.unchanged === 4);
+check("an estimate read back as a string is not a re-estimation",
+  frz.diffFreeze({
+    freeze,
+    issues: FROZEN_ISSUES.map((i) => (i.key === "ABC-1" ? { ...i, fields: { ...i.fields, cf_sp: "3" } } : i)),
+    sprints: [SPRINT], statusGroups: GROUPS, departed: [],
+  }).reEstimated.length === 0);
+check("clearing an estimate IS a re-estimation, and reads as one",
+  frz.diffFreeze({
+    freeze,
+    issues: FROZEN_ISSUES.map((i) => (i.key === "ABC-1" ? { ...i, fields: { ...i.fields, cf_sp: null } } : i)),
+    sprints: [SPRINT], statusGroups: GROUPS, departed: [],
+  }).reEstimated[0].to === null);
+check("setting a due date that was not there says 'set', not '0 days later'",
+  frz.diffFreeze({
+    freeze,
+    issues: FROZEN_ISSUES.map((i) => (i.key === "ABC-1" ? withDue({ key: "ABC-1", points: 3 }, "2026-08-09") : i)),
+    sprints: [SPRINT], statusGroups: GROUPS, departed: [],
+  }).reDated[0].direction === "set");
+check("not-done at the freeze and done now is not a regression",
+  frz.diffFreeze({
+    freeze,
+    issues: FROZEN_ISSUES.map((i) => (i.key === "ABC-1" ? issue({ key: "ABC-1", points: 3, status: "Done" }) : i)),
+    sprints: [SPRINT], statusGroups: GROUPS, departed: [],
+  }).regressed.length === 0);
+
+section("freeze storage");
+local = {};
+const fkey = snap.sprintKey([SPRINT]);
+check("a freeze for an unknown sprint is null, not an empty record",
+  (await frz.loadFreeze(fkey)) === null);
+check("recording returns nothing replaced the first time",
+  (await frz.recordFreeze(fkey, freeze)) === null);
+check("it survives the round trip",
+  (await frz.loadFreeze(fkey)).rows.length === 4);
+const replaced = await frz.recordFreeze(fkey, late);
+check("a re-freeze hands back what it discarded, so the caller can name it",
+  replaced.takenOn === "2026-08-03");
+check("and the new one is what is stored",
+  (await frz.loadFreeze(fkey)).takenOn === "2026-08-06");
+check("a record with no rows is refused rather than stored as an empty freeze",
+  (await frz.recordFreeze("other", {})) === null && (await frz.loadFreeze("other")) === null);
+check("other sprints are isolated", (await frz.loadFreeze("999")) === null);
+
+section("freeze pruning");
+local = {};
+for (let i = 0; i < 12; i++) {
+  await frz.recordFreeze(`sprint-${i}`, {
+    takenAt: `2026-07-${String(i + 1).padStart(2, "0")}T09:00:00.000Z`,
+    takenOn: `2026-07-${String(i + 1).padStart(2, "0")}`,
+    rows: [],
+  });
+}
+const freezes = (await chrome.storage.local.get(["sprintFreezes"])).sprintFreezes;
+check("pruned to the same depth as snapshots, from the same constant",
+  Object.keys(freezes).length === snap.MAX_SPRINTS_KEPT);
+check("the most recent freeze is kept", Boolean(freezes["sprint-11"]));
+check("the oldest is dropped", !freezes["sprint-0"]);
+
+section("what a freeze costs on the device");
+// The roadmap's risk register calls per-issue rows for eight sprints the largest
+// thing this extension keeps, so it is measured rather than assumed. A realistic
+// sprint: 60 issues with full summaries, names and dates.
+const bigSprint = Array.from({ length: 60 }, (_, i) =>
+  withDue(
+    {
+      key: `ABC-${1000 + i}`,
+      points: (i % 8) + 1,
+      status: i % 3 === 0 ? "Done" : "In Progress",
+      assignee: { accountId: `557058:0000-0000-0000-${i}`, displayName: "A Colleague Name" },
+    },
+    "2026-08-14"
+  )
+);
+for (const i of bigSprint) {
+  i.fields.summary = "A realistically long issue summary that says what the work actually is";
+  i.fields.parent = { key: "ABC-1" };
+}
+const bigFreeze = frz.freezeFrom({
+  issues: bigSprint, sprints: [SPRINT], statusGroups: GROUPS, now: new Date("2026-08-03T09:00:00Z"),
+});
+const bytes = frz.freezeBytes(bigFreeze);
+console.log(`      … 60 issues freeze to ${bytes} bytes; eight of them, ${Math.round((bytes * 8) / 1024)} KB`);
+check("a 60-issue sprint freezes to well under 100 KB", bytes < 100 * 1024);
+check("eight of them stay under a megabyte — chrome.storage.local allows far more",
+  bytes * snap.MAX_SPRINTS_KEPT < 1024 * 1024);
+local = {};
 
 section("burndown series");
 const window = { start: dash.startOfDay("2026-08-03"), end: dash.startOfDay("2026-08-07") };

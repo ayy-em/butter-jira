@@ -252,6 +252,26 @@ html, body.recap-page {
 }
 .recap-inline-stats .recap-stat { border-top: none; padding-top: 0; min-width: 60px; }
 
+/* ── What changed underneath the plan ─────────────────────────────────────── */
+/* Named rows under the counts, capped so the section stays a summary — the
+   ticket list at the end of the document already carries every issue. */
+
+.recap-change-block { margin-top: 10px; break-inside: avoid; }
+.recap-change-label {
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.6pt;
+  color: var(--ink-soft);
+  margin-bottom: 3px;
+}
+.recap-change-row {
+  font-size: 9pt;
+  color: var(--ink);
+  line-height: 1.45;
+  padding-left: 8pt;
+}
+.recap-change-more { color: var(--ink-soft); font-style: italic; }
+
 /* ── Status split ─────────────────────────────────────────────────────────── */
 
 .recap-bar {

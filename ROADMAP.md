@@ -19,14 +19,14 @@ built the way it is, which is the part that gets forgotten.
 | Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
 | Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Issue detail (drawer + full page) |
 | Data access | HTTP Basic (email + API token), `js/api.js`. Reads, plus five writes: transitions, field edits, issue and sub-task creation, comments, issue links (the app's only DELETE) |
-| Derived reads | Per-person Jira activity (`js/activity.js`) from `expand=changelog` riding the sprint fetch — no requests of its own |
+| Derived reads | Per-person Jira activity (`js/activity.js`) from `expand=changelog` riding the sprint fetch — no requests of its own. Sprint freeze and diff (`js/freeze.js`) over a per-issue record written forward at rollover |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/api/3/issue/*` (incl. `createmeta`), `/rest/api/3/issueLinkType`, `/rest/api/3/issueLink/*`, `/rest/agile/1.0/board/*`, `/rest/agile/1.0/sprint/*/issue` |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist |
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping, GitHub block), overridable via `config.local.json` |
-| Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, and a 5-minute response cache. One accessor module (`js/browser.js`) |
+| Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, the daily snapshots and per-sprint freezes, and a 5-minute response cache. One accessor module (`js/browser.js`) |
 | Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
 | Version control | Git, `.gitignore` in place |
-| Tests | Seventeen `scripts/test-*.mjs` suites (1678 checks) + six preview harnesses + a manual smoke checklist |
+| Tests | Seventeen `scripts/test-*.mjs` suites (1755 checks) + six preview harnesses + a manual smoke checklist |
 
 ## Sizing
 
@@ -86,7 +86,7 @@ M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 P
                                                                         ├──▶ M7 Dashboard ✔ ──┬──▶ M9 Palette + Triage ✔
                                                                         │                     ├──▶ M8 Writes ✔ ──┬──▶ M15 Sprint planner
                                                                         │                     │                  └──▶ M18 Linked issues ✔
-                                                                        │                     ├──▶ M13 Sprint freeze + diff
+                                                                        │                     ├──▶ M13 Sprint freeze + diff ✔
                                                                         │                     └──▶ M17 Per-sprint history ─▶ M16 Quarter Wrapped
                                                                         │
                                                                         └──▶ M14 Weekly 1:1
@@ -97,7 +97,7 @@ same day to match it, so this is the dependency graph's rows read in queue order
 rather than a second scheme to keep in your head:
 
 ```
-M18 Linked issues ✔ ─▶ M13 Freeze + diff ─▶ M14 Weekly 1:1 ─▶ M15 Sprint planner ─▶ M16 Quarter Wrapped ─▶ M17 Per-sprint history
+M18 Linked issues ✔ ─▶ M13 Freeze + diff ✔ ─▶ M14 Weekly 1:1 ─▶ M15 Sprint planner ─▶ M16 Quarter Wrapped ─▶ M17 Per-sprint history
 ```
 
 **M18 was taken first, out of order, on 2026-09-03** — the second time the queue
@@ -171,8 +171,8 @@ open question 3, applied a third time. M18 was added new.
 | Writes corrupt real sprint data | M8, M15 | Draft mode, batch confirmation, undo window, isolated write helpers |
 | A generated create form still 400s on an unfamiliar site | M8 | Fields come from `createmeta` per project and type; the sub-task type is read from `subtask: true`, never matched by name |
 | Notes about a named colleague are the app's most sensitive data | M14 | Device-local, never synced, own export checkbox and confirm, bounded retention, no ranking or evaluation framing |
-| A per-issue freeze for eight sprints is the largest thing kept on device | M13 | Measure it against a real sprint before shipping; prune on the snapshot schedule so the two histories cannot diverge |
-| Scope-added silently changes meaning depending on whether a freeze exists | M13 | The figure states which of the two it is, exact or approximate, everywhere it is printed |
+| ~~A per-issue freeze for eight sprints is the largest thing kept on device~~ | M13 ✔ | Measured, not assumed: a 60-issue sprint freezes to ~22 KB, eight to ~170 KB, asserted and printed by `scripts/test-dashboard.mjs`. Pruned with `MAX_SPRINTS_KEPT` **imported from `js/snapshots.js`** rather than copied, so the two caps cannot drift apart |
+| ~~Scope-added silently changes meaning depending on whether a freeze exists~~ | M13 ✔ | Resolved, and in three states rather than two: no freeze is the creation-date approximation, a start-of-sprint freeze is exact, and a mid-sprint freeze is exact only from the day it was taken and says which day. One function (`scopeBasis`) writes the sentence for the tile and the PDF, so they cannot disagree |
 | A quarter is ~90 days and the GitHub window is 45 | M16, M17 | Store per-sprint rollups at rollover; until they exist, the quarter document states the shorter window it actually covers |
 | Lines of code read as a productivity measure | M16, M17 | Team-level per sprint only, never per person, labelled as lines reaching the default branch |
 | ~~Unlinking an issue is destructive and Jira offers no undo~~ | M18 ✔ | Resolved: a confirm naming both issues and the relationship, and no ✕ at all on a sub-task row, which has no link to remove. The DELETE goes through the same `jiraWrite` every other write does — `jiraWrite` learned to send no body rather than the method getting a path of its own |
@@ -203,11 +203,11 @@ open question 3, applied a third time. M18 was added new.
 
 # Open
 
-**Re-sequenced 2026-09-03**, and **M18 shipped the same day**, out of order and
-ahead of the rest — see the note under *Order of work* above. What is left, in
-order: **M13** (sprint freeze and diff) → **M14** (weekly 1:1) → **M15** (sprint
-planner) → **M16** (Quarter Wrapped) → **M17** (per-sprint history). The sections
-below are in that order.
+**Re-sequenced 2026-09-03**, and **M18 and M13 both shipped the same day** —
+M18 out of order and ahead of the rest, M13 in its place at the head of the
+queue. What is left, in order: **M14** (weekly 1:1) → **M15** (sprint planner) →
+**M16** (Quarter Wrapped) → **M17** (per-sprint history). The sections below are
+in that order.
 
 **The numbers were renumbered to match**, the same day and for the obvious
 reason: a queue whose numbers run 13, 14, 15, 16, 17, 18 can be read in order,
@@ -216,57 +216,15 @@ commit subjects that use them, are reconciled in the table under *Milestone
 numbering* above — M13 and M15 swapped, so that table is worth reading before
 trusting any pre-2026-09-03 reference to either.
 
-Why this order:
+Why this order — written when all six were open, and kept because the reasoning
+is what makes the remaining four's order legible. The first two shipped on
+2026-09-03 and their entries are under *Completed*:
 
-- **M13 first**, though it was the vaguest of the three, because a forward-built history only accrues from the day it ships. Every sprint boundary that passes without a freeze is one that cannot be reconstructed afterwards — the same argument that pulled the snapshot `byPerson` block forward ahead of M15 on 2026-08-20, and the same argument `js/snapshots.js` opens with. It also makes M7's approximate scope-added figure exact, which is a caveat currently printed in the UI and in the recap PDF.
-- **M14 next**: an M whose dependencies are already paid (the roster, `activityFrom`, the `byPerson` block), against the planner's L. It has four open questions that want answering before any work starts, and answering them is cheap.
+- **M13 first** ✔, though it was the vaguest of the three, because a forward-built history only accrues from the day it ships. Every sprint boundary that passes without a freeze is one that cannot be reconstructed afterwards — the same argument that pulled the snapshot `byPerson` block forward ahead of M15 on 2026-08-20, and the same argument `js/snapshots.js` opens with. It also makes M7's approximate scope-added figure exact, which is a caveat currently printed in the UI and in the recap PDF.
+- **M14 next**, and now the head of the queue: an M whose dependencies are already paid (the roster, `activityFrom`, the `byPerson` block), against the planner's L. It has four open questions that want answering before any work starts, and answering them is cheap.
 - **M15 after that.** Still the biggest thing in the file, still fully unblocked; it loses its "next up" position rather than any of its readiness.
 - **M16 then M17**, in that order because the button is the ask and the history is the machinery behind it — but see M17's note on the 45-day GitHub window, which the quarter document runs straight into. If M16 is started first, its GitHub half is scoped to what one window covers until M17 lands.
-- **M18 last** only because it is an S that unblocks nothing. It is the obvious thing to pick up in a gap, or ahead of anything else here if the linking is wanted sooner.
-
----
-
-## M13 — Sprint freeze and diff
-
-**Size: M** · Depends on M7 (the dashboard's aggregates and its snapshot writer).
-Independent of the write layer — it reads Jira and writes only to local storage.
-**Next up.**
-
-**Scope agreed 2026-09-03**, replacing the placeholder recorded 2026-08-12. The
-placeholder said "sprint start state snapshot" and nothing else; the shape below
-is what it was actually for. **This was M15 until 2026-09-03** — it took M13's
-number in the renumbering when it took first place in the queue, and M13 had
-been the planner, so that swap is the one worth checking in anything written
-earlier.
-
-Freeze the sprint's state on day one, and on the last day show what happened to
-it. Not "how much got done" — the dashboard already answers that — but **what
-changed underneath the plan**: what crept in, what was pulled out, what was
-re-estimated, what moved its due date.
-
-- **The freeze is per-issue, not an aggregate.** `js/snapshots.js` records one row of team totals per day plus a short `byPerson` block, which is right for a burndown and useless for a diff: it cannot say *which* issue changed. So this is a second record with its own key, not a field added to the daily snapshot.
-- **What each frozen row holds:** issue key, summary, type, status and status group, assignee account id, story points, due date, parent/epic key, board id, sprint id, and the issue's own created date. That set answers every question below without re-reading changelogs later — which matters, because a changelog is one request per issue and the diff has to work for a whole sprint.
-- **When it is taken:** automatically on the first dashboard load after a new sprint key appears — `sprintKey()` (`js/snapshots.js:30`) already keys history by the Jira sprint ids and already detects the rollover — plus a manual **Freeze now** with a confirm, because the extension can be installed mid-sprint and a mid-sprint freeze is worth more than none. A re-freeze overwrites and says what it is discarding.
-- **The diff, in five buckets:**
-  - **Crept in**, split in two: issues *created* after the freeze, and issues that already existed and were *dragged into* the sprint later. M7 cannot tell these apart today — its scope-added figure compares issue creation against sprint start and is labelled approximate in the UI for exactly this reason. A freeze separates them exactly.
-  - **Pulled out** — gone from the sprint, and where to: backlog, another sprint, or deleted.
-  - **Re-estimated** — story points then → now, with the delta, and the sprint's total delta from re-estimation alone.
-  - **Due date moved** — then → now, with the direction and the number of days.
-  - **Re-assigned**, and **status regressions** (an issue that was Done at freeze and is not now). Plus an unchanged count, so the buckets and the sprint total reconcile visibly rather than leaving the reader to wonder what is missing.
-- **Where it shows:** a diff panel on the Sprint Dashboard, and printed into the recap PDF — which currently carries scope-creep and carry-in flags derived from the approximation, and would carry exact ones instead.
-- **The M7 caveat becomes conditional, not deleted.** With a freeze for the current sprint, the scope-added figure is exact and says so; without one it falls back to today's approximation and keeps saying so. The wording has to distinguish the two, or the number silently changes meaning depending on when the extension was installed.
-- **Retention:** one frozen record per sprint key, pruned on the same schedule as snapshots (`MAX_SPRINTS_KEPT = 8`, `js/snapshots.js:25`) so the two histories cannot end up different lengths and produce a diff for a sprint with no burndown or the reverse. Device-local, like every other derived store. Per-issue rows for eight sprints is the largest thing the extension would keep, so the size wants measuring against a real sprint rather than assumed small.
-
-**Exit criteria:** on the last day of a sprint, the dashboard can show — without
-any new per-issue requests — which issues entered late and how, which left,
-which were re-estimated or re-dated, and by how much; and M7's scope-added figure
-is exact whenever a freeze exists.
-
-**Open questions:**
-
-1. **Diff against now, or against the last day only?** Freeze-versus-now works on any day of the sprint and is strictly more useful; the ask was framed around the last day. Building the general one and defaulting the framing to end-of-sprint costs nothing extra.
-2. **An issue that left and came back** reads as unchanged in a two-point diff. Accept that — the honest answer for a freeze-and-compare design — or note it as a known blind spot in the panel?
-3. **Does the freeze also cover the backlog?** Everything above is sprint-scoped. "What left the sprint" can be answered without it; "where did it go" is easier with it.
+- **M18 last** ✔ only because it is an S that unblocks nothing — "the obvious thing to pick up in a gap", which is what happened to it the same afternoon.
 
 ---
 
@@ -274,6 +232,7 @@ is exact whenever a freeze exists.
 
 **Size: M** · Depends on M3 (roster). Reads M7 aggregates and M11 GitHub
 activity. Independent of the write layer unless it grows follow-up actions.
+**Next up.**
 
 **Scope below is a first pass, not an agreed spec** — recorded 2026-08-12 from a
 one-line request so the intent is not lost. The open questions at the end are
@@ -538,6 +497,106 @@ plumbing.
 # Completed
 
 Newest first.
+
+## M13 — Sprint freeze and diff ✔ *(2026-09-03)*
+
+**Size: M** · Done the day it was scoped, first in the re-sequenced queue and for
+the reason that put it there: a forward-built history only accrues from the day
+it ships, so every sprint boundary that passed unfrozen was one that could never
+be reconstructed. **This was M15 until the renumbering earlier the same day** —
+anything written before that which says "M13" means the *planner*.
+
+Freeze the sprint's state, and show what happened to it. Not "how much got done",
+which the dashboard already answered, but **what changed underneath the plan**.
+
+**The freeze is per-issue, and that is the whole design decision.**
+`js/snapshots.js` writes one row of team totals per day plus a `byPerson` block,
+which is exactly right for a burndown and cannot answer this at any resolution: a
+burndown asks how many points were left on Tuesday, a diff asks *which issue*
+changed. So `js/freeze.js` is a second store under its own key, written once per
+sprint rather than once per day — and the alternative, a changelog per issue, is
+60 requests for a 60-issue sprint every time the tab opens, which is the same
+trade `js/snapshots.js` opens with, refused for the same reason.
+
+**Taken unasked, on the first dashboard load of a sprint.** The scope named two
+triggers — a new sprint key appearing, and the extension being installed
+mid-sprint — but from the code's point of view those are one condition: no freeze
+exists for this key. So there is one automatic path, and `atStart` records which
+of the two it turned out to be rather than the app assuming. **Freeze now**, on
+the panel, re-freezes a re-planned sprint; it confirms with the date, issue count
+and points it is about to discard, because `recordFreeze` returns what it
+replaced and there is no way back to it.
+
+**Six buckets, and an arithmetic line that makes them reconcile.** Crept in —
+split into *created after the freeze* and *already existed, dragged in later*,
+which is the split M7's approximation cannot make and the clearest argument for
+keeping the record at all. Pulled out, and where to. Re-estimated, with the
+sprint's total change from re-estimation alone, a figure a burndown cannot
+separate from work finishing. Due date moved, with direction and days.
+Re-assigned, and went backwards. Plus `frozen − pulled out + crept in = now`
+printed on screen: six buckets of issues invite exactly one question — "so what
+about the rest?" — and a panel that cannot answer it reads like a panel that is
+hiding something.
+
+**Three decisions worth keeping:**
+
+- **The scope figure has three states, not two.** The scope note said the M7 caveat becomes conditional; it becomes *ternary*. No freeze is the creation-date approximation. A freeze taken on the sprint's first day makes the figure exact — set membership, not a date comparison. A freeze taken mid-sprint is exact from that day and **blind to everything before it**, and calling that "exact" would be the same overclaim in a new coat. `scopeBasis` (`js/freeze.js`) writes one sentence for the dashboard tile, the hover note and the recap PDF, so the three cannot end up disagreeing, and the tile carries `exact` / `approx.` on the visible line rather than only in a tooltip.
+- **"Where did it go" is one request, not one per issue** — and it is the only thing in the whole feature that asks Jira anything new. An issue that left the sprint is by definition in no list the app already holds, so `getIssuesByKeys` (`js/api.js`) batches up to fifty keys into a single JQL. It runs *after* the first paint and not at all when nothing left, and until it answers the rows say so: rendering "deleted" for an issue nobody has looked for yet would be a confident wrong answer to the one question local state cannot settle. **The backlog is deliberately not frozen** — the decision taken with the scope — because this answers "where did it go" without the storage a second per-issue record would cost.
+- **The blind spot is printed, not buried.** An issue that left the sprint and came back reads as unchanged; a freeze compares two points in time, not the route between them. Catching it needs the changelogs this design exists to avoid, so the panel and the PDF both say so. Same discipline as the burndown's "collecting history" note and the scope tile's qualifier: the app says what its numbers cannot see.
+
+**Two fields the scope list did not name, both with precedent.** A frozen row
+keeps the **status category** rather than re-deriving done-ness from a status
+name months later — `isDone` reads the category, and matching on "Klaar" in a
+year's time is the kind of assumption M1 spent a milestone removing. And it keeps
+the assignee's **display name** beside the account id, which is exactly the
+argument `snapshotFrom` already makes for its `byPerson` labels: the roster is
+current, history is not, and the re-assigned bucket would otherwise read
+"5f3a…c1 → Bo".
+
+**One simplification fell out of it.** Jira answers the sprint field two ways —
+an array of objects, and a serialised blob on older instances — and three places
+were parsing it privately. `sprintEntries` (`js/dashboard.js`) is now the one
+that does; `wasCarriedIn` reads it, and the existing carry-in checks covered the
+refactor.
+
+**Storage, measured rather than assumed.** The risk register called this the
+largest thing the extension keeps, so `freezeBytes` exists and the suite prints
+the number: a 60-issue sprint is ~22 KB, eight of them ~170 KB. Pruning imports
+`MAX_SPRINTS_KEPT` from `js/snapshots.js` instead of copying the 8, so the two
+histories cannot end up different lengths — the failure the scope asked to
+prevent, prevented by construction rather than by both files happening to agree.
+
+**Where it shows:** the **Since the freeze** panel under the burndown on the
+Sprint Dashboard, and a *What changed underneath the plan* section in the recap
+PDF, built from the same `diffFreeze` so the document and the screen cannot
+disagree — the rule `js/recap.js` already followed for `summarize`. The recap
+**reads** a freeze and never takes one: a document generator has no business
+creating the record it reports on, and opening the recap on a sprint the
+dashboard had never seen would otherwise freeze it mid-sprint and then print
+"nothing has changed".
+
+**Checks:** 64 new in `scripts/test-dashboard.mjs` (226 there) and 12 in
+`scripts/test-recap.mjs` (117 there), 1755 across the suite — including the
+storage measurement, both departure answers, and the check that matters most,
+that a mid-sprint freeze is *not* allowed to call itself exact. Plus
+`?freeze=mid|none` on `preview-dashboard.html` and `preview-recap.html`, seeding a
+freeze that differs from the fixture's sprint so all six buckets draw, and
+`scripts/SMOKE-CHECKLIST.md` 3a-i for the parts only a real sprint can show.
+
+**Open questions, answered:**
+
+1. **Diff against now, or against the last day only?** The general one, defaulted to end-of-sprint framing — it works on any day and cost nothing extra, as the question predicted.
+2. **An issue that left and came back.** Accepted *and named in the panel*, rather than accepted silently. It matches how the app already labels the approximate scope figure and the burndown's missing history.
+3. **Does the freeze cover the backlog?** No. Sprint only; "where did it go" is answered by one batched lookup at diff time instead, which keeps the bulkiest store on the device as small as it can be.
+
+**Exit criteria, met:** on any day of a sprint the dashboard shows — with no new
+per-issue requests, and one batched request only when something actually left —
+which issues entered late and how, which left and where to, which were
+re-estimated or re-dated and by how much; and M7's scope-added figure is exact
+whenever a start-of-sprint freeze exists, and says which basis it used when it is
+not.
+
+---
 
 ## M18 — Linked issues, read and write ✔ *(2026-09-03)*
 

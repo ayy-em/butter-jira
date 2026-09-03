@@ -22,7 +22,12 @@
 import { localGet, localSet } from "./browser.js";
 
 const SNAPSHOT_KEY = "sprintSnapshots";
-const MAX_SPRINTS_KEPT = 8;
+
+// Exported so `js/freeze.js` prunes to the same depth rather than keeping a
+// second copy of the number. The two stores are written on the same dashboard
+// load from the same sprint key, so a shared cap is what stops them ending up
+// different lengths — a diff for a sprint with no burndown, or the reverse.
+export const MAX_SPRINTS_KEPT = 8;
 const MAX_DAYS_PER_SPRINT = 60;
 
 // Sprints are keyed by their Jira ids so a re-planned sprint doesn't inherit
