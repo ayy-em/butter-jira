@@ -1228,7 +1228,9 @@ change the shape.
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for the full record, including why each thing is
-built the way it is.
+built the way it is, and [UX.md](UX.md) for the design and UX backlog — the
+surface-level work that belongs to no milestone, with the quirks that bite
+anyone picking it up cold.
 
 **Done:** hygiene (M0), whitelabelling (M1), durable identity and config (M2),
 the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode

@@ -12,6 +12,11 @@ deferred backlog, then everything already shipped. Completed milestones are kept
 in full rather than summarised away — they are the record of *why* each thing is
 built the way it is, which is the part that gets forgotten.
 
+**Design and UX work lives in [UX.md](UX.md)**, not here. This file is organised
+by milestone — what gets built next. That one is organised by surface and by
+defect: contrast, focus, icon vocabularies, screens that need a second pass.
+Almost none of it is milestone-sized, and folding it in would bury it.
+
 ## Current state
 
 | Aspect | Status |
@@ -29,6 +34,7 @@ built the way it is, which is the part that gets forgotten.
 | Licence | None chosen. Blocks the first public release (M19) |
 | Version control | Git, `.gitignore` in place |
 | Tests | Eighteen `scripts/test-*.mjs` suites (1791 checks) + seven preview harnesses + a manual smoke checklist |
+| Design backlog | [UX.md](UX.md) — surface-level defects and polish, ordered by value. Deliberately not milestones: most are half a sitting and belong to no feature |
 
 ## Sizing
 
