@@ -409,6 +409,27 @@ no public API for them, and correlating GitHub work back to an issue key is its
 own problem — that's still in the roadmap's deferred backlog. GitHub sync does
 show pull requests per *person* during standup; see below.
 
+### Roadmap (Gantt)
+
+Press `r` or the ROADMAP tab. Epics as bars over a time axis, with their children
+one level down.
+
+- **It opens on today**, centred, with a red line marking now. frappe-gantt draws
+  a today marker of its own but only in Day view, which is not the view a roadmap
+  is read in — so in Month, Week and Quarter there was nothing marking the
+  present at all. Changing the zoom re-centres; expanding an epic does not, so
+  the chart never jumps while you are reading it.
+- **Bars are coloured by how they are tracking against their own due date** —
+  green with more than a week to go, amber inside the week, red past the date and
+  still open, grey once done. A finished epic is deliberately not green: it has
+  stopped being something to watch, and colouring it as "fine" makes a board of
+  mostly-finished work read as uniformly healthy. An epic with no due date says
+  nothing rather than guessing.
+- **Board identity moved to the bar's outline**, so one bar carries both signals.
+- **Clicking a bar opens the issue** — the same drawer the Kanban cards and the
+  standup board open. Expanding an epic's children is the caret beside it, which
+  is a different action and used to be the only one available.
+
 ### Creating issues
 
 **+ New issue** on the Backlog toolbar, or "Create issue" in the command palette
@@ -672,8 +693,17 @@ board in a randomised order, one at a time, full-screen.
 
 - The countdown cue is timed to *finish* as the clock hits zero, using the
   actual length of the audio file — swap in your own and it still lands right.
-- Running over counts up in red rather than cutting anyone off. `+1 min` adds
-  time without disturbing the clock.
+- **Time closing in is a gradient, not a cliff.** For the first two thirds of a
+  slot the screen says nothing. Through the last third the progress bar warms
+  from blue through amber and a rim closes in around the whole stage — visible
+  from the far end of a room, over nothing anyone is reading. Past time-up the
+  rim goes red and starts to pulse, and the pulse gets faster the longer it
+  runs; the clock keeps swelling a step every five seconds on top. Nobody is
+  cut off, and `+1 min` adds time without disturbing any of it. The point is
+  that the speaker feels it coming rather than the facilitator having to
+  interrupt.
+- Someone who has asked their OS for reduced motion keeps the colour and the
+  rim and loses only the pulse.
 - Reload mid-standup and you get "Resume — same order as before": the order
   comes from a stored seed, so it's reproducible.
 - Cards drag between columns on the speaker's board, exactly as they do on
@@ -683,11 +713,18 @@ board in a randomised order, one at a time, full-screen.
   copy and download buttons.
 - The summary shows actual vs planned time per person and who never got reached.
 
-**What each person actually did this sprint** shows on the setup row and again as
-a **This sprint** panel on their turn: how many tickets they *moved*, how many
-they *closed*, how many they *picked up*, and how many they *created*. The panel
-also lists the ticket keys behind those numbers — the ones they finished outlined
-— and clicking one opens it in the drawer rather than navigating away mid-turn.
+**The turn screen is the speaker's board, and everything else gets out of its
+way.** Their sprint board takes the width; a slim rail down the right carries
+both sets of numbers; their pull requests run along the bottom, one line each,
+beside the parking lot. The two panels this replaced — a Jira column and a
+GitHub column, each with its own title and tile grid — were between them taking
+better than a third of a projected screen to show eight numbers and a list.
+
+**What each person actually did this sprint** shows on the setup row and again in
+the rail on their turn: how many tickets they *moved*, *closed*, *picked up* and
+*created*, then their GitHub four — open PRs, PRs opened, reviews and comments,
+lines to main. Cards on the board open in the drawer rather than navigating away
+mid-turn.
 
 This is read from issue history, which rides the sprint request the standup
 already makes, so it costs no extra call and needs no GitHub. Two things it is
@@ -890,8 +927,15 @@ An unrecognised view in the URL still falls back to the Backlog, which lists
 everything.
 
 During a standup the keyboard belongs to the session: `Space` pauses, `→` moves
-to the next person, `Esc` ends it. View shortcuts are suspended so you can't
-navigate away mid-standup.
+to the next person, `Shift+Esc` ends it. View shortcuts are suspended so you
+can't navigate away mid-standup.
+
+**Ending takes Shift.** Plain `Esc` is the dismiss gesture for every overlay in
+the app and the browser's own way out of fullscreen, which a standup enters when
+it starts — so the key you reach for to close a card, dismiss a prompt or leave
+fullscreen was also the key that ended the meeting and cleared the session, with
+no confirmation and no way back. Overlays now consume their own `Esc`, and
+ending early asks first when anyone is still waiting to speak.
 
 ## Layout
 
@@ -928,7 +972,7 @@ js/router.js        # hash routing, setup flow, board picker
 js/components/      # nav, filter bar, re-auth, issue detail, board, drawer,
                     #   click-to-edit cells, create-issue panel, link picker
 js/views/           # dashboard, backlog, gantt, kanban, monitor, standup
-css/                # one stylesheet per view
+css/                # one stylesheet per view, plus nav.css for the shell
 assets/sfx/         # standup sound cues
 libs/               # vendored frappe-gantt
 manifest.base.json  # shared manifest; overlays in manifest.<target>.json
@@ -952,7 +996,7 @@ node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 chec
 node scripts/test-team.mjs         # roster, display names, filtering (127 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
-node scripts/test-standup.mjs      # session timing, order, resume   (165 checks)
+node scripts/test-standup.mjs      # session timing, order, pressure (183 checks)
 node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (226 checks)
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (117 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
@@ -960,11 +1004,13 @@ node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (206 check
 node scripts/test-write.mjs        # field writes, undo, bulk, links  (136 checks)
 node scripts/test-create.mjs       # createmeta -> form -> payload      (71 checks)
 node scripts/test-activity.mjs     # issue history -> per-person activity (75 checks)
+node scripts/test-gantt.mjs        # roadmap delivery colouring         (18 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it:
 `preview-standup.html`, `preview-backlog.html`, `preview-dashboard.html`,
-`preview-recap.html`, `preview-issue.html` and `preview-create.html` mount the
+`preview-recap.html`, `preview-issue.html`, `preview-create.html` and
+`preview-gantt.html` mount the
 real view against stubbed extension storage and a stubbed Jira/GitHub network, so
 a screen can be looked at in each of its states without a site, a token or a
 roster. The create panel in particular has no other way of being checked — its
@@ -1187,7 +1233,8 @@ built the way it is.
 **Done:** hygiene (M0), whitelabelling (M1), durable identity and config (M2),
 the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode
 (M6), the sprint dashboard (M7), the write layer and issue creation (M8), the
-command palette (M9), GitHub sync (M11), and the Firefox and Edge ports (M12).
+command palette (M9), GitHub sync (M11), the Firefox and Edge ports (M12), the
+sprint freeze and diff (M13), and linked issues (M18).
 M10 is vacant: it was Sprint Wrapped, re-aimed at the quarter and renumbered to
 M16 on 2026-09-03, and the number is retired rather than reused.
 
@@ -1198,12 +1245,16 @@ table.
 
 | | | |
 |---|---|---|
-| M13 | Sprint freeze and diff | Freeze the sprint on day one; on the last day, what crept in, left, or was re-estimated |
 | M14 | Weekly 1:1 screen | Per-person prep sheet. Scope is a first pass, not agreed |
 | M15 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
 | M16 | Quarter Wrapped | Quarter-to-date stats recap, printed to PDF on demand |
 | M17 | Per-sprint history | Issues, completion, PRs and lines per sprint, from rollups written at each rollover |
-| M18 | Linked issues | *blocks* / *duplicates* / *relates to*, readable today, editable next |
+| M19 | Tagged releases | A release tag builds all three targets in CI and publishes the zips this README already tells you to download. Depends on nothing; carries the licence decision |
+
+**Releases are not automated yet.** The install instructions above send you to
+the Releases page for `chrome-<version>.zip` — today those files are built by
+hand with `node scripts/build.mjs --zip` and uploaded the same way. M19 is the
+workflow that does it on a tag.
 
 The app writes to Jira in four places and nowhere else: dragging a card between
 columns (a workflow transition), editing assignee, due date or story points on

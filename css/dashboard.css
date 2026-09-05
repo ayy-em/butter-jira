@@ -418,3 +418,8 @@
   line-height: 1.55;
   margin-top: 10px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-bar-fill,
+  .dash-tile { transition-duration: 0.01ms; }
+}

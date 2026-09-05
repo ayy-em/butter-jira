@@ -87,12 +87,12 @@
   padding-bottom: 1px;
   justify-self: start;
 }
-.bl-tile.tone-gray   { --tone: #6B7280; }
-.bl-tile.tone-blue   { --tone: #4F8EF7; }
-.bl-tile.tone-green  { --tone: #4FCF8E; }
-.bl-tile.tone-orange { --tone: #F7914F; }
-.bl-tile.tone-red    { --tone: #EF4444; }
-.bl-tile.tone-purple { --tone: #A855F7; }
+.bl-tile.tone-gray   { --tone: var(--tone-gray); }
+.bl-tile.tone-blue   { --tone: var(--tone-blue); }
+.bl-tile.tone-green  { --tone: var(--tone-green); }
+.bl-tile.tone-orange { --tone: var(--tone-orange); }
+.bl-tile.tone-red    { --tone: var(--tone-red); }
+.bl-tile.tone-purple { --tone: var(--tone-purple); }
 
 /* ── Toolbar ────────────────────────────────────────────────────────────── */
 
@@ -332,7 +332,16 @@
   border-spacing: 0;
   font-size: calc(var(--row-font, 13px) * var(--font-scale));
   table-layout: fixed;
-  min-width: 940px;
+  /* The fixed columns below add up to 922px. The table's floor has to clear
+     that *plus* a readable Summary, or the one column with no width of its own
+     absorbs the entire shortfall — at 940px it was being squeezed to nothing
+     and the table rendered twenty rows of key, type, status and dashes with no
+     issue titles at all. Below this width the wrapper scrolls sideways, which
+     is the right trade: a backlog you scroll is usable, a backlog with no
+     summaries is not. 1150 is chosen so that at a 1440px window — sidebar,
+     padding and all — every column still fits and Summary takes the ~248px
+     left over, rather than the table scrolling at the width most people use. */
+  min-width: 1150px;
 }
 
 .bl-table thead th {
@@ -372,9 +381,11 @@
 .bl-col-select { width: 38px; }
 .bl-col-key { width: 104px; }
 .bl-col-type { width: 108px; }
-.bl-col-epic { width: 170px; }
+/* Trimmed from 170px and 168px: both were wider than their contents needed
+   and the space belongs to the summary. */
+.bl-col-epic { width: 150px; }
 .bl-col-status { width: 124px; }
-.bl-col-assignee { width: 168px; }
+.bl-col-assignee { width: 150px; }
 .bl-col-sp { width: 56px; text-align: center; }
 .bl-col-due { width: 96px; }
 .bl-col-updated { width: 96px; }
@@ -400,9 +411,8 @@
 .bl-row td:first-child {
   box-shadow: inset 3px 0 0 0 var(--row-accent, transparent);
 }
-.bl-row:hover { background: rgba(232,234,240,0.035); }
-[data-theme="light"] .bl-row:hover { background: rgba(17,24,39,0.035); }
-.bl-row.selected { background: rgba(79,142,247,0.10); }
+.bl-row:hover { background: color-mix(in srgb, var(--text) 3.5%, transparent); }
+.bl-row.selected { background: color-mix(in srgb, var(--accent-primary) 10%, transparent); }
 
 .bl-check { cursor: pointer; accent-color: var(--accent-primary); }
 
@@ -413,6 +423,8 @@
   text-decoration: none;
 }
 .bl-key:hover { text-decoration: underline; }
+
+.bl-col-summary { min-width: 220px; }
 
 .bl-summary {
   color: var(--text);
@@ -446,16 +458,16 @@
 }
 .bl-type svg { flex: 0 0 auto; }
 .bl-type-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bl-type.tone-gray   { --tone: #8B91A0; }
-.bl-type.tone-blue   { --tone: #4F8EF7; }
-.bl-type.tone-cyan   { --tone: #7DD3FC; }
-.bl-type.tone-green  { --tone: #4FCF8E; }
-.bl-type.tone-red    { --tone: #EF4444; }
-.bl-type.tone-purple { --tone: #A855F7; }
+.bl-type.tone-gray   { --tone: var(--tone-gray); }
+.bl-type.tone-blue   { --tone: var(--tone-blue); }
+.bl-type.tone-cyan   { --tone: var(--tone-cyan); }
+.bl-type.tone-green  { --tone: var(--tone-green); }
+.bl-type.tone-red    { --tone: var(--tone-red); }
+.bl-type.tone-purple { --tone: var(--tone-purple); }
 /* Sky-300 on white is too pale to read, so light mode gets a deeper sub-task
-   blue rather than a paler background behind the same colour. */
+   blue rather than a paler background behind the same colour — as does every
+   other tone now, from the `--tone-*` tokens in app.css. */
 [data-theme="light"] .bl-type { background: color-mix(in srgb, var(--tone) 15%, #fff); }
-[data-theme="light"] .bl-type.tone-cyan { --tone: #0284C7; }
 .bl-epic { text-decoration: none; }
 .bl-epic:hover { color: var(--text); text-decoration: underline; }
 .bl-due.overdue { color: var(--accent-danger); }
@@ -478,12 +490,12 @@
   color: var(--tone);
   transition: background 0.12s;
 }
-.bl-status.tone-gray   { --tone: #8B91A0; }
-.bl-status.tone-blue   { --tone: #4F8EF7; }
-.bl-status.tone-green  { --tone: #4FCF8E; }
-.bl-status.tone-orange { --tone: #F7914F; }
-.bl-status.tone-red    { --tone: #EF4444; }
-.bl-status.tone-purple { --tone: #A855F7; }
+.bl-status.tone-gray   { --tone: var(--tone-gray); }
+.bl-status.tone-blue   { --tone: var(--tone-blue); }
+.bl-status.tone-green  { --tone: var(--tone-green); }
+.bl-status.tone-orange { --tone: var(--tone-orange); }
+.bl-status.tone-red    { --tone: var(--tone-red); }
+.bl-status.tone-purple { --tone: var(--tone-purple); }
 [data-theme="light"] .bl-status { background: color-mix(in srgb, var(--tone) 15%, #fff); }
 
 /* Rounded squares, one size, centred (item 11). */
@@ -499,9 +511,9 @@
   background: color-mix(in srgb, var(--tone) 18%, transparent);
   color: var(--tone);
 }
-.bl-sp.tone-low  { --tone: #4FCF8E; }
-.bl-sp.tone-mid  { --tone: #EAB308; }
-.bl-sp.tone-high { --tone: #EF4444; }
+.bl-sp.tone-low  { --tone: var(--tone-green); }
+.bl-sp.tone-mid  { --tone: var(--tone-yellow); }
+.bl-sp.tone-high { --tone: var(--tone-red); }
 .bl-col-sp { text-align: center; }
 
 .bl-assignee { display: flex; align-items: center; gap: 7px; min-width: 0; }

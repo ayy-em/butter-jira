@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <title>Roadmap — preview</title>
+  <link rel="stylesheet" href="libs/frappe-gantt.min.css">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/gantt.css">
+  <link rel="stylesheet" href="css/filter.css">
+  <link rel="stylesheet" href="css/issue.css">
+  <style>
+    html, body { overflow: hidden; }
+    /* Matches production, where this sits between the nav and the footer. */
+    #view-container { position: static; height: 100vh; overflow: auto; }
+  </style>
+</head>
+<body>
+  <div id="view-container"></div>
+  <script src="libs/frappe-gantt.min.js"></script>
+  <script type="module" src="preview-gantt.js"></script>
+</body>
+</html>

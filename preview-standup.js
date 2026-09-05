@@ -327,3 +327,23 @@ await mount(
 
 if (params.get("select") === "nobody") document.querySelectorAll(".su-seg")[1]?.click();
 if (params.get("start") === "1") document.querySelector(".su-start")?.click();
+
+// ?pressure=0.8 · ?over=0.5 — pin the time-pressure channel so its states can
+// be looked at without sitting through a two-minute slot and then running over
+// it. Overwritten by the next clock tick, which is what makes this a viewing
+// aid and not a way to fake the session: it holds only until the timer paints
+// again, so a screenshot catches it and a live session cannot be stuck in it.
+const pinned = { pressure: params.get("pressure"), over: params.get("over") };
+if (pinned.pressure || pinned.over) {
+  const paint = () => {
+    const stage = document.querySelector(".standup-speaking");
+    if (!stage) return;
+    if (pinned.pressure) stage.style.setProperty("--pressure", pinned.pressure);
+    if (pinned.over) {
+      stage.style.setProperty("--overpressure", pinned.over);
+      stage.classList.toggle("pressing", Number(pinned.over) > 0);
+    }
+  };
+  setInterval(paint, 60);
+  paint();
+}

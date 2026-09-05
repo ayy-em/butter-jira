@@ -3,6 +3,7 @@ import { loadTheme, saveTheme } from "../utils.js";
 import { CONFIG, jiraHomeUrl, siteHost, wikiUrl } from "../config.js";
 import { getBadgeCount } from "../monitor.js";
 import { prewarmGithub } from "../github.js";
+import { burst } from "../confetti.js";
 
 // Six flat tabs outgrew the header, so the five board views collapse into two
 // menus by what you're looking at — the whole backlog, or the sprint in flight.
@@ -112,7 +113,21 @@ export async function renderNav(onRefresh) {
   applyBrandMarkTheme(brandMark, hasOrgLogo);
   brandMark.addEventListener("click", (e) => {
     e.preventDefault();
-    fireConfetti(e.clientX, e.clientY);
+    // One nozzle at the pointer, thrown in every direction. This used to be a
+    // second confetti implementation living in this file — 34 lines that drew
+    // their own overlay, ran their own animations and, unlike js/confetti.js,
+    // never checked prefers-reduced-motion. Clicking the logo fired sixty
+    // animated particles at someone who had asked for none.
+    burst({
+      origin: [{
+        x: e.clientX / window.innerWidth,
+        y: e.clientY / window.innerHeight,
+        angle: -90,
+        spread: 360,
+        power: 14,
+      }],
+      count: 60,
+    });
   });
   brandMark.addEventListener("error", () => {
     // Configured logo missing (e.g. fresh clone without brand assets).
@@ -244,158 +259,6 @@ export async function renderNav(onRefresh) {
 
   updateActiveTab();
   renderFooter();
-
-  const style = document.createElement("style");
-  style.textContent = `
-    .nav-tab {
-      text-decoration: none;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 1px;
-      padding: 5px 14px;
-      border-radius: 4px;
-      transition: color 0.15s, background 0.15s, box-shadow 0.2s;
-    }
-    .nav-tab:hover { color: var(--text); }
-    .nav-tab.active { color: var(--text); background: rgba(232,234,240,0.08); }
-
-    /* ── Grouped views ─────────────────────────────────────────────────── */
-    .nav-menu { position: relative; display: flex; align-items: center; }
-    .nav-menu-trigger {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      background: none;
-      border: none;
-      font-family: inherit;
-      cursor: pointer;
-    }
-    .nav-menu-caret {
-      font-size: 11px;
-      line-height: 1;
-      letter-spacing: 0;
-      opacity: 0.7;
-      transition: transform 0.15s;
-    }
-    .nav-menu.open .nav-menu-trigger { color: var(--text); background: rgba(232,234,240,0.08); }
-    .nav-menu.open .nav-menu-caret { transform: rotate(180deg); }
-    /* The rollup count is only useful while the menu hides the real badge. */
-    .nav-menu.open .nav-tab-badge-rollup { visibility: hidden; }
-
-    .nav-menu-panel {
-      position: absolute;
-      top: calc(100% + 6px);
-      left: 0;
-      min-width: 168px;
-      padding: 4px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.28);
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      z-index: 210;
-      opacity: 0;
-      visibility: hidden;
-      transform: translateY(-4px);
-      transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
-    }
-    .nav-menu.open .nav-menu-panel {
-      opacity: 1;
-      visibility: visible;
-      transform: translateY(0);
-    }
-    .nav-menu-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      text-decoration: none;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 1px;
-      padding: 7px 10px;
-      border-radius: 4px;
-      white-space: nowrap;
-      transition: color 0.12s, background 0.12s;
-    }
-    .nav-menu-item:hover { color: var(--text); background: rgba(232,234,240,0.08); }
-    .nav-menu-item.active { color: var(--text); background: rgba(79,142,247,0.16); }
-    .nav-menu-key {
-      margin-left: auto;
-      font-size: 10px;
-      font-weight: 500;
-      letter-spacing: 0;
-      color: var(--muted);
-      opacity: 0.7;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      padding: 0 4px;
-    }
-
-    /* Standup is a timed, run-once-a-day ritual rather than a view you browse,
-       so it gets an animated gradient ring instead of the flat tab treatment. */
-    .nav-tab.flair {
-      position: relative;
-      color: var(--text);
-      background: linear-gradient(135deg, rgba(79,142,247,0.14), rgba(168,85,247,0.14));
-    }
-    .nav-tab.flair::before {
-      content: "";
-      position: absolute;
-      inset: -1px;
-      border-radius: 5px;
-      padding: 1px;
-      background: linear-gradient(120deg, #4F8EF7, #A855F7, #F7914F, #4F8EF7);
-      background-size: 300% 100%;
-      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-      pointer-events: none;
-      animation: nav-flair-sweep 6s linear infinite;
-    }
-    .nav-tab.flair:hover {
-      background: linear-gradient(135deg, rgba(79,142,247,0.26), rgba(168,85,247,0.26));
-      box-shadow: 0 0 14px rgba(79,142,247,0.35);
-    }
-    .nav-tab.flair:hover::before { animation-duration: 1.6s; }
-    .nav-tab.flair.active {
-      background: linear-gradient(135deg, rgba(79,142,247,0.34), rgba(168,85,247,0.34));
-      box-shadow: 0 0 16px rgba(168,85,247,0.35);
-    }
-    @keyframes nav-flair-sweep { to { background-position: 300% 0; } }
-    @media (prefers-reduced-motion: reduce) {
-      .nav-tab.flair::before,
-      .nav-tab.flair:hover::before { animation: none; }
-    }
-    .nav-btn {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      font-size: 18px;
-      width: 32px;
-      height: 32px;
-      border-radius: 4px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-left: 4px;
-      transition: color 0.15s, border-color 0.15s;
-    }
-    .nav-btn:hover { color: var(--text); border-color: var(--muted); }
-    .nav-btn-wide {
-      width: auto;
-      padding: 0 9px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-    }
-  `;
-  nav.appendChild(style);
 }
 
 function createTabLink(tab, { inMenu = false } = {}) {
@@ -436,7 +299,6 @@ function createTabMenu(group) {
   trigger.type = "button";
   trigger.setAttribute("aria-haspopup", "true");
   trigger.setAttribute("aria-expanded", "false");
-  trigger.setAttribute("width", "130px");
   trigger.dataset.group = group.items.map((i) => i.hash).join(" ");
 
   const label = document.createElement("span");
@@ -588,37 +450,6 @@ function sourceLink() {
   link.addEventListener("mouseenter", () => { link.style.color = "var(--text)"; });
   link.addEventListener("mouseleave", () => { link.style.color = "var(--muted)"; });
   return link;
-}
-
-function fireConfetti(cx, cy) {
-  const colors = ["#4F8EF7", "#F7914F", "#4FCF8E", "#EAB308", "#EF4444", "#A855F7"];
-  const count = 60;
-  const container = document.createElement("div");
-  container.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:9999;";
-  document.body.appendChild(container);
-
-  for (let i = 0; i < count; i++) {
-    const p = document.createElement("div");
-    const size = 4 + Math.random() * 6;
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    const angle = Math.random() * Math.PI * 2;
-    const velocity = 120 + Math.random() * 280;
-    const dx = Math.cos(angle) * velocity;
-    const dy = Math.sin(angle) * velocity - 100;
-    const rot = Math.random() * 720 - 360;
-    p.style.cssText = `
-      position:absolute; left:${cx}px; top:${cy}px;
-      width:${size}px; height:${size * (0.4 + Math.random() * 0.6)}px;
-      background:${color}; border-radius:${Math.random() > 0.5 ? "50%" : "1px"};
-      opacity:1;
-    `;
-    p.animate([
-      { transform: "translate(0,0) rotate(0deg)", opacity: 1 },
-      { transform: `translate(${dx}px,${dy + 400}px) rotate(${rot}deg)`, opacity: 0 },
-    ], { duration: 800 + Math.random() * 600, easing: "cubic-bezier(0.25,0.46,0.45,0.94)", fill: "forwards" });
-    container.appendChild(p);
-  }
-  setTimeout(() => container.remove(), 1600);
 }
 
 // The count comes from the Monitor view's last run — no extra Jira requests

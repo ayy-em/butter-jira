@@ -19,12 +19,7 @@ import { groupedLinks } from "../issue-link.js";
 import { assigneeCell, dateCell, pointsCell } from "./field-edit.js";
 import { sanitizeToFragment } from "../sanitize.js";
 import { adfToPlainText, isEmptyAdf, textToAdf } from "../adf.js";
-
-const STATUS_CATEGORY_COLORS = {
-  new: "var(--muted)",
-  indeterminate: "var(--accent-primary)",
-  done: "var(--accent-success)",
-};
+import { statusTone } from "../backlog.js";
 
 export function issuePageUrl(issueKey) {
   return runtimeUrl(`issue.html?key=${encodeURIComponent(issueKey)}`);
@@ -217,12 +212,16 @@ function renderParentRow(issue, creds) {
   return row;
 }
 
+// Was a three-entry map keyed on statusCategory only, so every in-flight status
+// — In Progress, In Review, Blocked, On Hold — came out the same blue, and none
+// of the three agreed with the Backlog's pill for the same issue. statusTone()
+// already resolves by name first and falls back to the category, which is the
+// behaviour this wanted; the badge now just borrows it.
 function statusBadge(status) {
   const badge = document.createElement("span");
   badge.className = "issue-status-badge";
   const name = status?.name || "Unknown";
-  const color =
-    STATUS_CATEGORY_COLORS[status?.statusCategory?.key] || "var(--muted)";
+  const color = `var(--tone-${statusTone(status)})`;
   badge.style.color = color;
   badge.style.borderColor = color;
   badge.textContent = name;

@@ -3,6 +3,42 @@ import { boardColor, getStartDate, BOARDS } from "../utils.js";
 import { boardSlug } from "../config.js";
 import { attachIssueOpener, openIssueDrawer } from "../components/issue-detail.js";
 
+// Epic names were cut mid-word with a bare slice and no mark, so a truncated
+// title was indistinguishable from a genuinely short one. The monitor already
+// appends an ellipsis and the backlog does it in CSS; this is the third
+// convention in the app agreeing with the first two.
+function truncate(text, max) {
+  const s = String(text || "");
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+// How close an epic is to its own due date, which is the one question a
+// roadmap is read to answer and the one thing the bars did not say. Board
+// colour is still on the bar — as its outline — because that answers a
+// different question and both fit on one shape.
+//
+// Deliberately four states rather than three. "Done" is not "on track": a
+// finished epic has stopped being a thing to watch, and colouring it the same
+// green as work that is merely not-yet-late means a board of mostly-finished
+// epics reads as uniformly healthy.
+export const DUE_SOON_DAYS = 7;
+
+export function deliveryState(epic, today = new Date()) {
+  const done = epic?.fields?.status?.statusCategory?.key === "done";
+  if (done) return "done";
+  const due = epic?.fields?.duedate;
+  if (!due) return "untracked";
+  // Date-only arithmetic: a due date is a calendar day, and comparing it
+  // against a timestamp makes "due today" overdue from 00:01.
+  const dueDay = new Date(`${due}T00:00:00`);
+  const nowDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const days = Math.round((dueDay - nowDay) / 86400000);
+  if (days < 0) return "overdue";
+  if (days <= DUE_SOON_DAYS) return "due-soon";
+  return "on-track";
+}
+
+
 const VIEW_MODES      = ["Day", "Week", "Month", "Quarter Year"];
 const VIEW_MODE_LABELS = ["Day", "Week", "Month", "Quarter"];
 
@@ -11,9 +47,13 @@ const VIEW_MODE_LABELS = ["Day", "Week", "Month", "Quarter"];
 function injectBoardBarStyles() {
   const style = document.getElementById("gantt-board-bar-styles")
     || Object.assign(document.createElement("style"), { id: "gantt-board-bar-styles" });
+  // The board's colour moved from the bar's fill to its outline when delivery
+  // state took the fill. Both signals, one shape — and a roadmap filtered to a
+  // single board loses nothing it was using, because the fill is now the part
+  // that varies.
   style.textContent = BOARDS.map((board) => {
     const cls = `board-color-bar-${boardSlug(board.id)}`;
-    return `.${cls} .bar { fill: ${board.color}; opacity: 0.7; }\n` +
+    return `.${cls} .bar { stroke: ${board.color}; stroke-width: 1.5px; }\n` +
            `.${cls} .bar-progress { fill: ${board.color}; }`;
   }).join("\n");
   if (!style.isConnected) document.head.appendChild(style);
@@ -161,6 +201,10 @@ export async function mount(container, creds) {
       currentMode = VIEW_MODES[i];
       controls.querySelectorAll(".gantt-mode-btn").forEach(b =>
         b.classList.toggle("active", b.dataset.mode === currentMode));
+      // A new zoom level is a new axis: today sits somewhere else on it, so
+      // the chart re-centres rather than keeping a scroll offset that meant
+      // something on the old one.
+      scrolledToToday = false;
       renderGantt();
     });
     controls.appendChild(btn);
@@ -263,7 +307,7 @@ export async function mount(container, creds) {
         keySpan.textContent = epic.key;
         const nameSpan = document.createElement("span");
         nameSpan.className = "gantt-filter-epic-name";
-        nameSpan.textContent = (epic.fields?.summary || "").slice(0, 38);
+        nameSpan.textContent = truncate(epic.fields?.summary, 38);
         row.appendChild(cb); row.appendChild(keySpan); row.appendChild(nameSpan);
         panel.appendChild(row);
       }
@@ -344,6 +388,27 @@ export async function mount(container, creds) {
 
   controls.appendChild(sep());
 
+  // ── Legend ─────────────────────────────────────────────────────────────────
+  // Four colours doing semantic work need saying once. Small, in the toolbar,
+  // and not repeated per bar.
+  const legend = document.createElement("div");
+  legend.className = "gantt-legend";
+  for (const [state, label, title] of [
+    ["on-track", "On track", "Due more than a week out"],
+    ["due-soon", "Due soon", `Due within ${DUE_SOON_DAYS} days`],
+    ["overdue", "Overdue", "Past its due date and not done"],
+    ["done", "Done", "Finished — no longer tracking against a date"],
+  ]) {
+    const item = document.createElement("span");
+    item.className = "gantt-legend-item";
+    item.title = title;
+    const dot = document.createElement("span");
+    dot.className = `gantt-legend-dot delivery-${state}`;
+    item.append(dot, document.createTextNode(label));
+    legend.appendChild(item);
+  }
+  controls.appendChild(legend);
+
   // ── Info ───────────────────────────────────────────────────────────────────
   const info = document.createElement("span");
   info.className = "gantt-info";
@@ -399,11 +464,15 @@ export async function mount(container, creds) {
   function epicToTask(epic) {
     return {
       id: epic.key,
-      name: `${epic.key} — ${epic.fields.summary || ""}`.slice(0, 60),
+      name: truncate(`${epic.key} — ${epic.fields.summary || ""}`, 60),
       start: getStartDate(epic),
       end: epic.fields.duedate,
       progress: 0,
-      custom_class: `board-color-bar-${boardSlug(epic.boardId)}`,
+      // Two classes, two signals: delivery state fills the bar, board identity
+      // outlines it. They answer different questions and a bar has room for
+      // both.
+      custom_class:
+        `board-color-bar-${boardSlug(epic.boardId)} delivery-${deliveryState(epic)}`,
       _epic: epic,
       _isChild: false,
     };
@@ -413,7 +482,7 @@ export async function mount(container, creds) {
     const today = new Date().toISOString().slice(0, 10);
     return {
       id: child.key,
-      name: `  ${child.key} — ${(child.fields.summary || "").slice(0, 50)}`,
+      name: `  ${child.key} — ${truncate(child.fields.summary, 50)}`,
       start: getStartDate(child) || child.fields.created?.slice(0, 10) || today,
       end:   child.fields.duedate           || child.fields.updated?.slice(0, 10) || today,
       progress: child.fields.status?.name === "Done" ? 100 : 0,
@@ -425,6 +494,10 @@ export async function mount(container, creds) {
 
   // ── Task list ──────────────────────────────────────────────────────────────
   let tasks = [];
+  // Latches once today has been scrolled to, so expanding an epic does not
+  // drag the chart back under the reader. Cleared whenever the axis itself
+  // changes — a new view mode or timeframe is a new chart.
+  let scrolledToToday = false;
 
   function rebuildTasks() {
     const visible = getVisibleDated();
@@ -462,26 +535,116 @@ export async function mount(container, creds) {
     const el = document.createElement("div");
     el.id = "gantt-target";
     chartWrap.appendChild(el);
-    new Gantt("#gantt-target", tasks, {
+    const chart = new Gantt("#gantt-target", tasks, {
       view_mode: currentMode,
       date_format: "YYYY-MM-DD",
       language: "en",
       custom_popup_html: task => `
         <div class="gantt-popup" style="padding:8px 12px;font-family:'Ubuntu Sans Mono',ui-monospace,monospace;font-size:12px;">
           <div style="color:#E8EAF0;margin-bottom:4px;">${task.name}</div>
-          <div style="color:#6B7280;font-size:11px;">${task._isChild ? "Click for issue details" : "Click to expand children"}</div>
+          <div style="color:#6B7280;font-size:11px;">${task._isChild ? "Click for issue details" : "Click for epic details · caret to expand"}</div>
         </div>`,
-      on_click: task => {
-        if (task._isChild) openIssueDrawer(task.id, creds);
-        else toggleExpand(task.id);
-      },
+      // Clicking a bar opens the issue, epic or child alike — the same drawer
+      // the Kanban cards and the standup board open, over the same chart, so
+      // the roadmap stops being the one view where clicking a thing shows you
+      // nothing about it. Expanding an epic's children moved to the caret
+      // added beside each bar in decorateChart(): it is a different action and
+      // it was the only one available.
+      on_click: task => openIssueDrawer(task.id, creds),
       on_date_change: () => {},
       on_progress_change: () => {},
     });
+    decorateChart(chart);
     updateInfo();
   }
 
-  function rebuildAndRender() { rebuildTasks(); renderGantt(); }
+  // ── Chart decoration ───────────────────────────────────────────────────────
+
+  // frappe-gantt draws the grid, the bars and a pale band for today, and stops
+  // there. Three things are added on top of its SVG after each render, rather
+  // than forked into the vendored library: a today line, an expand caret per
+  // epic, and an opening scroll position that puts today on screen.
+  // Where today sits in chart coordinates. frappe-gantt draws a today band of
+  // its own but only in Day view (`make_grid_highlights` is guarded on it), so
+  // in Month, Week and Quarter — which is where a roadmap is actually read —
+  // there was nothing marking now at all.
+  //
+  // This is the library's own `compute_x`, applied to today instead of to a
+  // task's start. Copied rather than derived so the line lands on exactly the
+  // same scale the bars do, including the Month special case, where columns are
+  // a nominal thirtieth of a month rather than a fixed step.
+  function todayX(chart) {
+    const { step, column_width } = chart.options;
+    const start = chart.gantt_start;
+    if (!start || !column_width) return null;
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const ms = midnight - start;
+    if (currentMode === "Month") return (ms / 86400000) * column_width / 30;
+    return (ms / 3600000) / step * column_width;
+  }
+
+  function decorateChart(chart) {
+    const svg = chartWrap.querySelector("svg");
+    const container = chartWrap.querySelector(".gantt-container") || chartWrap;
+    if (!svg) return;
+
+    const x = todayX(chart);
+    const width = parseFloat(svg.getAttribute("width")) || 0;
+    // Only when today is actually on the chart. A roadmap filtered to last
+    // quarter should not grow a line pinned to its left edge.
+    if (x !== null && x >= 0 && (!width || x <= width)) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "gantt-today-line");
+      line.setAttribute("x1", x);
+      line.setAttribute("x2", x);
+      line.setAttribute("y1", 0);
+      line.setAttribute("y2", svg.getAttribute("height") || "100%");
+      svg.appendChild(line);
+
+      // Open on today rather than on the earliest start date. A roadmap is read
+      // forwards from now; scrolled hard left it opens on whatever started
+      // longest ago, which is the part nobody is asking about. Latched, so
+      // expanding an epic does not drag the chart back mid-read.
+      if (!scrolledToToday) {
+        container.scrollLeft = Math.max(0, x - container.clientWidth / 2);
+        scrolledToToday = true;
+      }
+    }
+
+    // A caret per epic bar, at the left edge of the bar, because clicking the
+    // bar itself now opens the drawer.
+    for (const wrapper of svg.querySelectorAll(".bar-wrapper")) {
+      const id = wrapper.getAttribute("data-id");
+      const task = tasks.find((t) => t.id === id);
+      if (!task || task._isChild) continue;
+      const bar = wrapper.querySelector(".bar");
+      if (!bar) continue;
+
+      const caret = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      caret.setAttribute("class", "gantt-caret");
+      caret.setAttribute("x", parseFloat(bar.getAttribute("x")) - 6);
+      caret.setAttribute(
+        "y",
+        parseFloat(bar.getAttribute("y")) + parseFloat(bar.getAttribute("height")) / 2 + 4
+      );
+      caret.setAttribute("text-anchor", "end");
+      caret.textContent = expandedEpics.has(id) ? "▾" : "▸";
+      caret.addEventListener("click", (e) => {
+        // The bar's own handler opens the drawer; this one must not also fire.
+        e.stopPropagation();
+        toggleExpand(id);
+      });
+      wrapper.appendChild(caret);
+    }
+  }
+
+  function rebuildAndRender() {
+    // The axis is about to change, so today is somewhere else on it.
+    scrolledToToday = false;
+    rebuildTasks();
+    renderGantt();
+  }
 
   // ── Undated section ────────────────────────────────────────────────────────
   function renderUndated() {
@@ -501,8 +664,11 @@ export async function mount(container, creds) {
     for (const epic of undated) {
       const row = document.createElement("div");
       row.className = "undated-epic-row";
-      row.style.borderLeft = `3px solid ${boardColor(epic.boardId)}`;
-      row.style.paddingLeft = "10px";
+      // Board identity as an inset rule rather than a 3px border, which is the
+      // convention the backlog rows already use (`.bl-row td:first-child`).
+      // Same signal, same width, and it stops the row's box from being a
+      // different size to its neighbours.
+      row.style.setProperty("--row-accent", boardColor(epic.boardId));
       const key = document.createElement("a");
       key.className = "issue-key mono";
       key.style.color = boardColor(epic.boardId);
@@ -510,7 +676,7 @@ export async function mount(container, creds) {
       attachIssueOpener(key, epic.key, creds);
       row.appendChild(key);
       const sum = document.createElement("span");
-      sum.textContent = (epic.fields?.summary || "").slice(0, 60);
+      sum.textContent = truncate(epic.fields?.summary, 60);
       row.appendChild(sum);
       list.appendChild(row);
     }

@@ -37,7 +37,9 @@
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(12px * var(--font-scale));
   color: var(--muted);
-  margin-left: auto;
+  /* The legend to its left now claims the free space, so this sits against it
+     rather than taking the gap twice. */
+  margin-left: 0;
 }
 
 .gantt-chart-wrap {
@@ -56,9 +58,86 @@
 .gantt-chart-wrap .gantt .grid-header { fill: var(--surface); stroke: var(--border); }
 .gantt-chart-wrap .gantt .grid-row { fill: var(--surface); }
 .gantt-chart-wrap .gantt .grid-row:nth-child(even) { fill: rgba(13,15,18,0.3); }
+/* That zebra is a 30% wash of the dark background, which over a white chart in
+   light theme paints grey stripes across the whole roadmap. Same idea, mixed
+   from the theme's own ink instead of a fixed colour. */
+[data-theme="light"] .gantt-chart-wrap .gantt .grid-row:nth-child(even) {
+  fill: color-mix(in srgb, var(--text) 4%, transparent);
+}
 .gantt-chart-wrap .gantt .row-line { stroke: var(--border); }
 .gantt-chart-wrap .gantt .tick { stroke: var(--border); }
 .gantt-chart-wrap .gantt .today-highlight { fill: rgba(232,234,240,0.05); }
+/* Near-white at 5% over white is nothing at all: in light theme the Gantt had
+   no today marker. It is the one column a roadmap is read from. */
+[data-theme="light"] .gantt-chart-wrap .gantt .today-highlight {
+  fill: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+}
+
+/* ── Delivery state ──────────────────────────────────────────────────────── */
+
+/* What the bar's fill says: how this epic is doing against its own due date.
+   Board identity moved to the outline (generated per configured board in
+   js/views/gantt.js) so one bar can carry both.
+
+   Four states, not three. "Done" is deliberately not green: an epic that has
+   shipped has stopped being something to watch, and giving it the same colour
+   as work that is merely not-late-yet makes a board of finished epics read as
+   uniformly healthy. It goes quiet instead. */
+.gantt-chart-wrap .gantt .delivery-on-track  .bar { fill: var(--tone-green); }
+.gantt-chart-wrap .gantt .delivery-due-soon  .bar { fill: var(--tone-yellow); }
+.gantt-chart-wrap .gantt .delivery-overdue   .bar { fill: var(--tone-red); }
+.gantt-chart-wrap .gantt .delivery-done      .bar { fill: var(--muted); }
+/* No due date at all: nothing can be said about it, so nothing is. */
+.gantt-chart-wrap .gantt .delivery-untracked .bar { fill: var(--border); }
+.gantt-chart-wrap .gantt .bar { opacity: 0.85; }
+
+/* The legend. Sits with the controls rather than under the chart: it is read
+   once, on arrival, and then never again. */
+.gantt-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  padding-right: 14px;
+}
+.gantt-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
+  white-space: nowrap;
+}
+.gantt-legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+.gantt-legend-dot.delivery-on-track  { background: var(--tone-green); }
+.gantt-legend-dot.delivery-due-soon  { background: var(--tone-yellow); }
+.gantt-legend-dot.delivery-overdue   { background: var(--tone-red); }
+.gantt-legend-dot.delivery-done      { background: var(--muted); }
+
+/* Today, as a line rather than a band. The library's pale column says roughly
+   where today is; a roadmap is read by asking what is left of it, and that
+   needs an edge you can hold a finger against. */
+.gantt-chart-wrap .gantt-today-line {
+  stroke: var(--accent-danger);
+  stroke-width: 2;
+  pointer-events: none;
+  shape-rendering: crispEdges;
+}
+
+/* The expand caret, beside each epic bar. Clicking the bar opens the drawer;
+   this is the other action, and it needs its own target. */
+.gantt-chart-wrap .gantt-caret {
+  fill: var(--muted);
+  font-size: calc(11px * var(--font-scale));
+  cursor: pointer;
+  user-select: none;
+}
+.gantt-chart-wrap .gantt-caret:hover { fill: var(--text); }
 
 .gantt-chart-wrap .gantt .bar { rx: 3; ry: 3; }
 .gantt-chart-wrap .gantt .bar-progress { rx: 3; ry: 3; }
@@ -177,7 +256,9 @@
   padding: 4px 7px;
   border-radius: 4px;
   width: 118px;
-  color-scheme: dark;
+  /* Was `dark`, hardcoded, so the native date picker opened dark over a light
+     app. `light dark` lets the control follow whichever theme is active. */
+  color-scheme: light dark;
 }
 
 .tf-apply-btn {
@@ -240,7 +321,10 @@
   user-select: none;
   transition: color 0.12s;
 }
-.gantt-filter-epic-row:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+.gantt-filter-epic-row:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
 .gantt-filter-epic-row input[type="checkbox"] { cursor: pointer; accent-color: var(--accent-primary); flex-shrink: 0; }
 .gantt-filter-epic-row .epic-key { min-width: 68px; flex-shrink: 0; }
 .gantt-filter-epic-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -276,8 +360,23 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 0;
+  padding: 6px 0 6px 10px;
   border-bottom: 1px solid var(--border);
   font-size: calc(13px * var(--font-scale));
+  /* Board identity, as the inset rule the backlog rows already use rather than
+     a 3px border that made this row a different width to its neighbours. */
+  box-shadow: inset 3px 0 0 0 var(--row-accent, transparent);
 }
 .undated-epic-row:last-child { border-bottom: none; }
+
+/* The Gantt is the app's largest animated surface and had no reduced-motion
+   clause; the bars and the filter panels are the parts that actually move. */
+@media (prefers-reduced-motion: reduce) {
+  .gantt-chart-wrap .gantt .bar,
+  .gantt-chart-wrap .gantt .bar-progress,
+  .gantt-mode-btn,
+  .gantt-dropdown-btn,
+  .gantt-filter-epic-row {
+    transition-duration: 0.01ms;
+  }
+}

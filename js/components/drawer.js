@@ -76,16 +76,22 @@ export function openDrawerPanel({ label, className = "", onClose = null } = {}) 
     if (closed) return;
     closed = true;
     overlay.remove();
-    document.removeEventListener("keydown", onKey);
+    document.removeEventListener("keydown", onKey, true);
     window.removeEventListener("resize", applyBounds);
     window.removeEventListener("hashchange", close);
     if (current?.close === close) current = null;
     onClose?.();
   }
   function onKey(e) {
-    if (e.key === "Escape") close();
+    if (e.key !== "Escape") return;
+    // Capture phase, and the key is consumed here. The standup binds Escape on
+    // document too, to end the meeting; without this, opening a card mid-turn
+    // and pressing Escape to close it also ended the standup and cleared the
+    // session. The topmost layer owns the key.
+    e.stopPropagation();
+    close();
   }
-  document.addEventListener("keydown", onKey);
+  document.addEventListener("keydown", onKey, true);
   // The nav stays clickable behind the drawer, so a view change has to take the
   // drawer with it rather than leaving it floating over the new view.
   window.addEventListener("hashchange", close);

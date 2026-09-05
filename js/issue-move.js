@@ -14,6 +14,17 @@
 import { getIssueTransitions, transitionIssue } from "./api.js";
 import { cache, showToast } from "./utils.js";
 
+// Between the drop and the answer there was nothing on screen at all: the card
+// sat in its new column looking committed while the round trip was still open,
+// and then sometimes slid back. A transition is frequently one-way in Jira, so
+// this is the least reversible write the app makes and the only one that gave
+// no sign it was happening. Applied after repaint(), which rebuilds the board
+// and would otherwise discard the class.
+function markWriting(key, on) {
+  const card = document.querySelector(`.kanban-card[data-issue-key="${CSS.escape(key)}"]`);
+  card?.classList.toggle("kanban-card-writing", on);
+}
+
 // `getGroups` is a callback rather than an array because Kanban's group config
 // is reassigned wholesale when the column editor saves; `repaint` re-renders
 // whatever board the caller owns.
@@ -36,6 +47,7 @@ export function createIssueMover({ creds, getGroups, repaint }) {
     // reads it.
     issue.fields.status = { ...prevStatus, name: wanted[0] };
     repaint();
+    markWriting(issue.key, true);
 
     try {
       const transitions = await getIssueTransitions(issue.key, creds);
@@ -74,6 +86,7 @@ export function createIssueMover({ creds, getGroups, repaint }) {
       showToast(`${issue.key} could not be moved — ${msg}`, true);
     } finally {
       inFlight.delete(issue.key);
+      markWriting(issue.key, false);
     }
   };
 }

@@ -219,7 +219,9 @@ body.issue-page-body {
 .editable-cell {
   border-bottom: 1px dashed transparent;
   cursor: text;
-  min-height: 21px;
+  /* Was 21px, under the 24px pointer-target floor — and these click-to-edit
+     cells are the primary interaction of the issue view. */
+  min-height: 26px;
   border-radius: 2px;
   outline-offset: 2px;
 }

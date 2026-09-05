@@ -199,6 +199,49 @@ export function overrunScale(session, now) {
   return Math.min(OVERRUN_MAX_SCALE, 1 + steps * OVERRUN_STEP_GROWTH);
 }
 
+// ── Pressure ─────────────────────────────────────────────────────────────────
+//
+// The swelling clock above only starts working once someone is *already* over,
+// which is the moment it is least useful: the room has to interrupt rather than
+// the speaker having felt it coming. These two numbers are the same idea moved
+// earlier and spread wider — one continuous 0→1 ramp for the run-up to time-up,
+// and a second for the overrun past it. Both are derived from the timestamps
+// like everything else in this file, so they reset by themselves on the next
+// person, on a rewind and on +1 min, and the view can render them however it
+// likes without owning any state.
+
+// Nothing happens for the first ~62% of a turn. A bar that starts reddening
+// immediately is just a bar; one that stays quiet and then visibly closes in is
+// a warning. 0.62 leaves roughly the last third of the slot as the ramp.
+export const PRESSURE_FROM = 0.62;
+// How long the overrun ramp takes to reach its maximum. Longer than the swell's
+// five-second steps deliberately: this is the ambient channel, and it should
+// arrive at "everyone has noticed" rather than start there.
+export const OVERRUN_RAMP_SEC = 45;
+
+const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
+
+// 0 with time in hand, 1 exactly at time-up, and 1 from then on. Squared so the
+// ramp starts gently and tightens — a linear approach reads as a steady state
+// rather than as something closing.
+export function pressure(session, now) {
+  if (!session || session.phase !== PHASES.SPEAKING) return 0;
+  const total = phaseTotalMs(session);
+  if (!total) return 0;
+  const used = clamp01(phaseElapsedMs(session, now) / total);
+  if (used <= PRESSURE_FROM) return 0;
+  const t = (used - PRESSURE_FROM) / (1 - PRESSURE_FROM);
+  return clamp01(t) ** 2;
+}
+
+// 0 until the slot runs out, then 0→1 across OVERRUN_RAMP_SEC. Linear, because
+// past time-up the question is no longer "how close" but "how long", and that
+// is a quantity people read off directly.
+export function overpressure(session, now) {
+  if (!isOverrun(session, now)) return 0;
+  return clamp01(-phaseRemainingMs(session, now) / (OVERRUN_RAMP_SEC * 1000));
+}
+
 // True when a timed phase has run out. Speaking never expires on its own: the
 // facilitator decides when to move on.
 export function shouldAutoAdvance(session, now) {

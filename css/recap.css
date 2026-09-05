@@ -46,8 +46,17 @@ html, body.recap-page {
 }
 * { box-sizing: border-box; }
 
-.recap {
-  /* Ink and paper. Contrast ratios are against #FFFFFF. */
+/* Ink and paper. Contrast ratios are against #FFFFFF.
+
+   Declared on :root, not on .recap. They were on .recap — the inner sheet div —
+   while .recap-toolbar, .recap-print-btn and .recap-toolbar-note are siblings of
+   .recap-sheet and therefore outside that scope. Every var() in those three
+   rules was invalid at computed-value time, so the toolbar lost its ground and
+   its rule, the note fell back to a serif default, and the print button lost
+   both its background and its border: white text on the page's own near-white,
+   at 1.19:1. The primary action of this document was invisible, and the
+   disabled "Preparing…" state was broken the same way. */
+:root {
   --ink: #16181d;          /* 15.8:1 */
   --ink-soft: #454b57;     /*  8.6:1 */
   --ink-muted: #6b7280;    /*  4.8:1 */
@@ -59,10 +68,16 @@ html, body.recap-page {
      dashboard's progress bar, re-stepped for paper. */
   --step-1: #a9c8ee;
   --step-2: #6c9fdf;
-  --step-3: #2a78d6;
+  /* Was #2a78d6, which pairs with white at 4.42:1 — under AA for the 9pt label
+     on the print button, the one control this page exists to have you press.
+     Darkened to 5.95:1; it is the same step of the same ramp, and step 4 below
+     is still darker than it, so the sequence still reads as one. */
+  --step-3: #1d63b8;
   --step-4: #1a4f92;
   --flag: #b45309;         /*  4.7:1 — scope creep, the one thing that earns a colour of its own */
+}
 
+.recap {
   color: var(--ink);
   /* The background, for screen. On screen there are no page boxes — the sheet is
      one continuous strip — so the image is stretched over the whole of it rather

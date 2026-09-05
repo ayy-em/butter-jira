@@ -91,14 +91,19 @@ export async function promptReauth({ reason = "" } = {}) {
     function close(result) {
       open = false;
       overlay.remove();
-      document.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("keydown", onKeydown, true);
       resolve(result);
     }
 
     function onKeydown(e) {
-      if (e.key === "Escape") close(null);
+      if (e.key !== "Escape") return;
+      // Consumed in the capture phase for the same reason the drawer does it:
+      // a token expiring mid-standup must not turn a dismissed prompt into an
+      // ended meeting.
+      e.stopPropagation();
+      close(null);
     }
-    document.addEventListener("keydown", onKeydown);
+    document.addEventListener("keydown", onKeydown, true);
 
     dismissBtn.addEventListener("click", () => close(null));
 

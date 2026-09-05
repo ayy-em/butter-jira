@@ -51,11 +51,13 @@ import {
   loadSession,
   nextId,
   notesEntries,
+  overpressure,
   overrunScale,
   phaseElapsedMs,
   phaseRemainingMs,
   phaseTotalMs,
   plannedTotalSec,
+  pressure,
   savePrefs,
   saveSession,
   shouldAutoAdvance,
@@ -1014,7 +1016,7 @@ export async function mount(container, creds) {
     panel.appendChild(panelHead(3, "Keyboard shortcuts", "During the standup"));
 
     const keys = el("div", "su-keys");
-    for (const [key, what] of [["Space", "Pause / Resume"], ["→", "Next speaker"], ["Esc", "End session"]]) {
+    for (const [key, what] of [["Space", "Pause / Resume"], ["→", "Next speaker"], ["Shift+Esc", "End session"]]) {
       const cell = el("div", "su-key-cell");
       cell.append(el("kbd", "su-kbd", key), el("span", "su-key-what", what));
       keys.appendChild(cell);
@@ -1047,9 +1049,9 @@ export async function mount(container, creds) {
     beginSession(ids);
   }
 
-  function bulkBtn(label, onClick) {
+  function bulkBtn(label, onClick, { primary = false } = {}) {
     const btn = document.createElement("button");
-    btn.className = "standup-btn small ghost";
+    btn.className = primary ? "standup-btn small primary" : "standup-btn small ghost";
     btn.textContent = label;
     btn.addEventListener("click", onClick);
     return btn;
@@ -1139,6 +1141,21 @@ export async function mount(container, creds) {
 
   function endEarly() {
     if (!session) return;
+    // The one destructive act in this view, and the only one that used to
+    // happen on a bare keypress. clearSession() below removes the resume path,
+    // so there is no way back into a meeting ended by accident — which is the
+    // same reason router.js suppresses the view shortcuts while a standup runs.
+    // `order` is accountIds and `index` is whose turn it is, so everyone past
+    // the current position is someone the meeting has not reached yet.
+    const waiting = Math.max(0, session.order.length - session.index - 1);
+    if (waiting > 0) {
+      const who = waiting === 1 ? "1 person has" : `${waiting} people have`;
+      const ok = window.confirm(
+        `End the standup now?\n\n${who} not spoken yet. The summary will be ` +
+        `written from what has happened so far, and the session cannot be resumed.`
+      );
+      if (!ok) return;
+    }
     session = finish(session, Date.now());
     stopTicker();
     sfx.stopAll();
@@ -1173,10 +1190,31 @@ export async function mount(container, creds) {
     clock.id = "standup-clock";
     el.append(label, clock);
 
+    // Everyone after the first gets the hand-off screen, which announces them
+    // with their picture at 30vmin. The first person got a line of 18px grey
+    // text, because the countdown was written as a countdown rather than as the
+    // first hand-off — so exactly one person per standup was never shown to the
+    // room. Same treatment, same order: label, face, name.
+    const firstId = currentId(session);
+    const avatarUrl = avatarFor(firstId);
+    if (avatarUrl) {
+      const img = document.createElement("img");
+      img.className = "standup-handoff-avatar first";
+      img.src = avatarUrl;
+      img.alt = "";
+      img.addEventListener("error", () => img.remove());
+      el.appendChild(img);
+    }
+
     const first = document.createElement("div");
-    first.className = "standup-interstitial-name";
-    first.textContent = `First up: ${labelFor(currentId(session))}`;
+    first.className = "standup-handoff-name first";
+    first.textContent = labelFor(firstId);
     el.appendChild(first);
+
+    const upLabel = document.createElement("div");
+    upLabel.className = "standup-interstitial-name";
+    upLabel.textContent = "first up";
+    el.appendChild(upLabel);
     return el;
   }
 
@@ -1295,21 +1333,30 @@ export async function mount(container, creds) {
       work.appendChild(boardWrap);
     }
 
-    // Jira activity first, GitHub second: this one needs no credential and no
-    // roster entry, so it is the panel that is there for everybody.
-    const jiraPanel = renderJiraActivityPanel(id);
-    if (jiraPanel) work.appendChild(jiraPanel);
-
-    const panel = renderGithubPanel(id);
-    if (panel) work.appendChild(panel);
+    // One rail, not two panels. The Jira column and the GitHub column between
+    // them were taking better than a third of a projected screen to show eight
+    // numbers and a list — with the board, the thing the standup is actually
+    // about, squeezed into what was left. The numbers are the part that wants
+    // to be beside the board; the pull requests are a list, and a list belongs
+    // in the wide, shallow space at the bottom that the parking lot was holding
+    // on its own and never needed.
+    const rail = renderStatsRail(id);
+    if (rail) work.appendChild(rail);
     el.appendChild(work);
+
+    const bottom = document.createElement("div");
+    bottom.className = "standup-bottom";
+    // The stage's bottom chrome, so an issue can be opened with the parking lot
+    // and the pull-request list still on screen.
+    bottom.dataset.drawerBottom = "";
+
+    const prs = renderPullRequests(id);
+    if (prs) bottom.appendChild(prs);
 
     // One parking lot per speaker: the box is theirs, so it comes up empty for
     // the next person and the end screen can address each note to someone.
     const notes = document.createElement("div");
     notes.className = "standup-parking";
-    // …and its bottom chrome, so a note can still be typed with an issue open.
-    notes.dataset.drawerBottom = "";
     const notesLabel = document.createElement("label");
     notesLabel.className = "standup-parking-label mono";
     notesLabel.textContent = `Parking lot — ${labelFor(id)}`;
@@ -1326,7 +1373,8 @@ export async function mount(container, creds) {
       saveSession(session);
     });
     notes.append(notesLabel, notesInput);
-    el.appendChild(notes);
+    bottom.appendChild(notes);
+    el.appendChild(bottom);
 
     return el;
   }
@@ -1353,155 +1401,128 @@ export async function mount(container, creds) {
     });
   }
 
-  // ── Jira activity panel ────────────────────────────────────────────────────
+  // ── Stats rail ─────────────────────────────────────────────────────────────
 
-  // What this person did to tickets this sprint. Absent rather than apologetic
-  // when the site returned no issue history, on the same principle the GitHub
-  // panel follows — except this one is not gated on a credential, because the
-  // data rode the request the standup already made.
-  function renderJiraActivityPanel(accountId) {
-    const stats = jiraStatsFor(accountId);
-    if (!stats) return null;
-    // Nothing to say is not worth a panel. Creations survive without history,
-    // so check the figures rather than the flag.
-    const anything =
-      stats.created ||
-      (stats.historyKnown &&
-        (stats.transitions || stats.pickedUp || stats.assignedOut || stats.edits));
-    if (!anything) return null;
+  // Both sets of numbers in one slim column beside the board: what this person
+  // did to tickets this sprint, and what they have going on in GitHub. They
+  // were two separate panels with their own titles, their own two-by-two tile
+  // grids and their own borders, which is how eight small numbers came to cost
+  // ~600px of a projected stage.
+  //
+  // One number per row, right-aligned against its label. A tile grid is for a
+  // dashboard being scanned; this is read out in order by one person and the
+  // rest of the room follows along, so a list beats a grid and a narrow column
+  // beats a wide one.
+  function renderStatsRail(accountId) {
+    const jira = jiraStatsFor(accountId);
+    const rail = document.createElement("aside");
+    rail.className = "standup-rail";
 
-    const panel = document.createElement("aside");
-    panel.className = "standup-jira";
+    // Jira first: it needs no credential and no roster entry, so it is the half
+    // that is there for everybody.
+    const jiraAnything =
+      jira &&
+      (jira.created ||
+        (jira.historyKnown &&
+          (jira.transitions || jira.pickedUp || jira.assignedOut || jira.edits)));
+    if (jiraAnything) {
+      rail.appendChild(railHeading("This sprint"));
+      for (const spec of jiraStatSpecs(jira)) rail.appendChild(railRow(spec));
+    }
 
-    const title = document.createElement("div");
-    title.className = "standup-jira-title mono";
-    title.textContent = "THIS SPRINT";
-    panel.appendChild(title);
-
-    panel.appendChild(jiraStatStrip(stats));
-
-    // The tickets behind the numbers, so the panel prompts a sentence rather
-    // than inviting a comparison. Capped, because this is read out loud.
-    const touched = (stats.touchedIssues || []).slice(0, 8);
-    if (touched.length) {
-      const heading = document.createElement("div");
-      heading.className = "standup-jira-heading mono";
-      const total = stats.touchedIssues.length;
-      heading.textContent =
-        total > touched.length ? `Touched · ${touched.length} of ${total}` : `Touched · ${total}`;
-      panel.appendChild(heading);
-
-      const keys = document.createElement("div");
-      keys.className = "standup-jira-keys";
-      for (const key of touched) {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "standup-jira-key mono";
-        chip.textContent = key;
-        if (stats.completedIssues.includes(key)) chip.classList.add("done");
-        // The drawer, not a route: the board cards on this same screen open
-        // issues that way, and a standup should not navigate away mid-turn.
-        chip.addEventListener("click", () => openIssueDrawer(key, creds));
-        keys.appendChild(chip);
+    const ghRows = githubRailRows(accountId);
+    if (ghRows) {
+      rail.appendChild(railHeading("GitHub", true));
+      if (ghRows.note) {
+        const note = document.createElement("div");
+        note.className = "standup-rail-note";
+        note.textContent = ghRows.note;
+        rail.appendChild(note);
       }
-      panel.appendChild(keys);
+      for (const spec of ghRows.specs) rail.appendChild(railRow(spec));
     }
 
-    return panel;
+    return rail.children.length ? rail : null;
   }
 
-  // Four tiles, sized to be read from across the room — the same statistics as
-  // the setup row's cluster, from the same `jiraStatSpecs`.
-  function jiraStatStrip(stats) {
-    const strip = document.createElement("div");
-    strip.className = "standup-jira-stats";
-    for (const spec of jiraStatSpecs(stats)) {
-      const tile = document.createElement("div");
-      tile.className = `standup-jira-stat ${spec.key}`;
-      tile.title = spec.title;
-
-      const num = document.createElement("span");
-      num.className = "standup-jira-stat-num mono";
-      num.textContent = spec.value === null ? "—" : String(spec.value);
-      if (spec.value === null) num.classList.add("absent");
-
-      const key = document.createElement("span");
-      key.className = "standup-jira-stat-key";
-      key.textContent = spec.label;
-
-      tile.append(num, key);
-      strip.appendChild(tile);
+  function railHeading(text, withMark = false) {
+    const h = document.createElement("div");
+    h.className = "standup-rail-heading mono";
+    if (withMark) {
+      const mark = document.createElement("img");
+      mark.className = "gh-mark";
+      mark.src = "assets/logos/github.png";
+      mark.alt = "";
+      h.appendChild(mark);
     }
-    return strip;
+    h.appendChild(document.createTextNode(text.toUpperCase()));
+    return h;
   }
 
-  // ── GitHub panel ───────────────────────────────────────────────────────────
+  function railRow(spec) {
+    const row = document.createElement("div");
+    row.className = `standup-rail-row ${spec.key}`;
+    row.title = spec.title;
 
-  // Absent rather than apologetic: with GitHub off, still loading, or failed,
-  // this returns null and the stage is exactly what it was before M11.
-  function renderGithubPanel(accountId) {
+    const num = document.createElement("span");
+    num.className = "standup-rail-num mono";
+    num.textContent = spec.text ?? (spec.value === null ? "—" : String(spec.value));
+    if (spec.value === null) num.classList.add("absent");
+
+    const label = document.createElement("span");
+    label.className = "standup-rail-key";
+    label.textContent = spec.label;
+
+    row.append(num, label);
+    return row;
+  }
+
+  // Returns the four GitHub figures, or a reason there are none. Absent rather
+  // than apologetic when GitHub is off entirely: the stage is then exactly what
+  // it was before M11.
+  function githubRailRows(accountId) {
+    if (github.state === "off" || github.state === "error") return null;
+    if (!github.activity && !github.stats) return { specs: [], note: "Loading…" };
+    const login = memberFor(accountId)?.githubLogin || "";
+    if (!login) return { specs: [], note: "No GitHub login on the roster." };
+    const stats = githubStatsFor(accountId);
+    return { specs: stats ? statSpecs(stats) : [] };
+  }
+
+  // ── Pull requests ──────────────────────────────────────────────────────────
+
+  // The speaker's pull requests, along the bottom beside the parking lot. One
+  // line each — repo and number, title, age — rather than the two-line cards
+  // the old right-hand panel used: at the bottom of the stage the constraint is
+  // height, not width, and a title that needed two lines in a 300px column fits
+  // comfortably in one across half the screen.
+  //
+  // "Waiting on you" is deliberately gone. It is a list of other people's work,
+  // and the one question this screen exists to answer is what the person
+  // standing up is doing — their review queue is their own business and it was
+  // the longest section of the three.
+  function renderPullRequests(accountId) {
     if (github.state === "off" || github.state === "error") return null;
 
-    const panel = document.createElement("aside");
-    panel.className = "standup-github";
-
-    const title = document.createElement("div");
-    title.className = "standup-github-title mono";
-    const mark = document.createElement("img");
-    mark.className = "gh-mark";
-    mark.src = "assets/logos/github.png";
-    mark.alt = "";
-    title.append(mark, document.createTextNode("GITHUB"));
-    panel.appendChild(title);
-
-    if (!github.activity && !github.stats) {
-      const loading = document.createElement("div");
-      loading.className = "standup-github-note";
-      loading.textContent = "Loading…";
-      panel.appendChild(loading);
-      return panel;
-    }
+    const panel = document.createElement("div");
+    panel.className = "standup-prs";
 
     const login = memberFor(accountId)?.githubLogin || "";
-    if (!login) {
-      // Sayable in one line, and fixable in Settings — better than a panel
-      // that is silently empty for one person and full for everyone else.
-      const note = document.createElement("div");
-      note.className = "standup-github-note";
-      note.textContent = "No GitHub login on the roster for this person.";
-      panel.appendChild(note);
-      return panel;
-    }
-
-    // The numbers first: they are the same four the setup screen showed, and
-    // they are the part that answers "what have you been doing this sprint"
-    // without anyone having to read a list of titles out loud.
-    const stats = githubStatsFor(accountId);
-    if (stats) panel.appendChild(githubStatStrip(stats));
-
-    const mine = github.activity
+    const mine = github.activity && login
       ? activityFor(github.activity, login)
       : { open: [], reviewRequests: [], merged: [], issues: [] };
+
     const sections = [
-      ["Open PRs", mine.open, prRow],
-      ["Waiting on you", mine.reviewRequests, prRow],
-      ["Merged", mine.merged, mergedRow],
-      ["Issues", mine.issues, issueRow],
+      ["Open", mine.open, prLine],
+      ["Merged", mine.merged, mergedLine],
+      ["Issues", mine.issues, issueLine],
     ].filter(([, items]) => items.length);
 
-    if (!sections.length) {
-      const note = document.createElement("div");
-      note.className = "standup-github-note";
-      note.textContent = github.activity
-        ? "Nothing open on GitHub."
-        : `Pull-request list unavailable — ${github.error}`;
-      panel.appendChild(note);
-      return panel;
-    }
+    if (!sections.length) return null;
 
     for (const [label, items, rowFn] of sections) {
       const heading = document.createElement("div");
-      heading.className = "standup-github-heading mono";
+      heading.className = "standup-prs-heading mono";
       heading.textContent = `${label} · ${items.length}`;
       panel.appendChild(heading);
       for (const item of items) panel.appendChild(rowFn(item));
@@ -1509,70 +1530,46 @@ export async function mount(container, creds) {
     return panel;
   }
 
-  // Four tiles, sized to be read from across the room — the same statistics as
-  // the setup row's cluster, from the same `statSpecs`.
-  function githubStatStrip(stats) {
-    const strip = document.createElement("div");
-    strip.className = "standup-gh-stats";
-    for (const spec of statSpecs(stats)) {
-      const tile = document.createElement("div");
-      tile.className = `standup-gh-stat ${spec.key}`;
-      tile.title = spec.title;
-
-      const num = document.createElement("span");
-      num.className = "standup-gh-stat-num mono";
-      num.textContent = spec.text ?? (spec.value === null ? "—" : String(spec.value));
-      if (spec.value === null) num.classList.add("absent");
-
-      const key = document.createElement("span");
-      key.className = "standup-gh-stat-key";
-      key.textContent = spec.label;
-
-      tile.append(num, key);
-      strip.appendChild(tile);
-    }
-    return strip;
+  // A single line: where it lives, what it is, how long it has been sitting
+  // there. Age last and in its own column so a stale pull request lines up with
+  // every other stale one down the right-hand edge.
+  function prLine(pr) {
+    const row = lineRow(pr);
+    const state = document.createElement("span");
+    state.className = `standup-prs-state ${pr.state}`;
+    state.textContent = PR_STATE_LABELS[pr.state] || pr.state;
+    row.insertBefore(state, row.querySelector(".standup-prs-age"));
+    return row;
   }
 
-  function githubRow(item) {
+  function mergedLine(pr) {
+    return lineRow(pr, "merged");
+  }
+
+  function issueLine(issue) {
+    return lineRow(issue);
+  }
+
+  function lineRow(item, ageOverride = null) {
     const row = document.createElement("a");
-    row.className = "standup-github-row";
+    row.className = "standup-prs-row";
     row.href = item.url || "#";
     row.target = "_blank";
     row.rel = "noopener noreferrer";
 
-    const summary = document.createElement("span");
-    summary.className = "standup-github-summary";
-    summary.textContent = item.title;
-    row.appendChild(summary);
+    const where = document.createElement("span");
+    where.className = "standup-prs-where mono";
+    where.textContent = `${item.repo.split("/")[1] || item.repo} #${item.number}`;
 
-    const meta = document.createElement("span");
-    meta.className = "standup-github-meta mono";
-    row.appendChild(meta);
-    return { row, meta };
-  }
+    const title = document.createElement("span");
+    title.className = "standup-prs-title";
+    title.textContent = item.title;
 
-  function prRow(pr) {
-    const { row, meta } = githubRow(pr);
-    const state = document.createElement("span");
-    state.className = `standup-github-state ${pr.state}`;
-    state.textContent = PR_STATE_LABELS[pr.state] || pr.state;
-    meta.append(
-      state,
-      document.createTextNode(` ${pr.repo.split("/")[1] || pr.repo} #${pr.number} · ${pr.ageDays}d`)
-    );
-    return row;
-  }
+    const age = document.createElement("span");
+    age.className = "standup-prs-age mono";
+    age.textContent = ageOverride ?? `${item.ageDays}d`;
 
-  function mergedRow(pr) {
-    const { row, meta } = githubRow(pr);
-    meta.textContent = `${pr.repo.split("/")[1] || pr.repo} #${pr.number} · merged`;
-    return row;
-  }
-
-  function issueRow(issue) {
-    const { row, meta } = githubRow(issue);
-    meta.textContent = `${issue.repo.split("/")[1] || issue.repo} #${issue.number} · ${issue.ageDays}d`;
+    row.append(where, title, age);
     return row;
   }
 
@@ -1613,6 +1610,21 @@ export async function mount(container, creds) {
     // the phase does — no per-person reset to forget.
     clock.style.setProperty("--overrun-scale", overrunScale(session, now).toFixed(3));
 
+    // The ambient half of the same idea, and the half that arrives before the
+    // deadline rather than after it. One pair of numbers on the stage element;
+    // the stylesheet decides what turns colour and what pulses, so the pressure
+    // can be re-tuned in CSS without this function knowing what it drives.
+    const stage = document.querySelector(".standup-speaking");
+    if (stage) {
+      const over = overpressure(session, now);
+      stage.style.setProperty("--pressure", pressure(session, now).toFixed(3));
+      stage.style.setProperty("--overpressure", over.toFixed(3));
+      // The class, not the variable, gates the pulse: the variable is set on
+      // every tick and is 0 for most of a turn, so a selector on its presence
+      // would have the rim beating from the moment someone started speaking.
+      stage.classList.toggle("pressing", over > 0);
+    }
+
     const fill = document.getElementById("standup-progress-fill");
     if (fill) {
       const total = phaseTotalMs(session) || 1;
@@ -1630,7 +1642,10 @@ export async function mount(container, creds) {
     wrap.innerHTML = "";
 
     const card = document.createElement("div");
-    card.className = "standup-setup";
+    // `summary` widens and enlarges the card. The title was already sized for
+    // the room; everything under it — the per-person times everyone is actually
+    // reading — was still the 620px setup card at 13px.
+    card.className = "standup-setup summary";
 
     const title = document.createElement("h1");
     title.className = "standup-title mono done";
@@ -1698,6 +1713,9 @@ export async function mount(container, creds) {
 
       const actions = document.createElement("div");
       actions.className = "standup-bulk";
+      // The two things this screen exists to hand over. They were ghost
+      // buttons under a full-width primary that read "Back to setup" — the
+      // loudest control on the peak screen was the least important one.
       const copyBtn = bulkBtn("Copy message", async () => {
         if (await copyDigest(digestBox.value)) {
           copyBtn.textContent = "Copied";
@@ -1707,13 +1725,13 @@ export async function mount(container, creds) {
           digestBox.focus();
           digestBox.select();
         }
-      });
+      }, { primary: true });
       actions.append(copyBtn, bulkBtn("Download .txt", () => downloadNotes(session)));
       card.appendChild(actions);
     }
 
     const again = document.createElement("button");
-    again.className = "standup-btn standup-start";
+    again.className = "standup-btn small ghost standup-again";
     again.textContent = "Back to setup";
     again.addEventListener("click", () => {
       session = null;
@@ -1825,7 +1843,14 @@ export async function mount(container, creds) {
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
       goNext();
-    } else if (e.key === "Escape") {
+    } else if (e.key === "Escape" && e.shiftKey) {
+      // Shift is the whole guard, and it is deliberate. Plain Escape is the
+      // dismiss gesture for every overlay in this app and the platform's own
+      // way out of fullscreen, which the session enters on start — so the key
+      // people reach for to close a card, dismiss a prompt or leave fullscreen
+      // was also the key that ended the meeting and cleared the session. The
+      // overlays now consume their own Escape in the capture phase; this is
+      // the other half, for the case where nothing is open at all.
       e.preventDefault();
       endEarly();
     }

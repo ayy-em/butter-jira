@@ -62,6 +62,9 @@ export function renderIssueCard(issue, creds, { showAssignee = true } = {}) {
   const f = issue.fields;
   const card = document.createElement("div");
   card.className = "kanban-card";
+  // The key is on the element so a write in flight can find its own card again
+  // after the board has been repainted from scratch — see js/issue-move.js.
+  card.dataset.issueKey = issue.key;
   card.style.borderTopColor = hashColor(issue.key);
 
   // Whole card is clickable: plain click opens the drawer, modified or middle

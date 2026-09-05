@@ -7,8 +7,13 @@
   <link rel="stylesheet" href="css/kanban.css">
   <link rel="stylesheet" href="css/standup.css">
   <style>
-    html, body { overflow: auto; }
-    #view-container { position: static; }
+    html, body { overflow: hidden; }
+    /* Production gives this a definite height (absolutely positioned between
+       the nav and the footer). Static with no height meant `height: 100%` on
+       the stage resolved against nothing, so the running screen rendered at
+       content height here and full height in the app — the harness hid the one
+       thing it exists to show. */
+    #view-container { position: static; height: 100vh; overflow: auto; }
   </style>
 </head>
 <body>

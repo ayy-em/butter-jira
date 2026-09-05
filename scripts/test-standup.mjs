@@ -429,5 +429,53 @@ check("empty list yields empty string, not undefined",
   su.handoffPhrase(phraseSession(1, 0), []) === "");
 check("no phrase is blank", su.HANDOFF_PHRASES.every((p) => p.trim().length > 0));
 
+section("pressure — the run-up to time-up");
+
+// A speaking phase of `totalSec` that started at t=0 and has never paused.
+const pressSession = (totalSec) => ({
+  order: ["a"],
+  index: 0,
+  durations: { a: totalSec },
+  phase: su.PHASES.SPEAKING,
+  phaseStartedAt: 0,
+  pausedAt: null,
+  pauseAccumMs: 0,
+  actualMs: {},
+  notesByPerson: {},
+});
+const at = (secs) => secs * 1000;
+const p = (secs, total = 120) => su.pressure(pressSession(total), at(secs));
+
+check("silent for the first two thirds of a turn", p(0) === 0 && p(60) === 0);
+check("still silent right up to the ramp", p(74) === 0);
+check("has started by three quarters through", p(95) > 0);
+check("reaches exactly 1 at time-up", p(120) === 1);
+check("stays at 1 once over, never above", p(200) === 1);
+check("rises monotonically across the ramp",
+  [75, 85, 95, 105, 115, 120].every((s, i, all) => i === 0 || p(s) >= p(all[i - 1])));
+check("eases in — the first half of the ramp is quieter than the second",
+  p(97) - p(74) < p(120) - p(97));
+check("scales with the slot rather than with the clock",
+  Math.abs(p(150, 240) - p(75, 120)) < 1e-9);
+check("a countdown phase has no pressure",
+  su.pressure({ ...pressSession(120), phase: su.PHASES.COUNTDOWN }, at(119)) === 0);
+check("a missing session does not throw", su.pressure(undefined, at(10)) === 0);
+check("a zero-length slot does not divide by zero",
+  Number.isFinite(su.pressure(pressSession(0), at(10))));
+
+section("overpressure — the overrun ramp");
+
+const op = (secs, total = 120) => su.overpressure(pressSession(total), at(secs));
+check("zero while there is time left", op(60) === 0 && op(119) === 0);
+check("zero at exactly time-up", op(120) === 0);
+check("climbing a few seconds over", op(125) > 0 && op(125) < 0.2);
+check("reaches 1 after the full ramp",
+  op(120 + su.OVERRUN_RAMP_SEC) === 1);
+check("never exceeds 1, however long someone talks", op(600) === 1);
+check("is linear past time-up",
+  Math.abs((op(135) - op(128)) - (op(150) - op(143))) < 1e-9);
+check("independent of slot length — 30s over is 30s over",
+  Math.abs(op(150) - op(270, 240)) < 1e-9);
+
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

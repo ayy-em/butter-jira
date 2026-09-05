@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-09-03
+Last updated: 2026-09-05
 
 An MV3 browser extension for Chrome, Firefox and Edge, giving Gantt, Backlog,
 and Kanban views over Jira Cloud boards. This roadmap takes it from an internal single-tenant tool to a
@@ -25,8 +25,10 @@ built the way it is, which is the part that gets forgotten.
 | Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping, GitHub block), overridable via `config.local.json` |
 | Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, the daily snapshots and per-sprint freezes, and a 5-minute response cache. One accessor module (`js/browser.js`) |
 | Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
+| Releases | Tags only (`v0.3.0`, `v0.5.0`); zips built by hand, nothing published. No `.github/` and no CI of any kind — M19 |
+| Licence | None chosen. Blocks the first public release (M19) |
 | Version control | Git, `.gitignore` in place |
-| Tests | Seventeen `scripts/test-*.mjs` suites (1755 checks) + six preview harnesses + a manual smoke checklist |
+| Tests | Eighteen `scripts/test-*.mjs` suites (1791 checks) + seven preview harnesses + a manual smoke checklist |
 
 ## Sizing
 
@@ -98,7 +100,15 @@ rather than a second scheme to keep in your head:
 
 ```
 M18 Linked issues ✔ ─▶ M13 Freeze + diff ✔ ─▶ M14 Weekly 1:1 ─▶ M15 Sprint planner ─▶ M16 Quarter Wrapped ─▶ M17 Per-sprint history
+
+M19 Tagged releases — off to one side, depends on nothing, blocks nothing
 ```
+
+**M19 is not in that chain and is not waiting for it.** It is packaging, not a
+feature: it depends on no milestone, strands nothing behind it, and can be taken
+in any gap. It sits at the end of the numbering because that is what the rule
+says a new milestone does, not because it is the least urgent thing here — the
+README already sends people to a Releases page that nothing populates.
 
 **M18 was taken first, out of order, on 2026-09-03** — the second time the queue
 has been jumped, after M11, and for the same reason both times: it hangs off a
@@ -173,6 +183,9 @@ open question 3, applied a third time. M18 was added new.
 | Notes about a named colleague are the app's most sensitive data | M14 | Device-local, never synced, own export checkbox and confirm, bounded retention, no ranking or evaluation framing |
 | ~~A per-issue freeze for eight sprints is the largest thing kept on device~~ | M13 ✔ | Measured, not assumed: a 60-issue sprint freezes to ~22 KB, eight to ~170 KB, asserted and printed by `scripts/test-dashboard.mjs`. Pruned with `MAX_SPRINTS_KEPT` **imported from `js/snapshots.js`** rather than copied, so the two caps cannot drift apart |
 | ~~Scope-added silently changes meaning depending on whether a freeze exists~~ | M13 ✔ | Resolved, and in three states rather than two: no freeze is the creation-date approximation, a start-of-sprint freeze is exact, and a mid-sprint freeze is exact only from the day it was taken and says which day. One function (`scopeBasis`) writes the sentence for the tile and the PDF, so they cannot disagree |
+| A published release asset cannot be unpublished | M19 | The `build.mjs` allowlist already makes `assets/brand/`, `assets/avatars/` and `config.local.json` unshippable and `--zip` refuses `--local-assets`; CI re-checks the actual archive with `unzip -l` before upload, because this is the one step with no undo |
+| A tag and the manifest version disagree, and the release is named one thing and ships another | M19 | Asserted in CI rather than remembered: the run fails when `refs/tags/vX.Y.Z` and `manifest.base.json` disagree. Which one is authoritative is M19's open question 1 |
+| Public repo, downloadable builds, no licence | M19 | Blocking rather than mitigated. Default exclusive copyright means the README's "clone it and point it at your own Jira" is an invitation the repo does not extend. One file, decided before the first tag |
 | A quarter is ~90 days and the GitHub window is 45 | M16, M17 | Store per-sprint rollups at rollover; until they exist, the quarter document states the shorter window it actually covers |
 | Lines of code read as a productivity measure | M16, M17 | Team-level per sprint only, never per person, labelled as lines reaching the default branch |
 | ~~Unlinking an issue is destructive and Jira offers no undo~~ | M18 ✔ | Resolved: a confirm naming both issues and the relationship, and no ✕ at all on a sub-task row, which has no link to remove. The DELETE goes through the same `jiraWrite` every other write does — `jiraWrite` learned to send no body rather than the method getting a path of its own |
@@ -189,7 +202,7 @@ open question 3, applied a third time. M18 was added new.
 
 ## Open questions
 
-1. ~~**Distribution**~~ — answered 2026-08-05: unpacked now, possible Web Store listing later. The manifest `key` is in place for unpacked use and must be deleted before any store upload.
+1. ~~**Distribution**~~ — answered 2026-08-05 (*unpacked now, possible Web Store listing later*), and **settled 2026-09-05: unpacked installs only, permanently.** A public repo, zips built by CI on a release tag and published on the Releases page, and no Chrome, Edge or Firefox store submission planned — scoped as M19. Two consequences of dropping the store half: the manifest `key` **stays** rather than being a thing to remember to delete (it is what keeps an unpacked install's `chrome.storage` namespace across a remove-and-re-add, which matters more in this model, not less), and the store-safe packaging rules stay load-bearing for a different reason — a public release asset must not carry colleagues' photographs whether or not a store ever sees it. Firefox is the loose end: an unsigned zip is a *temporary* add-on, so one of the three files behaves differently from the other two. See M19.
 2. ~~**Board-per-project assumption**~~ — answered 2026-08-12: the fix is chosen and written up under *Several boards over one project* in the deferred backlog, but not scheduled. The current deployment is one board per project, so neither of the two bugs is live here; the entry names which half to pull forward first if that changes.
 3. ~~**Velocity source for the planner**~~ (originally "for M8"; the planner became M13 at the split and is **M15** since the 2026-09-03 renumbering) — answered 2026-08-12: **historical, from the app's own stored history.** Not from closed-sprint data mined out of Jira — same reasoning as the M7 burndown, which is the precedent this follows: build history forward in `js/snapshots.js` rather than lean on `sprintreport`. **Consequence acted on 2026-08-20, ahead of M15:** snapshots recorded team totals only, and per-person velocity needs a `byPerson` block. Since a forward-built history accrues only from the day it starts being written, the field was added on its own rather than waiting for the planner — `snapshotFrom` (`js/snapshots.js:39`) now writes one row per person, keyed by account id, carrying assigned and completed points and issue counts plus the display name as it read that day. M14 reads the same field.
 4. ~~**Team scope**~~ — answered 2026-08-05: one roster, but stored under a team key from the start so a switcher can be added later without a migration.
@@ -206,8 +219,14 @@ open question 3, applied a third time. M18 was added new.
 **Re-sequenced 2026-09-03**, and **M18 and M13 both shipped the same day** —
 M18 out of order and ahead of the rest, M13 in its place at the head of the
 queue. What is left, in order: **M14** (weekly 1:1) → **M15** (sprint planner) →
-**M16** (Quarter Wrapped) → **M17** (per-sprint history). The sections below are
-in that order.
+**M16** (Quarter Wrapped) → **M17** (per-sprint history), plus **M19** (tagged
+releases, added 2026-09-05) standing outside that order entirely. The sections
+below are in that order, M19 last.
+
+**M19 is not queued behind the other four.** It depends on no milestone and
+blocks none, so it is takeable in any gap — and the case for taking it early is
+that the README's install instructions already name release assets that nothing
+produces. It carries the licence decision with it.
 
 **The numbers were renumbered to match**, the same day and for the obvious
 reason: a queue whose numbers run 13, 14, 15, 16, 17, 18 can be read in order,
@@ -224,6 +243,7 @@ is what makes the remaining four's order legible. The first two shipped on
 - **M14 next**, and now the head of the queue: an M whose dependencies are already paid (the roster, `activityFrom`, the `byPerson` block), against the planner's L. It has four open questions that want answering before any work starts, and answering them is cheap.
 - **M15 after that.** Still the biggest thing in the file, still fully unblocked; it loses its "next up" position rather than any of its readiness.
 - **M16 then M17**, in that order because the button is the ask and the history is the machinery behind it — but see M17's note on the 45-day GitHub window, which the quarter document runs straight into. If M16 is started first, its GitHub half is scoped to what one window covers until M17 lands.
+- **M19 whenever**, and outside this reasoning entirely: it is packaging rather than a feature, it waits on nothing, and the only thing it is behind is a decision (the licence) rather than a milestone.
 - **M18 last** ✔ only because it is an S that unblocks nothing — "the obvious thing to pick up in a gap", which is what happened to it the same afternoon.
 
 ---
@@ -411,6 +431,132 @@ visibly partial and the empty case explained rather than drawn as zero.
 
 1. **Active sprint on the chart, or closed sprints only?** A partial current sprint plotted next to complete ones reads as a drop every time someone looks mid-sprint. Excluding it is honest and slightly disappointing; including it needs distinct styling for "in progress".
 2. **Sprints, or calendar months?** Everything above is per sprint, which matches the app. A quarter document may want the calendar, and sprints straddle quarter boundaries.
+
+---
+
+## M19 — Tagged releases, built and published by CI
+
+**Size: S–M** · Depends on nothing in the feature queue. Takes the next free
+number and joins the queue at it, per the rule above, but it is orthogonal to
+M14–M17 and can be pulled forward at any point — none of them touch packaging.
+
+**The target state, stated plainly:** pushing a tag `vX.Y.Z` builds all three
+targets and publishes `chrome-X.Y.Z.zip`, `firefox-X.Y.Z.zip` and
+`edge-X.Y.Z.zip` as assets on that release. Nothing else changes: still a public
+repo, still unpacked installs, still no store submission. The Releases page
+becomes the one place a non-developer is sent, which is what
+[README.md](README.md) already tells them — the install instructions name those
+exact filenames today, and nothing produces them but a hand-run build.
+
+**The producing half already exists.** `scripts/build.mjs --zip` writes
+`dist/<target>-<version>.zip` from the `INCLUDE_FILES`/`INCLUDE_DIRS` allowlist,
+with the manifest merged per target. There is no compilation to reproduce and no
+dependency to install, so the workflow is a checkout, a `node scripts/build.mjs
+--zip`, and an upload. What is missing is `.github/` — the repo has no CI of any
+kind — plus four checks that only matter because a published artefact cannot be
+taken back.
+
+### What has to be built
+
+1. **The workflow itself.** `.github/workflows/release.yml`, triggered on
+   `push: tags: ['v*']`, on `ubuntu-latest` (which has `zip` on the PATH —
+   `build.mjs` shells out to it rather than vendoring an archiver, and that is
+   the one host assumption the build makes). No `npm install` step: there is
+   nothing to install, and adding a lockfile to get one would be the first
+   dependency this project has.
+2. **A test gate before publishing.** The eighteen `scripts/test-*.mjs` suites
+   already run with no dependencies, no network and no browser — precisely so
+   they can run anywhere. `for f in scripts/test-*.mjs; do node "$f" || exit 1;
+   done`, exactly as `scripts/SMOKE-CHECKLIST.md` opens. A release that ships a
+   red build is worse than a release that does not happen.
+3. **Tag/manifest agreement, asserted rather than trusted.** The version lives
+   in `manifest.base.json`; the tag lives in git; nothing connects them. Tagging
+   `v0.6.0` with the manifest still reading `0.5.0` publishes three files named
+   `*-0.5.0.zip` on a release called v0.6.0, and the mismatch is invisible until
+   somebody reports it. The job must fail when `refs/tags/vX.Y.Z` and the
+   manifest version disagree. **Which of the two is the source of truth is the
+   open question below** — this item is only that they must agree.
+4. **No generated-file drift.** `build.mjs` regenerates the root
+   `manifest.json` (the Chrome build, committed so the repo loads unpacked with
+   no build step) and its own comment already states the invariant: *"a diff
+   after a build means someone edited the generated file instead of the
+   sources."* CI is where that becomes enforceable — `git diff --exit-code`
+   after the build. It is the cheapest check here and the one most likely to
+   actually fire, because editing the root manifest is the obvious thing to do
+   and it works locally.
+5. **Assert what is inside the zips.** The allowlist in `build.mjs` already
+   makes `assets/brand/`, `assets/avatars/` and `config.local.json`
+   unshippable, and `--zip` refuses to combine with `--local-assets`. Those
+   guarantees are worth re-checking against the actual archive at the moment of
+   publication (`unzip -l`), because this is the step that puts a file on the
+   public internet and the failure mode is a colleague's photograph in a
+   permanent release asset. Defence in depth, on the one operation that has no
+   undo.
+
+### Two things that need deciding, not just building
+
+**The licence, which now blocks this.** Recorded as unchosen since M0 and
+harmless while the repo was private and installed by hand. A public repository
+publishing downloadable builds with no licence grants nobody the right to run
+them — the default is exclusive copyright, and every "clone it and point it at
+your own Jira" sentence in the README is an invitation the repo does not
+actually extend. It is a one-file decision and it gates the first tagged
+release, not this milestone's code.
+
+**The Firefox asset is not the same kind of thing as the other two.** Chrome and
+Edge load an unpacked folder permanently; a Firefox zip loaded through
+`about:debugging` is dropped when the browser quits. So one of three files on
+the release page behaves differently from the other two, and the release page is
+where somebody finds that out. Three options, in increasing cost:
+
+- **Say so on the release page** — a line in the notes and in the README's
+  Firefox section, which already carries the caveat. Free, honest, and leaves
+  Firefox users with a genuinely worse product.
+- **Sign it through AMO** (`web-ext sign`, an AMO API key and secret as
+  repository secrets), which produces a permanently installable `.xpi`. This is
+  the real fix. It adds a CI-time dependency — not a runtime one, so it does not
+  touch the no-dependencies constraint — plus an AMO account, a listing
+  decision, and Mozilla's review latency on a release path that is otherwise
+  instant.
+- **Drop the Firefox asset** and document a source install. Cheapest to run,
+  and gives up a browser the codebase already fully supports.
+
+Not decided here. The first is the default if nothing is chosen, because it is
+the only one that is wrong to skip.
+
+### Nice, and deliberately not in scope
+
+- **SHA-256 sums** beside each zip. Cheap, and the only integrity signal
+  available to someone installing an unpacked extension from a downloaded
+  archive — there is no store review in this distribution model. Worth adding
+  with the workflow; not worth a milestone of its own.
+- **Release notes.** Hand-written, from the roadmap entry the tag ships. Do not
+  generate them from commit subjects: this project's commit subjects are
+  milestone labels (`M13:`, `M18:`) and say nothing to somebody deciding whether
+  to download a zip.
+- **A CI run on pull requests**, running the same suites without publishing.
+  Obviously wanted, trivially adjacent, and a second workflow file rather than a
+  clause inside this one.
+
+**Exit criteria:** `git tag v0.6.0 && git push --tags` produces a GitHub release
+carrying three zips whose names match the tag, built from a green test run, from
+a tree with no generated-file drift, containing no personal assets — with no
+local step and nothing typed by hand.
+
+**Open questions:**
+
+1. **Is the tag or the manifest the source of truth for the version?** Tag-led
+   means CI writes the version into the manifest before building, and the
+   committed `manifest.json` is then behind the release it shipped. Manifest-led
+   means the tag is checked against the file and a mismatch fails the run, which
+   keeps the repo self-consistent at the cost of remembering to bump before
+   tagging. Manifest-led is the smaller change and matches how the file is
+   already treated — but it makes releasing a two-step ritual, and rituals get
+   skipped.
+2. **Does the root `manifest.json` stay committed?** It exists so the repo loads
+   unpacked with no build step, which is a stated product constraint, so
+   presumably yes. Worth writing down as a decision rather than leaving it as
+   the status quo, since item 4 above exists entirely to protect it.
 
 ---
 

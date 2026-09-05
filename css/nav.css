@@ -1,0 +1,190 @@
+/* The navigation bar.
+   This lived as a 150-line template literal injected from js/components/nav.js
+   on every render — invisible to every other stylesheet, exempt from the type
+   scale app.css defines, and re-parsed each time the bar was rebuilt. It is the
+   one surface present on every screen and it was the least governed code in the
+   project. Nothing here changed on the way out except the three things that
+   were wrong in the string: every font-size now rides `--font-scale` like the
+   rest of the app promises, the active and hover chips are mixed from `--text`
+   rather than nailed to a near-white that vanished in light theme, and the
+   standup flair reads its stops from `--flair-sweep` instead of restating
+   them. */
+
+.nav-tab {
+  text-decoration: none;
+  color: var(--muted);
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 600;
+  letter-spacing: 1px;
+  padding: 5px 14px;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s, box-shadow 0.2s;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+/* ── Grouped views ─────────────────────────────────────────────────── */
+.nav-menu { position: relative; display: flex; align-items: center; }
+.nav-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.nav-menu-caret {
+  font-size: calc(11px * var(--font-scale));
+  line-height: 1;
+  letter-spacing: 0;
+  opacity: 0.7;
+  transition: transform 0.15s;
+}
+.nav-menu.open .nav-menu-trigger { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.nav-menu.open .nav-menu-caret { transform: rotate(180deg); }
+/* The rollup count is only useful while the menu hides the real badge. */
+.nav-menu.open .nav-tab-badge-rollup { visibility: hidden; }
+
+.nav-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 168px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: calc(var(--z-nav) + 110);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
+}
+.nav-menu.open .nav-menu-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.nav-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: calc(12px * var(--font-scale));
+  font-weight: 600;
+  letter-spacing: 1px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: color 0.12s, background 0.12s;
+}
+.nav-menu-item:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.nav-menu-item.active { color: var(--text); background: color-mix(in srgb, var(--accent-primary) 16%, transparent); }
+.nav-menu-key {
+  margin-left: auto;
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--muted);
+  opacity: 0.7;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 0 4px;
+}
+
+/* Standup is a timed, run-once-a-day ritual rather than a view you browse,
+   so it gets an animated gradient ring instead of the flat tab treatment. */
+.nav-tab.flair {
+  position: relative;
+  color: var(--text);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent-primary) 14%, transparent),
+    color-mix(in srgb, var(--accent-purple) 14%, transparent));
+}
+.nav-tab.flair::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 5px;
+  padding: 1px;
+  background: var(--flair-sweep);
+  background-size: 300% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: nav-flair-sweep 6s linear infinite;
+}
+.nav-tab.flair:hover {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent-primary) 26%, transparent),
+    color-mix(in srgb, var(--accent-purple) 26%, transparent));
+  box-shadow: 0 0 14px rgba(79,142,247,0.35);
+}
+.nav-tab.flair:hover::before { animation-duration: 1.6s; }
+.nav-tab.flair.active {
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent-primary) 34%, transparent),
+    color-mix(in srgb, var(--accent-purple) 34%, transparent));
+  box-shadow: 0 0 16px rgba(168,85,247,0.35);
+}
+@keyframes nav-flair-sweep { to { background-position: 300% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .nav-tab.flair::before,
+  .nav-tab.flair:hover::before { animation: none; }
+}
+.nav-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: calc(18px * var(--font-scale));
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.nav-btn:hover { color: var(--text); border-color: var(--muted); }
+.nav-btn-wide {
+  width: auto;
+  padding: 0 9px;
+  font-size: calc(11px * var(--font-scale));
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+  
+
+/* ── Monitor badge ───────────────────────────────────────────────────────── */
+/* Lived in css/monitor.css, which is the stylesheet for the view this badge
+   counts rather than the one for the bar it sits in. `--bg` replaces a
+   hardcoded #0D0F12 so the warning chip's text follows the theme. */
+
+.nav-tab-badge {
+  display: inline-block;
+  margin-left: 6px;
+  min-width: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--accent-warning);
+  color: var(--bg);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  vertical-align: middle;
+}

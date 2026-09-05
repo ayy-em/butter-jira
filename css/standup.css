@@ -105,10 +105,10 @@
   font-size: calc(10.5px * var(--font-scale)); color: var(--muted); white-space: nowrap;
   margin-top: 2px;
 }
-.su-tile.tone-blue   { --tone: #4F8EF7; }
-.su-tile.tone-green  { --tone: #4FCF8E; }
-.su-tile.tone-orange { --tone: #F7914F; }
-.su-tile.tone-purple { --tone: #A855F7; }
+.su-tile.tone-blue   { --tone: var(--tone-blue); }
+.su-tile.tone-green  { --tone: var(--tone-green); }
+.su-tile.tone-orange { --tone: var(--tone-orange); }
+.su-tile.tone-purple { --tone: var(--tone-purple); }
 
 /* ── Banners ──────────────────────────────────────────────────────────────── */
 
@@ -159,8 +159,8 @@
   display: flex; align-items: center; justify-content: center;
   width: 25px; height: 25px; flex: 0 0 25px;
   border-radius: 50%;
-  background: color-mix(in srgb, #A855F7 22%, transparent);
-  color: #A855F7;
+  background: color-mix(in srgb, var(--tone-purple) 22%, transparent);
+  color: var(--tone-purple);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(12px * var(--font-scale)); font-weight: 600;
 }
@@ -260,7 +260,7 @@
   width: 7px; height: 13px; border-radius: 2px;
   background: var(--border);
 }
-.su-pip.on { background: #A855F7; }
+.su-pip.on { background: var(--tone-purple); }
 
 /* Four GitHub numbers in one cell. Each carries its own word rather than
    relying on a legend elsewhere on the screen, and every one of them has a
@@ -431,6 +431,35 @@ label.su-card { cursor: pointer; }
 }
 .su-start:hover:not(:disabled) { filter: brightness(1.08); }
 .su-start:disabled { opacity: 0.45; cursor: default; }
+
+/* The standup is the one ritual this app dresses up, and the gradient ring is
+   how it says so — it was on the nav tab that *navigates* to standup, and on
+   the counters once a session is running, but not on the button that actually
+   starts one. The doorway wore the ceremony and the threshold did not.
+   Same ring as `.nav-tab.flair`, same stops, same mask trick, and it does not
+   fire while the button is disabled — nothing to celebrate with nobody
+   selected. */
+.su-start:not(:disabled) { position: relative; }
+.su-start:not(:disabled)::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 11px;
+  padding: 1px;
+  background: var(--flair-sweep);
+  background-size: 300% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: su-start-sweep 6s linear infinite;
+}
+.su-start:not(:disabled):hover::before { animation-duration: 1.6s; }
+@media (prefers-reduced-motion: reduce) {
+  .su-start::before { animation: none; }
+}
+@keyframes su-start-sweep { to { background-position: 300% 0; } }
 @media (prefers-reduced-motion: reduce) {
   .su-person, .su-seg, .su-step-btn, .su-btn, .su-start { transition: none; }
 }
@@ -467,6 +496,31 @@ label.su-card { cursor: pointer; }
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 26px 28px 22px;
+}
+/* The end screen is read by the room, not by one person at a laptop, and it was
+   inheriting the setup card: 620px wide, per-person times at 13px, the digest
+   at 12px. Only the headline had been sized for the room it is shown in. */
+.standup-setup.summary {
+  max-width: 980px;
+  padding: 34px 40px 30px;
+}
+.standup-setup.summary .standup-subtitle {
+  font-size: calc(16px * var(--font-scale));
+  margin-bottom: 24px;
+}
+.standup-setup.summary .standup-person {
+  padding: 11px 14px;
+  font-size: calc(17px * var(--font-scale));
+  /* These are plain rows on the summary — the setup screen's are labels that
+     toggle someone in or out. Same class, and only one of them is clickable. */
+  cursor: default;
+}
+.standup-setup.summary .standup-person-count { font-size: calc(15px * var(--font-scale)); }
+.standup-setup.summary .standup-digest { font-size: calc(13.5px * var(--font-scale)); }
+/* Leaving is not the action this screen is for. */
+.standup-again {
+  display: block;
+  margin: 18px auto 0;
 }
 
 .standup-title {
@@ -543,6 +597,15 @@ label.su-card { cursor: pointer; }
 .standup-btn.small { font-size: calc(11px * var(--font-scale)); padding: 5px 10px; }
 .standup-btn.ghost { background: none; color: var(--muted); }
 .standup-btn.ghost:hover { color: var(--text); }
+/* There was a `.primary` for the running-session controls but none for the
+   plain button, so the end screen's two real actions had nothing to be. */
+.standup-btn.primary {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+  font-weight: 600;
+}
+.standup-btn.primary:hover { filter: brightness(1.08); border-color: var(--accent-primary); }
 .standup-btn:disabled { opacity: 0.45; cursor: default; }
 
 .standup-start {
@@ -607,7 +670,7 @@ label.su-card { cursor: pointer; }
   font-weight: 600;
   line-height: 1;
   color: var(--accent-primary);
-  background: linear-gradient(120deg, #4F8EF7, #A855F7, #F7914F, #4F8EF7);
+  background: var(--flair-sweep);
   /* Tighter than the nav tab's 300%: a single digit is a narrow box, and at
      300% it only ever samples a sliver of one hue. */
   background-size: 200% 100%;
@@ -651,8 +714,81 @@ label.su-card { cursor: pointer; }
   color: var(--text);
 }
 .standup-handoff-clock { font-size: calc(clamp(48px, 11vmin, 130px) * var(--font-scale)); }
+/* The countdown screen shows the same face, one size down: it is sharing the
+   screen with the starting-in digit, which the hand-off screen is not. */
+.standup-handoff-avatar.first {
+  width: clamp(96px, 18vmin, 190px);
+  height: clamp(96px, 18vmin, 190px);
+  border-width: 3px;
+  margin-top: 6px;
+}
+.standup-handoff-name.first { font-size: calc(clamp(28px, 5.5vmin, 62px) * var(--font-scale)); }
 
-.standup-speaking { display: flex; flex-direction: column; height: 100%; }
+/* ── Pressure ────────────────────────────────────────────────────────────────
+   Two numbers set on this element every tick by paintClock: `--pressure` runs
+   0→1 across the last third of someone's slot, `--overpressure` runs 0→1 across
+   the 45 seconds after it. Everything below is derived from them, so the whole
+   escalation can be re-tuned here without touching the view.
+
+   The design intent: the room should feel the turn closing *before* the number
+   runs out. The old behaviour only did anything once someone was already over,
+   which is the moment it is least useful — by then the facilitator has to
+   interrupt, which is exactly the awkwardness the clock exists to avoid. So the
+   progress bar warms through amber as the slot empties, and a rim closes in
+   around the whole stage: peripheral, unmissable from across a room, and it
+   obscures nothing anyone is reading. Past time-up the rim goes red and starts
+   to pulse, and the pulse gets faster the longer it runs — the swelling clock
+   keeps doing its own job on top. */
+.standup-speaking {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  --pressure: 0;
+  --overpressure: 0;
+  /* Amber while the slot empties, red once it has not. Mixed rather than
+     switched, so there is no frame where the colour jumps. */
+  --pressure-hue: color-mix(
+    in srgb,
+    var(--accent-danger) calc(var(--overpressure) * 100%),
+    var(--accent-warning)
+  );
+}
+/* The rim. A ring inset into the stage rather than a border on it, so it costs
+   no layout and cannot shift a single card when it appears. */
+.standup-speaking::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 calc(2px + var(--overpressure) * 4px) var(--pressure-hue);
+  opacity: calc(var(--pressure) * 0.55 + var(--overpressure) * 0.45);
+  transition: opacity 0.4s linear, box-shadow 0.4s linear;
+}
+/* Only once the slot is actually spent, and faster the longer it runs over:
+   2.4s at the moment of time-up, down to 0.8s three quarters of a minute
+   later. A heartbeat that speeds up is read as urgency without anyone having
+   to be told what it means. */
+.standup-speaking.pressing::after {
+  animation: standup-pressure-pulse
+    calc(2.4s - var(--overpressure) * 1.6s)
+    ease-in-out infinite;
+  animation-play-state: running;
+}
+@keyframes standup-pressure-pulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.9); }
+}
+/* The pulse is the one part that is motion rather than information, so it is
+   the one part that goes. The rim, its colour and its thickness all still
+   escalate — someone who asked for stillness still gets the warning. */
+@media (prefers-reduced-motion: reduce) {
+  .standup-speaking::after { animation: none; }
+}
+
+
 
 .standup-bar {
   display: flex;
@@ -723,18 +859,26 @@ label.su-card { cursor: pointer; }
 .standup-btn.standup-ctrl.primary:hover { filter: brightness(1.1); }
 .standup-btn.standup-ctrl.ghost { min-width: 78px; }
 
-.standup-progress { height: 3px; background: var(--border); flex: 0 0 3px; }
+/* 5px rather than 3: this is now one of the two things carrying the sense of
+   time running out, and it is read from the far end of a room. */
+.standup-progress { height: 5px; background: var(--border); flex: 0 0 5px; }
 .standup-progress-fill {
   height: 100%;
   width: 0;
-  background: var(--accent-primary);
-  transition: width 0.2s linear;
+  /* Blue with time in hand, warming through amber as the slot empties. */
+  background: color-mix(
+    in srgb,
+    var(--accent-warning) calc(var(--pressure) * 100%),
+    var(--accent-primary)
+  );
+  transition: width 0.2s linear, background 0.4s linear;
 }
+/* Last, so it wins outright once the slot is actually spent. */
 .standup-progress-fill.overrun { background: var(--accent-danger); }
 
-/* Tickets and pull requests share the stage. The board keeps the space it had;
-   the GitHub panel takes a fixed column beside it so the board does not reflow
-   between one speaker and the next depending on how much is in review. */
+/* The board and the stats rail share the upper stage. The rail is a fixed
+   column so the board does not reflow between one speaker and the next
+   depending on how much anyone has in review. */
 .standup-work { display: flex; flex: 1; min-height: 0; }
 .standup-work > .standup-board,
 .standup-work > .standup-empty { flex: 1; min-width: 0; }
@@ -772,200 +916,146 @@ label.su-card { cursor: pointer; }
   font-size: calc(17px * var(--font-scale));
 }
 
-/* ── Jira activity panel ─────────────────────────────────────────────────── */
+/* ── Stats rail ──────────────────────────────────────────────────────────── */
 
-/* Narrower than the GitHub panel: it holds four tiles and a row of keys rather
-   than four lists, and on a two-panel stage the GitHub one needs the room. */
-.standup-jira {
-  flex: 0 0 clamp(220px, 20vw, 300px);
+/* One column, both sources. This replaced two panels — a ~260px Jira column and
+   a ~330px GitHub one, each with its own border, title and two-by-two tile grid
+   — which between them took better than a third of a projected stage to show
+   eight numbers. A number and its label on one line needs the width of the
+   longest label and nothing more. */
+.standup-rail {
+  flex: 0 0 clamp(150px, 13vw, 210px);
   min-height: 0;
   overflow-y: auto;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-left: 1px solid var(--border);
   background: var(--surface);
 }
-.standup-jira-title {
-  font-size: calc(11px * var(--font-scale));
-  letter-spacing: 1.5px;
-  color: var(--muted);
-  margin-bottom: 10px;
-}
-/* Two by two, like the GitHub strip: the panel is ~260px and "Picked up" needs
-   to fit on one line at projector type sizes. */
-.standup-jira-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-.standup-jira-stat {
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  min-width: 0;
-}
-.standup-jira-stat-num {
-  display: block;
-  font-size: calc(19px * var(--font-scale));
-  line-height: 1.15;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.standup-jira-stat-num.absent { color: var(--muted); opacity: 0.6; }
-.standup-jira-stat-key {
-  display: block;
-  margin-top: 2px;
-  font-size: calc(10px * var(--font-scale));
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-  color: var(--muted);
-}
-
-.standup-jira-heading {
-  font-size: calc(10px * var(--font-scale));
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-/* The tickets behind the numbers. Keys rather than titles: this is a prompt for
-   the person to say what happened, not a list to be read out. */
-.standup-jira-keys { display: flex; flex-wrap: wrap; gap: 6px; }
-.standup-jira-key {
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: calc(11.5px * var(--font-scale));
-  cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
-}
-.standup-jira-key:hover { border-color: var(--accent); }
-/* Done is the one distinction worth drawing here: it is the difference between
-   "I moved it" and "I finished it", which is what the standup is asking. */
-.standup-jira-key.done { border-color: var(--accent-success); color: var(--accent-success); }
-
-/* ── GitHub panel ────────────────────────────────────────────────────────── */
-
-.standup-github {
-  flex: 0 0 clamp(280px, 26vw, 380px);
-  min-height: 0;
-  overflow-y: auto;
-  padding: 14px 16px;
-  border-left: 1px solid var(--border);
-  background: var(--surface);
-}
-.standup-github-title {
+.standup-rail-heading {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: calc(11px * var(--font-scale));
+  font-size: calc(10px * var(--font-scale));
   letter-spacing: 1.5px;
   color: var(--muted);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
-/* Sized off the label so the mark keeps pace with the font-scale setting. */
-.standup-github-title .gh-mark {
-  width: calc(14px * var(--font-scale));
-  height: calc(14px * var(--font-scale));
+/* Two groups in one column need a rule between them; the first one does not
+   need a rule above it. */
+.standup-rail-heading + * { margin-top: 0; }
+.standup-rail-heading:not(:first-child) {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.standup-rail-heading .gh-mark {
+  width: calc(12px * var(--font-scale));
+  height: calc(12px * var(--font-scale));
   flex: none;
 }
-/* The speaker's four numbers, above their lists. Two by two rather than a row
-   of four: the panel is ~300px wide and "Reviews & comments" has to fit on one
-   line at projector type sizes. */
-.standup-gh-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  margin-bottom: 14px;
+.standup-rail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
 }
-.standup-gh-stat {
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  min-width: 0;
-}
-.standup-gh-stat-num {
-  display: block;
+.standup-rail-num {
+  flex: none;
+  min-width: 2.4ch;
+  text-align: right;
   font-size: calc(19px * var(--font-scale));
-  line-height: 1.15;
+  line-height: 1.2;
   color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.standup-gh-stat-num.absent { color: var(--muted); opacity: 0.6; }
-/* Lines merged is two numbers in one tile, so it is set a size down to keep
-   the four tiles the same height. */
-.standup-gh-stat.lines .standup-gh-stat-num { font-size: calc(15px * var(--font-scale)); }
-.standup-gh-stat-key {
-  display: block;
-  margin-top: 2px;
-  font-size: calc(10px * var(--font-scale));
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
+.standup-rail-num.absent { color: var(--muted); opacity: 0.6; }
+/* Lines to main is two numbers in one cell, so it drops a size rather than
+   pushing the label off the end of the rail. */
+.standup-rail-row.lines .standup-rail-num { font-size: calc(13px * var(--font-scale)); }
+.standup-rail-key {
+  min-width: 0;
+  font-size: calc(11px * var(--font-scale));
+  line-height: 1.25;
   color: var(--muted);
 }
+.standup-rail-note {
+  font-size: calc(12px * var(--font-scale));
+  color: var(--muted);
+  line-height: 1.45;
+}
 
-.standup-github-heading {
+/* ── Bottom strip: pull requests and the parking lot ─────────────────────── */
+
+/* The parking lot used to own the full width of the stage on its own, at four
+   rows tall — a text box the width of a projector for a sentence someone types
+   once a standup. The pull requests were in a narrow right-hand column where
+   every title wrapped to two lines. They have swapped shapes. */
+.standup-bottom {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  max-height: 32vh;
+  border-top: 1px solid var(--border);
+}
+.standup-prs {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 10px 18px 14px;
+}
+.standup-prs-heading {
   font-size: calc(10px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--muted);
-  margin: 14px 0 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+  margin: 10px 0 4px;
 }
-.standup-github-heading:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
-.standup-github-note { font-size: calc(13px * var(--font-scale)); color: var(--muted); line-height: 1.5; }
+.standup-prs-heading:first-child { margin-top: 0; }
 
-.standup-github-row {
-  display: block;
-  padding: 7px 9px;
-  margin-bottom: 5px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--bg);
+/* One line per pull request: where it lives, what it is, how old it is. The age
+   is last and in its own column so the stale ones line up down the right edge
+   and can be spotted without reading any of the titles. */
+.standup-prs-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
   text-decoration: none;
   color: var(--text);
 }
-.standup-github-row:hover { border-color: var(--accent-primary); }
-.standup-github-summary {
-  font-size: calc(14px * var(--font-scale));
-  line-height: 1.35;
-  /* Two lines is enough to recognise a PR from across the room; past that the
-     title is a description, and the link is one click away. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.standup-github-meta {
-  display: block;
-  margin-top: 4px;
-  font-size: calc(10px * var(--font-scale));
+.standup-prs-row:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.standup-prs-where {
+  flex: 0 0 auto;
+  font-size: calc(12px * var(--font-scale));
   color: var(--muted);
 }
-.standup-github-state {
-  display: inline-block;
-  padding: 1px 5px;
-  margin-right: 5px;
-  border-radius: 3px;
-  border: 1px solid currentColor;
-  font-size: calc(9px * var(--font-scale));
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.standup-prs-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: calc(14px * var(--font-scale));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-/* Colour is paired with the words, never carrying the meaning on its own. */
-.standup-github-state.changes-requested,
-.standup-github-state.checks-failing { color: var(--accent-danger); }
-.standup-github-state.approved { color: var(--accent-success); }
-.standup-github-state.waiting-review { color: var(--accent-warning); }
+.standup-prs-age {
+  flex: 0 0 auto;
+  font-size: calc(12px * var(--font-scale));
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.standup-prs-state {
+  flex: 0 0 auto;
+  font-size: calc(9.5px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  border: 1px solid currentColor;
+}
+.standup-prs-state.review { color: var(--accent-warning); }
+.standup-prs-state.changes { color: var(--accent-danger); }
+.standup-prs-state.approved { color: var(--accent-success); }
+.standup-prs-state.draft { color: var(--muted); }
 
 .standup-parking {
   border-top: 1px solid var(--border);
@@ -973,6 +1063,19 @@ label.su-card { cursor: pointer; }
   background: var(--surface);
   flex: 0 0 auto;
 }
+/* In session it is one half of the bottom strip rather than a full-width
+   footer: nothing typed in here has ever needed a projector's worth of line
+   length, and the width it was holding is where the pull requests now live.
+   Scoped to the stage so the end screen's parking lot — where it *is* the
+   point of the page — keeps the full measure. */
+.standup-bottom .standup-parking {
+  flex: 0 0 clamp(300px, 30%, 520px);
+  min-width: 0;
+  border-top: none;
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+.standup-bottom .standup-parking-input { min-height: 76px; }
 .standup-parking-label {
   display: block;
   font-size: calc(10px * var(--font-scale));

@@ -1,18 +1,16 @@
 import { BOARDS, debounce } from "../utils.js";
 import { hasRoster, isOutsideTeam, isTeamOnly, setTeamOnly } from "../team.js";
+import { statusTone } from "../backlog.js";
 
 const TYPE_OPTIONS = ["Epic", "Story", "Task", "Bug", "Sub-task"];
 
-const STATUS_COLORS = {
-  "to do": "#6B7280",
-  "in progress": "#4F8EF7",
-  "in review": "#EAB308",
-  done: "#4FCF8E",
-  blocked: "#EF4444",
-};
-
+// The filter dots read their colour from the same table the Backlog's status
+// pills do. This file used to carry a five-entry map of its own, which is how
+// "In Review" managed to be purple in the backlog, yellow on this dot and blue
+// on the issue drawer's badge — one status, one app, three colours. A tone here
+// is a token name, so it also follows the theme, which a hex literal did not.
 function statusColor(name) {
-  return STATUS_COLORS[name.toLowerCase()] || "#6B7280";
+  return `var(--tone-${statusTone({ name })})`;
 }
 
 // Outsiders are marked, not hidden — a filter list that silently omits people
