@@ -283,6 +283,52 @@ Use a pair of scratch issues.
 - [ ] Application → Local Storage: the cached sprint response holds compact history entries, not Jira's nested author records with avatar URLs
 - [ ] The backlog request does *not* carry the expand — nothing reads backlog history, and it would be cache weight for nothing
 
+## 3f. Weekly 1:1 (M14)
+
+The two things to be careful about here are the per-person clock — a window that
+silently skips a week is invisible until somebody notices work missing from a
+conversation — and the fact that these notes exist nowhere else, so anything
+that loses them loses them.
+
+- [ ] `LAUNCH → 1:1`, and the `1` key from any view, both open the picker
+- [ ] `LAUNCH` also holds Standup, My todos and Sprint recap; Standup has no top-level tab any more and `s` still works
+- [ ] Sprint recap opens in its own tab from the menu, and looks the same as the dashboard button's copy
+- [ ] The picker lists the roster, most-overdue first, with people you have never met at the top
+- [ ] Each row says how long since the last completed 1:1 ("never" reads as a warning)
+- [ ] With no roster at all the picker says so and offers Settings, rather than an empty list
+- [ ] Open somebody you have never met → the window is the current sprint and the sheet says why
+- [ ] Open somebody with a completed 1:1 → the window is "since your last 1:1 · N days ago", and N matches the date in their archive
+- [ ] `1 week` / `2 weeks` / `this sprint` re-derive every figure and every list; clicking the active one again returns to since-last
+- [ ] Switching the window twice does not refetch — DevTools → Network shows the cached window response, not a second search
+- [ ] Type into an action, reload the tab → it is still there (drafts save as you type)
+- [ ] The mini-Gantt spans three weeks back to six weeks forward with today as a red line, and does **not** re-scale when the window toggle moves
+- [ ] A bar running past either edge is dashed at that edge; an issue with only one date is a dot, not a short bar; an issue with neither is absent
+- [ ] Clicking a bar or an issue key opens the drawer
+- [ ] Somebody with no GitHub login mapped: the sheet says so where the PR figures would be — never zeros
+- [ ] GitHub sync off entirely: the sheet says that instead, and the Jira half is unaffected
+- [ ] A window reaching back more than 45 days: the sheet says the GitHub figures cover the shorter period
+- [ ] The activity note ("conversation fuel, not a score") is on screen beside the figures, in every window
+- [ ] **Complete 1:1** → confirm names how many open actions carry; the notes archive as a dated entry; the archive entry cannot be edited
+- [ ] After completing, the header reads "Last 1:1 today" — and the window on screen does **not** move, because the data you were just discussing is still the meeting's; reopening the sheet is what picks up the new boundary
+- [ ] Open actions reappear at the top of the next sheet under a "carried from …" rule; ticked ones do not
+- [ ] Actions you owned (`me`) appear in `LAUNCH → My todos`, labelled with the person, and completing a second time does not add them twice
+- [ ] **Copy for Slack** puts the actions and the info items on the clipboard, with owners and deadlines — and no issue keys or line counts
+- [ ] Copy from an archived session pastes that session, not the current draft
+- [ ] Deny clipboard access in the browser → the app says so and does not claim to have copied
+
+## 3g. My todos, and deleting all of it
+
+- [ ] `LAUNCH → My todos`, and the `t` key, both open the list
+- [ ] Add an item with a deadline and a link; it appears, sorted by deadline among the open ones
+- [ ] Paste a `javascript:` URL as the link → refused, and the app says the link was not saved
+- [ ] Tick an item → it drops below the open ones; **Clear finished** removes the ticked ones only
+- [ ] An overdue deadline is marked, and a ticked item is never marked overdue
+- [ ] Settings → 1:1 notes and todos: the note says how many sessions, people and todos are stored
+- [ ] **Delete all 1:1 notes** names the count in its confirm; cancelling changes nothing
+- [ ] Accepting empties every sheet and the archive, and the count updates without a reload
+- [ ] Export a config with every box ticked → the file contains **no** 1:1 notes and **no** todos (search it for a person's name and an action's text)
+- [ ] `chrome.storage.sync` in DevTools holds neither `oneOnes` nor `myTodos`
+
 ## 4. Branding and theme
 - [ ] No org logo configured → product logo only, nothing broken
 - [ ] Point Branding → logo path at a real file → appears in the nav bar

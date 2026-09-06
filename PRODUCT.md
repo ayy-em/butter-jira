@@ -89,10 +89,11 @@ the same way:
 **Shipped capabilities.** Sprint dashboard (KPI row, burndown, since-the-freeze
 panel, breakdowns by status, board and person, delivery-per-person including
 optional GitHub columns), Gantt/roadmap, Backlog, Kanban, Monitor (four hygiene
-checks), Standup mode, issue detail as drawer and full page, command palette,
-sprint freeze and diff, linked issues, sprint recap PDF, team roster, GitHub
-sync, config export/import, numbered storage migrations, Settings for
-everything above.
+checks), Standup mode, the weekly 1:1 sheet (per-person window, device-local
+notes and archive, Slack copy, mini-Gantt) with a personal todo list beside it,
+issue detail as drawer and full page, command palette, sprint freeze and diff,
+linked issues, sprint recap PDF, team roster, GitHub sync, config
+export/import, numbered storage migrations, Settings for everything above.
 
 **Writes.** The app writes to Jira in a bounded set of places and nowhere else:
 workflow transition by dragging a card, field edits (assignee, due date, story
@@ -129,10 +130,23 @@ sight of it. *Since the freeze* = the diff over it. *Crept in* / *pulled out* /
 share of issues with no Monitor finding, explicitly a nudge and not a KPI.
 *Status group* = the user's mapping from real Jira statuses onto columns.
 *Roster* = the local team list with display-name overrides, emoji and optional
-GitHub login.
+GitHub login. *Complete 1:1* = the action that archives a 1:1's notes and stamps
+the per-person clock the next sheet's window opens from. *Carried* = an action
+still open when a 1:1 was completed, moved into the next session under a dated
+rule.
 
-**Open product decisions.** M14 (weekly 1:1 screen) has a first-pass scope that
-is explicitly not agreed. M10 is retired unbuilt and its number stays vacant.
+**Open product decisions.** *Settled and shipped 2026-09-06:* M14 (weekly 1:1
+screen) — a manager-operated per-person prep sheet with device-local notes, a
+per-person "Complete 1:1" clock, a LAUNCH menu that also takes Standup and the
+recap, and a local todo list. Three of its decisions move something recorded
+elsewhere and are flagged in the roadmap as reversals: per-person line counts on
+that screen only, note retention unbounded behind a Settings clear action, and
+Standup losing its top-level nav tab. It spun out **M20** —
+recording and transcribing a 1:1 locally — which is scoped, last in the queue,
+and gated on two unresolved questions: whether a local engine is possible under
+the no-dependency constraint, and an AI Enablement / DPIA review, since
+recording a named colleague is worker-management-shaped under the EU AI Act's
+Annex III. M10 is retired unbuilt and its number stays vacant.
 *Settled 2026-09-06:* the licence, which was on the critical path for tagged
 releases — a public repo shipping downloadable builds with no licence grants
 nobody the right to use them — is PolyForm Noncommercial 1.0.0. Releases are
@@ -160,8 +174,8 @@ and nothing is uploaded by hand.
 - `ROADMAP.md` (~121 KB) — the full milestone record, kept unsummarised because
   it holds the reasoning; includes the 2026-09-03 renumbering reconciliation
   table (M13 ↔ M15 swap, M10 retired).
-- Twenty-two `scripts/test-*.mjs` suites (1956 checks, no dependencies, no
-  network, no browser), nine preview harnesses in `preview/` — one per view,
+- Twenty-three `scripts/test-*.mjs` suites (2113 checks, no dependencies, no
+  network, no browser), eleven preview harnesses in `preview/` — one per view,
   four of them sharing `preview/preview-fixture.js` — and
   `scripts/SMOKE-CHECKLIST.md`. Every suite runs in GitHub Actions on push and
   pull request, and again as the gate before a tag publishes a release.

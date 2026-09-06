@@ -4,6 +4,16 @@
 // hand to a teammate, or carry to another browser. The API token is excluded by
 // default — including it puts a live credential in a file on disk, which is the
 // user's call to make explicitly, not a default.
+//
+// **Two stores are deliberately absent from every path through this file, and
+// must stay absent:** `oneOnes` (1:1 notes and their archive) and `myTodos`.
+// Everything else here is either configuration or an opt-in copy of something
+// that exists elsewhere; a 1:1 note is written by the user about a named
+// colleague and exists nowhere else, so it has no export at all rather than an
+// export behind a checkbox. There is nothing to tick because there is no path —
+// see the header of `js/oneone.js`. Adding one here would quietly reverse that
+// decision, so do not, and if it is ever reversed on purpose it wants its own
+// confirm naming whose notes are in the file.
 
 import { CONFIG, DEFAULT_STATUS_GROUPS, normalizeBaseUrl } from "./config.js";
 import { SCHEMA_VERSION } from "./migrations.js";

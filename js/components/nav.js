@@ -9,10 +9,17 @@ import { burst } from "../confetti.js";
 
 // Six flat tabs outgrew the header, so the five board views collapse into two
 // menus by what you're looking at — the whole backlog, or the sprint in flight.
-// Standup stays top level: it's a daily ritual, not somewhere you browse to.
 // The single-view labels inside a menu never repeat their parent ("ALL WORK",
 // not "BACKLOG > BACKLOG"). Shortcut keys are handled in router.js; the letters
 // here are display only.
+//
+// **LAUNCH is the third menu, added with the 1:1 screen (M14), and Standup
+// moved into it.** Standup had been top level on the grounds that a daily
+// ritual is not somewhere you browse to — which was right, and is exactly why
+// it now sits with the other two things you *run* rather than *read*: the 1:1
+// sheet and the sprint recap. Three doors to three rituals, in one place,
+// instead of one ritual promoted and two hidden (the recap was reachable only
+// from a button inside the dashboard header). Standup keeps its S.
 const TABS = [
   {
     id: "backlog",
@@ -31,7 +38,19 @@ const TABS = [
       { hash: "#monitor", label: "MONITOR", key: "M", badge: true },
     ],
   },
-  { hash: "#standup", label: "STANDUP", key: "S", flair: true, prewarm: prewarmGithub },
+  {
+    id: "launch",
+    label: "LAUNCH",
+    flair: true,
+    items: [
+      { hash: "#standup", label: "STANDUP", key: "S", flair: true, prewarm: prewarmGithub },
+      { hash: "#oneone", label: "1:1", key: "1" },
+      { hash: "#todos", label: "MY TODOS", key: "T" },
+      // Opens its own tab rather than a view: it is a print-styled document,
+      // and `recap.html` deliberately does not load the app stylesheet.
+      { url: "recap.html", label: "SPRINT RECAP" },
+    ],
+  },
 ];
 
 // Where the app lands with no hash — the sprint Kanban, which opens filtered to
@@ -247,9 +266,18 @@ export async function renderNav(onRefresh) {
 
 function createTabLink(tab, { inMenu = false } = {}) {
   const link = document.createElement("a");
-  link.href = tab.hash;
+  // A `url` item points at another extension page (the recap) rather than at a
+  // view in this one, so it opens in its own tab and never lights up as the
+  // active view — there is no hash for it to match.
+  if (tab.url) {
+    link.href = runtimeUrl(tab.url);
+    link.target = "_blank";
+    link.rel = "noopener";
+  } else {
+    link.href = tab.hash;
+    link.dataset.hash = tab.hash;
+  }
   link.className = inMenu ? "nav-menu-item mono" : "nav-tab mono";
-  link.dataset.hash = tab.hash;
   if (tab.flair) link.classList.add("flair");
 
   const label = document.createElement("span");
@@ -283,7 +311,8 @@ function createTabMenu(group) {
   trigger.type = "button";
   trigger.setAttribute("aria-haspopup", "true");
   trigger.setAttribute("aria-expanded", "false");
-  trigger.dataset.group = group.items.map((i) => i.hash).join(" ");
+  trigger.dataset.group = group.items.map((i) => i.hash).filter(Boolean).join(" ");
+  if (group.flair) trigger.classList.add("flair");
 
   const label = document.createElement("span");
   label.textContent = group.label;
@@ -447,10 +476,18 @@ export function updateMonitorBadge(count) {
   });
 }
 
+// A view may own a sub-route — the 1:1 sheet is `#oneone/<accountId>` — and the
+// tab for it has to stay lit while you are inside one. Exported because the
+// router routes on the same rule, and two places disagreeing about what counts
+// as "the current view" is how a tab ends up highlighting nothing.
+export function routeOf(hash = location.hash) {
+  return String(hash || "").split("/")[0];
+}
+
 export function updateActiveTab() {
-  const hash = location.hash || HOME_HASH;
+  const hash = routeOf(location.hash || HOME_HASH);
   document.querySelectorAll(".nav-tab, .nav-menu-item").forEach((el) => {
-    el.classList.toggle("active", el.dataset.hash === hash);
+    el.classList.toggle("active", Boolean(el.dataset.hash) && el.dataset.hash === hash);
   });
   // A menu trigger lights up for whichever of its children you're on.
   document.querySelectorAll(".nav-menu-trigger").forEach((el) => {

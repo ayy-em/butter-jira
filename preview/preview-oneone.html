@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <title>1:1 — preview</title>
+  <link rel="stylesheet" href="../css/app.css">
+  <link rel="stylesheet" href="../css/oneone.css">
+  <link rel="stylesheet" href="../css/issue.css">
+  <style>
+    /* Matches production, where this sits between the nav and the footer. The
+       sheet is a column that fills its container and scrolls inside its two
+       panes, so the container needs a real height rather than auto. */
+    #view-container { position: static; height: 100vh; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div id="view-container"></div>
+  <div id="toast"></div>
+  <script type="module" src="preview-oneone.js"></script>
+</body>
+</html>

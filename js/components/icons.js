@@ -37,6 +37,11 @@ export const ICON_PATHS = {
   // settings — which are different widths and different weights.
   close: "M6 6l12 12M18 6 6 18",
   calendar: "M4 6.5h16v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19.5v-13ZM4 10.5h16M8 3v4M16 3v4",
+  // One person, because the 1:1 screen is about exactly one. Drawn as a head
+  // and shoulders rather than two figures: a pair of silhouettes is the mark
+  // for a team, and this screen is deliberately not that.
+  person: "M12 12.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5ZM4.5 20.5a7.5 7.5 0 0 1 15 0",
+  list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
 
   // ── Priority, by shape ────────────────────────────────────────────────────
   // Jira's own convention, which is the one people arriving here already know:

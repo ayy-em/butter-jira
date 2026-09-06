@@ -343,6 +343,36 @@
       </div>
     </details>
 
+    <!-- ── 1:1 notes and todos ──────────────────────────────────────────── -->
+    <details class="settings-section" id="section-oneone">
+      <summary class="section-head">
+        1:1 notes and todos
+        <span class="section-note">The only things here written by you, about a colleague</span>
+      </summary>
+      <div class="section-body">
+        <div class="hint">
+          Everything else this extension stores comes from Jira or GitHub and
+          could be fetched again. A 1:1 note is written by you, about a named
+          colleague, and exists nowhere else — so it gets the strictest
+          treatment in the app: device-local, never synced, and
+          <strong>not exportable at all</strong>. There is no checkbox for these
+          under Backup &amp; transfer because there is no path; the only way a
+          note leaves is you pressing "Copy for Slack" and pasting it yourself.
+        </div>
+        <div class="hint">
+          They are also kept until you delete them. Nothing prunes them on a
+          timer, on the grounds that a 1:1 history which silently forgets last
+          quarter is worse than one that grows — which makes this button the
+          whole retention policy, so it is here rather than buried.
+        </div>
+        <div class="hint" id="oneoneNote"></div>
+        <div class="btn-row">
+          <button class="add-board-btn" id="clearOneOnesBtn">✕ Delete all 1:1 notes</button>
+          <button class="add-board-btn" id="clearTodosBtn">✕ Delete all my todos</button>
+        </div>
+      </div>
+    </details>
+
     <div class="save-bar">
       <button class="btn-save" id="saveBtn">Save all settings</button>
       <div class="status" id="status">Saved</div>

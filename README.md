@@ -1,8 +1,8 @@
 # butter_jira
 
-A browser extension that gives you Gantt (roadmap), Backlog, Kanban, and sprint
-hygiene views across several Jira boards at once, in one tab, with your own
-status grouping.
+A browser extension that gives you Gantt (roadmap), Backlog, Kanban, sprint
+hygiene and per-person 1:1 views across several Jira boards at once, in one tab,
+with your own status grouping.
 Because the other one sucks.
 
 Runs on **Chrome, Firefox and Edge**. Works against any Jira Cloud site —
@@ -824,6 +824,79 @@ behind the meeting.
 Needs a team roster (Settings → Team roster) — that's where the participant list
 comes from.
 
+### Weekly 1:1
+
+**Launch → 1:1**, or press `1`. One person, one window: the sheet you would
+otherwise assemble by hand in the ten minutes before a 1:1.
+
+It opens on the **picker** — the roster, ordered by how overdue you are, each
+row saying how long it has been since you last spoke ("14 days ago", "never").
+Pick somebody and you get their sheet.
+
+**The window is "since your last 1:1 with this person."** That is the whole
+reason the sheet has a **Complete 1:1** button: pressing it stamps a per-person
+clock, so the people you see weekly get a week and the people you see
+fortnightly get a fortnight, with nobody configuring a cadence per colleague and
+nothing shown twice or missed. It is deliberately *not* "since you last opened
+this" — checking somebody's sheet on a Tuesday must not silently hide a week of
+work from the next real conversation. A **1 week / 2 weeks / this sprint**
+toggle overrides it, and clicking the button that is already on goes back to
+since-last. The first sheet with somebody has no clock yet and opens on the
+current sprint, and says so.
+
+**Two panes.** Data on the left, notes on the right, scrolling independently:
+this screen is used *during* the conversation, and a stacked layout means typing
+pushes the numbers you are discussing off the top.
+
+On the left:
+
+- **On their plate** — their open issues in the active sprint, with points.
+- **What they did** in the window — issues closed and moved (from the changelog, via `activityFrom`), issues created, and with GitHub sync on: pull requests opened, merged and reviewed, and lines added and removed.
+- **What is stuck** — blocked and overdue issues, their own pull requests ordered by *how* stuck (changes requested → checks failing → approved-and-unmerged → waiting on review), and anything waiting on their review.
+- **What is planned** — queued beyond this sprint, plus anything due in the next fortnight whatever sprint it is in.
+- **Load over time** — points assigned and shipped per sprint, from the stored snapshots, bounded by when this device started recording and saying so.
+- **A mini-Gantt** across the bottom: every open issue and epic of theirs carrying a start or due date, over a *fixed* three-weeks-back to six-weeks-forward horizon with today drawn as a red line. Fixed rather than following the toggle, so the same piece of work sits in the same place from one week to the next and position is read by habit rather than by re-reading the axis.
+
+On the right, the notes: **TODO** items with a two-way owner toggle (me / them)
+and an optional deadline, and **Important info** items added one at a time.
+Everything saves as you type. Open actions from last time sit at the top under a
+dated rule.
+
+**Copy for Slack** puts the actions and the notes on your clipboard, formatted
+for a message — the outcomes, deliberately not the numbers. **Complete 1:1**
+archives the notes as a dated, read-only entry, carries the open actions into
+next time, pushes the ones *you* took on to **Launch → My todos**, and offers the
+copy at that moment, because the end of the meeting is when the summary actually
+gets sent.
+
+**Per-person line counts appear here and nowhere else.** Everywhere else in this
+app — the quarter document, the per-sprint history — pull-request counts and
+lines stay team-level, because those are read by the team. A 1:1 sheet is read by
+two people about one of them, and per-person output over the window is what the
+conversation is actually about. What survives of the rule here: one person on
+screen at a time, never two side by side, no line-count trend, and a note beside
+the figures saying they are conversation fuel and not a score.
+
+**Where a source cannot answer, the screen says so where the number would be** —
+"No GitHub login mapped for this person", "GitHub reaches back 45 days and this
+window starts earlier", "Jira returned no change history for this window". Never
+a zero, which is indistinguishable from a quiet week.
+
+**The notes never leave the device.** See [Data handling](#data-handling): no
+sync, no export path at all, and one delete in Settings.
+
+### My todos
+
+**Launch → My todos**, or press `t`. A flat list of what you owe people: text, an
+optional deadline, an optional link, and where it came from. Actions you took on
+in a 1:1 land here when you complete the meeting, so a commitment made in a
+conversation is in one place instead of buried in one of a dozen sheets.
+
+Deliberately small — Jira is one tab away, and anything worth tracking properly
+belongs there. This is the scrap of paper that used to be beside the laptop.
+Device-local like everything else here, and an item sourced from a 1:1 carries a
+colleague's name, so it is cleared by the same Settings action the notes are.
+
 ### GitHub sync (optional)
 
 The board answers "what is assigned to you". It cannot answer "what have you got
@@ -1008,6 +1081,8 @@ the product logo stands alone.
 | `m` | Monitor |
 | `s` | Standup |
 | `d` | Sprint dashboard |
+| `1` | 1:1 |
+| `t` | My todos |
 | `Esc` | Close the issue drawer |
 
 Opening the extension with no view in the URL lands on the **Kanban, filtered to
@@ -1053,6 +1128,8 @@ js/migrations.js    # numbered storage migrations
 js/portable.js      # config export/import
 js/api.js           # Jira REST client: reads, field writes, creation, links
 js/activity.js      # per-person Jira activity from issue history (DOM-free)
+js/oneone.js        # the 1:1 sheet's model: windows, notes, archive (DOM-free)
+js/todos.js         # the personal todo list (DOM-free)
 js/issue-edit.js    # field writes: optimistic paint, rollback, undo, bulk
 js/issue-create.js  # createmeta -> form spec -> create payload (DOM-free)
 js/issue-link.js    # issue links: direction, grouping, picker JQL (DOM-free)
@@ -1064,7 +1141,8 @@ js/components/      # nav, filter bar, re-auth, issue detail, board, drawer,
 js/components/icons.js       # the app's icon sprite: authored SVG paths
 js/components/theme-toggle.js# the sun/moon toggle, drawn in one place
 js/components/view-header.js # the header every view puts at the top of itself
-js/views/           # dashboard, backlog, gantt, kanban, monitor, standup
+js/views/           # dashboard, backlog, gantt, kanban, monitor, standup,
+                    #   oneone (1:1 picker + sheet), todos
 css/                # one stylesheet per view, plus nav.css for the shell and
                     #   settings.css for the settings page
 assets/sfx/         # standup sound cues
@@ -1145,7 +1223,10 @@ cross** and **one caret** — everything that points another way is that caret
 rotated (`.icon-rot-*`, `.icon-caret.open/.closed`), not a different glyph.
 Two places cannot hold an element and get the same drawing another way:
 `svgIconPath()` for the roadmap's in-chart caret, and the `--caret-mask` custom
-property for the settings page's `::before` section marker. There are no emoji in
+property for the settings page's `::before` section marker. The 1:1 screen added
+two marks and no third vocabulary: `person`, drawn as one head and shoulders
+rather than two figures because a pair of silhouettes is the mark for a team and
+that screen is deliberately about one person, and `list`. There are no emoji in
 the UI: they had no accessible name, carried their meaning in hue, and rendered
 as a different picture on every platform.
 
@@ -1237,7 +1318,7 @@ Config-layer unit checks — no dependencies, no network, no browser:
 ```bash
 node scripts/test-backlog.mjs      # grouping, paging, tones, views    (115 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
-node scripts/test-imports.mjs      # every module imports what it calls  (54 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (58 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (49 checks)
 node scripts/test-config.mjs       # config layer, field discovery      (88 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
@@ -1257,14 +1338,16 @@ node scripts/test-kanban.mjs       # column config, grouping, key nav   (47 chec
 node scripts/test-contrast.mjs     # theme tokens against WCAG AA       (24 checks)
 node scripts/test-drawer.mjs       # the drawer's focus layer           (24 checks)
 node scripts/test-release.mjs      # version rewriting, licence, notes   (41 checks)
+node scripts/test-oneone.mjs       # 1:1 windows, notes, todos, JQL    (153 checks)
 ```
 
-View code is verified by rendering it rather than asserting on it. The nine
+View code is verified by rendering it rather than asserting on it. The eleven
 harnesses live in `preview/` — `preview/preview-standup.html`,
 `preview/preview-backlog.html`, `preview/preview-dashboard.html`,
 `preview/preview-recap.html`, `preview/preview-issue.html`,
 `preview/preview-create.html`, `preview/preview-gantt.html`,
-`preview/preview-kanban.html` and `preview/preview-monitor.html` — and each
+`preview/preview-kanban.html`, `preview/preview-monitor.html`,
+`preview/preview-oneone.html` and `preview/preview-todos.html` — and each
 mounts the real view against stubbed extension storage and a stubbed Jira/GitHub
 network, so a screen can be looked at in each of its states without a site, a
 token or a roster. Open one directly (`open preview/preview-standup.html`) or
@@ -1509,6 +1592,20 @@ export unless you tick **its own** box — ticking the Jira one does not carry i
 GitHub login on a roster member is one more identifier attached to a named
 colleague, so it rides in the roster record and inherits its treatment.
 
+**1:1 notes get the strictest treatment in the app, because they are the only
+thing in it written by you about a named colleague.** Everything else here comes
+from Jira or GitHub and could be fetched again; a note about a person exists
+nowhere else. They are device-local, never synced, and — unlike the roster —
+**there is no export checkbox for them, because there is no export path**. The
+only way a note leaves this device is you pressing **Copy for Slack** and
+pasting it somewhere yourself. They are also kept until you delete them: nothing
+prunes them on a timer, on the grounds that a 1:1 history which silently forgets
+last quarter is worse than one that grows. That makes **Settings → 1:1 notes and
+todos → Delete all 1:1 notes** the whole retention policy, which is why it is a
+section of its own rather than a line in Backup & transfer. The same section
+deletes the personal todo list, which carries a colleague's name on any item
+that came out of a 1:1.
+
 Jira responses are cached in device-local storage for five minutes. Nothing is
 sent anywhere except your own Jira site, and — if you switch GitHub sync on —
 your GitHub host, for the repos you listed.
@@ -1558,8 +1655,9 @@ done are in the roadmap's icebox, stated as decisions rather than as omissions.
 the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode
 (M6), the sprint dashboard (M7), the write layer and issue creation (M8), the
 command palette (M9), GitHub sync (M11), the Firefox and Edge ports (M12), the
-sprint freeze and diff (M13), linked issues (M18), the design backlog
-(ad-hoc, 2026-09-06), and tagged releases (M19).
+sprint freeze and diff (M13), the weekly 1:1 screen and the personal todo list
+(M14), linked issues (M18), the design backlog (ad-hoc, 2026-09-06), and tagged
+releases (M19).
 M10 is vacant: it was Sprint Wrapped, re-aimed at the quarter and renumbered to
 M16 on 2026-09-03, and the number is retired rather than reused.
 
@@ -1570,10 +1668,10 @@ table.
 
 | | | |
 |---|---|---|
-| M14 | Weekly 1:1 screen | Per-person prep sheet. Scope is a first pass, not agreed |
 | M15 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
 | M16 | Quarter Wrapped | Quarter-to-date stats recap, printed to PDF on demand |
 | M17 | Per-sprint history | Issues, completion, PRs and lines per sprint, from rollups written at each rollover |
+| M20 | 1:1 recording | Record and transcribe a 1:1 on the device. Depends on M14; engine and consent unresolved |
 
 **Releases are automated as of 2026-09-06** — see [Releasing](#releasing).
 

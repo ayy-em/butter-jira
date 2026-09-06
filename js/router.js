@@ -22,7 +22,7 @@ import {
   saveConfig,
   siteHost,
 } from "./config.js";
-import { HOME_HASH, renderNav, updateActiveTab, setLastSync } from "./components/nav.js";
+import { HOME_HASH, renderNav, routeOf, updateActiveTab, setLastSync } from "./components/nav.js";
 import {
   closePalette,
   invalidatePaletteIndex,
@@ -101,6 +101,11 @@ async function init() {
     if (e.key === "m" || e.key === "M") location.hash = "#monitor";
     if (e.key === "s" || e.key === "S") location.hash = "#standup";
     if (e.key === "d" || e.key === "D") location.hash = "#dashboard";
+    // The two LAUNCH views that are views. "1" for the 1:1 sheet reads as the
+    // name of the thing rather than as a mnemonic, which is the whole reason it
+    // is not another letter.
+    if (e.key === "1") location.hash = "#oneone";
+    if (e.key === "t" || e.key === "T") location.hash = "#todos";
   });
 
   if (!creds || !isConfigured()) {
@@ -135,7 +140,9 @@ async function mountView(creds) {
   // question people actually arrive with is "where is the sprint", not "what
   // is in the backlog". `#backlog` is still the fallback for an unrecognised
   // hash — a stale bookmark should land somewhere that lists everything.
-  const hash = location.hash || HOME_HASH;
+  // The route, not the whole hash: the 1:1 sheet addresses a person after a
+  // slash (`#oneone/<accountId>`) and the view reads that for itself.
+  const hash = routeOf(location.hash || HOME_HASH);
   updateActiveTab();
 
   container.innerHTML = '<div class="spinner-logo"><img src="assets/logo.png" alt="Loading"></div>';
@@ -160,6 +167,12 @@ async function mountView(creds) {
         break;
       case "#dashboard":
         viewModule = await import("./views/dashboard.js");
+        break;
+      case "#oneone":
+        viewModule = await import("./views/oneone.js");
+        break;
+      case "#todos":
+        viewModule = await import("./views/todos.js");
         break;
       default:
         viewModule = await import("./views/backlog.js");

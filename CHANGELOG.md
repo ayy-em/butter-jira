@@ -6,6 +6,38 @@ tag into the release notes, so the wording here is the wording published — kee
 it about what a user gets, and leave the reasoning to
 [ROADMAP.md](ROADMAP.md), which keeps the full record.
 
+## Unreleased
+
+**The weekly 1:1.** `LAUNCH → 1:1`, or press `1`. Pick somebody from the roster
+and get the sheet you would otherwise assemble by hand in the ten minutes before
+the meeting: what is on their plate, what they closed and moved, what is stuck
+(including the pull requests in the way, ordered by *how* stuck), what is
+planned, their load per sprint, and a mini-Gantt of everything of theirs that
+carries a date. On the right, notes you take during the conversation — actions
+with an owner and a deadline, and context worth remembering — saved as you type.
+
+**It knows when you last spoke.** Pressing **Complete 1:1** archives the notes
+as a dated entry and stamps a per-person clock, so the sheet opens on everything
+since that moment: a week for the people you see weekly, a fortnight for the
+people you see fortnightly, with nothing to configure. Open actions carry into
+next time under a dated rule. **Copy for Slack** puts the outcomes on your
+clipboard for the message you were going to send anyway.
+
+**My todos.** `LAUNCH → My todos`, or press `t`. Actions you took on in a 1:1
+land here when you complete the meeting, so your own commitments are one list
+rather than scattered across a dozen sheets. Add anything else by hand.
+
+**The notes never leave the device.** They are the only thing this extension
+holds that you wrote about a named colleague, so they get the strictest
+treatment in it: never synced, and **no export path at all** — not even a
+checkbox. The only way one leaves is you pasting it. They are also kept until
+you delete them, which makes **Settings → 1:1 notes and todos** the whole
+retention policy; it says how much is stored and deletes it in one action.
+
+**Standup and the sprint recap moved into `LAUNCH`.** Three rituals behind one
+menu instead of one promoted tab and a recap button buried in the dashboard
+header. Standup keeps its `s`.
+
 ## v0.6.0
 
 **Sprint freeze, and what changed under the plan.** The sprint's state is frozen

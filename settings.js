@@ -17,6 +17,8 @@ import {
   saveConfig,
 } from "./js/config.js";
 import { discoverFieldMappings, listBoards } from "./js/api.js";
+import { clearAllOneOnes, loadOneOnes, storeSize } from "./js/oneone.js";
+import { clearAllTodos, loadTodos } from "./js/todos.js";
 import { mountThemeToggle } from "./js/components/theme-toggle.js";
 import { validateStatusGroups } from "./js/utils.js";
 import { icon } from "./js/components/icons.js";
@@ -98,6 +100,9 @@ const includeRosterBox = el("includeRoster");
 const exportBtn = el("exportBtn");
 const importBtn = el("importBtn");
 const importFile = el("importFile");
+const clearOneOnesBtn = el("clearOneOnesBtn");
+const clearTodosBtn = el("clearTodosBtn");
+const oneoneNote = el("oneoneNote");
 
 let boards = [];
 let statusGroups = [];
@@ -435,6 +440,62 @@ forgetTokenBtn.addEventListener("click", async () => {
   await renderTokenStatus();
   flash("Token removed from this device", "warning");
   await notifyApp();
+});
+
+// ── 1:1 notes and todos ─────────────────────────────────────────────────────
+//
+// Two deletes, and both name what they would destroy before doing it. A confirm
+// that asks "are you sure?" about an unspecified quantity teaches people to
+// click past it, which is the same reasoning the export's per-secret prompts
+// carry.
+
+async function renderOneOneNote() {
+  const [store, todos] = await Promise.all([loadOneOnes(), loadTodos()]);
+  const size = storeSize(store);
+  const open = todos.filter((t) => !t.done).length;
+  oneoneNote.textContent =
+    `On this device: ${size.sessions} archived 1:1${size.sessions === 1 ? "" : "s"} ` +
+    `across ${size.people} ${size.people === 1 ? "person" : "people"}, ` +
+    `and ${todos.length} todo${todos.length === 1 ? "" : "s"} (${open} open).`;
+}
+
+clearOneOnesBtn.addEventListener("click", async () => {
+  const size = storeSize(await loadOneOnes());
+  if (!size.sessions && !size.people) {
+    flash("There are no 1:1 notes stored on this device", "warning");
+    return;
+  }
+  const ok = confirm(
+    `Delete every 1:1 note on this device?\n\n` +
+      `${size.sessions} archived session${size.sessions === 1 ? "" : "s"} across ` +
+      `${size.people} ${size.people === 1 ? "person" : "people"}, plus anything ` +
+      `currently in progress.\n\nThere is no export and no backup of these. ` +
+      `This cannot be undone.`
+  );
+  if (!ok) return;
+  await clearAllOneOnes();
+  await renderOneOneNote();
+  flash("All 1:1 notes deleted from this device", "warning");
+});
+
+clearTodosBtn.addEventListener("click", async () => {
+  const todos = await loadTodos();
+  if (!todos.length) {
+    flash("There are no todos stored on this device", "warning");
+    return;
+  }
+  const fromOneOnes = todos.filter((t) => t.source === "1on1").length;
+  const ok = confirm(
+    `Delete all ${todos.length} todo${todos.length === 1 ? "" : "s"}?\n\n` +
+      (fromOneOnes
+        ? `${fromOneOnes} of them came from a 1:1 and name a colleague.\n\n`
+        : "") +
+      `This cannot be undone.`
+  );
+  if (!ok) return;
+  await clearAllTodos();
+  await renderOneOneNote();
+  flash("All todos deleted from this device", "warning");
 });
 
 exportBtn.addEventListener("click", async () => {
@@ -877,6 +938,7 @@ async function init() {
   renderGithubRepoNote();
   await renderTokenStatus();
   await renderGithubTokenStatus();
+  await renderOneOneNote();
 }
 
 init();

@@ -150,11 +150,16 @@ function writeFailure(status, text, path) {
   return new JiraWriteError({ status, path, messages, fieldErrors });
 }
 
-async function searchAllPages(creds, jql, fields) {
+async function searchAllPages(creds, jql, fields, expand = "") {
   const all = [];
   let nextPageToken;
   while (true) {
     const body = { jql, fields, maxResults: 100 };
+    // The enhanced search endpoint takes `expand` as a comma-separated string,
+    // unlike the agile endpoints' query parameter of the same name. Omitted
+    // rather than sent empty: Jira treats an empty string as an unknown expand
+    // on some deployments.
+    if (expand) body.expand = expand;
     if (nextPageToken) body.nextPageToken = nextPageToken;
     const data = await jiraPost("/rest/api/3/search/jql", creds, body);
     const items = data.issues || [];
@@ -343,6 +348,109 @@ export async function searchIssuesByJql(jql, creds, maxResults = 50) {
     maxResults,
   });
   return tagByProject(data?.issues || []);
+}
+
+// ── The windowed reader (M14, and M16 after it) ──────────────────────────────
+//
+// Every issue list this app fetches is scoped to a *sprint* — the agile board
+// endpoints answer "what is in sprint N", and that is the right question for
+// six of the seven views. The 1:1 sheet asks a different one: what happened
+// between two dates, which may be a week, a fortnight, or a period that
+// straddles a sprint boundary.
+//
+// So this is a JQL search over a window rather than a board fetch, and it is
+// deliberately general: M16's quarter document needs the same reader over
+// ninety days, and both roadmap entries have said since 2026-09-03 that
+// whichever milestone landed first should build it shared rather than private.
+// It takes the window as a parameter and knows nothing about who is asking.
+//
+// Two things it carries that the sprint fetch also carries, for the same
+// reasons: `expand=changelog`, compacted before anything is cached (see
+// `compactChangelogs`), because "what they did" is a changelog question; and
+// the same `issueFields()` list, so an issue that arrives through this path
+// renders identically to one that arrived through a board.
+
+// Jira wants `"YYYY-MM-DD HH:mm"` in the site's own timezone, and quietly
+// misreads an ISO instant. Minute precision is all JQL accepts — the seconds a
+// window boundary carries are dropped here rather than silently by Jira.
+export function jqlTimestamp(value) {
+  const ms = Date.parse(value || "");
+  if (!Number.isFinite(ms)) return "";
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+// Narrow the search to the projects behind the configured boards.
+//
+// Empty when no board carries a project key, which is a real configuration —
+// boards added by id in Settings have no key until a fetch tags them. An empty
+// clause means the search is site-wide, which is slower and wider than
+// intended, so the caller is told rather than it happening silently.
+export function projectScopeJql(boards = BOARDS) {
+  const keys = [
+    ...new Set(
+      (boards || [])
+        .map((b) => String(b.projectKey || "").trim())
+        .filter((k) => /^[A-Za-z][A-Za-z0-9_]*$/.test(k))
+    ),
+  ];
+  return keys.length ? `project in (${keys.join(",")})` : "";
+}
+
+// The window itself. `updated`, not `created`: the question is what moved
+// during the period, and an issue created last quarter and closed on Tuesday
+// has to be in the answer.
+export function windowJql({ since = "", until = "", boards = BOARDS, extra = "" } = {}) {
+  const clauses = [];
+  const scope = projectScopeJql(boards);
+  if (scope) clauses.push(scope);
+  const from = jqlTimestamp(since);
+  if (from) clauses.push(`updated >= "${from}"`);
+  const to = jqlTimestamp(until);
+  if (to) clauses.push(`updated <= "${to}"`);
+  if (extra) clauses.push(`(${extra})`);
+  return clauses.join(" AND ") || "order by updated DESC";
+}
+
+// Everything that moved inside a window, across every configured board.
+//
+// Cached on the window, not on the clock: the sheet re-renders on every toggle
+// flip, and re-fetching a fortnight because somebody clicked "1 week" and back
+// again would make the toggle feel like a page load. The cache is the app's
+// standard five minutes.
+export async function getIssuesInWindow(creds, { since = "", until = "", extra = "" } = {}) {
+  const jql = windowJql({ since, until, extra });
+  return cached(`cache_window_${jql}`, async () => {
+    const issues = await searchAllPages(creds, jql, issueFields(), HISTORY_EXPAND);
+    return tagByProject(compactChangelogs(issues));
+  });
+}
+
+// One person's open work, whatever sprint it is in or is not in.
+//
+// The window reader above cannot answer this: an issue assigned to somebody and
+// untouched for a month is exactly the kind of thing a 1:1 is for, and it is
+// invisible to a search on `updated`. Ordered by due date so the mini-Gantt and
+// the "planned" list get the near ones first.
+export async function getAssignedOpenIssues(accountId, creds) {
+  const id = String(accountId || "").replace(/["\\]/g, "");
+  if (!id) return [];
+  const scope = projectScopeJql();
+  const jql = [
+    scope,
+    `assignee = "${id}"`,
+    "statusCategory != Done",
+  ]
+    .filter(Boolean)
+    .join(" AND ") + " ORDER BY duedate ASC";
+  return cached(`cache_assigned_${id}`, async () => {
+    const issues = await searchAllPages(creds, jql, issueFields());
+    return tagByProject(issues);
+  });
 }
 
 // The current state of a named set of issues, in as few requests as possible.

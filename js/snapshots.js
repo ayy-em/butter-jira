@@ -132,6 +132,52 @@ export async function recordSnapshot(key, snapshot) {
   return all[key];
 }
 
+// Every stored sprint, keyed as written. The 1:1 sheet's "load over time"
+// needs *all* of them rather than one, since its question is across sprints
+// rather than across days — and it cannot know the keys in advance, because a
+// key is a set of Jira sprint ids it has no other reason to hold.
+export async function loadAllSnapshots() {
+  const stored = await localGet([SNAPSHOT_KEY]);
+  const all = stored[SNAPSHOT_KEY];
+  return all && typeof all === "object" ? all : {};
+}
+
+// One row per sprint for one person, oldest first.
+//
+// The last recorded day of each sprint is the one that counts: mid-sprint rows
+// are a burndown, and this is a history. `donePoints` is what shipped;
+// `points` is what was assigned, and the pair is deliberately kept rather than
+// reduced to a ratio — a completion percentage per person is exactly the shape
+// the framing rules refuse.
+//
+// **Bounded by when the field started accruing** (2026-08-20, see M15). A
+// caller printing this has to say so: an empty or short series is the
+// extension not having been installed yet, not a person who did nothing.
+export function personSeries(all, accountId) {
+  const id = String(accountId || "");
+  if (!id) return [];
+  const rows = [];
+  for (const [key, days] of Object.entries(all || {})) {
+    if (!Array.isArray(days) || !days.length) continue;
+    // Latest day that actually carries a row for this person. A person absent
+    // from the final day but present earlier — reassigned, or off — still has
+    // a sprint worth plotting.
+    const day = [...days].reverse().find((d) => d?.byPerson?.[id]);
+    if (!day) continue;
+    const row = day.byPerson[id];
+    rows.push({
+      key,
+      date: day.date,
+      label: row.label || id,
+      points: Number(row.points) || 0,
+      issues: Number(row.issues) || 0,
+      donePoints: Number(row.donePoints) || 0,
+      doneIssues: Number(row.doneIssues) || 0,
+    });
+  }
+  return rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
 export async function clearSnapshots() {
   await localSet({ [SNAPSHOT_KEY]: {} });
 }

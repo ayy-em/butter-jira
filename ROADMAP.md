@@ -26,7 +26,7 @@ rather than as omissions.
 | Aspect | Status |
 |---|---|
 | Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
-| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Issue detail (drawer + full page) |
+| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, 1:1 (picker + per-person sheet), My todos, Issue detail (drawer + full page) |
 | Data access | HTTP Basic (email + API token), `js/api.js`. Reads, plus five writes: transitions, field edits, issue and sub-task creation, comments, issue links (the app's only DELETE) |
 | Derived reads | Per-person Jira activity (`js/activity.js`) from `expand=changelog` riding the sprint fetch — no requests of its own. Sprint freeze and diff (`js/freeze.js`) over a per-issue record written forward at rollover |
 | Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/api/3/issue/*` (incl. `createmeta`), `/rest/api/3/issueLinkType`, `/rest/api/3/issueLink/*`, `/rest/agile/1.0/board/*`, `/rest/agile/1.0/sprint/*/issue` |
@@ -37,7 +37,7 @@ rather than as omissions.
 | Releases | Tag-led and automated (M19, 2026-09-06). `.github/workflows/release.yml` on a `v*` tag builds, verifies and publishes the three zips plus checksums, then pushes the version bump to main; `ci.yml` runs the suites on every push to main and every pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](LICENSE), chosen 2026-09-06. Source-available, not open source: fork and modify freely for noncommercial purposes, commercial use reserved to the copyright holder, no warranty and no liability |
 | Version control | Git, `.gitignore` in place |
-| Tests | Twenty-two `scripts/test-*.mjs` suites (1956 checks) + nine preview harnesses in `preview/`, one per view, + a manual smoke checklist. Every suite runs in CI on push and pull request, and again as the gate before a release publishes |
+| Tests | Twenty-three `scripts/test-*.mjs` suites (2113 checks) + eleven preview harnesses in `preview/`, one per view, + a manual smoke checklist. Every suite runs in CI on push and pull request, and again as the gate before a release publishes |
 | Repo root | Only what ships or governs: the four HTML entry points, `settings.js`, `background.js`, the manifests, the docs and `LICENSE`. Harnesses live in `preview/`, tooling in `scripts/` |
 | Design | Empty backlog as of 2026-09-06. Tokens, the two button bases, the icon sprite and the shared view header are documented in [README.md](README.md#design-system) |
 
@@ -62,6 +62,11 @@ and in code comments, and renumbering shipped work would strand all of it.
 |---|---|---|
 | M15 | **M13** | Sprint freeze and diff |
 | M14 | **M14** | Weekly 1:1 screen (unchanged) |
+
+**M20 was added on 2026-09-06** under the rule below: next free number, joining
+the queue at its number, at the end. It came out of the conversation that agreed
+M14's scope and depends on M14, so its position is a dependency and not only a
+preference.
 | M13 | **M15** | Sprint planner |
 | M10 | **M16** | Quarter Wrapped |
 | M16 | **M17** | Per-sprint history |
@@ -102,7 +107,7 @@ M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 P
                                                                         │                     ├──▶ M13 Sprint freeze + diff ✔
                                                                         │                     └──▶ M17 Per-sprint history ─▶ M16 Quarter Wrapped
                                                                         │
-                                                                        └──▶ M14 Weekly 1:1
+                                                                        └──▶ M14 Weekly 1:1 ✔ ─▶ M20 1:1 recording
 ```
 
 **Order of work** — re-sequenced 2026-09-03, and the numbers were renumbered the
@@ -110,7 +115,7 @@ same day to match it, so this is the dependency graph's rows read in queue order
 rather than a second scheme to keep in your head:
 
 ```
-M18 Linked issues ✔ ─▶ M13 Freeze + diff ✔ ─▶ M14 Weekly 1:1 ─▶ M15 Sprint planner ─▶ M16 Quarter Wrapped ─▶ M17 Per-sprint history
+M18 Linked issues ✔ ─▶ M13 Freeze + diff ✔ ─▶ M14 Weekly 1:1 ✔ ─▶ M15 Sprint planner ─▶ M16 Quarter Wrapped ─▶ M17 Per-sprint history ─▶ M20 1:1 recording
 
 M19 Tagged releases ✔ — off to one side, depended on nothing, blocked nothing
 ```
@@ -193,7 +198,9 @@ open question 3, applied a third time. M18 was added new.
 | Request fan-out across boards hits rate limits | M7, M15 | Reuse cached aggregates, per-resource TTLs, batch where the API allows |
 | Writes corrupt real sprint data | M8, M15 | Draft mode, batch confirmation, undo window, isolated write helpers |
 | A generated create form still 400s on an unfamiliar site | M8 | Fields come from `createmeta` per project and type; the sub-task type is read from `subtask: true`, never matched by name |
-| Notes about a named colleague are the app's most sensitive data | M14 | Device-local, never synced, own export checkbox and confirm, bounded retention, no ranking or evaluation framing |
+| Notes about a named colleague are the app's most sensitive data | M14 | Device-local, never synced, **no export path at all** (agreed 2026-09-06 — there is no checkbox because there is nothing to tick), one person at a time, no ranking or comparison framing. Retention is deliberately unbounded, so the Settings clear action is the whole mitigation and has to be findable |
+| Per-person line counts on the 1:1 sheet get read as a productivity measure | M14 | The 2026-09-06 reversal is bounded to that one screen: one person at a time, no comparison between colleagues, no line-count trend, framing note printed beside the number. M16 and M17 stay team-level |
+| Recording a colleague's voice is a different category of data from anything else the app holds | M20 | Local-only processing, off by default, started per session, visible indicator for the duration, audio discarded after transcription unless deliberately kept — and an AI Enablement / DPIA review before any code, because manager-operated recording of reports is worker-management-shaped under the EU AI Act's Annex III |
 | ~~A per-issue freeze for eight sprints is the largest thing kept on device~~ | M13 ✔ | Measured, not assumed: a 60-issue sprint freezes to ~22 KB, eight to ~170 KB, asserted and printed by `scripts/test-dashboard.mjs`. Pruned with `MAX_SPRINTS_KEPT` **imported from `js/snapshots.js`** rather than copied, so the two caps cannot drift apart |
 | ~~Scope-added silently changes meaning depending on whether a freeze exists~~ | M13 ✔ | Resolved, and in three states rather than two: no freeze is the creation-date approximation, a start-of-sprint freeze is exact, and a mid-sprint freeze is exact only from the day it was taken and says which day. One function (`scopeBasis`) writes the sentence for the tile and the PDF, so they cannot disagree |
 | ~~A published release asset cannot be unpublished~~ | M19 ✔ | Resolved, in depth rather than once: the `build.mjs` allowlist makes `assets/brand/`, `assets/avatars/` and `config.local.json` unshippable and `--zip` refuses `--local-assets`, and the *Nothing personal in the archives* step re-checks each real zip with `unzip -l` before a byte is uploaded. Verified against the already-published `chrome-0.5.0.zip`, which was clean — by a careful hand, which is the thing that has now been replaced |
@@ -201,7 +208,7 @@ open question 3, applied a third time. M18 was added new.
 | ~~Public repo, downloadable builds, no licence~~ | M19 ✔ | Resolved 2026-09-06: [PolyForm Noncommercial 1.0.0](LICENSE). It had stopped being a future risk — the repo was already public and `v0.5.0` already carried three downloadable zips, one of them downloaded, all under default exclusive copyright |
 | CI pushes the version bump to `main` and the push is rejected | M19 | Ordered so it cannot cost a release: the bump is the last step, after publishing, so a protected branch or a push race leaves the assets on the page and the fix at two commands by hand. Loud rather than silent — the job goes red |
 | A quarter is ~90 days and the GitHub window is 45 | M16, M17 | Store per-sprint rollups at rollover; until they exist, the quarter document states the shorter window it actually covers |
-| Lines of code read as a productivity measure | M16, M17 | Team-level per sprint only, never per person, labelled as lines reaching the default branch |
+| Lines of code read as a productivity measure | M16, M17 | Team-level per sprint only, never per person, labelled as lines reaching the default branch. M14's 1:1 sheet is the one stated exception and carries its own row above |
 | ~~Unlinking an issue is destructive and Jira offers no undo~~ | M18 ✔ | Resolved: a confirm naming both issues and the relationship, and no ✕ at all on a sub-task row, which has no link to remove. The DELETE goes through the same `jiraWrite` every other write does — `jiraWrite` learned to send no body rather than the method getting a path of its own |
 | ~~`/rest/dev-status/1.0/` is undocumented~~ | M5 → deferred | Avoided entirely: dev links move to the GitHub API in the deferred backlog |
 | ~~Untrusted Jira HTML reaching the DOM~~ | M5 ✔ | Allowlist sanitiser with the element walk unit-tested; CSP as defence in depth |
@@ -223,7 +230,7 @@ open question 3, applied a third time. M18 was added new.
 5. ~~**Repo list per board?**~~ — answered 2026-08-12: no, one flat list stays. Revisited only if a real team runs into it. The allowlist is already the only scope, so scoping it per board stays cheap whenever it is actually wanted.
 
 6. **How much history should the app keep?** Open, raised 2026-09-03 by M17. Daily snapshots are capped at eight sprints (`MAX_SPRINTS_KEPT`), which is right for sixty rows per sprint and wrong for one rollup row per sprint — a trend chart wants years of those. M13's per-issue freezes pull the other way, being the bulkiest thing stored. Three stores with three different right answers, so the cap stops being one constant and becomes a decision about what the extension keeps on the device.
-7. ~~**Lines of code as a metric**~~ — answered 2026-09-03, when it was asked for in M17: **team-level per sprint, never per person.** It sits next to issue counts as a volume signal, and `fetchTeamStats` measures lines reaching the default branch, so that is what it is labelled. Same rule M16 and M14 already carry, and the reason the recap PDF prints its own framing.
+7. ~~**Lines of code as a metric**~~ — answered 2026-09-03, when it was asked for in M17: **team-level per sprint, never per person.** It sits next to issue counts as a volume signal, and `fetchTeamStats` measures lines reaching the default branch, so that is what it is labelled — the reason the recap PDF prints its own framing. **Amended 2026-09-06 when M14's scope was agreed: the rule holds everywhere except the 1:1 sheet**, which shows lines added and removed **per person** for the selected window, because that is what the manager sits down with. The distinction is the audience, not the number: M16's quarter document and M17's per-sprint chart are read by the team and stay team-level; a 1:1 sheet is read by two people about one of them. What M14 keeps of the rule is one person at a time, no comparison between colleagues, and no line-count trend line. See M14, *Per-person lines shipped — a stated reversal*.
 8. **Where does a quarter start?** Open, raised 2026-09-03 by M16. Sprints straddle quarter boundaries, so a quarter-to-date document either cuts a sprint in half or counts a sprint that started in the previous quarter. Calendar quarters with whole sprints assigned to the quarter they end in is the likely answer, but it needs stating on the document rather than implying.
 
 ---
@@ -232,9 +239,19 @@ open question 3, applied a third time. M18 was added new.
 
 **Re-sequenced 2026-09-03**, and **M18 and M13 both shipped the same day** —
 M18 out of order and ahead of the rest, M13 in its place at the head of the
-queue. What is left, in order: **M14** (weekly 1:1) → **M15** (sprint planner) →
-**M16** (Quarter Wrapped) → **M17** (per-sprint history). The sections below are
-in that order.
+queue. **M14 was scoped and shipped on 2026-09-06** and its entry is under
+*Completed*. What is left, in order: **M15** (sprint planner) → **M16** (Quarter
+Wrapped) → **M17** (per-sprint history) → **M20** (1:1 recording, added
+2026-09-06). The sections below are in that order.
+
+**M14 had carried a "not an agreed spec" warning and four open questions since
+2026-08-12.** All four were answered on 2026-09-06 and the milestone was built
+the same day. It grew from M to L on the way, recorded three decisions that
+reverse something already written down — per-person line counts on that one
+screen, unbounded note retention behind a Settings clear action, and Standup and
+the recap moving behind a new `LAUNCH` menu — moved one piece out to the
+deferred backlog before any code, and spun out **M20**. Its entry keeps both the
+spec and a record of the four places the code differs from it.
 
 **M19 was added on 2026-09-05 and shipped on 2026-09-06**, out of the queue
 entirely rather than ahead of it: it depended on no milestone and blocked none,
@@ -256,50 +273,11 @@ is what makes the remaining four's order legible. The first two shipped on
 2026-09-03 and their entries are under *Completed*:
 
 - **M13 first** ✔, though it was the vaguest of the three, because a forward-built history only accrues from the day it ships. Every sprint boundary that passes without a freeze is one that cannot be reconstructed afterwards — the same argument that pulled the snapshot `byPerson` block forward ahead of M15 on 2026-08-20, and the same argument `js/snapshots.js` opens with. It also makes M7's approximate scope-added figure exact, which is a caveat currently printed in the UI and in the recap PDF.
-- **M14 next**, and now the head of the queue: an M whose dependencies are already paid (the roster, `activityFrom`, the `byPerson` block), against the planner's L. It has four open questions that want answering before any work starts, and answering them is cheap.
+- **M14 next** ✔, and the head of the queue until it shipped: an M whose dependencies were already paid (the roster, `activityFrom`, the `byPerson` block), against the planner's L. It had four open questions that wanted answering before any work started, and answering them was cheap — which turned out to be true, and also turned it into an L.
 - **M15 after that.** Still the biggest thing in the file, still fully unblocked; it loses its "next up" position rather than any of its readiness.
 - **M16 then M17**, in that order because the button is the ask and the history is the machinery behind it — but see M17's note on the 45-day GitHub window, which the quarter document runs straight into. If M16 is started first, its GitHub half is scoped to what one window covers until M17 lands.
 - **M19 whenever** ✔, and outside this reasoning entirely: it was packaging rather than a feature, it waited on nothing, and the only thing it was behind was a decision (the licence) rather than a milestone. "Whenever" turned out to be immediately, for the reason in the preamble above.
 - **M18 last** ✔ only because it is an S that unblocks nothing — "the obvious thing to pick up in a gap", which is what happened to it the same afternoon.
-
----
-
-## M14 — Weekly 1:1 screen
-
-**Size: M** · Depends on M3 (roster). Reads M7 aggregates and M11 GitHub
-activity. Independent of the write layer unless it grows follow-up actions.
-**Next up.**
-
-**Scope below is a first pass, not an agreed spec** — recorded 2026-08-12 from a
-one-line request so the intent is not lost. The open questions at the end are
-the parts that would change the shape of it.
-
-One person, one week: the sheet you would otherwise assemble by hand in the ten
-minutes before a 1:1.
-
-- **Pick a person** from the roster, and a week (defaulting to the one just ending).
-- **What they did** — issues closed and moved this week, PRs opened, merged and reviewed. M11 already fetches per-person GitHub activity; it currently windows on *since the last working day* for standup, so this needs a week window over the same query rather than a new source. **The Jira half of this is already built:** `activityFrom(issues, { since, until })` (`js/activity.js`, done 2026-08-24) answers "closed and moved" per person over any window, and a week-long one is exercised in `scripts/test-activity.mjs` precisely so this milestone does not discover it. What is left here is the screen, and — the one real gap — a source of issues for a week that is not the current sprint, since the reader is fed the sprint fetch today. **M16 needs the same thing over a quarter**, so whichever lands first should build it as a shared reader taking a window, not a private one.
-- **What is stuck** — their blocked and overdue items, and the PRs where they are the blocker or are being blocked, reusing M11's "changes requested → failing checks → approved-and-unmerged → waiting on review" ordering, which already sorts by how stuck rather than how recent.
-- **Load over time** — their points per sprint across stored snapshots. The `byPerson` field this needs exists as of 2026-08-20 (see M15), so this milestone reads it rather than adding it — bounded by how far back history had started accruing when the screen is built.
-- **Notes** — free text per person per week, saved as you type, with last week's notes and any open action items pinned at the top. A 1:1 tool that does not remember last week is a status meeting.
-
-**Personal data — the part to get right first.** Everything else in this app
-derives from Jira and GitHub and could be re-fetched. A 1:1 note is *written by
-the user, about a named colleague*, and exists nowhere else. That makes it the
-most sensitive thing the extension would hold, so the roster's treatment is the
-floor and not the ceiling:
-
-- Device-local, never `storage.sync`. The roster is already local for weaker reasons than this.
-- Excluded from config export behind **its own** checkbox and its own confirm naming what the file would contain — the M2 pattern of one prompt per secret, because a single "this file has sensitive stuff in it" dialog teaches people to click past it.
-- Bounded retention with a visible clear action, the way snapshots are pruned. Notes about people should not accumulate silently and forever.
-- **Not a performance dashboard.** Same discipline M16 imposes on Quarter Wrapped, and the reason that entry keeps lines of code and pull-request counts team-level: activity is conversation fuel, not a score. No rankings, no per-person trend line framed as evaluation, no comparison between colleagues on one screen.
-
-**Open questions:**
-
-1. **Whose screen is it?** Manager preparing for a report, or each person prepping their own? That decides whether "pick a person" is a roster dropdown or fixed to the logged-in account, and it changes the personal-data answer considerably.
-2. **Do notes ever leave the device?** Confluence export of notes is already in the icebox for standup. If 1:1 notes are ever exportable that needs deciding up front, not retrofitted.
-3. **Week or sprint as the window?** A week matches the meeting's cadence; a sprint matches every other screen in the app and every number already computed.
-4. **Read-only, or does it create follow-ups?** Turning an action item into a Jira issue is a natural ending and would make this depend on M8. Left out of the sketch above deliberately.
 
 ---
 
@@ -388,7 +366,10 @@ and no persistence of individual histories. A quarter is long enough that
 per-person figures over it start to look like a performance review, which is
 precisely what this must not be — so lines of code and pull-request counts stay
 team-level, and the document carries the same explicit "this is not an
-assessment" footer the recap PDF prints. It is a retro toy that grew a longer
+assessment" footer the recap PDF prints. **This is unchanged by M14's 2026-09-06
+reversal**, which put per-person line counts on the 1:1 sheet: that screen is
+read by two people about one of them, and this document is read by the team. The
+rule was always about the audience. It is a retro toy that grew a longer
 window, and it should stay too obviously silly to be mistaken for a metric.
 
 ---
@@ -447,6 +428,55 @@ visibly partial and the empty case explained rather than drawn as zero.
 
 1. **Active sprint on the chart, or closed sprints only?** A partial current sprint plotted next to complete ones reads as a drop every time someone looks mid-sprint. Excluding it is honest and slightly disappointing; including it needs distinct styling for "in progress".
 2. **Sprints, or calendar months?** Everything above is per sprint, which matches the app. A quarter document may want the calendar, and sprints straddle quarter boundaries.
+
+---
+
+## M20 — 1:1 recording and local transcription
+
+**Size: L** · Depends on M14 (the sheet it writes into). Added 2026-09-06, out
+of the same conversation that agreed M14's scope, and **deliberately not in
+M14's first pass**. Last in the queue.
+
+**Record the 1:1 and turn it into text, entirely on the device.**
+
+- **v1 — a "Transcribe recording" button, after the meeting.** Record during the session, transcribe when it ends, drop the text into that session's notes alongside what was typed by hand. A batch job with a clear start and end, which is the version worth building first.
+- **v2 — streaming.** Transcription as the meeting runs, so the text is there when Complete is pressed. Everything v1 needs plus a real-time path, which is why it is a second version and not a flag on the first.
+
+**Local, both versions, non-negotiable.** No audio and no transcript leaves the
+device — the same rule the notes carry, applied to a far more sensitive
+artefact. That constrains the engine hard: the extension has **no build step and
+no runtime dependencies** (binding constraint 1), so the realistic route is the
+browser's own speech APIs or a WASM model, and a WASM model is a vendored binary
+in a repo whose only vendored library today is frappe-gantt. **This is the
+question to answer before any other work on this milestone**, because the answer
+decides whether the milestone is possible under the constraints at all. If it is
+not, that is a finding worth recording rather than a reason to relax the
+constraint quietly.
+
+**Consent and legality are part of the feature, not a note on it.** This records
+a named colleague's voice in a workplace conversation. Whatever the engine turns
+out to be:
+
+- The person being recorded must know it is happening, every time — a visible indicator for the duration, not a setting ticked once months ago.
+- Recording is off by default and started explicitly per session.
+- Audio is discarded once transcribed unless deliberately kept, and the retention answer is decided here rather than inherited from the notes' unbounded default.
+- The transcript is subject to the same "never leaves the device, cleared from Settings" treatment as the notes.
+
+**Escalate before building, not after.** A manager-operated tool that records
+and transcribes conversations with reports, stored beside per-person output
+metrics, is the shape the EU AI Act treats as worker-management tooling under
+Annex III, and it is a DPIA question under GDPR regardless of the AI Act's
+verdict. It is also the point at which "it is just my own laptop" stops being an
+answer, because the data is somebody else's voice. **Raise it with AI Enablement
+before the first line is written**, alongside the engine question above:
+https://stxgroup.atlassian.net/servicedesk/customer/portal/1/group/819
+
+**Open questions:**
+
+1. **Which engine, and does it survive the no-dependency rule?** Web Speech API (quality and offline availability vary by browser, and Chrome's implementation has historically not been local), a vendored WASM model (a large binary in the repo, and the first non-trivial one), or the milestone is not buildable as specified. Answer this first.
+2. **Does a transcript belong in the archived session at all?** A dated, read-only record of what a colleague said is a different object from notes about what was agreed, even though both live in the same pane.
+3. **Diarisation** — who said what. Without it a transcript of two people is a wall of text; with it, the feature is materially more complex and is attributing statements to a named person.
+4. **What happens to the recording if Complete is never pressed?** M14's drafts expire. Audio that expires silently and audio that persists silently are both wrong answers.
 
 ---
 
@@ -539,6 +569,36 @@ somebody is, this stops being a nicety. The third option M19 considered — drop
 the Firefox asset and document a source install — stays available and gives up a
 browser the codebase already fully supports, which is why it was not taken.
 
+### A backup for the device-local stores *(moved out of M14, 2026-09-06)*
+
+**Size: S.** Everything this app records lives in device-local extension
+storage and nothing replicates: the roster, the daily snapshots, the per-sprint
+freezes, the 1:1 notes and archives, and now the todo list. Uninstall the
+extension, or lose the laptop, and all of it is gone. Config export/import
+already exists and deliberately carries almost none of it — it is a *config*
+export, and the personal-data half is opt-in for good reasons.
+
+Specified inside M14 on 2026-09-06 as a daily automatic JSON download of the
+todo list, and moved out here the same day, before any code was written. Two
+reasons, and the second is the real one:
+
+- **It is not about the 1:1 sheet.** It was the one piece of that milestone that would have been true of every other store just as much.
+- **Backing up one store is the wrong unit.** A backup that covers the todos and not the 1:1 archive, the roster or the freezes is a backup somebody will trust and should not. Design it once, over the list of local stores, with a restore path — not per feature as each one is built.
+
+**One correction to the note this entry was extracted from:** it claimed the
+download would need the `downloads` permission. It would not.
+`downloadJson()` in `js/portable.js` already saves a file from an extension
+page with an object URL on a synthetic `<a>`, no permission involved, and the
+config export has been doing exactly that since M2. Nothing here is blocked on
+a manifest change.
+
+**Open questions:** whether it is automatic or a button (automatic needs a
+trigger, and this app has no background schedule); whether one file covers every
+store or one file per store; and what restore looks like, since importing an old
+1:1 archive over a newer one is a merge, not a replace.
+
+---
+
 ### Icebox
 
 - **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. **Kept separate from M13 deliberately:** same diff machinery, different anchor — M13 compares against sprint start, this compares against your last visit, and the second is only worth building once the first has proved the comparison is useful. It would also need a per-issue record written per session rather than per sprint.
@@ -546,7 +606,7 @@ browser the codebase already fully supports, which is why it was not taken.
 - Multi-site support (several Jira Cloud instances in one install).
 - Multi-org GitHub sync — one fine-grained token has exactly one resource owner, so a second org means a second credential. The config block and the credential keys would both become maps; deliberately not built until someone actually needs it.
 - OOO import from a calendar feed to prefill planner absences.
-- Confluence export of standup notes and the Quarter Wrapped document.
+- Confluence export of standup notes and the Quarter Wrapped document. **Not 1:1 notes** — settled 2026-09-06 when M14 was scoped: those never leave the device by any route the app builds.
 - Slack integration (press a button -> bot posts standup's recap on Slack via webhook)
 - A real build step + test runner, once module count justifies it.
 
@@ -599,6 +659,242 @@ Not oversights, and not backlog. Each of these was looked at during the
 # Completed
 
 Newest first.
+
+## M14 — Weekly 1:1 screen ✔ *(2026-09-06)*
+
+**Size: L** (was M) · Depends on M3 (roster). Reads M7 aggregates, the snapshot
+`byPerson` block and M11 GitHub activity. Read-only against Jira and GitHub —
+independent of the write layer. **Next up.**
+
+**Scope agreed 2026-09-06.** It was recorded 2026-08-12 from a one-line request
+and carried a "first pass, not an agreed spec" warning plus four open questions
+for three and a half weeks. All four are answered below, in place. Answering
+them grew the milestone rather than merely confirming it — a nav change, a
+mini-Gantt, a cross-person todo list, a reversal of a rule the file states three
+times, and a successor milestone (**M20**, recording and transcription) came out
+of the same conversation. The size went M → L with them.
+
+**The four questions, answered:**
+
+1. **Whose screen is it? The manager's.** A roster dropdown, not the logged-in account. The use case as stated: a weekly 1:1 — fortnightly with some people — the manager opens the sheet on their laptop and has what is on that person's plate, what they did over the window, what is planned and what is stuck, all in front of them, then takes notes in the room. This is the answer that makes every personal-data rule below load-bearing rather than precautionary.
+2. **Do notes leave the device? Never.** Not to `storage.sync`, not through config export, not behind a ticked checkbox. The M2 per-secret export checkbox is therefore *not* built for notes — there is nothing to tick, because there is no path. The one way notes move is the user's own clipboard, by pressing **Copy for Slack** (below), which is the manager moving text by hand and not the app sending anything anywhere.
+3. **Week or sprint? Both, and neither is the default.** Fetch the longest period once, then a **1 week / 2 weeks / this sprint** toggle re-derives every stat and list client-side without a second request. The default window is neither: it is **since the last completed 1:1 with that person** (below), which is what a mixed weekly/fortnightly cadence actually needs.
+4. **Read-only.** Action items stay local text and do not become Jira issues in this pass. M8 is not a dependency. "Action item → issue" is a named follow-on, not scope here.
+
+### The window: "Complete 1:1" sets the clock
+
+An explicit **Complete 1:1** button stamps a per-person timestamp. The default
+window on next open is *since that stamp* — so a fortnightly report gets a
+fortnight and a weekly one gets a week without anyone configuring a cadence, and
+nothing is shown twice or missed. Deliberately **not** last-opened: opening a
+sheet by accident, or to check something between meetings, must not move the
+boundary.
+
+**First-ever session with a person** has no stamp, and falls back to **the
+current sprint** — it matches every other screen in the app and gives the
+fullest first picture.
+
+Pressing Complete does three things: archives the session's notes as a dated,
+**read-only** entry; carries any unticked TODO into the next session, marked
+with the date it came from; and offers the Slack copy at that moment, because
+the end of the meeting is when the summary gets sent and a button you have to
+remember to press first is a button that gets forgotten. Archived sessions are
+never editable — a record that can be revised is not a record of what was said.
+
+### Layout: two panes
+
+Data left, notes right, both scrolling independently, with a full-width
+mini-Gantt strip. The notes pane is always visible and always focusable: nothing
+typed during a meeting may push the data off screen, which is the whole reason
+the stacked layout was rejected.
+
+```
+┌─ Person ▾  [1w][2w][sprint]  since last 1:1 ──────────────┐
+│                            │                              │
+│  ON THEIR PLATE            │  TODO                        │
+│  ▪ PROJ-412  In progress   │  ☐ [them] ship the migration │
+│  ▪ PROJ-455  In review     │        due 2026-09-12        │
+│                            │  ☐ [me] unblock the API key  │
+│  DID (2 weeks)             │  ─ carried from 2026-08-23 ─ │
+│  ▪ 7 closed  ▪ 3 moved     │  ☑ [them] write the RFC      │
+│  ▪ 5 PRs  +1,204 −380      │                              │
+│                            │  IMPORTANT INFO              │
+│  STUCK                     │  ┌────────────────────────┐  │
+│  ▪ PROJ-390 changes req'd  │  │                        │  │
+│  ▪ PROJ-401 overdue 4d     │  └────────────────────────┘  │
+│                            │                              │
+│  PLANNED                   │  [ Copy for Slack ]          │
+│  ▪ next sprint: 3 issues   │  [ Complete 1:1 ]            │
+├────────────────────────────┴──────────────────────────────┤
+│  ▬▬▬▬▬  ▬▬▬▬▬▬▬▬▬   │ ▬▬▬▬▬▬     ▬▬▬▬▬▬▬▬▬▬▬▬▬▬          │
+│      ▬▬▬▬▬▬▬        │      ▬▬▬▬▬▬▬▬▬                     │
+│  −3w                today (red)                      +6w  │
+└───────────────────────────────────────────────────────────┘
+```
+
+Sketched with the layout decision on 2026-09-06 and kept because it is the
+fastest way to see what the two-pane rule buys: the notes column never moves.
+
+**Left — what you read:**
+
+- **On their plate** — open issues assigned to them in the active sprint, with status and points.
+- **What they did** over the window — issues closed and moved (`activityFrom`, `js/activity.js`, done 2026-08-24, already exercised over a week-long window in `scripts/test-activity.mjs`), plus PRs opened, merged and reviewed, plus lines added and removed. See *Per-person lines* below.
+- **What is stuck** — blocked and overdue items, and PRs where they are the blocker or are blocked, reusing M11's "changes requested → failing checks → approved-and-unmerged → waiting on review" ordering, which already sorts by how stuck rather than how recent.
+- **What is planned** — three sources, together: assigned and unfinished in the current sprint, assigned in the next sprint, and anything of theirs with a due date falling inside the coming window regardless of sprint.
+- **Load over time** — their points per sprint from the snapshot `byPerson` block (exists since 2026-08-20, so this is a read and not new machinery), bounded by how far back history had accrued and saying so.
+- **Mini-Gantt** — full-bleed, short: every open issue and epic of theirs carrying start and/or due dates, over a **fixed −3 weeks to +6 weeks horizon with today drawn as a vertical red line**. Fixed rather than window-following on purpose: the strip looks the same every week, so position is read by habit instead of by re-reading the axis. Draws from the same data the Gantt view uses.
+
+**Right — what you write:**
+
+- **TODO** — items with a **two-way owner toggle (me / them)** and an optional deadline. Every action in a 1:1 belongs to one of the two people in the room, and a toggle is faster to set mid-conversation than a picker to open. Carried-over items sit above the new ones under a dated rule.
+- **Important info** — items added one at a time through dynamically created inputs, not one textarea: a new field fades in and the items below shift down. Motion is decorative here, so it goes behind `prefers-reduced-motion` like every other animation in the app — eleven stylesheets, the confetti and the nav modules already honour it, and this must not be the exception.
+- **Copy for Slack** — copies TODOs with owner and deadline, the important-info items, and any still-open carried-over TODOs. Deliberately **not** the left pane: the message is the meeting's outcomes, not a transcript of its numbers.
+
+**Draft notes expire.** Typing into a sheet and closing the tab without pressing
+Complete saves a draft that is restored next time — but a draft older than a set
+age is discarded, so a note typed a month ago cannot reappear mid-meeting
+looking current.
+
+### Per-person lines shipped — a stated reversal
+
+**Reversed 2026-09-06.** This entry, M16 and open question 7 all said the same
+thing: lines of code and pull-request counts stay **team-level, never per
+person**. On this screen they are now **per person**, by the author's explicit
+decision, because per-person output over the window is what the manager sits
+down with. The rule is not quietly dead — see the reconciliation in *Open
+questions* 7 and in M16's framing note, both amended the same day. What survives
+of it here:
+
+- **One person at a time, no comparison.** No rankings, no leaderboard, no two colleagues' figures on one screen.
+- **No LOC trend.** "Load over time" plots points per sprint, not lines. A line-count trend is the shape that reads as an evaluation.
+- **Team-level everywhere else.** M16 and M17 are unchanged: a quarter document and a public per-sprint chart are not a 1:1 sheet, and the reasoning that kept them team-level was about the audience, not the number.
+- **Conversation fuel, not a score.** The framing note stays on the screen.
+
+**How the numbers are fetched — and a correction.** The scoping conversation
+assumed lines would cost one REST request per pull request, and specified a cap
+to bound it. **They cost nothing extra.** `js/github.js` does not use the search
+API at all: `buildWindowQuery` already selects `additions` and `deletions` on
+every pull request in the 45-day window, `buildCommitQuery` does the same for
+commits pushed straight to the default branch, and `statsFor(stats, login,
+{ since })` already returns `prsOpened`, `prsMerged`, `reviews`, `comments`,
+`additions`, `deletions` and `lines` for one login over any window inside it.
+The 1:1 sheet is a **second caller of a fetch the standup already makes** — no
+cap, no new query, no extra round trip. What survives of the caution is the
+truthfulness rule, which the module already implements: `statsFor` returns
+`clamped: true` when the requested window starts before the 45-day fetch
+reaches, and the sheet prints that rather than a confident number.
+
+**Where a source cannot answer, the screen says so in place** — "no GitHub login
+mapped for this person", "GitHub reaches back 45 days and this window starts
+earlier" — printed where the number would be. Principle 3. Zeros are the one
+unacceptable answer: indistinguishable from a quiet week.
+
+### Navigation: a Launch menu
+
+**Standup, 1:1 and the sprint recap move behind one `Launch ▾` dropdown** in the
+top nav. Everything you *run* rather than *read* lives there; Gantt, Backlog,
+Kanban, Monitor and Dashboard stay where they are. This moves a shipped view —
+Standup loses its top-level tab and keeps its keyboard shortcut — so it is a
+change to navigation people already know, and belongs in the release note rather
+than being discovered.
+
+**The 1:1 entry screen is the person picker**, modelled on the standup setup
+card. Each roster row shows **days since the last 1:1** ("14 days ago", or
+"never"), which is the point of the per-person clock: who you are overdue with,
+at a glance. The **window selector sits on the picker** as well as in the sheet,
+so it is set before the data loads.
+
+### Launch → My todos
+
+A flat personal list, MVP-shaped: append an item, mark it done, remove it.
+Columns are **source** (from a 1:1, or added manually), **item text**, optional
+**deadline** and optional **link**. TODOs owned by *me* from any person's sheet
+land here, so the manager's own commitments are in one place instead of
+scattered across sheets.
+
+**Device-local extension storage, and nothing else** — the same store the
+roster, the snapshots and the 1:1 notes live in. A daily automatic JSON backup
+was specified here on 2026-09-06 and **moved out of scope the same day**, before
+any code: it is the only piece of this milestone that is not about the 1:1
+sheet, and a backup is worth designing once, for every local store at once,
+rather than for the newest one. It is in the deferred backlog under *A backup
+for the device-local stores*.
+
+### Personal data — the part to get right first
+
+Everything else in this app derives from Jira and GitHub and could be
+re-fetched. A 1:1 note is *written by the user, about a named colleague*, and
+exists nowhere else. That makes it the most sensitive thing the extension holds,
+so the roster's treatment is the floor and not the ceiling:
+
+- **Device-local, never `storage.sync`.** The roster is already local for weaker reasons than this.
+- **No export path at all** — see answer 2 above. The clipboard is the manager's own action, not a feature that moves data.
+- **A visible clear action: "Clear all 1:1 notes", in Settings**, beside the other destructive data actions, behind a confirm naming how much it deletes. **Retention is otherwise unbounded** — notes are kept until cleared. This is a *deliberate reversal* of the "bounded retention, should not accumulate silently and forever" line this entry carried from 2026-08-12: the author's answer is that a 1:1 history that silently forgets last quarter is worse than one that grows, and pruning notes about people on a timer is its own bad surprise. The clear action is what keeps it honest, so it must be findable rather than buried.
+- **Not a performance dashboard.** Per-person figures now appear here (above), which makes the framing note more load-bearing rather than less: one person at a time, no comparison, no LOC trend, and the note printed on the screen.
+- **Legal, for a manager using this on real colleagues.** Notes about named reports plus per-person output metrics is a combination that reads as worker-management tooling — a DPIA-shaped question the moment it is used on anyone's data but the author's own, and a live one under the EU AI Act's Annex III if it ever grows automated assessment. Nothing in this milestone requires that review to ship on one laptop. **M20 does**, and its entry says so.
+
+**Build order inside the milestone**, and where to cut if it has to be cut: the
+shared windowed reader → the sheet (left pane, then notes) → Complete/archive/
+carry-over → Slack copy → entry screen and Launch menu → mini-Gantt → **My
+todos**. The last item is the natural cut line: it is the only piece that is not
+about the 1:1 sheet.
+
+**The one real gap: a windowed issue source.** The reader is fed the current
+sprint fetch today, and this screen needs an arbitrary window. **Built as a
+shared reader taking a window, not a private one** — M16 needs the same thing
+over a quarter, and the roadmap has said so in both entries since 2026-09-03.
+
+**Follow-ons, named and out of scope here:** turning an action item into a Jira
+issue (would depend on M8); full-text search across past sessions; print/PDF of
+a session, which would be a second egress path for notes and needs the
+personal-data section revisited before it is built. Recording and transcription
+is **M20**.
+
+### What shipped, and the four places it differs from the spec above
+
+**Scoped and built the same day.** The entry above is the spec as agreed; this
+is the record of what the code does, which is not quite the same document and
+should not be edited into agreement with it.
+
+**Two views, two models, one stylesheet.** `js/oneone.js` holds everything
+decidable without a DOM — window resolution, the note shapes, `completeSession`,
+the Slack paste, the mini-Gantt geometry — and `js/todos.js` the personal list.
+`js/views/oneone.js` is the picker and the sheet on one route (`#oneone` and
+`#oneone/<accountId>`), `js/views/todos.js` the table, and `css/oneone.css`
+covers both. 148 checks in `scripts/test-oneone.mjs`; harnesses at
+`preview/preview-oneone.html` and `preview/preview-todos.html`.
+
+**The shared windowed reader is `getIssuesInWindow` in `js/api.js`**, built as
+the roadmap has said since 2026-09-03 that it should be: it takes `{ since,
+until }`, knows nothing about who is asking, and M16 can point a quarter at it
+without a rewrite. Its JQL builders (`jqlTimestamp`, `projectScopeJql`,
+`windowJql`) are exported and unit-tested separately, because a JQL string
+assembled from configuration is exactly the kind of thing that fails silently
+against a real site. `getAssignedOpenIssues` is its companion: an issue assigned
+to somebody and untouched for a month is invisible to a search on `updated`, and
+is precisely what a 1:1 is for.
+
+**Four differences from the spec, all recorded rather than reconciled:**
+
+1. **No per-PR fetch and no cap.** The spec assumed line counts would cost one request per pull request. They cost nothing: `buildWindowQuery` already selects `additions` and `deletions`, and the sheet is a second caller of the fetch the standup already makes. The corrected reasoning is in the section above; what survives is `statsFor`'s `clamped` flag, which the sheet prints.
+2. **The daily JSON backup is gone from this milestone** — moved to the deferred backlog as *A backup for the device-local stores* before any code, on the grounds that backing up one store is the wrong unit. My todos is plain device-local storage. The claim that a download would have needed the `downloads` permission was also wrong, and is corrected there.
+3. **Draft expiry keeps carried actions.** The spec said a stale draft is discarded. `pruneStaleDraft` discards what was *typed* and keeps what was *carried*: three-week-old scratch is misleading on a screen that looks current, while an action agreed last time is open business until it is ticked. Two rules, one function, tested both ways.
+4. **The picker sorts by how overdue you are** — longest gap first, never-met at the top. Not in the spec, and worth defending explicitly given everything else this milestone says about not ranking people: the number being sorted on is about *the user's* neglect, not about the colleague's output. That is the distinction, and it is the only sort in the app that touches a list of people.
+
+**Navigation changed for everybody.** `LAUNCH` is a third nav menu holding
+Standup, 1:1, My todos and the sprint recap; Standup lost its top-level tab and
+kept `s`. The recap had been reachable only from a button inside the dashboard
+header, so it gained a door rather than losing one. `routeOf()` in
+`js/components/nav.js` is the single definition of "the current view" now that a
+view can own a sub-route, and the router uses it too.
+
+**The personal-data rules are code, not intentions.** `js/portable.js` never
+reads either key, so there is no export path to opt out of. Settings grew its
+own section rather than a line under Backup & transfer, and both deletes name
+what they would destroy — the retention policy is unbounded by decision, which
+makes the button the whole mitigation.
+
+---
 
 ## Repo root, and de-identified fixtures ✔ *(ad-hoc, 2026-09-06)*
 
