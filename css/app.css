@@ -772,8 +772,9 @@ html { scrollbar-color: var(--border) var(--bg); }
    stops twinkling at someone who asked for stillness. */
 @media (prefers-reduced-motion: reduce) {
   .toggle-star { animation: none; opacity: 0.8; }
-  .spinner::after,
-  .spinner-logo img { animation-duration: 2.4s; }
+  .spinner::after { animation-duration: 2.4s; }
+  /* The boot splash's own reduced-motion clause lives beside it further down —
+     it has to come after the rule it overrides to win on source order. */
   .setup-modal { animation: none; }
   .toggle-body,
   .toggle-rays,
@@ -915,19 +916,42 @@ html { scrollbar-color: var(--border) var(--bg); }
 .toggle-crater:nth-child(3) { width: 3px; height: 3px; top: 7px; left: 13px; }
 [data-theme="light"] .toggle-crater { opacity: 0; }
 
-/* BJ logo spinner */
+/* Boot splash — the wordmark, breathing. Not a spinner: while a view module
+   loads, the window is entirely ours, and the mark says "the app is here" where
+   a 32px ring only says "wait". The wordmark carries its own dark card on a
+   transparent ground, so it needs no plate to read on either theme.
+   Sized in vw as well as px because the splash also runs in a narrow popup. */
 .spinner-logo {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
-  gap: 12px;
+  padding: 24px;
 }
 .spinner-logo img {
-  width: 48px;
-  height: 48px;
-  animation: spin 1.2s ease-in-out infinite;
+  width: min(380px, 64vw);
+  height: auto;
+  animation: logo-pulse 1.9s ease-in-out infinite;
+}
+@keyframes logo-pulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(0.98);
+    filter: drop-shadow(0 0 6px rgba(122, 240, 60, 0.08));
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+    filter: drop-shadow(0 0 22px rgba(122, 240, 60, 0.28));
+  }
+}
+/* Opacity only — same heartbeat, no scaling, for the reduced-motion clause. */
+@keyframes logo-pulse-soft {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner-logo img { animation: logo-pulse-soft 3s ease-in-out infinite; }
 }
 
 /* Due date color tiers */

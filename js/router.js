@@ -145,7 +145,11 @@ async function mountView(creds) {
   const hash = routeOf(location.hash || HOME_HASH);
   updateActiveTab();
 
-  container.innerHTML = '<div class="spinner-logo"><img src="assets/logo.png" alt="Loading"></div>';
+  // The boot splash is the wordmark itself, breathing, rather than a spinner:
+  // this is the one moment the whole window is ours, and the mark reads as
+  // "the app is here" in a way a 32px ring does not.
+  container.innerHTML =
+    '<div class="spinner-logo"><img src="assets/logo-wordmark.png" alt="Loading"></div>';
 
   try {
     let viewModule;

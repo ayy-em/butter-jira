@@ -6,6 +6,13 @@ tag into the release notes, so the wording here is the wording published — kee
 it about what a user gets, and leave the reasoning to
 [ROADMAP.md](ROADMAP.md), which keeps the full record.
 
+## Unreleased
+
+**The loading screen is the mark, breathing.** Where a small spinning logo used
+to sit while a view loaded, the ButterJira wordmark now fades in and out at the
+centre of the window. For anyone whose system asks for reduced motion it drops
+the scaling and just fades, slowly.
+
 ## v0.7.0
 
 **The weekly 1:1.** `LAUNCH → 1:1`, or press `1`. Pick somebody from the roster
