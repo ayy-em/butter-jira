@@ -6,7 +6,7 @@ tag into the release notes, so the wording here is the wording published — kee
 it about what a user gets, and leave the reasoning to
 [ROADMAP.md](ROADMAP.md), which keeps the full record.
 
-## Unreleased
+## v0.7.0
 
 **The weekly 1:1.** `LAUNCH → 1:1`, or press `1`. Pick somebody from the roster
 and get the sheet you would otherwise assemble by hand in the ten minutes before
