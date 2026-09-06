@@ -597,6 +597,43 @@ trigger, and this app has no background schedule); whether one file covers every
 store or one file per store; and what restore looks like, since importing an old
 1:1 archive over a newer one is a merge, not a replace.
 
+### Jira links open in the extension *(ad-hoc, 2026-09-06)*
+
+Today the app is somewhere you go. Every Jira link everywhere else — a Slack
+message, a PR description, a calendar invite, and the `/browse/ABC-123` link
+this app itself renders (`js/config.js:214`) — lands on Jira Cloud, which is
+the product this exists to avoid. **Recognise the URLs that have an equivalent
+screen here, and open that screen instead.**
+
+**What maps to what.** The list is short on purpose:
+
+- `/browse/ABC-123`, and a board URL carrying `?selectedIssue=ABC-123`, → `issue.html?key=ABC-123`. That page already exists, is linkable and reloadable, and already validates the key shape (`js/issue-page.js:11-14`).
+- `/jira/software/projects/ABC/boards/N` → `app.html#kanban`; the same URL under `/backlog` → `#backlog`.
+- **Everything else is left alone.** Filters, dashboards, project and admin settings, Confluence pages on the same host under `/wiki/`: no equivalent screen exists, and landing somebody on a page that cannot answer their question is worse than landing them on Jira.
+
+**Three mechanisms, costing different things.**
+
+- **`declarativeNetRequest` redirect rules.** Fires before Jira loads anything, so there is no flash and no wasted request. Needs the `declarativeNetRequest` permission, and the rules have to be written as *dynamic* rules at config time rather than shipped in the manifest, because the site host is user configuration — see M1. Firefox's MV3 support here is the thinnest of the three browsers and would need checking before this is chosen.
+- **`tabs.onUpdated` + `tabs.update` in the service worker.** No content script, but the Jira page has already started loading (a visible flash), and Jira is an SPA, so navigation *within* Jira never fires a fresh top-level load and would not be caught.
+- **A content script on the configured host.** Catches SPA navigation, and can rewrite the links themselves rather than redirecting the tab — the least surprising behaviour of the three, because the target of a link matches where it goes. It would also be this project's first content script and the first code it runs inside somebody else's page.
+
+**The permission cost is the real objection.** The extension holds `storage`
+and nothing else. Host access to `https://*.atlassian.net/*` is already declared
+because the API client needs it, so that half is paid — but `declarativeNetRequest`
+or `tabs` is a new line in the permission prompt on an extension whose entire
+pitch is that it is lean. That trade is the decision this entry is deferring,
+not the code.
+
+**Sizing: S** for the redirect on its own, **M** with a content script and
+in-page link rewriting.
+
+**Open questions:**
+
+1. **The escape hatch.** Somebody who wants the real Jira has to be able to reach it — a modifier key, a per-session toggle, a visible "open in Jira" on the issue page, or all three. Interception with no way out is a hijack, and the one screen this app *cannot* replace is the one you need when the app is wrong.
+2. **Does it fight the one-app-tab rule?** `background.js` deliberately reuses a single `app.html` tab on toolbar click rather than piling up duplicates. A redirect lands the issue in whichever tab the link was clicked in, which is a second, contradictory convention for where the app appears.
+3. **Opt-in or on by default?** This changes what a link does system-wide, including links in other people's messages. Off by default with a Settings switch is the safe answer and the one nobody discovers.
+4. **Scope it to the configured site only** — never `*.atlassian.net` at large. Another org's Jira, and any other Atlassian product on the same host, must pass through untouched.
+
 ---
 
 ### Icebox
