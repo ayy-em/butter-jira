@@ -310,8 +310,8 @@ check("existing per-person notes left alone",
 
 section("slack digest — plain text");
 const digestEntries = [
-  { who: "@gil", note: "TBD re: the schema rewrite" },
-  { who: "@freya", note: "Columnar wins\nbackfill in progress\n" },
+  { who: "@cy", note: "TBD re: the schema rewrite" },
+  { who: "@devi", note: "Columnar wins\nbackfill in progress\n" },
 ];
 const digest = su.digestText({
   title: "Standup - 12.08.2026",
@@ -321,9 +321,9 @@ const digest = su.digestText({
 check("title first, then a blank line",
   digest.split("\n").slice(0, 2).join("|") === "Standup - 12.08.2026|");
 check("single-line note shares the bullet with the mention",
-  digest.includes("- @gil - TBD re: the schema rewrite"));
+  digest.includes("- @cy - TBD re: the schema rewrite"));
 check("multi-line note becomes sub-bullets under the mention",
-  digest.includes("- @freya\n    - Columnar wins\n    - backfill in progress"));
+  digest.includes("- @devi\n    - Columnar wins\n    - backfill in progress"));
 check("sign-off closes the message", digest.endsWith(`\n\n${su.DIGEST_SIGNOFF}`));
 check("blank lines inside a note are dropped",
   su.digestText({ entries: [{ who: "@a", note: "one\n\n\ntwo" }] })
@@ -341,9 +341,9 @@ section("slack digest — clipboard HTML");
 const html = su.digestHtml(digest);
 check("first line is bold", html.startsWith("<p><b>Standup - 12.08.2026</b></p>"));
 check("one list wraps every person",
-  (html.match(/<ul>/g) || []).length === 2 && html.includes("<ul><li>@gil"));
+  (html.match(/<ul>/g) || []).length === 2 && html.includes("<ul><li>@cy"));
 check("sub-bullets nest inside their person's item",
-  html.includes("<li>@freya<ul><li>Columnar wins</li><li>backfill in progress</li></ul></li>"));
+  html.includes("<li>@devi<ul><li>Columnar wins</li><li>backfill in progress</li></ul></li>"));
 check("sign-off is a plain paragraph, not bold",
   html.endsWith(`<p>${su.DIGEST_SIGNOFF}</p>`));
 check("html in a note is escaped, not injected",

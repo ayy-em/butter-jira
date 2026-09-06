@@ -231,9 +231,9 @@
 .monitor-table td:first-child { padding-left: 34px; }
 /* The summary cell is width:100%, so every other column is squeezed to its
    content — and with nothing stopping them, they wrap. A board whose name is
-   three words rather than an acronym was enough to break the *key* over two lines, as
-   "ACME-" and "102", which is the one string on the row that has to stay one
-   token. Found the day this view got a preview harness; there was nowhere to
+   three words rather than an acronym was enough to break the *key* over two
+   lines, as "ACME-" and "102", which is the one string on the row that has to
+   stay one token. Found the day this view got a preview harness; there was nowhere to
    see it before, because the board names in a live Jira are whatever they are
    and nobody screenshots the Monitor. */
 .monitor-table td:not(.monitor-cell-summary) { white-space: nowrap; }

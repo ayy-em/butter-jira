@@ -618,13 +618,16 @@ the move was committed.
 **The fixtures were also carrying things they should not have been.** These are
 public files, and two of them held what read as a real team roster — nine first
 names, including the author's — while the boards, project key and issue
-summaries across all of them described the employer's actual line of business
-in enough detail to name the industry and the desk. This entry deliberately
-does not restate what was in them. None of it was live data, and all of
-it said more about the org than a sample fixture has any business saying. The
-cast is now the invented one the other seven harnesses already used (Avery
+summaries across all of them described the employer's actual line of business in
+enough detail to name the industry and the desk. None of it was live data, and
+all of it said more about the org than a sample fixture has any business saying.
+The cast is now the invented one the other seven harnesses already used (Avery
 Quinn, Bo Ferreira, Cy Nakamura…), the key is `ACME`, and the summaries describe
-a generic web platform.
+a generic web platform. This entry deliberately does not restate what was in
+them, which would republish the thing it is recording the removal of.
+
+**One suite carried it too.** `test-standup.mjs` asserted the parking-lot digest
+against two real Slack handles and their real notes; same treatment.
 
 **The rule this leaves behind,** written into README and PRODUCT: everything in
 a harness is invented. A roster of real colleagues is personal data, and a
@@ -938,8 +941,8 @@ arrows.
 light-theme defect the review found was in one of the three that did not. They
 have one now, so every view does. It paid for itself the same hour: Monitor's
 finding table sets `width: 100%` on the summary cell, so every other column is
-squeezed to its content — and with nothing stopping them, they wrapped. A board
-named "Acme web" rather than "ACME" was enough to break an issue **key**
+squeezed to its content — and with nothing stopping them, they wrapped. A board whose
+name was three words rather than an acronym was enough to break an issue **key**
 across two lines as `ACME-` / `102`. There was nowhere to see that before, because
 the board names in a live Jira are whatever they are and nobody screenshots the
 Monitor.
