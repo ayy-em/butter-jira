@@ -28,6 +28,11 @@ import { fileURLToPath } from "node:url";
 const run = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = path.join(ROOT, "dist");
+// The per-target manifest sources. Only the *generated* Chrome manifest lives
+// at the repo root, because that is where a browser looks when the repo is
+// loaded unpacked; the four files it is built from have no such requirement
+// and sit together here instead of scattered across the root.
+const MANIFESTS = path.join(ROOT, "manifests");
 
 export const TARGETS = ["chrome", "firefox", "edge"];
 
@@ -106,8 +111,8 @@ async function readJson(file) {
 }
 
 export async function buildManifest(target) {
-  const base = await readJson(path.join(ROOT, "manifest.base.json"));
-  const overlay = await readJson(path.join(ROOT, `manifest.${target}.json`));
+  const base = await readJson(path.join(MANIFESTS, "base.json"));
+  const overlay = await readJson(path.join(MANIFESTS, `${target}.json`));
   return stripComments(mergeManifest(base, overlay));
 }
 
@@ -190,7 +195,7 @@ async function main() {
 
   // The root manifest.json is the Chrome one, regenerated here so that "load
   // the repo directory unpacked" keeps working with no build step *and* cannot
-  // drift away from manifest.base.json. It is committed; a diff after a build
+  // drift away from manifests/base.json. It is committed; a diff after a build
   // means someone edited the generated file instead of the sources.
   if (targets.includes("chrome")) {
     const chrome = await buildManifest("chrome");

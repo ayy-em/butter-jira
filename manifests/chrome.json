@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "Chrome overlay. Merged over manifest.base.json by scripts/build.mjs.",
+    "Chrome overlay. Merged over manifests/base.json by scripts/build.mjs.",
     "",
     "`key` pins the extension ID so removing and re-adding an unpacked build",
     "keeps its chrome.storage namespace (M2). It is the public half of a",

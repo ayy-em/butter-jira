@@ -9,7 +9,12 @@
 //
 // Usage: node scripts/test-manifests.mjs
 
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { TARGETS, buildManifest, mergeManifest, stripComments } from "./build.mjs";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 let pass = 0;
 let fail = 0;
@@ -51,6 +56,21 @@ for (const [target, m] of Object.entries(manifests)) {
   check(`${target}: no documentation keys shipped`,
     !Object.keys(m).some((k) => k.startsWith("_")));
   check(`${target}: background is a module`, m.background.type === "module");
+}
+
+section("icon files exist");
+// A manifest naming an icon that is not there loads with a blank toolbar slot
+// in Chrome and is rejected outright by a store review. The paths are strings
+// in a JSON file, so nothing else notices when one is renamed.
+for (const [target, m] of Object.entries(manifests)) {
+  const declared = [
+    ...Object.values(m.icons),
+    ...Object.values(m.action.default_icon),
+  ];
+  check(`${target}: declares the mark at 16, 32, 48 and 128`,
+    ["16", "32", "48", "128"].every((s) => s in m.icons && s in m.action.default_icon));
+  check(`${target}: every declared icon file is on disk`,
+    declared.every((rel) => fs.existsSync(path.join(ROOT, rel))));
 }
 
 section("versions are in lockstep");

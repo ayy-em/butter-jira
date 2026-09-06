@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "Firefox overlay. Merged over manifest.base.json by scripts/build.mjs.",
+    "Firefox overlay. Merged over manifests/base.json by scripts/build.mjs.",
     "",
     "Three things differ from Chrome, and all three are hard requirements:",
     "",

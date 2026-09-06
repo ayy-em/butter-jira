@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "Edge overlay. Merged over manifest.base.json by scripts/build.mjs.",
+    "Edge overlay. Merged over manifests/base.json by scripts/build.mjs.",
     "",
     "Edge is Chromium, so it runs the Chrome build essentially unchanged — the",
     "only reason it gets its own target is `key`. Edge Add-ons assigns its own",

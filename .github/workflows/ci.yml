@@ -42,11 +42,11 @@ jobs:
 
       # build.mjs regenerates the root manifest.json, which is committed so the
       # repo loads unpacked with no build step. A diff here means somebody
-      # edited the generated file instead of manifest.base.json — which works
+      # edited the generated file instead of manifests/base.json — which works
       # locally, and is precisely why it needs catching somewhere else.
       - name: No generated-file drift
         run: |
           if ! git diff --exit-code -- manifest.json; then
-            echo "::error file=manifest.json::manifest.json changed after a build. Edit manifest.base.json or manifest.<target>.json and commit the regenerated file."
+            echo "::error file=manifest.json::manifest.json changed after a build. Edit manifests/base.json or manifests/<target>.json and commit the regenerated file."
             exit 1
           fi

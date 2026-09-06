@@ -8,7 +8,7 @@
 # locally.
 #
 # Tag-led, not manifest-led: the tag is the source of truth for the version and
-# scripts/set-version.mjs writes it into manifest.base.json here, rather than CI
+# scripts/set-version.mjs writes it into manifests/base.json here, rather than CI
 # checking a hand-bumped file and failing on a mismatch. The trade-off is that
 # main is briefly a commit behind the release it shipped — closed by the last
 # step, which pushes the bump.
@@ -66,7 +66,7 @@ jobs:
       - name: Nothing changed but the version
         run: |
           git diff --name-only | sort > /tmp/changed.txt
-          printf 'manifest.base.json\nmanifest.json\n' | sort > /tmp/allowed.txt
+          printf 'manifests/base.json\nmanifest.json\n' | sort > /tmp/allowed.txt
           comm -23 /tmp/changed.txt /tmp/allowed.txt > /tmp/unexpected.txt
           if [ -s /tmp/unexpected.txt ]; then
             echo "::error::the build changed files it should not have:"
@@ -115,17 +115,17 @@ jobs:
       # project's subjects are milestone labels (M13:, M18:) and say nothing to
       # somebody deciding whether to download a zip. Install first, because that
       # is what somebody arriving at a release page needs first; what changed
-      # comes from CHANGELOG.md, whose section for this version is appended
+      # comes from docs/CHANGELOG.md, whose section for this version is appended
       # below. A tag with no section in that file fails here rather than
       # publishing a release that does not say what is in it.
       - name: Release notes
         run: |
           version="${{ steps.v.outputs.version }}"
-          if ! awk -v v="## v$version" '$0 == v {found=1; next} /^## / && found {exit} found' CHANGELOG.md | grep -q '[^[:space:]]'; then
-            echo "::error::CHANGELOG.md has no '## v$version' section. Add one and re-tag."
+          if ! awk -v v="## v$version" '$0 == v {found=1; next} /^## / && found {exit} found' docs/CHANGELOG.md | grep -q '[^[:space:]]'; then
+            echo "::error::docs/CHANGELOG.md has no '## v$version' section. Add one and re-tag."
             exit 1
           fi
-          awk -v v="## v$version" '$0 == v {found=1; next} /^## / && found {exit} found' CHANGELOG.md > /tmp/changes.md
+          awk -v v="## v$version" '$0 == v {found=1; next} /^## / && found {exit} found' docs/CHANGELOG.md > /tmp/changes.md
           cat > /tmp/notes.md <<NOTES
           ## Install
 
@@ -157,7 +157,7 @@ jobs:
           NOTES
           cat /tmp/changes.md >> /tmp/notes.md
           echo "" >> /tmp/notes.md
-          echo "Full reasoning for every change is in [ROADMAP.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/ROADMAP.md)." >> /tmp/notes.md
+          echo "Full reasoning for every change is in [ROADMAP.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/docs/ROADMAP.md)." >> /tmp/notes.md
           cat /tmp/notes.md
 
       - name: Publish
@@ -183,16 +183,16 @@ jobs:
       - name: Carry the version bump back to main
         run: |
           version="${{ steps.v.outputs.version }}"
-          git checkout -- manifest.base.json manifest.json
+          git checkout -- manifests/base.json manifest.json
           git fetch origin main
           git checkout -B main origin/main
           node scripts/set-version.mjs "$version"
-          if git diff --quiet -- manifest.base.json manifest.json; then
+          if git diff --quiet -- manifests/base.json manifest.json; then
             echo "main is already at $version — nothing to carry back"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add manifest.base.json manifest.json
+          git add manifests/base.json manifest.json
           git commit -m "Release $version: set the manifest version from the tag"
           git push origin main

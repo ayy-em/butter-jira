@@ -6,7 +6,7 @@
 // in the nav. Three of those are gone; the logos stay, because a logo is a
 // picture rather than an icon.
 //
-// Inline SVG rather than an icon package, per PRODUCT.md: no build step, no
+// Inline SVG rather than an icon package, per docs/PRODUCT.md: no build step, no
 // runtime dependency. A path or two each, nothing to ship, and they inherit
 // currentColor so one drawing works in both themes.
 //

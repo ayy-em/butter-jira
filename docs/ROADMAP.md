@@ -17,7 +17,7 @@ built the way it is, which is the part that gets forgotten.
 needed a second pass — and it is gone because the backlog is empty: see
 [Design backlog, closed](#design-backlog-closed--ad-hoc-2026-09-06) below. The durable
 half of it moved rather than being deleted. The design system, the three pinned
-decisions and the traps are in [README.md](README.md#design-system); the things
+decisions and the traps are in [README.md](../README.md#design-system); the things
 that were deliberately *not* done are in [Icebox](#icebox), stated as decisions
 rather than as omissions.
 
@@ -35,11 +35,11 @@ rather than as omissions.
 | Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, the daily snapshots and per-sprint freezes, and a 5-minute response cache. One accessor module (`js/browser.js`) |
 | Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
 | Releases | Tag-led and automated (M19, 2026-09-06). `.github/workflows/release.yml` on a `v*` tag builds, verifies and publishes the three zips plus checksums, then pushes the version bump to main; `ci.yml` runs the suites on every push to main and every pull request |
-| Licence | [PolyForm Noncommercial 1.0.0](LICENSE), chosen 2026-09-06. Source-available, not open source: fork and modify freely for noncommercial purposes, commercial use reserved to the copyright holder, no warranty and no liability |
+| Licence | [PolyForm Noncommercial 1.0.0](../LICENSE), chosen 2026-09-06. Source-available, not open source: fork and modify freely for noncommercial purposes, commercial use reserved to the copyright holder, no warranty and no liability |
 | Version control | Git, `.gitignore` in place |
 | Tests | Twenty-three `scripts/test-*.mjs` suites (2113 checks) + eleven preview harnesses in `preview/`, one per view, + a manual smoke checklist. Every suite runs in CI on push and pull request, and again as the gate before a release publishes |
-| Repo root | Only what ships or governs: the four HTML entry points, `settings.js`, `background.js`, the manifests, the docs and `LICENSE`. Harnesses live in `preview/`, tooling in `scripts/` |
-| Design | Empty backlog as of 2026-09-06. Tokens, the two button bases, the icon sprite and the shared view header are documented in [README.md](README.md#design-system) |
+| Repo root | Only what has to be there: the four HTML entry points, `settings.js`, `background.js`, the generated `manifest.json` (where a browser looks when the repo is loaded unpacked), `README.md`, `LICENSE` and `config.local.example.json`. Manifest sources live in `manifests/`, prose in `docs/`, harnesses in `preview/`, tooling in `scripts/` |
+| Design | Empty backlog as of 2026-09-06. Tokens, the two button bases, the icon sprite and the shared view header are documented in [README.md](../README.md#design-system) |
 
 ## Sizing
 
@@ -205,7 +205,7 @@ open question 3, applied a third time. M18 was added new.
 | ~~Scope-added silently changes meaning depending on whether a freeze exists~~ | M13 ✔ | Resolved, and in three states rather than two: no freeze is the creation-date approximation, a start-of-sprint freeze is exact, and a mid-sprint freeze is exact only from the day it was taken and says which day. One function (`scopeBasis`) writes the sentence for the tile and the PDF, so they cannot disagree |
 | ~~A published release asset cannot be unpublished~~ | M19 ✔ | Resolved, in depth rather than once: the `build.mjs` allowlist makes `assets/brand/`, `assets/avatars/` and `config.local.json` unshippable and `--zip` refuses `--local-assets`, and the *Nothing personal in the archives* step re-checks each real zip with `unzip -l` before a byte is uploaded. Verified against the already-published `chrome-0.5.0.zip`, which was clean — by a careful hand, which is the thing that has now been replaced |
 | ~~A tag and the manifest version disagree, and the release is named one thing and ships another~~ | M19 ✔ | Resolved by removing the second number rather than reconciling two: open question 1 answered **tag-led**, so `scripts/set-version.mjs` writes the tag's version into the manifests during the run and the archive check re-reads it back out of each zip. There is nothing left to disagree with |
-| ~~Public repo, downloadable builds, no licence~~ | M19 ✔ | Resolved 2026-09-06: [PolyForm Noncommercial 1.0.0](LICENSE). It had stopped being a future risk — the repo was already public and `v0.5.0` already carried three downloadable zips, one of them downloaded, all under default exclusive copyright |
+| ~~Public repo, downloadable builds, no licence~~ | M19 ✔ | Resolved 2026-09-06: [PolyForm Noncommercial 1.0.0](../LICENSE). It had stopped being a future risk — the repo was already public and `v0.5.0` already carried three downloadable zips, one of them downloaded, all under default exclusive copyright |
 | CI pushes the version bump to `main` and the push is rejected | M19 | Ordered so it cannot cost a release: the bump is the last step, after publishing, so a protected branch or a push race leaves the assets on the page and the fix at two commands by hand. Loud rather than silent — the job goes red |
 | A quarter is ~90 days and the GitHub window is 45 | M16, M17 | Store per-sprint rollups at rollover; until they exist, the quarter document states the shorter window it actually covers |
 | Lines of code read as a productivity measure | M16, M17 | Team-level per sprint only, never per person, labelled as lines reaching the default branch. M14's 1:1 sheet is the one stated exception and carries its own row above |
@@ -1160,7 +1160,7 @@ first place: ten defects across eight surfaces, most of them half a sitting,
 belonging to no feature. A 2026-09-05 review found them and wrote them down with
 enough context to pick any one up cold; this is what happened to them. The file
 that held them is gone — its durable half is the
-[design system](README.md#design-system) and the
+[design system](../README.md#design-system) and the
 [decisions taken and not revisited](#design-decisions-taken-and-not-revisited)
 above.
 

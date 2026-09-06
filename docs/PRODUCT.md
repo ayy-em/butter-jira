@@ -169,9 +169,9 @@ and nothing is uploaded by hand.
 
 ## Evidence on Hand
 
-- `README.md` (~69 KB) — install, configuration, every feature, data handling,
+- `README.md` (~69 KB, repo root) — install, configuration, every feature, data handling,
   permissions, keyboard shortcuts, file layout.
-- `ROADMAP.md` (~121 KB) — the full milestone record, kept unsummarised because
+- `docs/ROADMAP.md` (~121 KB) — the full milestone record, kept unsummarised because
   it holds the reasoning; includes the 2026-09-03 renumbering reconciliation
   table (M13 ↔ M15 swap, M10 retired).
 - Twenty-three `scripts/test-*.mjs` suites (2113 checks, no dependencies, no

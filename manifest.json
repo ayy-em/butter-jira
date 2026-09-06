@@ -14,11 +14,19 @@
     "https://*/*"
   ],
   "icons": {
+    "16": "assets/logo-16.png",
+    "32": "assets/logo-32.png",
+    "48": "assets/logo-48.png",
     "128": "assets/logo.png"
   },
   "action": {
     "default_title": "butter_jira",
-    "default_icon": "assets/logo.png"
+    "default_icon": {
+      "16": "assets/logo-16.png",
+      "32": "assets/logo-32.png",
+      "48": "assets/logo-48.png",
+      "128": "assets/logo.png"
+    }
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'"

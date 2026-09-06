@@ -1,11 +1,17 @@
 {
   "_comment": [
     "Everything the three targets agree on. scripts/build.mjs merges this with",
-    "the per-target overlay in manifest.<target>.json and writes the result to",
+    "the per-target overlay in manifests/<target>.json and writes the result to",
     "dist/<target>/manifest.json. Edit this file, not the generated ones.",
     "",
-    "manifest.json at the repo root is the Chrome build, kept in place so the",
-    "repo still loads unpacked with no build step — see the README."
+    "The mark is declared at four sizes rather than one. Browsers downscale a",
+    "single 128 for the 16px toolbar slot themselves, and the neon spikes on",
+    "this artwork do not survive that — each size is rendered from the source",
+    "art instead.",
+    "",
+    "manifest.json at the repo root is the Chrome build, and the only manifest",
+    "that belongs there: it is where a browser looks when the repo is loaded",
+    "unpacked with no build step. It is generated — see the README."
   ],
   "manifest_version": 3,
   "name": "butter_jira",
@@ -22,11 +28,19 @@
     "https://*/*"
   ],
   "icons": {
+    "16": "assets/logo-16.png",
+    "32": "assets/logo-32.png",
+    "48": "assets/logo-48.png",
     "128": "assets/logo.png"
   },
   "action": {
     "default_title": "butter_jira",
-    "default_icon": "assets/logo.png"
+    "default_icon": {
+      "16": "assets/logo-16.png",
+      "32": "assets/logo-32.png",
+      "48": "assets/logo-48.png",
+      "128": "assets/logo.png"
+    }
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'"

@@ -38,6 +38,12 @@ retention policy; it says how much is stored and deletes it in one action.
 menu instead of one promoted tab and a recap button buried in the dashboard
 header. Standup keeps its `s`.
 
+**New mark.** ButterJira has a face. It replaces the old logo everywhere it
+appeared — the nav bar, the loading spinner, the setup card, the Settings
+header, and the toolbar button, which now carries the mark rendered at 16, 32,
+48 and 128 rather than one 128 the browser squashes. Every page also has a
+favicon for the first time, so an app tab is findable in a crowded tab strip.
+
 ## v0.6.0
 
 **Sprint freeze, and what changed under the plan.** The sprint's state is frozen
@@ -73,7 +79,7 @@ pills now show which one is selected. The nav tabs are one width.
 
 **Installable from a release.** Chrome, Firefox and Edge zips, built and
 published by GitHub Actions from a tag, with checksums — and a licence:
-[PolyForm Noncommercial 1.0.0](LICENSE). Source-available, not open source:
+[PolyForm Noncommercial 1.0.0](../LICENSE). Source-available, not open source:
 fork and modify freely for noncommercial purposes.
 
 **Upgrading from v0.5.0:** unzip over the old folder and press refresh on the

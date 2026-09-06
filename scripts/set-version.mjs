@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Writes a version into manifest.base.json, and regenerates the root
+// Writes a version into manifests/base.json, and regenerates the root
 // manifest.json that is derived from it (M19).
 //
 // Releases are tag-led: `git push origin v0.6.0` is the whole ritual, and this
@@ -12,7 +12,7 @@
 // leading.
 //
 // The edit is a targeted rewrite of the one line rather than a JSON
-// round-trip. manifest.base.json opens with a `_comment` array written for
+// round-trip. manifests/base.json opens with a `_comment` array written for
 // whoever edits it by hand, and reserialising the file is one formatting
 // decision away from churning every line of a file nobody asked to reformat.
 //
@@ -52,7 +52,7 @@ async function main() {
     process.exit(1);
   }
 
-  const basePath = path.join(ROOT, "manifest.base.json");
+  const basePath = path.join(ROOT, "manifests", "base.json");
   const before = await fs.readFile(basePath, "utf8");
   let after;
   try {
@@ -63,10 +63,10 @@ async function main() {
   }
 
   if (after === before) {
-    console.log(`  = manifest.base.json is already v${version}`);
+    console.log(`  = manifests/base.json is already v${version}`);
   } else {
     await fs.writeFile(basePath, after);
-    console.log(`  ✓ manifest.base.json → v${version}`);
+    console.log(`  ✓ manifests/base.json → v${version}`);
   }
 
   // The root manifest.json is generated from the base and committed, so it has
