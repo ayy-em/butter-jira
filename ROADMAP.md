@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-09-05
+Last updated: 2026-09-06
 
 An MV3 browser extension for Chrome, Firefox and Edge, giving Gantt, Backlog,
 and Kanban views over Jira Cloud boards. This roadmap takes it from an internal single-tenant tool to a
@@ -12,10 +12,14 @@ deferred backlog, then everything already shipped. Completed milestones are kept
 in full rather than summarised away — they are the record of *why* each thing is
 built the way it is, which is the part that gets forgotten.
 
-**Design and UX work lives in [UX.md](UX.md)**, not here. This file is organised
-by milestone — what gets built next. That one is organised by surface and by
-defect: contrast, focus, icon vocabularies, screens that need a second pass.
-Almost none of it is milestone-sized, and folding it in would bury it.
+**Design and UX work used to live in `UX.md`.** That file was a backlog of what a
+2026-09-05 design review found — contrast, focus, icon vocabularies, screens that
+needed a second pass — and it is gone because the backlog is empty: see
+[Design backlog, closed](#design-backlog-closed--ad-hoc-2026-09-06) below. The durable
+half of it moved rather than being deleted. The design system, the three pinned
+decisions and the traps are in [README.md](README.md#design-system); the things
+that were deliberately *not* done are in [Icebox](#icebox), stated as decisions
+rather than as omissions.
 
 ## Current state
 
@@ -33,8 +37,8 @@ Almost none of it is milestone-sized, and folding it in would bury it.
 | Releases | Tags only (`v0.3.0`, `v0.5.0`); zips built by hand, nothing published. No `.github/` and no CI of any kind — M19 |
 | Licence | None chosen. Blocks the first public release (M19) |
 | Version control | Git, `.gitignore` in place |
-| Tests | Eighteen `scripts/test-*.mjs` suites (1791 checks) + seven preview harnesses + a manual smoke checklist |
-| Design backlog | [UX.md](UX.md) — surface-level defects and polish, ordered by value. Deliberately not milestones: most are half a sitting and belong to no feature |
+| Tests | Twenty-one `scripts/test-*.mjs` suites (1905 checks) + nine preview harnesses, one per view, + a manual smoke checklist |
+| Design | Empty backlog as of 2026-09-06. Tokens, the two button bases, the icon sprite and the shared view header are documented in [README.md](README.md#design-system) |
 
 ## Sizing
 
@@ -644,11 +648,195 @@ plumbing.
 - Slack integration (press a button -> bot posts standup's recap on Slack via webhook)
 - A real build step + test runner, once module count justifies it.
 
+### Design decisions taken and not revisited
+
+Not oversights, and not backlog. Each of these was looked at during the
+2026-09-06 design pass and deliberately left. Re-open only with the author.
+
+- **Undo on drag-to-transition.** The board's one Jira write is also the least
+  reversible one — a workflow transition is frequently one-way, so "just drag it
+  back" is not always possible. Undo would mean issuing a *second* write, and
+  PRODUCT.md's commitment is that every write is user-initiated and enumerable:
+  the app writes in six places and nowhere else. Adding a seventh is a product
+  decision, not a polish task. The keyboard path added in the same pass calls the
+  same code the drop does, so it inherits the same refusal wording and the same
+  rollback, and neither of them invents an undo.
+- **The dark theme's chip tones.** `--tone-red` at 3.96:1 and `--tone-purple` at
+  3.71:1 against their own chip backgrounds are marginally under AA. Light theme
+  was fixed because it was genuinely broken (1.5–3.3:1); dark was left because
+  the palette is pinned, and moving two tones to clear a threshold is a scheme
+  change wearing a contrast fix's clothes.
+- **The hash-coloured card top border.** Every board card gets a 3px top edge
+  from `hashColor(issue.key)`. It carries no meaning, sits directly above a
+  *meaningful* board stripe, and puts around forty random hues on a full board.
+  Removing it, or making it carry days-to-due, is a taste call the author has not
+  made — so it stays as it is rather than being changed by whoever noticed.
+- **The nav's ticking wall clock.** It re-renders a seconds clock every 1000ms in
+  the visual centre of the shell, showing what the OS already shows, while the one
+  fact only this app knows — how stale its data is — sits in 11px muted text in
+  the bottom-left corner. Same kind of call.
+- **The dashboard's `✓ ! ✕ –` hygiene scale.** Text, not drawn, and the only
+  glyphs left in the UI after the icon pass. The tile prints the word beside the
+  mark, so the glyph is never the only carrier of the fact, and turning a severity
+  scale into icons is a design decision rather than a consistency fix — the `✕`
+  there means "bad", not "close".
+- **Kanban's and Monitor's interiors.** Both got headers, the app's buttons, drawn
+  icons, preview harnesses, and — on Kanban — a rebuilt column editor and a
+  keyboard path. What has *not* been reconsidered is the shape of the things
+  themselves: Kanban's card and column CSS is still generic, and Monitor is still
+  a stack of sections over tables. Both are defensible. Any further pass is a
+  redesign with a stated intent, not polish, and should start in the harnesses in
+  both themes.
+- **The Backlog still owns the view header's class names.** `.bl-header` and
+  friends are aliases in `css/app.css`, so there is one definition, but the markup
+  in `js/views/backlog.js` has not moved to `viewHeader()`. Worth doing the day
+  that file is open for another reason; not worth opening it for.
+
 ---
 
 # Completed
 
 Newest first.
+
+## Design backlog, closed ✔ *(ad-hoc, 2026-09-06)*
+
+**Size: L** · Not a milestone, and that is why it was tracked separately in the
+first place: ten defects across eight surfaces, most of them half a sitting,
+belonging to no feature. A 2026-09-05 review found them and wrote them down with
+enough context to pick any one up cold; this is what happened to them. The file
+that held them is gone — its durable half is the
+[design system](README.md#design-system) and the
+[decisions taken and not revisited](#design-decisions-taken-and-not-revisited)
+above.
+
+**The theme that runs through all ten:** almost every one of these was invisible
+to the person who wrote it. Ten buttons failed contrast in dark theme only. The
+drawer looked like a dialog in a screenshot. The column editor is the first thing
+a new clone has to use and the last thing its author ever touches again. Two views
+had no way to be looked at at all. The fix in most cases was not the change — it
+was building the thing that would have shown you.
+
+**1 · Primary button labels failed AA in dark theme.** Ten selectors put
+`color: #fff` on `var(--accent-primary)` = **3.21:1**. An eleventh,
+`.create-submit`, was correct and had been "fixed" into line with the other ten
+for consistency, which made twelve buttons uniformly wrong rather than noticing
+the outlier was right. There is now an `--on-accent` token — near-black in dark
+(5.98:1), white in light (5.17:1), written as literals rather than `var(--bg)` so
+a surface that re-declares `--bg` locally cannot silently repaint every primary
+label. `scripts/test-contrast.mjs` reads the palette out of `css/app.css` and
+fails on any rule that paints solid accent and then names its own colour. It
+caught a second one on the way in: `#toast.error` was hardcoded `#EF4444`, which
+is 3.76:1 on the light theme's white surface — the error message harder to read
+than the confirmation it replaces.
+
+**2 · The issue drawer was not really a dialog.** It set `role="dialog"` and
+stopped: no `aria-modal`, no focus move, no trap, no restore. This was the *root
+cause* of the standup Escape collision patched the day before, not an
+accessibility footnote — while focus sat on `<body>` behind a dimmed backdrop,
+every document-level key handler in the app still believed it was the frontmost
+thing, and standup's INPUT/TEXTAREA guard could not tell a card being open from
+nothing being open. Two things in the fix are load-bearing: the trap acts only
+while focus is *inside* the panel (a document-level `focusin` that drags focus
+back — the usual way to write one — would make the re-auth prompt and the command
+palette unusable, since both are appended to `<body>` outside the overlay and can
+open over an open drawer), and focus restoration re-*finds* the trigger by
+`data-*` or id, because boards repaint while a drawer is open and the element that
+was clicked is often gone by the time it closes.
+
+**3 · The Kanban column editor asked you to remember Jira.** Raw status strings,
+comma-separated, from memory, into a bare input — and a `filter(g => g.name &&
+g.statuses.length)` on save that dropped any half-finished row with no message and
+no highlight. It is the *first* thing anyone who clones this app has to do,
+because their statuses are not `To Do / In Progress / In Review / Done`, and it
+was the least-supported step in the product. Rebuilt as a two-pane picker over
+the statuses the app has **already fetched**: token fields with completion, a
+shelf ordered unmapped-first with issue counts, click-to-*move* (not copy, because
+`resolveStatusGroup` takes the first match and a status in two columns silently
+belongs to the earlier one), a draft that Cancel discards, and a save that refuses
+loudly by row with a message saying which column and why. Typing a status Jira has
+that no current issue is in still works, and is marked as such — because the other
+way to get one is a typo. The settings page had the identical silent drop and now
+shares `validateStatusGroups()`.
+
+**4 · Settings was the least designed screen in the app.** 449 lines of inline
+`<style>` — the only stylesheet in the project not in `css/`, which is exactly why
+it drifted — now `css/settings.css`, moved verbatim. All seven `<details>` were
+collapsed on first paint, so the settings page opened showing no settings; the
+first opens. The theme toggle was twenty spans hand-copied from
+`js/components/nav.js` and `settings.js` reimplemented `loadTheme`/`saveTheme`
+rather than importing them; both now come from `js/components/theme-toggle.js`.
+
+**5 · There was no keyboard path to change an issue's status.** Dragging was the
+only way, on the surface most often corrected during a standup, on a shared
+screen, by someone who may be driving from a laptop trackpad — while every other
+write in the app had one. The board now has a roving tabindex: arrows to move,
+Home/End, Enter to open, `Shift+←/→` to move the issue a column. It calls the same
+`onIssueMove` the drop does, so the transition matching, optimistic paint,
+rollback and refusal wording are all the drag's, and focus survives the repaint
+because the board remembers the focused *key* rather than the element. Every key
+it handles is stopped, not just prevented: standup binds ArrowRight on document to
+advance the turn, and a card somebody has deliberately focused owns its own
+arrows.
+
+**6 · Kanban and Monitor had no preview harness.** Five views had one, and every
+light-theme defect the review found was in one of the three that did not. They
+have one now, so every view does. It paid for itself the same hour: Monitor's
+finding table sets `width: 100%` on the summary cell, so every other column is
+squeezed to its content — and with nothing stopping them, they wrapped. A board
+named "Acme web" rather than "ACME" was enough to break an issue **key**
+across two lines as `ACME-` / `102`. There was nowhere to see that before, because
+the board names in a live Jira are whatever they are and nobody screenshots the
+Monitor.
+
+**7 · Error toasts vanished before they could be read.** 5000ms for everything.
+The refusal wording is the good part of the app — *"ACME-101: the workflow allows
+no move from In Review to Done — only Blocked, Reopened"* — and it got five
+seconds, bottom-centre, on a screen a room is reading, while the card you dropped
+sat wherever you dropped it. Errors now dwell fifteen seconds, carry a dismiss,
+pause while the pointer is on them, and announce assertively; and the last message
+can be brought back from the command palette. Recall never re-offers an action —
+an Undo that reappears an hour later points at a write long since overtaken.
+
+**8 · Four icon vocabularies, one with no accessible name.** Priority on a card
+was `🔴🟠🟡🔵` with no title and no text: the one element on a card with no
+accessible name at all, the only encoding of priority anywhere on the board, and a
+distinction carried entirely in hue. Overdue was a `📅` hue-rotated −60°, which
+renders as a different picture on every platform. Elsewhere: two crosses (`✕`
+U+2715 and `×` U+00D7) and five carets (`▾ ▸ ▶ ▼ ▲`) at five weights, swapping
+rather than turning. `js/components/icons.js` is now the app's sprite — authored
+paths, no icon package per PRODUCT.md — with one cross, one caret rotated for
+every direction, and priority as a *shape* in a tone with a name. Two places
+cannot hold an element and get the same drawing another way: the roadmap's
+in-chart caret and the settings section marker.
+
+**9 · Around fifteen button implementations, and ten radii.** Down to `.btn` and
+`.btn-chip`, with the old class names kept as **aliases** rather than renamed
+across the markup — the win was one definition, and renaming twenty call sites to
+get it would have been a second, riskier change wearing the same hat. Radii onto
+four tokens plus a pill; 1px and 2px stay literals because on an 8px dot they are
+a softened corner, not a corner style.
+
+**10 · Kanban and Monitor were the previous generation, and the standup was two
+generations at once.** The tell on the first two was that they opened straight
+onto controls while every newer view says what it is first;
+`js/components/view-header.js` is now the one implementation and both have one.
+Inside the standup, setup was `.su-*` and the end screen was `.standup-setup` —
+the generation before it, a single card with its own rows, its own subtitle, its
+own button row and its own textarea. They bracket the same meeting and are the
+only two screens anyone looks at for more than a few seconds, so reading as two
+different products was the most visible seam in the app. The end screen is `.su-*`
+now, keeping only its headline, which is a celebration sized for the room.
+
+**Left behind on purpose:** see
+[Design decisions taken and not revisited](#design-decisions-taken-and-not-revisited).
+
+**Added along the way:** `scripts/test-kanban.mjs`, `scripts/test-contrast.mjs`,
+`scripts/test-drawer.mjs`, `preview-kanban.*`, `preview-monitor.*`, a `?done=1`
+state on the standup harness for the end screen, and a fix to
+`scripts/test-imports.mjs`, which stripped template literals whole and therefore
+missed a call inside `${…}` that went in without its import **during this very
+pass** — precisely the bug that file exists to catch. Eighteen suites and 1791
+checks became twenty-one and 1905.
 
 ## M13 — Sprint freeze and diff ✔ *(2026-09-03)*
 

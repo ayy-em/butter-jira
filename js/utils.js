@@ -8,6 +8,7 @@ import {
   saveConfig,
 } from "./config.js";
 import { avatarOverrideFor, displayNameFor, isOnTeam } from "./team.js";
+import { icon } from "./components/icons.js";
 
 // Boards come from user config — there are no built-in defaults, because board
 // IDs and project keys belong to one specific Jira site.
@@ -199,6 +200,87 @@ export function resolveStatusGroup(statusName, groups) {
   return statusName;
 }
 
+// What a column editor is allowed to save.
+//
+// Both editors — the board's COLUMNS panel and the settings page — used to end
+// with `filter(g => g.name.trim() && g.statuses.length)`: a half-finished row
+// was dropped on save with no message and no highlight, so the way to discover
+// that a column had not been kept was to notice it missing from the board
+// afterwards. A row nobody has touched is noise and is dropped; a row somebody
+// has half-filled is work, and is refused loudly instead.
+//
+// Pure, and returns problems rather than throwing, so the caller can mark the
+// rows it got back by index and leave the panel open on what the user typed.
+export function validateStatusGroups(groups) {
+  const cleaned = [];
+  const problems = [];
+  const namesSeen = new Map();
+  const statusesSeen = new Map();
+
+  (groups || []).forEach((group, index) => {
+    const name = String(group?.name || "").trim();
+    const statuses = (group?.statuses || [])
+      .map((s) => String(s).trim())
+      .filter(Boolean);
+
+    // The "+ Add column" row that was never filled in. Not half-finished — not
+    // started — so it goes quietly.
+    if (!name && !statuses.length) return;
+
+    if (!name) {
+      problems.push({ index, message: `A column holding ${statuses.join(", ")} has no name.` });
+      return;
+    }
+    if (!statuses.length) {
+      problems.push({ index, message: `"${name}" has no statuses, so it would always be empty.` });
+      return;
+    }
+    const nameKey = name.toLowerCase();
+    if (namesSeen.has(nameKey)) {
+      problems.push({ index, message: `Two columns are both called "${name}".` });
+      return;
+    }
+    namesSeen.set(nameKey, index);
+
+    for (const status of statuses) {
+      const statusKey = status.toLowerCase();
+      // resolveStatusGroup takes the first match, so a status in two columns
+      // silently belongs to the earlier one. Say so rather than pick.
+      if (statusesSeen.has(statusKey)) {
+        problems.push({
+          index,
+          message: `"${status}" is in two columns; an issue can only be in one.`,
+        });
+      } else {
+        statusesSeen.set(statusKey, index);
+      }
+    }
+    cleaned.push({ name, statuses });
+  });
+
+  if (!cleaned.length && !problems.length) {
+    problems.push({ index: -1, message: "Add at least one column." });
+  }
+  return { groups: cleaned, problems, ok: problems.length === 0 };
+}
+
+// Every status name this session has actually seen, with how many issues are in
+// each. The point of the column editor's shelf: the app has already fetched
+// these, so nobody should be typing them from memory. Names keep the casing
+// Jira sent; matching everywhere else is case-insensitive.
+export function statusesInIssues(issues) {
+  const counts = new Map();
+  for (const issue of issues || []) {
+    const name = issue?.fields?.status?.name;
+    if (!name) continue;
+    const key = name.toLowerCase();
+    const seen = counts.get(key);
+    if (seen) seen.count++;
+    else counts.set(key, { name, count: 1 });
+  }
+  return [...counts.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export async function loadTheme() {
   const result = await syncGet("theme");
   const theme = result.theme || "dark";
@@ -246,8 +328,29 @@ export const cache = {
   },
 };
 
+// A confirmation is a receipt — you already know what you did, and it can go.
+// An error is the opposite: it is the app telling you something you did not
+// know, in wording that is often the only place the reason appears.
+//
+//   "ACME-101: the workflow allows no move from In Review to Done — only
+//    Blocked, Reopened"
+//
+// That sentence used to get five seconds, bottom-centre, on a screen a room is
+// reading, while the card you dropped sits wherever you dropped it. Errors now
+// stay up long enough to be read aloud, keep a visible way to dismiss them
+// early, and — because the one thing nobody could do was ask what it said again
+// — the last one can be brought back.
 const TOAST_MS = 5000;
+const TOAST_ERROR_MS = 15000;
 let toastTimer = null;
+
+// The last message shown, so it can be recalled after it has gone. Held in
+// memory only: it is a thing that just happened on this screen, not a log.
+let lastToast = null;
+
+export function lastToastMessage() {
+  return lastToast;
+}
 
 // Shared by the router and any view that needs to report a one-off outcome.
 //
@@ -256,8 +359,33 @@ let toastTimer = null;
 // timer is now cleared rather than left to fire — a second toast used to cut the
 // first one short, and an undo that disappears early is worse than no undo.
 export function showToast(message, isError = false, action = null) {
+  const shown = renderToast(message, isError, action);
+  if (shown) lastToast = { message, isError, at: Date.now() };
+}
+
+// Put the last message back on screen. Never re-runs an action — an undo button
+// that reappears an hour later, pointing at a write that has long since been
+// overtaken, is a trap rather than a convenience.
+export function recallToast() {
+  if (!lastToast) {
+    renderToast("Nothing to show — no messages yet", false, null);
+    return false;
+  }
+  renderToast(`${lastToast.message}  ·  ${relativeAge(lastToast.at)}`, lastToast.isError, null);
+  return true;
+}
+
+function relativeAge(at) {
+  const seconds = Math.max(0, Math.round((Date.now() - at) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.round(minutes / 60)}h ago`;
+}
+
+function renderToast(message, isError, action) {
   const toast = document.getElementById("toast");
-  if (!toast) return;
+  if (!toast) return false;
   if (toastTimer) clearTimeout(toastTimer);
 
   toast.textContent = "";
@@ -277,10 +405,54 @@ export function showToast(message, isError = false, action = null) {
     toast.appendChild(btn);
   }
 
+  // An error holds the screen for a while, so it needs a way off it that is not
+  // waiting. Confirmations do not: they are gone before anyone would reach.
+  if (isError) {
+    const dismiss = document.createElement("button");
+    dismiss.className = "toast-dismiss icon-btn";
+    dismiss.type = "button";
+    dismiss.appendChild(icon("close", 12));
+    dismiss.title = "Dismiss";
+    dismiss.setAttribute("aria-label", "Dismiss this message");
+    dismiss.addEventListener("click", hideToast);
+    toast.appendChild(dismiss);
+  }
+
   // The toast is click-through by default so it never swallows a click on the
   // board underneath; one with a button in it has to opt back in.
-  toast.className = "visible" + (isError ? " error" : "") + (action ? " actionable" : "");
-  toastTimer = setTimeout(hideToast, action?.timeout ?? TOAST_MS);
+  const clickable = Boolean(action) || isError;
+  toast.className =
+    "visible" + (isError ? " error" : "") + (clickable ? " actionable" : "");
+  // Announced, and assertively for an error: a message that appears and leaves
+  // on a timer is invisible to a screen reader otherwise.
+  toast.setAttribute("role", isError ? "alert" : "status");
+  toast.setAttribute("aria-live", isError ? "assertive" : "polite");
+
+  const dwell = action?.timeout ?? (isError ? TOAST_ERROR_MS : TOAST_MS);
+  toastTimer = setTimeout(hideToast, dwell);
+  // Reading it stops the clock. Somebody with the pointer on the message is
+  // mid-sentence, and a countdown that ignores that is the reason this item
+  // existed.
+  if (clickable) armHoverHold(toast, dwell);
+  return true;
+}
+
+// While the pointer is over the toast the timer is off; when it leaves, the
+// full dwell starts again rather than resuming a stub of it.
+function armHoverHold(toast, dwell) {
+  const hold = () => {
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = null;
+  };
+  const release = () => {
+    if (!toast.classList.contains("visible")) return;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, dwell);
+  };
+  toast.onmouseenter = hold;
+  toast.onmouseleave = release;
+  toast.onfocusin = hold;
+  toast.onfocusout = release;
 }
 
 function hideToast() {
@@ -289,4 +461,8 @@ function hideToast() {
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = null;
   toast.className = "";
+  toast.onmouseenter = null;
+  toast.onmouseleave = null;
+  toast.onfocusin = null;
+  toast.onfocusout = null;
 }

@@ -30,6 +30,14 @@
   --accent-warning: #F7914F;
   --accent-success: #4FCF8E;
   --accent-danger: #EF4444;
+  /* Label colour for anything sitting ON --accent-primary. The accents are
+     picked to read against --bg, which means the *text* on top of them has to
+     flip per theme: #fff on the dark theme's #4F8EF7 is 3.21:1 and fails AA at
+     every size a button uses, while near-black on the same blue is 5.98:1.
+     Light theme is the other way round (#fff on #2563EB is 5.17:1). Written as
+     literals rather than var(--bg) so a surface that re-declares --bg locally
+     can't silently repaint every primary button's label. */
+  --on-accent: #0D0F12;
 }
 
 /* Global type scale. Every font-size in this app is written as
@@ -52,6 +60,7 @@
   --accent-warning: #EA580C;
   --accent-success: #16A34A;
   --accent-danger: #DC2626;
+  --on-accent: #FFFFFF;
 }
 
 /* The rest of the palette, which existed as hex literals scattered across six
@@ -125,7 +134,15 @@
   --radius-sm: 4px;
   --radius-md: 7px;
   --radius-lg: 10px;
+  /* A pill is not a step on the scale — it is "as round as it goes", and its
+     radius has to exceed half the element's height whatever that turns out to
+     be. It was written as 16px in one place and 999px in four others. */
+  --radius-pill: 999px;
 }
+/* 1px and 2px are deliberately not on this scale and stay as literals: they sit
+   on 8px legend dots, 7px timer pips, chart segments and the toggle's rays,
+   where the radius is a softened corner on a shape a few pixels wide rather
+   than a box with a corner style. Rounding those up to 3px rounds them away. */
 
 /* Stacking order, in one place, in the order things actually sit. Written down
    because `z-index: 200` in one file and `z-index: 400` in another is a
@@ -179,6 +196,11 @@ html, body {
   position: fixed;
   bottom: 24px;
   left: 50%;
+  /* A row, so an error's dismiss button sits at the right edge rather than
+     flowing along as the last word of a message that has wrapped. */
+  display: flex;
+  align-items: center;
+  max-width: min(720px, calc(100vw - 48px));
   transform: translateX(-50%) translateY(80px);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -200,21 +222,43 @@ html, body {
    the expiry banner is up landed on top of its "Update token" button. The
    banner is the one that cannot be dismissed by waiting, so the toast moves. */
 body:has(.expiry-banner) #toast { bottom: 76px; }
-#toast.error { border-color: #EF4444; color: #EF4444; }
+/* The token, not a literal. This was #EF4444 in both themes — the dark theme's
+   danger colour — which is 3.76:1 on the light theme's white surface, under AA
+   for 13px text. The light token is #DC2626 and clears it at 4.83:1. An error
+   message that is harder to read than the confirmation it replaces is the wrong
+   way round. */
+#toast.error { border-color: var(--accent-danger); color: var(--accent-danger); }
 /* A toast carrying an Undo button has to be clickable; a plain one stays
    click-through so it never intercepts a click on the board beneath it. */
 #toast.actionable { pointer-events: auto; }
 #toast .toast-action {
   margin-left: 14px;
+  flex-shrink: 0;
   background: none;
   border: 1px solid var(--accent-primary);
   color: var(--accent-primary);
   font-size: calc(12px * var(--font-scale));
   padding: 3px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
-#toast .toast-action:hover { background: var(--accent-primary); color: var(--bg); }
+#toast .toast-action:hover { background: var(--accent-primary); color: var(--on-accent); }
+/* Errors dwell for fifteen seconds instead of five, which is long enough that
+   waiting them out stops being the only way off the screen. */
+#toast .toast-dismiss {
+  margin-left: auto;
+  padding-left: 14px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.7;
+  font-size: calc(13px * var(--font-scale));
+  line-height: 1;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+#toast .toast-dismiss:hover { opacity: 1; }
 
 .setup-overlay {
   display: flex;
@@ -226,7 +270,7 @@ body:has(.expiry-banner) #toast { bottom: 76px; }
 .setup-modal {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 36px 32px 28px;
   width: 400px;
   animation: modal-in 0.25s ease;
@@ -263,7 +307,7 @@ body:has(.expiry-banner) #toast { bottom: 76px; }
   padding: 10px 12px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(13px * var(--font-scale));
@@ -288,7 +332,7 @@ body:has(.expiry-banner) #toast { bottom: 76px; }
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(10px * var(--font-scale));
   padding: 4px 8px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   text-transform: uppercase;
 }
@@ -298,8 +342,8 @@ body:has(.expiry-banner) #toast { bottom: 76px; }
   padding: 11px;
   background: var(--accent-primary);
   border: none;
-  border-radius: 5px;
-  color: #fff;
+  border-radius: var(--radius-sm);
+  color: var(--on-accent);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(13px * var(--font-scale));
   font-weight: 600;
@@ -409,6 +453,285 @@ html { scrollbar-color: var(--border) var(--bg); }
 }
 .issue-key:hover { text-decoration: underline; }
 
+/* ── Icons ───────────────────────────────────────────────────────────────── */
+/* One drawing per idea, from js/components/icons.js. Sized by the caller,
+   coloured by whatever they sit in, and aligned to the text they sit beside —
+   an inline SVG's baseline is its bottom edge, so without this every icon in a
+   row of text sits a couple of pixels low. */
+.icon {
+  display: inline-block;
+  vertical-align: -0.14em;
+  flex-shrink: 0;
+}
+/* There is one caret in the app, drawn pointing down. Everything that points
+   another way is this one turned, rather than a different glyph picked per
+   file — ▾ ▸ ▶ ▼ ▲ were all in use, in five different weights. */
+/* A button whose whole content is one icon. The glyph these replaced was text,
+   so the buttons sized and centred it with font-size and padding; an SVG needs
+   to be centred as a box instead. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The same chevron as an image, for the one place that cannot hold an element:
+   a ::before marker. Kept beside the icons so the two cannot drift apart. */
+:root {
+  --caret-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+.icon-rot-90 { transform: rotate(-90deg); }
+.icon-rot-180 { transform: rotate(180deg); }
+.icon-rot-270 { transform: rotate(90deg); }
+/* Collapsed/expanded, as a rotation of the same mark. Transitioned, because a
+   caret that turns says "this opens" where one that swaps says nothing. */
+.icon-caret { transition: transform 0.15s ease; }
+.icon-caret.open { transform: rotate(0deg); }
+.icon-caret.closed { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .icon-caret { transition: none; }
+}
+
+/* ── View header ─────────────────────────────────────────────────────────── */
+/*
+ * An icon tile, a title, a line saying what you are looking at, and a strip of
+ * counts on the right. Built by js/components/view-header.js.
+ *
+ * These rules were the Backlog's, under .bl-* names. The Backlog is the screen
+ * they were designed on and its markup still uses those names, so they are kept
+ * here as aliases rather than renamed across a working view — the point of
+ * moving them was to stop Kanban and Monitor needing a second copy, not to
+ * churn the screen that got it right.
+ */
+
+.view-header,
+.bl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.view-header-left,
+.bl-header-left { display: flex; align-items: center; gap: 13px; min-width: 0; }
+.view-header-icon,
+.bl-header-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; flex: 0 0 42px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--accent-primary);
+}
+.view-title,
+.bl-title {
+  font-size: calc(21px * var(--font-scale));
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text);
+  line-height: 1.15;
+}
+.view-subtitle,
+.bl-subtitle { font-size: calc(12.5px * var(--font-scale)); color: var(--muted); margin-top: 2px; }
+
+.view-tiles,
+.bl-tiles {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.view-tile,
+.bl-tile {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0 7px;
+  padding: 10px 18px;
+  border-left: 1px solid var(--border);
+}
+.view-tile:first-child,
+.bl-tile:first-child { border-left: none; padding-left: 20px; }
+.view-tile-dot,
+.bl-tile-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--tone, var(--muted));
+  grid-row: 1;
+}
+.view-tile-num,
+.bl-tile-num {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(19px * var(--font-scale)); font-weight: 600; color: var(--text); line-height: 1.1;
+}
+.view-tile-label,
+.bl-tile-label {
+  grid-column: 1 / -1;
+  font-size: calc(10.5px * var(--font-scale)); color: var(--muted); white-space: nowrap;
+}
+/* The total is the headline figure, so it loses the dot and gains an underline
+   — colour would make it look like just another status. */
+.view-tile.tone-total .view-tile-dot,
+.bl-tile.tone-total .bl-tile-dot { display: none; }
+.view-tile.tone-total .view-tile-num,
+.bl-tile.tone-total .bl-tile-num {
+  grid-column: 1 / -1;
+  font-size: calc(22px * var(--font-scale));
+  border-bottom: 2px solid var(--accent-primary);
+  padding-bottom: 1px;
+  justify-self: start;
+}
+.view-tile.tone-gray,
+.bl-tile.tone-gray { --tone: var(--tone-gray); }
+.view-tile.tone-blue,
+.bl-tile.tone-blue { --tone: var(--tone-blue); }
+.view-tile.tone-green,
+.bl-tile.tone-green { --tone: var(--tone-green); }
+.view-tile.tone-orange,
+.bl-tile.tone-orange { --tone: var(--tone-orange); }
+.view-tile.tone-red,
+.bl-tile.tone-red { --tone: var(--tone-red); }
+.view-tile.tone-purple,
+.bl-tile.tone-purple { --tone: var(--tone-purple); }
+
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+/*
+ * There were about fifteen button implementations: .setup-save, .bl-btn,
+ * .su-btn, .standup-btn (+ .small, .ghost, .primary, .standup-ctrl), .su-start,
+ * .standup-start, .nav-btn, .gantt-mode-btn, .gantt-dropdown-btn,
+ * .kanban-group-btn, .monitor-chip, .dash-freeze-btn, .dash-recap-btn,
+ * .issue-links-action, .create-submit, .expiry-banner-btn, .filter-toggle, and
+ * five more inside settings.html — most of them the same two buttons retyped.
+ *
+ * There are two now:
+ *
+ *   .btn        a thing you press. Surface, border, 12.5px, comfortable
+ *               padding. Modifiers: .primary, .ghost, .small.
+ *   .btn-chip   a small mono control in a toolbar. Transparent, uppercase,
+ *               11px. Modifiers: .active, .plain (drops the uppercasing).
+ *
+ * The old class names are kept as aliases on these two rules rather than being
+ * edited out of the markup. That is deliberate: the win here is one definition
+ * of a button, and renaming twenty call sites to get it would be a second,
+ * riskier change wearing the same hat. Each view stylesheet now holds only what
+ * that view's button genuinely does differently, which in most cases is nothing.
+ */
+
+.btn,
+.bl-btn,
+.su-btn,
+.standup-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: calc(12.5px * var(--font-scale));
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, filter 0.12s;
+}
+.btn:hover,
+.bl-btn:hover,
+.su-btn:hover,
+.standup-btn:hover { border-color: var(--muted); }
+.btn:disabled,
+.bl-btn:disabled,
+.su-btn:disabled,
+.standup-btn:disabled { opacity: 0.45; cursor: default; }
+
+.btn.small,
+.bl-btn.small,
+.su-btn.small,
+.standup-btn.small {
+  font-size: calc(11.5px * var(--font-scale));
+  padding: 5px 11px;
+}
+.btn.ghost,
+.bl-btn.ghost,
+.su-btn.ghost,
+.standup-btn.ghost { background: none; color: var(--muted); }
+.btn.ghost:hover,
+.bl-btn.ghost:hover,
+.su-btn.ghost:hover,
+.standup-btn.ghost:hover { color: var(--text); }
+
+/* --on-accent, not #fff: white on the dark theme's accent is 3.21:1. */
+.btn.primary,
+.bl-btn.primary,
+.su-btn.primary,
+.standup-btn.primary {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.btn.primary:hover,
+.bl-btn.primary:hover,
+.su-btn.primary:hover,
+.standup-btn.primary:hover { filter: brightness(1.08); border-color: var(--accent-primary); }
+
+.btn-chip,
+.kanban-group-btn,
+.gantt-mode-btn,
+.gantt-dropdown-btn,
+.filter-toggle,
+.monitor-chip,
+.dash-freeze-btn,
+.issue-links-action,
+.expiry-banner-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 5px 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.btn-chip:hover,
+.kanban-group-btn:hover,
+.gantt-mode-btn:hover,
+.gantt-dropdown-btn:hover,
+.filter-toggle:hover { color: var(--text); border-color: var(--muted); }
+
+/* Pressed, held down, in effect — whichever of those a given toolbar means. */
+.btn-chip.active,
+.gantt-mode-btn.active,
+.gantt-dropdown-btn.active,
+.filter-toggle.active {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text);
+  border-color: var(--text);
+}
+
+/* Sentence case, for the chips that sit next to prose rather than in a toolbar
+   of their own. */
+.btn-chip.plain,
+.monitor-chip,
+.issue-links-action {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn, .bl-btn, .su-btn, .standup-btn,
+  .btn-chip, .kanban-group-btn, .gantt-mode-btn, .gantt-dropdown-btn,
+  .filter-toggle, .monitor-chip, .dash-freeze-btn, .issue-links-action,
+  .expiry-banner-btn { transition-duration: 0.01ms; }
+}
+
 /* ── Focus ───────────────────────────────────────────────────────────────── */
 /* One visible ring for everything the keyboard can reach, so a control that
    forgets to define its own is still findable rather than silently focusable.
@@ -420,6 +743,14 @@ html { scrollbar-color: var(--border) var(--bg); }
   outline-offset: 2px;
   border-radius: var(--radius-xs);
 }
+/* Two containers are focused by script and never by Tab: the drawer panel, so
+   the dialog is announced when it opens, and the view container, which is where
+   focus lands when a drawer closes and the element that opened it no longer
+   exists. Neither is a control, and a ring around a full-height region reads as
+   a rendering fault rather than as focus. */
+#view-container:focus,
+#view-container:focus-visible { outline: none; }
+
 /* Five controls set `outline: none` with nothing in its place — the backlog's
    GROUP and SORT selects, its filter search and per-page select, and the
    click-to-edit cells on the issue view. `:where()` above loses to any of them
@@ -510,7 +841,7 @@ html { scrollbar-color: var(--border) var(--bg); }
   width: 16px;
   height: 6px;
   background: rgba(255,255,255,0.8);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   opacity: 0;
   transition: opacity 0.4s ease;
 }
@@ -626,7 +957,7 @@ html { scrollbar-color: var(--border) var(--bg); }
   font-size: calc(11px * var(--font-scale));
   font-weight: 500;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 5px 10px;
   transition: color 0.15s, border-color 0.15s;
   white-space: nowrap;
@@ -653,7 +984,7 @@ html { scrollbar-color: var(--border) var(--bg); }
   width: 18px;
   height: 18px;
   display: block;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   opacity: 0.8;
   filter: saturate(0.9);
   transition: opacity 0.15s, filter 0.15s;
@@ -689,18 +1020,12 @@ a:hover > .gh-mark, .gh-mark:hover { opacity: 1; }
   font-size: calc(12px * var(--font-scale));
 }
 .expiry-banner.expired { border-top-color: var(--accent-danger); }
+/* The shared toolbar chip above, in warning colours — this one is the banner's
+   own call to action rather than a control in a row of them. */
 .expiry-banner-btn {
-  background: none;
-  border: 1px solid var(--accent-warning);
+  border-color: var(--accent-warning);
   color: var(--accent-warning);
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: calc(11px * var(--font-scale));
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   padding: 4px 10px;
-  border-radius: 3px;
-  cursor: pointer;
-  white-space: nowrap;
 }
 .expiry-banner.expired .expiry-banner-btn {
   border-color: var(--accent-danger);

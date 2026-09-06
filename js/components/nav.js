@@ -1,5 +1,7 @@
 import { runtimeUrl } from "../browser.js";
-import { loadTheme, saveTheme } from "../utils.js";
+import { loadTheme } from "../utils.js";
+import { createThemeToggle } from "./theme-toggle.js";
+import { icon } from "./icons.js";
 import { CONFIG, jiraHomeUrl, siteHost, wikiUrl } from "../config.js";
 import { getBadgeCount } from "../monitor.js";
 import { prewarmGithub } from "../github.js";
@@ -226,33 +228,15 @@ export async function renderNav(onRefresh) {
   });
   rightGroup.appendChild(settingsBtn);
 
-  const themeBtn = document.createElement("button");
-  themeBtn.className = "theme-toggle";
-  themeBtn.title = "Toggle theme";
-  themeBtn.innerHTML = `
-    <span class="toggle-track">
-      <span class="toggle-stars">
-        <span class="toggle-star"></span><span class="toggle-star"></span>
-        <span class="toggle-star"></span><span class="toggle-star"></span>
-        <span class="toggle-star"></span>
-      </span>
-      <span class="toggle-cloud"></span><span class="toggle-cloud"></span>
-    </span>
-    <span class="toggle-rays">
-      <span class="toggle-ray"></span><span class="toggle-ray"></span>
-      <span class="toggle-ray"></span><span class="toggle-ray"></span>
-      <span class="toggle-ray"></span><span class="toggle-ray"></span>
-      <span class="toggle-ray"></span>
-    </span>
-    <span class="toggle-body">
-      <span class="toggle-crater"></span><span class="toggle-crater"></span>
-      <span class="toggle-crater"></span>
-    </span>
-  `;
-  themeBtn.addEventListener("click", async () => {
-    currentTheme = currentTheme === "dark" ? "light" : "dark";
-    await saveTheme(currentTheme);
-    applyBrandMarkTheme(brandMark, hasOrgLogo);
+  // The sky itself lives in js/components/theme-toggle.js — settings.html used
+  // to hand-write the same twenty spans into its own markup.
+  const themeBtn = createThemeToggle({
+    theme: currentTheme,
+    onChange: (theme) => {
+      currentTheme = theme;
+      // The one thing CSS cannot do here: the brand mark is two files.
+      applyBrandMarkTheme(brandMark, hasOrgLogo);
+    },
   });
   rightGroup.appendChild(themeBtn);
   nav.appendChild(rightGroup);
@@ -313,9 +297,8 @@ function createTabMenu(group) {
     trigger.appendChild(badge);
   }
 
-  const caret = document.createElement("span");
-  caret.className = "nav-menu-caret";
-  caret.textContent = "▾";
+  const caret = icon("chevron", 11);
+  caret.classList.add("nav-menu-caret");
   trigger.appendChild(caret);
 
   const panel = document.createElement("div");

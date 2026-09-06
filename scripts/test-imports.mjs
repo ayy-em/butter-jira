@@ -52,13 +52,23 @@ async function sourceFiles() {
   return out;
 }
 
-// Comments and strings are stripped first so a name mentioned in prose or in a
-// template literal is not mistaken for a reference.
+// Comments and strings are stripped first so a name mentioned in prose is not
+// mistaken for a reference.
+//
+// A template literal keeps its ${…} bodies. It used to be flattened whole, on
+// the grounds that a name inside one is usually prose — and then
+// `aria-label = `Remove ${displayNameFor(id)}`` went in without its import and
+// this file said nothing, which is precisely the bug it was written for.
+// Interpolations are code; only the text between them is prose.
 function stripNoise(src) {
   return src
     .replace(/\/\*[\s\S]*?\*\//g, " ")
     .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
-    .replace(/`(?:\\.|\$\{[^}]*\}|[^`\\])*`/g, "``")
+    .replace(/`(?:\\.|\$\{[^}]*\}|[^`\\])*`/g, (literal) =>
+      // Coarse: a ${} holding an object literal ends at its first }, which
+      // costs a truncated expression rather than a false alarm.
+      [...literal.matchAll(/\$\{([^}]*)\}/g)].map((m) => `(${m[1]})`).join(" ") || '""'
+    )
     .replace(/'(?:\\.|[^'\\])*'/g, "''")
     .replace(/"(?:\\.|[^"\\])*"/g, '""');
 }

@@ -4,6 +4,8 @@ import { assigneeLabel, boardColor, boardName, fmtDate, getStoryPoints } from ".
 import { CONFIG } from "../config.js";
 import { hasRoster, isOutsideTeam, isTeamOnly, setTeamOnly } from "../team.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
+import { icon } from "../components/icons.js";
+import { viewHeader } from "../components/view-header.js";
 import {
   runChecks,
   setBadgeCount,
@@ -36,6 +38,17 @@ export async function mount(container, creds) {
   container.innerHTML = "";
   const wrap = document.createElement("div");
   wrap.className = "monitor-wrap";
+
+  // This screen used to open straight onto its scope switch, with the first
+  // words on it being a finding count that means nothing until you know what is
+  // being counted. Every other view says what it is first.
+  wrap.appendChild(
+    viewHeader({
+      iconName: "check",
+      title: "Monitor",
+      subtitle: "Issues missing something the sprint needs from them",
+    })
+  );
 
   const controls = document.createElement("div");
   controls.className = "monitor-controls";
@@ -241,9 +254,11 @@ export async function mount(container, creds) {
     header.className = "monitor-section-header";
     const isCollapsed = collapsed.has(section.id) || section.count === 0;
 
-    const arrow = document.createElement("span");
-    arrow.className = "monitor-arrow";
-    arrow.textContent = isCollapsed ? "▶" : "▼";
+    // One caret, turned. It was ▶ and ▼ — two glyphs of different weights that
+    // swapped rather than rotated, so nothing on screen moved when a section
+    // opened.
+    const arrow = icon("chevron", 11);
+    arrow.classList.add("monitor-arrow", "icon-caret", isCollapsed ? "closed" : "open");
     header.appendChild(arrow);
 
     const label = document.createElement("span");

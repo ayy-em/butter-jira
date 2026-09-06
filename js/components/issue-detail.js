@@ -20,6 +20,7 @@ import { assigneeCell, dateCell, pointsCell } from "./field-edit.js";
 import { sanitizeToFragment } from "../sanitize.js";
 import { adfToPlainText, isEmptyAdf, textToAdf } from "../adf.js";
 import { statusTone } from "../backlog.js";
+import { icon } from "./icons.js";
 
 export function issuePageUrl(issueKey) {
   return runtimeUrl(`issue.html?key=${encodeURIComponent(issueKey)}`);
@@ -497,9 +498,9 @@ function linkedRow(row, issue, creds, onChanged) {
 // link" on its own does not say which of several links is about to go.
 function removeLinkButton(row, issue, creds, onChanged) {
   const button = document.createElement("button");
-  button.className = "issue-link-remove mono";
+  button.className = "issue-link-remove icon-btn";
   button.type = "button";
-  button.textContent = "✕";
+  button.appendChild(icon("close", 12));
   const sentence = `${issue.key} ${row.relationship} ${row.key}`;
   button.title = `Remove the link: ${sentence}`;
   button.setAttribute("aria-label", `Remove the link: ${sentence}`);

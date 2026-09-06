@@ -17,11 +17,7 @@ import {
   resolveStatusGroup,
 } from "../utils.js";
 import { openIssueDrawer, issuePageUrl } from "./issue-detail.js";
-
-const PRIORITY_ICONS = {
-  Critical: "🔴", Highest: "🔴", High: "🟠",
-  Medium: "🟡", Low: "🔵", Lowest: "🔵",
-};
+import { icon, priorityIcon } from "./icons.js";
 
 export function makePlaceholder(name) {
   const el = document.createElement("span");
@@ -57,6 +53,15 @@ export function groupIssues(issues, groups, columnOrder = null) {
 
   return finalOrder.map((name) => ({ name, issues: map.get(name) || [] }));
 }
+
+// Which card the keyboard is on, by issue key, across repaints.
+//
+// The board is rebuilt from scratch on every repaint — a poll landing, a
+// standup advancing, a move being written — so the focused element is destroyed
+// several times a minute. Holding the key rather than the element means focus
+// can be put back on the same card, which is the difference between a keyboard
+// path and a keyboard path that works once.
+let focusedKey = null;
 
 export function renderIssueCard(issue, creds, { showAssignee = true } = {}) {
   const f = issue.fields;
@@ -100,13 +105,12 @@ export function renderIssueCard(issue, creds, { showAssignee = true } = {}) {
   right.style.display = "flex";
   right.style.alignItems = "center";
   right.style.gap = "6px";
-  const pIcon = PRIORITY_ICONS[f.priority?.name || ""] || "";
-  if (pIcon) {
-    const pi = document.createElement("span");
-    pi.textContent = pIcon;
-    pi.style.fontSize = "calc(12px * var(--font-scale))";
-    right.appendChild(pi);
-  }
+  // Was 🔴🟠🟡🔵 with no title and no text: the one element on a card with no
+  // accessible name at all, the only encoding of priority anywhere on the
+  // board, and a distinction carried entirely in hue. Now a shape, in a tone,
+  // with a name — see js/components/icons.js.
+  const pIcon = priorityIcon(f.priority?.name);
+  if (pIcon) right.appendChild(pIcon);
   const typeBadge = document.createElement("span");
   typeBadge.className = "kanban-card-type";
   typeBadge.textContent = f.issuetype?.name || "—";
@@ -160,13 +164,17 @@ export function renderIssueCard(issue, creds, { showAssignee = true } = {}) {
   }
 
   if (f.duedate) {
-    const dueEl = document.createElement("span");
-    dueEl.textContent = "📅";
-    dueEl.title = fmtDate(f.duedate);
+    // Was a 📅 emoji, hue-rotated -60° to say "overdue" — which renders as a
+    // different picture on every platform, and turns a colour nobody chose into
+    // a colour nobody can predict. The mark is drawn now, and overdue is the
+    // token the rest of the app uses for the same idea.
+    const overdue = isOverdue(issue);
+    const dueEl = icon("calendar", 13, {
+      label: overdue ? `Overdue: due ${fmtDate(f.duedate)}` : `Due ${fmtDate(f.duedate)}`,
+    });
+    dueEl.classList.add("kanban-card-due");
+    if (overdue) dueEl.classList.add("overdue");
     dueEl.style.marginLeft = sp !== null ? "0" : "auto";
-    if (new Date(f.duedate) < new Date()) {
-      dueEl.style.filter = "hue-rotate(-60deg) saturate(2)";
-    }
     footer.appendChild(dueEl);
   }
 
@@ -188,8 +196,18 @@ export function renderColumns(board, issues, groups, options = {}) {
     emptyLabel = "—",
   } = options;
 
+  // Whether the keyboard was on this board before it was thrown away. Only
+  // then does the rebuild put focus back — a repaint that steals focus from the
+  // filter box every time a poll lands would be its own bug.
+  const hadFocus = board.contains(document.activeElement);
+
   board.innerHTML = "";
   const columns = groupIssues(issues, groups, columnOrder);
+  // Card elements by column, filled in as they are rendered. The keyboard
+  // handlers need the whole grid — the card to the right lives in a column that
+  // has not been built yet at the moment this one is — so they are wired after
+  // the loop rather than inside it.
+  const grid = columns.map(() => []);
   // Two drags share the board, so each drop has to know which is in flight:
   // a column header being reordered, or a card changing status.
   let dragSrcIdx = null;
@@ -302,11 +320,137 @@ export function renderColumns(board, issues, groups, options = {}) {
           clearDropHighlights();
         });
       }
+      grid[ci].push(card);
       cards.appendChild(card);
     }
     col.appendChild(cards);
     board.appendChild(col);
   });
 
+  wireKeyboard(board, columns, grid, { onIssueMove, hadFocus });
+
   return columns;
+}
+
+// ── The keyboard path ───────────────────────────────────────────────────────
+//
+// Dragging was the only way to change an issue's status, and every other write
+// in this app has a keyboard path. The board is also the surface most often
+// corrected during a standup — on a shared screen, by someone driving from a
+// laptop trackpad — which is the worst place to require a drag.
+//
+// Roving tabindex rather than a tab stop per card: a full board is forty cards,
+// and forty tab stops between the controls and whatever is after the board is
+// not a keyboard path either. One card holds the tab stop; the arrows move
+// between them, the way a grid is expected to behave.
+//
+//   ← → ↑ ↓       move between cards
+//   Home / End    first / last card in the column
+//   Enter         open the card, same as a click
+//   Shift + ← →   move the issue a column left or right — the same call the
+//                 drop makes, so the same transition matching, the same
+//                 optimistic paint, the same rollback and the same refusal
+//                 wording come out of it
+//
+// Every key handled here is stopped, not just prevented. Standup binds
+// ArrowRight on document to advance the turn, and a card that has been
+// deliberately focused owns its own arrows; letting the key through would
+// advance the meeting behind the card somebody is correcting.
+// Where an arrow key goes, given the shape of the board and where the keyboard
+// is now. Pure — it takes the number of cards in each column, not the cards —
+// so the edges are testable without a board: the ends of a column, the ends of
+// the board, and the empty column in the middle that has to be stepped over
+// rather than landed in.
+//
+// Returns { col, row } or null for "this key does nothing here".
+export function nextCardPosition(lengths, col, row, key) {
+  switch (key) {
+    case "ArrowRight":
+    case "ArrowLeft": {
+      const step = key === "ArrowRight" ? 1 : -1;
+      for (let c = col + step; c >= 0 && c < lengths.length; c += step) {
+        // Past an empty column rather than into it: there is nothing there to
+        // focus, and stopping would look like the key had failed.
+        if (!lengths[c]) continue;
+        return { col: c, row: Math.min(row, lengths[c] - 1) };
+      }
+      return null;
+    }
+    case "ArrowDown":
+    case "ArrowUp": {
+      const next = row + (key === "ArrowDown" ? 1 : -1);
+      // No wrap at the ends of a column: the card above the first one is in
+      // another column, and jumping there is not what the key looks like.
+      return next >= 0 && next < lengths[col] ? { col, row: next } : null;
+    }
+    case "Home":
+      return lengths[col] ? { col, row: 0 } : null;
+    case "End":
+      return lengths[col] ? { col, row: lengths[col] - 1 } : null;
+    default:
+      return null;
+  }
+}
+
+function wireKeyboard(board, columns, grid, { onIssueMove, hadFocus }) {
+  const all = grid.flat();
+  if (!all.length) return;
+  const lengths = grid.map((cards) => cards.length);
+
+  // Where the tab stop sits. The remembered card if it survived the repaint,
+  // otherwise the first card on the board.
+  let anchor = all.find((c) => c.dataset.issueKey === focusedKey) || all[0];
+  for (const card of all) card.tabIndex = card === anchor ? 0 : -1;
+
+  const focusCard = (card) => {
+    if (!card) return;
+    for (const other of all) other.tabIndex = other === card ? 0 : -1;
+    focusedKey = card.dataset.issueKey;
+    card.focus();
+  };
+
+  for (let ci = 0; ci < grid.length; ci++) {
+    for (let ri = 0; ri < grid[ci].length; ri++) {
+      const card = grid[ci][ri];
+      card.addEventListener("focus", () => {
+        focusedKey = card.dataset.issueKey;
+        for (const other of all) other.tabIndex = other === card ? 0 : -1;
+      });
+      card.addEventListener("keydown", (e) => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+        // Shift+arrow is the move. Nothing else on this board takes shift.
+        if (e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!onIssueMove) return;
+          const target = columns[ci + (e.key === "ArrowRight" ? 1 : -1)];
+          // Off the end of the board. Silent: there is no move to describe, and
+          // a toast for every arrow press at the edge is noise.
+          if (!target || target.name === columns[ci].name) return;
+          const issue = columns[ci].issues[ri];
+          if (!issue) return;
+          // focusedKey is already this card's, so the repaint the move triggers
+          // puts the keyboard back on it — in its new column.
+          onIssueMove(issue, target.name, columns[ci].name);
+          return;
+        }
+        if (e.shiftKey) return;
+
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.stopPropagation();
+          card.click();
+          return;
+        }
+        const to = nextCardPosition(lengths, ci, ri, e.key);
+        if (!to) return;
+        e.preventDefault();
+        e.stopPropagation();
+        focusCard(grid[to.col][to.row]);
+      });
+    }
+  }
+
+  if (hadFocus) anchor.focus();
 }

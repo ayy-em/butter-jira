@@ -70,10 +70,25 @@ class FakeEl {
     this.children = [];
     this._text = "";
     this._listeners = {};
+    this._attrs = {};
   }
   appendChild(c) { this.children.push(c); return c; }
   addEventListener(name, fn) { this._listeners[name] = fn; }
   click() { this._listeners.click?.(); }
+  // Enough of an element for the toast: it names itself for screen readers, and
+  // an error one carries a dismiss button that has an aria-label.
+  setAttribute(name, value) { this._attrs[name] = String(value); }
+  getAttribute(name) { return name in this._attrs ? this._attrs[name] : null; }
+  get classList() {
+    return {
+      contains: (c) => this.className.split(/\s+/).includes(c),
+      add: (...cs) => {
+        this.className = [...new Set([...this.className.split(/\s+/), ...cs])]
+          .filter(Boolean)
+          .join(" ");
+      },
+    };
+  }
   set textContent(v) {
     this._text = String(v);
     if (v === "") this.children = [];
@@ -86,6 +101,10 @@ let authEvents = 0;
 globalThis.document = {
   getElementById: (id) => (id === "toast" ? toastEl : null),
   createElement: (tag) => new FakeEl(tag),
+  // The dismiss cross on an error toast is a drawn icon, not a glyph — see
+  // js/components/icons.js. Same fake element; the namespace is the only
+  // difference the code cares about.
+  createElementNS: (_ns, tag) => new FakeEl(tag),
   dispatchEvent: (e) => { if (e?.type === "jira-auth-error") authEvents++; return true; },
 };
 globalThis.CustomEvent = class { constructor(type) { this.type = type; } };
@@ -567,6 +586,54 @@ check("anything else is refused", fe.parseDateInput("01/09/2026") === undefined)
 check("no write when nothing changed", fe.unchanged(5, 5) && fe.unchanged(null, undefined));
 check("a number read back as a string is not a change", fe.unchanged("5", 5));
 check("clearing a set value is a change", fe.unchanged(5, null) === false);
+
+section("errors dwell, and can be brought back");
+// A confirmation is a receipt. An error is the app saying something you did not
+// know — often the only place the reason appears — and it used to get the same
+// five seconds, bottom-centre, on a screen a room is reading.
+toastEl.className = "";
+toastEl.textContent = "";
+utils.showToast("Saved", false);
+check("a confirmation stays click-through", !toastEl.className.includes("actionable"));
+check("…and is announced politely", toastEl.getAttribute("aria-live") === "polite");
+check("…with no dismiss button to reach for",
+  !toastEl.children.some((c) => c.className === "toast-dismiss"));
+
+toastEl.textContent = "";
+utils.showToast("ACME-101: the workflow allows no move from In Review to Done", true);
+check("an error is clickable, so its own button can be hit",
+  toastEl.className.includes("actionable"));
+check("…is announced assertively", toastEl.getAttribute("aria-live") === "assertive");
+const dismissBtn = () =>
+  toastEl.children.find((c) => c.className.split(" ").includes("toast-dismiss")) || null;
+check("…and carries a way off the screen that is not waiting", !!dismissBtn());
+check("the dismiss button says what it does",
+  dismissBtn()?.getAttribute("aria-label") === "Dismiss this message");
+
+// The recall. The specific thing that could not be done before: read the
+// refusal wording again after it had gone.
+check("the last message is remembered",
+  utils.lastToastMessage()?.message.includes("no move from In Review"));
+check("…including that it was an error", utils.lastToastMessage()?.isError === true);
+toastEl.className = "";
+toastEl.textContent = "";
+check("recall puts it back", utils.recallToast() === true);
+check("…with the wording intact", toastEl.text.includes("no move from In Review"));
+check("…still marked as an error", toastEl.className.includes("error"));
+check("…and dated, so it is not mistaken for something that just happened",
+  toastEl.text.includes("just now"));
+
+// Recalling never re-offers an action: an undo button that reappears an hour
+// later points at a write that has long since been overtaken.
+toastEl.textContent = "";
+let undone = 0;
+utils.showToast("ABC-1 → Sprint 42", false, { label: "Undo", run: () => undone++ });
+check("an action toast draws its button", !!undoButton());
+toastEl.className = "";
+toastEl.textContent = "";
+utils.recallToast();
+check("recall does not draw the action again", !undoButton());
+check("…and nothing was run", undone === 0);
 
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

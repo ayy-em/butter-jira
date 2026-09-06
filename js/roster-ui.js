@@ -13,6 +13,7 @@
 
 import { harvestTeamCandidates, searchUsers } from "./api.js";
 import { setBoardList } from "./utils.js";
+import { icon } from "./components/icons.js";
 import {
   avatarAssetUrl,
   linkPendingMembers,
@@ -204,9 +205,11 @@ export function initRoster({ flash, requireLiveJira, getBoards }) {
       row.appendChild(toggle);
 
       const remove = document.createElement("button");
-      remove.className = "remove-board";
-      remove.textContent = "×";
+      remove.className = "remove-board icon-btn";
+      remove.type = "button";
+      remove.appendChild(icon("close", 13));
       remove.title = "Remove from roster";
+      remove.setAttribute("aria-label", `Remove ${memberLabel(member)} from the roster`);
       remove.addEventListener("click", () => {
         members = removeMember(members, member);
         render();

@@ -1,0 +1,479 @@
+/* Settings.
+ *
+ * This lived as 449 lines of inline <style> in settings.html — the one
+ * stylesheet in the project that was not in css/, which is exactly why it drifted:
+ * six button variants nothing else uses, its own copy of the theme toggle's
+ * dimensions, and a SAVE ALL SETTINGS bar at 3.21:1 that no contrast pass over
+ * css/ would ever have looked at.
+ *
+ * Moved verbatim rather than rewritten. Settings is where first-run
+ * configuration happens and where the board picker and field discovery live; a
+ * re-layout here is a different job from making the file reachable.
+ */
+
+html, body {
+  height: auto;
+  min-height: 100vh;
+  overflow: auto;
+}
+/* Block flow, not a centred flex child: the page is taller than the
+   viewport, and centring it vertically clips the top out of reach. */
+body {
+  display: block;
+  padding: 28px 0 72px;
+}
+
+/* Capped for line length, gutters kept so nothing touches the edge on a
+   narrow window, centred once the cap bites. */
+.settings-page {
+  width: calc(100% - 2rem);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ── Page header ──────────────────────────────────────────────────────── */
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.brand-link {
+  display: flex;
+  flex: 0 0 auto;
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  transition: transform 0.12s, opacity 0.12s;
+}
+.brand-link img { width: 72px; height: 72px; display: block; }
+.brand-link:hover { transform: translateY(-1px); opacity: 0.85; }
+.brand-link:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+
+.brand-text { flex: 1; min-width: 0; }
+h1 {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(22px * var(--font-scale));
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-bottom: 3px;
+  color: var(--text);
+}
+.tagline {
+  color: var(--muted);
+  font-size: calc(13px * var(--font-scale));
+  font-style: italic;
+}
+.back-hint {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(10px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.settings-theme-toggle {
+  flex: 0 0 auto;
+  transform: scale(1.4);
+  transform-origin: center;
+  margin-right: 12px;
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────── */
+
+/* Each area of settings is its own bordered card with its own accent, so
+   "where am I" is answerable at a glance and a collapsed section still
+   reads as a distinct thing rather than as a list item. */
+.settings-section {
+  --section-accent: var(--accent-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  margin-bottom: 22px;
+  overflow: hidden;
+}
+.settings-section[open] {
+  border-color: color-mix(in srgb, var(--section-accent) 40%, var(--border));
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 20px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text);
+  /* The fat colourful rule is what separates one section from the next. */
+  border-bottom: 3px solid var(--section-accent);
+  background: var(--bg);
+}
+.section-head::-webkit-details-marker { display: none; }
+.section-head:hover { background: color-mix(in srgb, var(--section-accent) 10%, var(--bg)); }
+/* The section's own caret. A masked SVG rather than a "▸" in `content`: it is
+   the same chevron js/components/icons.js draws everywhere else, and a masked
+   shape still takes its colour from the box, which a background-image would
+   not. Inline, because ::before cannot hold an element. */
+.section-head::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  background: var(--section-accent);
+  -webkit-mask: var(--caret-mask) center / contain no-repeat;
+  mask: var(--caret-mask) center / contain no-repeat;
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+}
+.settings-section[open] > .section-head::before { transform: rotate(0deg); }
+.section-note {
+  margin-left: auto;
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  text-transform: none;
+  color: var(--muted);
+  text-align: right;
+}
+
+.section-body { padding: 18px 20px 22px; }
+
+/* Accents double as the section's identity, drawn from the board palette so
+   they belong to the same visual language as everything else. */
+#section-personal { --section-accent: #4F8EF7; }
+#section-org      { --section-accent: #A855F7; }
+#section-team     { --section-accent: #4FCF8E; }
+#section-jira     { --section-accent: #EAB308; }
+#section-github   { --section-accent: #14B8A6; }
+#section-backup   { --section-accent: #F7914F; }
+
+/* ── Sub-headings inside a section ────────────────────────────────────── */
+
+.section-title {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin: 26px 0 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+/* The section's own header is separation enough for the first block — and
+   inside a two-column split, both columns start at the top. */
+.section-body > .section-title:first-child,
+.two-col > div > .section-title:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* ── Form controls ────────────────────────────────────────────────────── */
+
+label {
+  display: block;
+  font-size: calc(12px * var(--font-scale));
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="date"],
+input[type="number"],
+input[type="search"],
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(14px * var(--font-scale));
+  margin-bottom: 4px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+textarea { line-height: 1.5; font-size: calc(13px * var(--font-scale)); resize: vertical; }
+input:focus, textarea:focus { border-color: var(--accent-primary); }
+input[readonly] { color: var(--muted); cursor: not-allowed; }
+
+/* A single input stretched across 1280px is unusable; list rows are not,
+   so only the standalone fields are capped. */
+.field-group { margin-bottom: 16px; max-width: 620px; }
+
+/* Paired blocks of standalone fields sit side by side rather than leaving
+   half the page empty — and collapse back to one column when there isn't
+   room for two. */
+.two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+  gap: 0 44px;
+}
+
+.token-wrap { position: relative; }
+.token-wrap input { padding-right: 60px; }
+.token-toggle {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  background: var(--border);
+  border: none;
+  color: var(--muted);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--font-scale));
+  padding: 4px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.token-toggle:hover { color: var(--text); }
+.helper-link {
+  display: inline-block;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--font-scale));
+  color: var(--accent-primary);
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+.helper-link:hover { text-decoration: underline; }
+
+.hint {
+  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 2px 0 10px;
+  max-width: 860px;
+}
+.hint code {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 0 3px;
+}
+
+/* Reference material nobody needs twice: present, one click away, and out
+   of the way of the field it describes. */
+.help-toggle {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  margin: 0 0 12px;
+  max-width: 860px;
+}
+.help-toggle > summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: 7px 10px;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--font-scale));
+  color: var(--accent-primary);
+}
+.help-toggle > summary::-webkit-details-marker { display: none; }
+.help-toggle > summary::before { content: "? "; opacity: 0.6; }
+.help-toggle > summary:hover { text-decoration: underline; }
+.help-toggle[open] > summary { border-bottom: 1px solid var(--border); }
+.help-toggle .hint { margin: 10px; }
+.help-toggle table {
+  width: calc(100% - 20px);
+  margin: 0 10px 10px;
+  border-collapse: collapse;
+  font-size: calc(11px * var(--font-scale));
+}
+.help-toggle th, .help-toggle td {
+  text-align: left;
+  padding: 4px 8px 4px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  vertical-align: top;
+}
+.help-toggle th { color: var(--text); font-weight: 500; }
+
+.board-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.board-row input {
+  margin-bottom: 0;
+  flex: 1;
+}
+.board-row input[type="number"] { width: 80px; flex: 0 0 80px; }
+.board-row input[type="text"] { flex: 1; }
+/* flex-basis, not width: `.board-row input` above sets flex:1, which grows
+   a colour swatch into a stripe the width of the card. */
+.board-row input[type="color"] {
+  flex: 0 0 28px;
+  width: 28px; height: 28px; border: none; background: none; cursor: pointer; padding: 0;
+}
+.board-row .remove-board {
+  background: none; border: none; color: #EF4444; cursor: pointer;
+  font-size: calc(16px * var(--font-scale)); padding: 2px 6px; border-radius: var(--radius-xs);
+}
+.board-row .remove-board:hover { background: rgba(239,68,68,0.15); }
+
+.add-board-btn {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(12px * var(--font-scale));
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.add-board-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+
+/* Save is global — it writes every section, including collapsed ones — so
+   it lives outside them and stays put at the bottom of the page. */
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  padding: 16px 0 8px;
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+.btn-save {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--on-accent);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-save:hover { opacity: 0.85; }
+.status {
+  text-align: center;
+  margin-top: 10px;
+  font-size: calc(13px * var(--font-scale));
+  color: var(--accent-success);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  opacity: 0;
+  transition: opacity 0.3s;
+  min-height: 18px;
+}
+.status.visible { opacity: 1; }
+
+.btn-row { display: flex; gap: 8px; }
+.btn-row .add-board-btn { flex: 1; }
+.field-role-row { flex-wrap: wrap; }
+.field-role-row .role-label {
+  flex: 0 0 110px;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+.field-role-row .role-unresolved { color: var(--accent-warning); }
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 10px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
+  max-width: 860px;
+}
+.checkbox-row input { margin-top: 2px; flex: 0 0 auto; }
+.checkbox-row strong { color: var(--accent-warning); font-weight: 600; }
+/* Checkbox rows inside a list get their spacing from the list's gap. */
+.board-row.checkbox-row { margin-bottom: 0; align-items: center; max-width: 100%; }
+.token-status-expired { color: var(--accent-danger); }
+.token-status-soon { color: var(--accent-warning); }
+
+.inline-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.inline-row input { margin-bottom: 0; }
+.inline-btn { width: auto; flex: 0 0 auto; padding: 8px 12px; margin-bottom: 0; }
+/* Six fields per person: wrap rather than squeeze them to nothing. */
+.roster-row { gap: 6px; flex-wrap: wrap; row-gap: 5px; }
+.roster-avatar {
+  width: 22px; height: 22px; border-radius: 50%; flex: 0 0 22px;
+  object-fit: cover; background: var(--border);
+}
+.roster-avatar-placeholder {
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: calc(10px * var(--font-scale)); color: var(--text);
+}
+.roster-jira-name {
+  flex: 1 1 auto; min-width: 0; font-size: calc(11px * var(--font-scale)); color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.roster-avatar-slot { display: flex; align-items: center; flex: 0 0 22px; }
+.roster-row input.roster-override { flex: 1 1 96px; min-width: 0; }
+.roster-row input.roster-avatar-path {
+  flex: 1 1 120px; min-width: 0; font-size: calc(10px * var(--font-scale));
+}
+.roster-row input.roster-avatar-path.invalid,
+.roster-row input.roster-avatar-path.missing {
+  border-color: var(--accent-warning); color: var(--accent-warning);
+}
+.roster-row input.roster-slack { flex: 1 1 92px; min-width: 0; font-size: calc(10px * var(--font-scale)); }
+.roster-row input.roster-github { flex: 1 1 92px; min-width: 0; font-size: calc(10px * var(--font-scale)); }
+.roster-row input.roster-github.invalid { border-color: var(--accent-warning); color: var(--accent-warning); }
+.roster-row input.roster-emoji { flex: 0 0 44px; text-align: center; }
+.roster-badge {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: calc(9px * var(--font-scale));
+  text-transform: uppercase; letter-spacing: 0.5px;
+  border: 1px solid var(--accent-warning); color: var(--accent-warning);
+  border-radius: var(--radius-xs); padding: 1px 4px; flex: 0 0 auto;
+}
+.roster-toggle { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.roster-toggle span { font-size: calc(10px * var(--font-scale)); color: var(--muted); text-transform: uppercase; }
+.result-row { justify-content: space-between; }
+.result-add {
+  background: none; border: 1px solid var(--accent-primary);
+  color: var(--accent-primary); font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(10px * var(--font-scale)); text-transform: uppercase; padding: 3px 8px;
+  border-radius: var(--radius-xs); cursor: pointer; flex: 0 0 auto;
+}
+.result-add:disabled { border-color: var(--border); color: var(--muted); cursor: default; }
+
+.repo-row { justify-content: space-between; font-size: calc(11px * var(--font-scale)); }
+.repo-row .repo-name { font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; color: var(--text); }
+.repo-row .repo-verdict { font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: calc(10px * var(--font-scale)); }
+.repo-row .repo-verdict.ok { color: var(--accent-success); }
+.repo-row .repo-verdict.bad { color: var(--accent-danger); }
+
+/* A row the last Save refused. The old save dropped a half-finished column
+   silently, so there was nothing to mark; now that it refuses, the message in
+   the status line needs somewhere to point. Cleared on the next keystroke in
+   the row rather than on the next save, so it stops shouting while you are
+   still fixing it. */
+.board-row.row-invalid input {
+  border-color: var(--accent-danger);
+  background: color-mix(in srgb, var(--accent-danger) 8%, transparent);
+}

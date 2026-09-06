@@ -37,7 +37,7 @@
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 7px 12px;
   white-space: nowrap;
 }
@@ -77,7 +77,7 @@
 .dash-tile {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   padding: 12px 14px;
   text-align: left;
   font: inherit;
@@ -142,7 +142,7 @@
 .dash-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   padding: 14px 16px 16px;
   margin-block: 1rem;
 }
@@ -269,7 +269,7 @@
   letter-spacing: 0.5px;
   color: var(--muted);
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 1px 4px;
 }
 .dash-num {
@@ -286,14 +286,14 @@
   min-width: 40px;
   height: 8px;
   background: var(--chart-track);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 .dash-meter-fill {
   display: block;
   height: 100%;
   background: var(--chart-series-1);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .dash-meter-value {
   font-size: calc(11px * var(--font-scale));
@@ -350,19 +350,13 @@
    total. The rows are deliberately quieter than the Kanban's cards: this is a
    list to be scanned for a name you recognise, not a board to be worked. */
 
+/* The shared toolbar chip (css/app.css), one notch smaller and wider-tracked:
+   it sits in the freeze panel's header line beside 11px prose. */
 .dash-freeze-btn {
   flex: none;
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(10px * var(--font-scale));
-  text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--muted);
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 4px;
   padding: 4px 9px;
-  cursor: pointer;
-  white-space: nowrap;
 }
 .dash-freeze-btn:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
 /* `dash-readout` claims the auto margin, so the button sits beside it rather

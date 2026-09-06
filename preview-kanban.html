@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <title>Kanban — preview</title>
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/kanban.css">
+  <link rel="stylesheet" href="css/filter.css">
+  <link rel="stylesheet" href="css/issue.css">
+  <style>
+    html, body { overflow: hidden; }
+    /* Matches production, where this sits between the nav and the footer. The
+       board scrolls sideways *inside* the wrap, so the container must have a
+       real height and must not be a flex parent — a `display: flex` container
+       with no min-width lets the wrap grow to the board's full content width,
+       which pushes the COLUMNS button off-screen in the harness and nowhere
+       else. A static container with no height is the same class of mistake
+       preview-standup.html made in the other direction. */
+    #view-container { position: static; height: 100vh; overflow: auto; }
+  </style>
+</head>
+<body>
+  <div id="view-container"></div>
+  <div id="toast"></div>
+  <script type="module" src="preview-kanban.js"></script>
+</body>
+</html>

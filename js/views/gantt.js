@@ -2,6 +2,7 @@ import { getAllEpics, getEpicChildren } from "../api.js";
 import { boardColor, getStartDate, BOARDS } from "../utils.js";
 import { boardSlug } from "../config.js";
 import { attachIssueOpener, openIssueDrawer } from "../components/issue-detail.js";
+import { icon, svgIconPath } from "../components/icons.js";
 
 // Epic names were cut mid-word with a bare slice and no mark, so a truncated
 // title was indistinguishable from a genuinely short one. The monitor already
@@ -109,12 +110,25 @@ export async function mount(container, creds) {
   function closeAllPanels() { allPanels.forEach(p => { p.hidden = true; }); }
   document.addEventListener("click", closeAllPanels);
 
+  // Every dropdown button is "<label> ⌄". Set the label; the caret is the
+  // button's own furniture and is drawn once.
+  function setDropdownLabel(btn, text) {
+    btn.textContent = "";
+    const label = document.createElement("span");
+    label.textContent = text;
+    btn.appendChild(label);
+    btn.appendChild(icon("chevron", 11));
+  }
+
   function makeDropdown(baseLabel, extraClass = "") {
     const wrapEl = document.createElement("div");
     wrapEl.className = "gantt-dropdown-wrap";
     const btn = document.createElement("button");
     btn.className = "gantt-dropdown-btn";
-    btn.textContent = baseLabel + " ▾";
+    // A label span and one drawn caret, rather than " ▾" glued onto the end of
+    // the text. Six places set this button's label; each of them used to have
+    // to remember the glyph, and one that forgot would simply lose its caret.
+    setDropdownLabel(btn, baseLabel);
     const panel = document.createElement("div");
     panel.className = "gantt-dropdown-panel" + (extraClass ? " " + extraClass : "");
     panel.hidden = true;
@@ -176,9 +190,7 @@ export async function mount(container, creds) {
 
     function syncBtn() {
       const vis = items.length - hiddenSet.size;
-      btn.textContent = hiddenSet.size === 0
-        ? baseLabel + " ▾"
-        : `${vis} / ${items.length} ▾`;
+      setDropdownLabel(btn, hiddenSet.size === 0 ? baseLabel : `${vis} / ${items.length}`);
     }
 
     return { wrapEl, btn, syncBtn };
@@ -240,7 +252,7 @@ export async function mount(container, creds) {
       tfType = opt.value;
       customRow.hidden = opt.value !== "custom";
       if (opt.value !== "custom") {
-        tfBtn.textContent = opt.label + " ▾";
+        setDropdownLabel(tfBtn, opt.label);
         rebuildAndRender();
       }
     });
@@ -255,7 +267,7 @@ export async function mount(container, creds) {
   applyBtn.addEventListener("click", () => {
     if (!startInput.value || !endInput.value) return;
     tfStart = startInput.value; tfEnd = endInput.value;
-    tfBtn.textContent = `${tfStart} → ${tfEnd} ▾`;
+    setDropdownLabel(tfBtn, `${tfStart} → ${tfEnd}`);
     rebuildAndRender();
   });
   customRow.appendChild(startInput);
@@ -315,9 +327,7 @@ export async function mount(container, creds) {
 
     function syncEpicBtn() {
       const vis = dated.length - hiddenEpicKeys.size;
-      btn.textContent = hiddenEpicKeys.size === 0
-        ? "All epics ▾"
-        : `${vis} / ${dated.length} epics ▾`;
+      setDropdownLabel(btn, hiddenEpicKeys.size === 0 ? "All epics" : `${vis} / ${dated.length} epics`);
     }
 
     return { wrapEl, btn };
@@ -365,9 +375,7 @@ export async function mount(container, creds) {
 
     function syncBoardBtn() {
       const vis = BOARDS.length - hiddenBoards.size;
-      btn.textContent = hiddenBoards.size === 0
-        ? "All boards ▾"
-        : `${vis} / ${BOARDS.length} boards ▾`;
+      setDropdownLabel(btn, hiddenBoards.size === 0 ? "All boards" : `${vis} / ${BOARDS.length} boards`);
     }
 
     return { wrapEl };
@@ -621,15 +629,18 @@ export async function mount(container, creds) {
       const bar = wrapper.querySelector(".bar");
       if (!bar) continue;
 
-      const caret = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      // Drawn, not typed. It was ▾ / ▸ — two glyphs of different weights, in a
+      // font the chart does not otherwise use, swapping rather than turning.
+      // svgIconPath because this lives among frappe-gantt's own elements, where
+      // a nested <svg> is not what the chart's layout expects.
+      const open = expandedEpics.has(id);
+      const caret = svgIconPath("chevron", {
+        x: parseFloat(bar.getAttribute("x")) - 10,
+        y: parseFloat(bar.getAttribute("y")) + parseFloat(bar.getAttribute("height")) / 2,
+        size: 11,
+        rotate: open ? 0 : -90,
+      });
       caret.setAttribute("class", "gantt-caret");
-      caret.setAttribute("x", parseFloat(bar.getAttribute("x")) - 6);
-      caret.setAttribute(
-        "y",
-        parseFloat(bar.getAttribute("y")) + parseFloat(bar.getAttribute("height")) / 2 + 4
-      );
-      caret.setAttribute("text-anchor", "end");
-      caret.textContent = expandedEpics.has(id) ? "▾" : "▸";
       caret.addEventListener("click", (e) => {
         // The bar's own handler opens the drawer; this one must not also fire.
         e.stopPropagation();
@@ -653,8 +664,8 @@ export async function mount(container, creds) {
     section.className = "undated-epics";
     const header = document.createElement("div");
     header.className = "undated-epics-header";
-    const arrow = document.createElement("span");
-    arrow.className = "arrow"; arrow.textContent = "▶";
+    const arrow = icon("chevron", 11);
+    arrow.classList.add("arrow", "icon-rot-90");
     header.appendChild(arrow);
     header.append(` Undated Epics (${undated.length})`);
     section.appendChild(header);

@@ -13,25 +13,8 @@
   flex-wrap: wrap;
 }
 
-.gantt-mode-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: calc(11px * var(--font-scale));
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 5px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.gantt-mode-btn:hover { color: var(--text); border-color: var(--muted); }
-.gantt-mode-btn.active {
-  background: rgba(232,234,240,0.08);
-  color: var(--text);
-  border-color: var(--text);
-}
+/* .gantt-mode-btn and .gantt-dropdown-btn are the app's toolbar chip, including
+   the .active state — see the Buttons block in css/app.css. */
 
 .gantt-info {
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
@@ -46,7 +29,7 @@
   flex: 1;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
@@ -131,13 +114,13 @@
 
 /* The expand caret, beside each epic bar. Clicking the bar opens the drawer;
    this is the other action, and it needs its own target. */
+/* A stroked path now rather than a text glyph, so `color` is what it reads and
+   `fill` would paint the inside of the chevron. */
 .gantt-chart-wrap .gantt-caret {
-  fill: var(--muted);
-  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
   cursor: pointer;
-  user-select: none;
 }
-.gantt-chart-wrap .gantt-caret:hover { fill: var(--text); }
+.gantt-chart-wrap .gantt-caret:hover { color: var(--text); }
 
 .gantt-chart-wrap .gantt .bar { rx: 3; ry: 3; }
 .gantt-chart-wrap .gantt .bar-progress { rx: 3; ry: 3; }
@@ -193,20 +176,9 @@
   position: relative;
 }
 
-.gantt-dropdown-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: calc(11px * var(--font-scale));
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 5px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
-}
+/* The caret is drawn now rather than a "▾" glued onto the end of the label; the
+   gap comes from the shared chip. */
+.gantt-dropdown-btn .icon { opacity: 0.75; }
 .gantt-dropdown-btn:hover { color: var(--text); border-color: var(--muted); }
 .gantt-dropdown-btn.active { color: var(--text); border-color: var(--text); background: rgba(232,234,240,0.06); }
 
@@ -217,7 +189,7 @@
   z-index: 200;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 6px 0;
   min-width: 210px;
   box-shadow: 0 6px 16px rgba(0,0,0,0.45);
@@ -254,7 +226,7 @@
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(11px * var(--font-scale));
   padding: 4px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   width: 118px;
   /* Was `dark`, hardcoded, so the native date picker opened dark over a light
      app. `light dark` lets the control follow whichever theme is active. */
@@ -268,7 +240,7 @@
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(11px * var(--font-scale));
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -332,7 +304,7 @@
 .undated-epics {
   margin-top: 16px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .undated-epics-header {

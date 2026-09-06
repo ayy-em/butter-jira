@@ -316,7 +316,7 @@ async function showBoardPicker(creds) {
         <div class="setup-title">SELECT BOARDS</div>
         <div class="setup-subtitle">${escapeHtml(siteHost())}</div>
         <input class="setup-input" type="search" id="board-search" placeholder="Filter boards..." />
-        <div id="board-options" style="max-height:46vh;overflow-y:auto;margin:10px 0;border:1px solid var(--border);border-radius:4px;">
+        <div id="board-options" style="max-height:46vh;overflow-y:auto;margin:10px 0;border:1px solid var(--border);border-radius:var(--radius-sm);">
           <div class="spinner" style="margin:24px auto;"></div>
         </div>
         <button class="setup-save" id="board-save" disabled>Save boards</button>

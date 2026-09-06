@@ -35,7 +35,7 @@
   grid-row: 1;
   display: flex; align-items: center; justify-content: center;
   width: 42px; height: 42px; flex: 0 0 42px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--accent-primary);
@@ -72,7 +72,7 @@
   display: flex;
   align-items: stretch;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   overflow: hidden;
 }
@@ -121,7 +121,7 @@
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 14px;
 }
 .su-banner.warn { border-color: var(--accent-warning); }
@@ -132,7 +132,7 @@
 .su-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 16px 18px 18px;
 }
 .su-panel-empty {
@@ -176,7 +176,7 @@
   display: flex;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   padding: 2px;
   gap: 2px;
 }
@@ -184,7 +184,7 @@
   background: none; border: none; cursor: pointer;
   color: var(--muted);
   font-size: calc(12px * var(--font-scale));
-  padding: 5px 13px; border-radius: 5px;
+  padding: 5px 13px; border-radius: var(--radius-sm);
   transition: background 0.12s, color 0.12s;
 }
 .su-seg:hover { background: var(--surface); color: var(--text); }
@@ -193,7 +193,7 @@
   display: flex; align-items: center;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 .su-step-btn {
@@ -225,7 +225,7 @@
   gap: 12px;
   padding: 8px 12px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: calc(13px * var(--font-scale));
   color: var(--text);
@@ -319,7 +319,7 @@
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--text);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(12px * var(--font-scale));
@@ -347,7 +347,7 @@
 .su-card {
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   padding: 12px 14px;
 }
 label.su-card { cursor: pointer; }
@@ -372,7 +372,7 @@ label.su-card { cursor: pointer; }
   display: flex; flex-direction: column; align-items: center; gap: 9px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   padding: 13px 10px;
 }
 .su-kbd {
@@ -383,31 +383,17 @@ label.su-card { cursor: pointer; }
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 5px 11px;
 }
 .su-key-what { font-size: calc(12px * var(--font-scale)); color: var(--muted); }
 
 /* ── Start ────────────────────────────────────────────────────────────────── */
 
-.su-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  color: var(--text);
-  font-size: calc(12.5px * var(--font-scale));
-  padding: 8px 14px;
-  cursor: pointer;
-  transition: border-color 0.12s, filter 0.12s;
-}
-.su-btn:hover { border-color: var(--muted); }
-.su-btn.small { font-size: calc(11.5px * var(--font-scale)); padding: 5px 11px; }
-.su-btn.ghost { background: none; color: var(--muted); }
-.su-btn.ghost:hover { color: var(--text); }
-.su-btn.primary {
-  background: var(--accent-primary); border-color: var(--accent-primary); color: #fff;
-}
-.su-btn.primary:hover { filter: brightness(1.08); }
+/* .su-btn and .standup-btn were the setup screen's button and the end screen's
+   button: two spellings of the same control, in the same file, differing by
+   half a pixel of type and a radius. Both are the app's button now — defined
+   once in css/app.css with .bl-btn and .btn, modifiers and all. */
 
 .su-start-row {
   display: flex; justify-content: center;
@@ -419,8 +405,8 @@ label.su-card { cursor: pointer; }
   max-width: 780px;
   background: var(--accent-primary);
   border: 1px solid var(--accent-primary);
-  border-radius: 10px;
-  color: #fff;
+  border-radius: var(--radius-lg);
+  color: var(--on-accent);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(17px * var(--font-scale));
   font-weight: 600;
@@ -444,6 +430,8 @@ label.su-card { cursor: pointer; }
   content: "";
   position: absolute;
   inset: -1px;
+  /* One more than the button's own var(--radius-lg): the glow sits just proud
+     of the edge, so it has to bend a little wider than what it is behind. */
   border-radius: 11px;
   padding: 1px;
   background: var(--flair-sweep);
@@ -487,41 +475,23 @@ label.su-card { cursor: pointer; }
   .su-person-items, .su-pips, .su-person-jira, .su-gh-stat.opened { display: none; }
 }
 
-/* ── Summary card ─────────────────────────────────────────────────────────── */
+/* ── The end screen ───────────────────────────────────────────────────────── */
+/*
+ * There were two design languages inside this one view. Setup was `.su-*`:
+ * 1180px, an icon-tile header, panels with numbered steps. The end screen was
+ * `.standup-setup`, the generation before it — one 620px card, later widened to
+ * 980px but never merged — with its own list rows, its own subtitle, its own
+ * button row and its own textarea.
+ *
+ * They bracket the same meeting and are the only two screens in this app anyone
+ * looks at for more than a few seconds, so reading as two different products
+ * was the most visible seam in it. The end screen is `.su-*` now: same wrap,
+ * same panels, same panel heads, same buttons. What follows is only what it
+ * genuinely does differently, which is the headline and the size of the rows.
+ */
 
-.standup-setup {
-  max-width: 620px;
-  margin: 12px auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 26px 28px 22px;
-}
-/* The end screen is read by the room, not by one person at a laptop, and it was
-   inheriting the setup card: 620px wide, per-person times at 13px, the digest
-   at 12px. Only the headline had been sized for the room it is shown in. */
-.standup-setup.summary {
-  max-width: 980px;
-  padding: 34px 40px 30px;
-}
-.standup-setup.summary .standup-subtitle {
-  font-size: calc(16px * var(--font-scale));
-  margin-bottom: 24px;
-}
-.standup-setup.summary .standup-person {
-  padding: 11px 14px;
-  font-size: calc(17px * var(--font-scale));
-  /* These are plain rows on the summary — the setup screen's are labels that
-     toggle someone in or out. Same class, and only one of them is clickable. */
-  cursor: default;
-}
-.standup-setup.summary .standup-person-count { font-size: calc(15px * var(--font-scale)); }
-.standup-setup.summary .standup-digest { font-size: calc(13.5px * var(--font-scale)); }
-/* Leaving is not the action this screen is for. */
-.standup-again {
-  display: block;
-  margin: 18px auto 0;
-}
+.su-done { align-items: stretch; }
+.su-done-header { text-align: center; margin: 8px 0 4px; }
 
 .standup-title {
   font-size: calc(17px * var(--font-scale));
@@ -531,50 +501,64 @@ label.su-card { cursor: pointer; }
   color: var(--text);
   margin-bottom: 4px;
 }
-/* The end screen is the one everyone looks at together, usually from across a
-   room, so it gets the room-sized version. Only the summary — the setup card is
-   read by one person at a laptop. */
+/* This one is read by the room, from across it, and is the only thing on the
+   screen that is a celebration rather than information. */
 .standup-title.done {
   font-size: calc(clamp(34px, 6vmin, 56px) * var(--font-scale));
   letter-spacing: 3px;
   line-height: 1.1;
   margin-bottom: 10px;
 }
-.standup-subtitle {
-  text-align: center;
+.su-done-subtitle {
   color: var(--muted);
-  font-size: calc(13px * var(--font-scale));
-  margin-bottom: 18px;
+  font-size: calc(16px * var(--font-scale));
 }
-.standup-bulk {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-.standup-people { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
 
-.standup-person {
+.su-done-people { display: flex; flex-direction: column; gap: 5px; }
+/* Bigger than the setup screen's rows on purpose: these are the numbers the
+   room is actually reading, and the setup rows are read by one person sitting
+   at the laptop. */
+.su-done-person {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 7px 10px;
+  padding: 11px 14px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: calc(13px * var(--font-scale));
+  border-radius: var(--radius-sm);
+  font-size: calc(17px * var(--font-scale));
   color: var(--text);
-  text-transform: none;
-  letter-spacing: 0;
-  margin: 0;
 }
-.standup-person.in { border-color: var(--accent-primary); }
-.standup-person-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.standup-person-count { font-size: calc(10px * var(--font-scale)); color: var(--muted); white-space: nowrap; }
-.standup-person-count.none { color: var(--accent-warning); }
-.standup-person-count.over { color: var(--accent-danger); }
+.su-done-person-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.su-done-person-time { font-size: calc(15px * var(--font-scale)); color: var(--muted); white-space: nowrap; }
+.su-done-person-time.none { color: var(--accent-warning); }
+.su-done-person-time.over { color: var(--accent-danger); }
+
+/* The Slack message itself: editable so wording can be tidied before pasting,
+   monospaced so the "@handle - note" columns line up. */
+.su-done-digest {
+  width: 100%;
+  min-height: 96px;
+  line-height: 1.6;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: calc(13.5px * var(--font-scale));
+  padding: 12px 14px;
+  resize: vertical;
+}
+.su-done-digest:focus { border-color: var(--accent-primary); outline: none; }
+.su-done-digest:focus-visible { outline: none; }
+
+.su-done-note {
+  margin-top: 8px;
+  font-size: calc(11.5px * var(--font-scale));
+  color: var(--muted);
+}
+
+/* Leaving is not the action this screen is for. */
+.su-done-again { align-self: center; margin-top: 4px; }
 
 .standup-avatar {
   width: 22px; height: 22px; border-radius: 50%; flex: 0 0 22px;
@@ -582,50 +566,10 @@ label.su-card { cursor: pointer; }
 }
 .standup-avatar.big { width: 34px; height: 34px; flex-basis: 34px; }
 
-.standup-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: calc(12px * var(--font-scale));
-  padding: 9px 14px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: border-color 0.15s, opacity 0.15s;
-}
-.standup-btn:hover { border-color: var(--muted); }
-.standup-btn.small { font-size: calc(11px * var(--font-scale)); padding: 5px 10px; }
-.standup-btn.ghost { background: none; color: var(--muted); }
-.standup-btn.ghost:hover { color: var(--text); }
-/* There was a `.primary` for the running-session controls but none for the
-   plain button, so the end screen's two real actions had nothing to be. */
-.standup-btn.primary {
-  background: var(--accent-primary);
-  border-color: var(--accent-primary);
-  color: #fff;
-  font-weight: 600;
-}
-.standup-btn.primary:hover { filter: brightness(1.08); border-color: var(--accent-primary); }
-.standup-btn:disabled { opacity: 0.45; cursor: default; }
-
-.standup-start {
-  width: 100%;
-  background: var(--accent-primary);
-  border-color: var(--accent-primary);
-  color: #fff;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  padding: 11px;
-}
-
-.standup-hint {
-  text-align: center;
-  font-size: calc(10px * var(--font-scale));
-  color: var(--muted);
-  margin-top: 10px;
-  letter-spacing: 0.5px;
-}
+/* The end screen's button, and the running session's controls under it, are the
+   app's button — see css/app.css. `.standup-ctrl` below is the one thing this
+   screen genuinely does differently: those two controls are pressed from across
+   a room. */
 
 /* ── Stage (running) ──────────────────────────────────────────────────────── */
 
@@ -847,14 +791,14 @@ label.su-card { cursor: pointer; }
   font-size: calc(15px * var(--font-scale));
   font-weight: 600;
   padding: 12px 20px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   min-width: 104px;
   text-align: center;
 }
 .standup-btn.standup-ctrl.primary {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: #fff;
+  color: var(--on-accent);
 }
 .standup-btn.standup-ctrl.primary:hover { filter: brightness(1.1); }
 .standup-btn.standup-ctrl.ghost { min-width: 78px; }
@@ -1099,7 +1043,7 @@ label.su-card { cursor: pointer; }
   min-height: 108px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
   font-size: calc(15px * var(--font-scale));
@@ -1109,25 +1053,6 @@ label.su-card { cursor: pointer; }
   outline: none;
 }
 .standup-parking-input:focus { border-color: var(--accent-primary); }
-
-/* The end-of-standup Slack message: editable so wording can be tidied before
-   pasting, monospaced so the "@handle - note" columns line up. */
-.standup-digest {
-  width: 100%;
-  min-height: 96px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--text);
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: calc(12px * var(--font-scale));
-  line-height: 1.6;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-  resize: vertical;
-  outline: none;
-}
-.standup-digest:focus { border-color: var(--accent-primary); }
 
 /* Bigger pool of red under a card on the standup stage, to match its type. */
 .standup-board .kanban-card-overdue::after { bottom: -12px; height: 32px; }

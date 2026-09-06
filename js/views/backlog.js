@@ -29,6 +29,7 @@ import {
   resolveStatusGroup,
 } from "../utils.js";
 import { hasRoster, isOutsideTeam, isTeamOnly, setTeamOnly } from "../team.js";
+import { icon } from "../components/icons.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
 import { openCreateIssue } from "../components/issue-create.js";
 import { BOARDS } from "../utils.js";
@@ -70,46 +71,6 @@ function el(tag, className, text) {
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
-}
-
-// Inline SVG rather than an asset: a path or two each, no extra file to ship,
-// and they inherit currentColor so they work in both themes without a second
-// copy. The type marks are drawn heavier than the chrome ones — they render at
-// 13px inside a pill, where a 1.8 stroke goes muddy.
-const ICON_PATHS = {
-  backlog: "M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm1.5-4h15L21 7H3l1.5-4ZM9 12h6",
-  search: "M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm10 2-4.35-4.35",
-  chevron: "m6 9 6 6 6-6",
-  columns: "M4 4h16v16H4zM10 4v16M16 4v16",
-  check: "m5 13 4 4L19 7",
-  inbox: "M3 13h5l1 3h6l1-3h5M5 5h14l2 8v6H3v-6l2-8Z",
-  // Type marks, distinguished by silhouette so they still read at pill size.
-  epic: "M13.5 2 5 13.5h5.5L10 22l8.5-11.5H13L13.5 2Z",
-  story: "M6.5 3h11v18l-5.5-4.2L6.5 21V3Z",
-  task: "M5 3.5h14a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V5A1.5 1.5 0 0 1 5 3.5Zm3 8.7 2.6 2.6 5.4-6",
-  bug: "M12 20.5a5.5 5.5 0 0 0 5.5-5.5v-3a5.5 5.5 0 0 0-11 0v3a5.5 5.5 0 0 0 5.5 5.5ZM3.5 13H6m12 0h2.5M4.5 7.5 7 9m12.5-1.5L17 9M4.5 19 7 17.5m12.5 1.5L17 17.5M9 5.5 7.5 3M15 5.5 16.5 3",
-  subtask: "M3.5 3.5h9v9h-9zM11.5 11.5h9v9h-9z",
-  generic: "M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17Z",
-};
-
-const HEAVY_ICONS = new Set(["epic", "story", "task", "bug", "subtask", "generic"]);
-
-function icon(name, size = 16) {
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("width", size);
-  svg.setAttribute("height", size);
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", HEAVY_ICONS.has(name) ? "2.2" : "1.8");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("stroke-linejoin", "round");
-  svg.setAttribute("aria-hidden", "true");
-  const path = document.createElementNS(ns, "path");
-  path.setAttribute("d", ICON_PATHS[name] || "");
-  svg.appendChild(path);
-  return svg;
 }
 
 export async function mount(container, creds) {
@@ -247,8 +208,12 @@ export async function mount(container, creds) {
       renderAll();
     }));
 
-    const dir = el("button", "bl-icon-btn", state.sortDir === "asc" ? "↑" : "↓");
+    const dir = el("button", "bl-icon-btn");
+    const dirIcon = icon("chevron", 15);
+    if (state.sortDir === "asc") dirIcon.classList.add("icon-rot-180");
+    dir.appendChild(dirIcon);
     dir.title = state.sortDir === "asc" ? "Ascending" : "Descending";
+    dir.setAttribute("aria-label", `Sort direction: ${dir.title.toLowerCase()}`);
     dir.addEventListener("click", () => {
       state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
       persist();
@@ -661,7 +626,10 @@ export async function mount(container, creds) {
         if (column.title) th.title = column.title;
         th.classList.add("sortable");
         if (state.sortCol === column.id) {
-          inner.appendChild(el("span", "bl-sort", state.sortDir === "asc" ? "▲" : "▼"));
+          const caret = icon("chevron", 10);
+          caret.classList.add("bl-sort");
+          if (state.sortDir === "asc") caret.classList.add("icon-rot-180");
+          inner.appendChild(caret);
         }
         th.addEventListener("click", () => {
           if (state.sortCol === column.id) {
@@ -902,14 +870,16 @@ export async function mount(container, creds) {
 
     if (page.totalPages > 1) {
       const nav = el("nav", "bl-pages");
-      nav.appendChild(pageBtn("‹", page.page - 1, page.page === 1));
+      nav.appendChild(pageBtn(icon("chevron", 14), page.page - 1, page.page === 1, "Previous page"));
       for (const entry of pageWindow(page.page, page.totalPages)) {
         if (entry === "…") { nav.appendChild(el("span", "bl-page-gap", "…")); continue; }
         const btn = pageBtn(String(entry), entry, false);
         if (entry === page.page) btn.classList.add("on");
         nav.appendChild(btn);
       }
-      nav.appendChild(pageBtn("›", page.page + 1, page.page === page.totalPages));
+      nav.appendChild(
+        pageBtn(icon("chevron", 14), page.page + 1, page.page === page.totalPages, "Next page")
+      );
       bar.appendChild(nav);
     }
 
@@ -932,8 +902,23 @@ export async function mount(container, creds) {
     bar.appendChild(size);
   }
 
-  function pageBtn(label, target, disabled) {
-    const btn = el("button", "bl-page", label);
+  // `label` is a page number or a drawn arrow. An arrow needs a name of its own:
+  // the number buttons say what they are, an icon does not.
+  function pageBtn(label, target, disabled, name = "") {
+    const btn = el("button", "bl-page");
+    if (typeof label === "string") {
+      btn.textContent = label;
+    } else {
+      btn.classList.add("icon-btn");
+      // ‹ and › were the previous pair. Same caret as everything else now, laid
+      // on its side in the two directions.
+      label.classList.add(name === "Previous page" ? "icon-rot-270" : "icon-rot-90");
+      btn.appendChild(label);
+    }
+    if (name) {
+      btn.title = name;
+      btn.setAttribute("aria-label", name);
+    }
     btn.disabled = disabled;
     btn.addEventListener("click", () => {
       state.page = target;

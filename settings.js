@@ -4,8 +4,6 @@ import {
   requestOrigin,
   runtimeUrl,
   sendTabMessage,
-  syncGet,
-  syncSet,
   updateTab,
   focusWindow,
 } from "./js/browser.js";
@@ -19,6 +17,9 @@ import {
   saveConfig,
 } from "./js/config.js";
 import { discoverFieldMappings, listBoards } from "./js/api.js";
+import { mountThemeToggle } from "./js/components/theme-toggle.js";
+import { validateStatusGroups } from "./js/utils.js";
+import { icon } from "./js/components/icons.js";
 import {
   clearGithubToken,
   clearToken,
@@ -101,20 +102,15 @@ const importFile = el("importFile");
 let boards = [];
 let statusGroups = [];
 let fields = {};
-let currentTheme = "dark";
 let roster = null;   // roster editor, created once on first init
 let monitorChecks = {};
 
-syncGet("theme").then((result) => {
-  currentTheme = result.theme || "dark";
-  document.documentElement.setAttribute("data-theme", currentTheme);
-});
-
-themeToggle.addEventListener("click", () => {
-  currentTheme = currentTheme === "dark" ? "light" : "dark";
-  document.documentElement.setAttribute("data-theme", currentTheme);
-  syncSet({ theme: currentTheme });
-});
+// The theme, and the button that changes it, both come from the app rather
+// than being reimplemented here. This file used to read and write the storage
+// key itself and settings.html carried its own copy of the toggle's twenty
+// spans, which is two ways for the same sky to drift apart. Nothing on this
+// page reacts to the theme in JS, so there is nothing to hold on to afterwards.
+mountThemeToggle(themeToggle, { className: "settings-theme-toggle" });
 
 toggleBtn.addEventListener("click", () => {
   const isPassword = tokenInput.type === "password";
@@ -206,8 +202,11 @@ function renderBoards() {
     colorInput.addEventListener("input", () => { boards[i].color = colorInput.value; });
 
     const removeBtn = document.createElement("button");
-    removeBtn.className = "remove-board";
-    removeBtn.textContent = "×";
+    removeBtn.className = "remove-board icon-btn";
+    removeBtn.type = "button";
+    removeBtn.appendChild(icon("close", 13));
+    removeBtn.title = "Remove this board";
+    removeBtn.setAttribute("aria-label", `Remove board ${board.name || i + 1}`);
     removeBtn.addEventListener("click", () => {
       boards.splice(i, 1);
       renderBoards();
@@ -218,18 +217,26 @@ function renderBoards() {
   });
 }
 
+// Rows the last Save refused, by index. Cleared on the next edit, so a row you
+// have started fixing stops shouting at you while you are still typing.
+let statusGroupProblems = [];
+
 function renderStatusGroups() {
   statusGroupList.innerHTML = "";
   statusGroups.forEach((group, i) => {
     const row = document.createElement("div");
     row.className = "board-row";
+    if (statusGroupProblems.some((p) => p.index === i)) row.classList.add("row-invalid");
 
     const nameInput = document.createElement("input");
     nameInput.type = "text";
     nameInput.value = group.name;
     nameInput.placeholder = "Column name";
     nameInput.style.flex = "0 0 120px";
-    nameInput.addEventListener("input", () => { statusGroups[i].name = nameInput.value; });
+    nameInput.addEventListener("input", () => {
+      statusGroups[i].name = nameInput.value;
+      row.classList.remove("row-invalid");
+    });
 
     const statusInput = document.createElement("input");
     statusInput.type = "text";
@@ -237,11 +244,15 @@ function renderStatusGroups() {
     statusInput.placeholder = "Status 1, Status 2, ...";
     statusInput.addEventListener("input", () => {
       statusGroups[i].statuses = statusInput.value.split(",").map((s) => s.trim()).filter(Boolean);
+      row.classList.remove("row-invalid");
     });
 
     const removeBtn = document.createElement("button");
-    removeBtn.className = "remove-board";
-    removeBtn.textContent = "×";
+    removeBtn.className = "remove-board icon-btn";
+    removeBtn.type = "button";
+    removeBtn.appendChild(icon("close", 13));
+    removeBtn.title = "Remove this column";
+    removeBtn.setAttribute("aria-label", `Remove column ${group.name || i + 1}`);
     removeBtn.addEventListener("click", () => {
       statusGroups.splice(i, 1);
       renderStatusGroups();
@@ -741,7 +752,19 @@ saveBtn.addEventListener("click", async () => {
   if (!granted) return flash(`Access to ${baseUrl} was not granted`, "error");
 
   const validBoards = boards.filter((b) => b.id > 0 && (b.name || "").trim());
-  const validGroups = statusGroups.filter((g) => g.name.trim() && g.statuses.length);
+  // This used to be the same one-line filter, which meant a column you had
+  // named but not finished was dropped on save with no message — and the only
+  // way to find out was to notice it missing from the board later. Same
+  // validator the board's own COLUMNS panel uses.
+  const groupCheck = validateStatusGroups(statusGroups);
+  statusGroupProblems = groupCheck.problems;
+  if (!groupCheck.ok) {
+    renderStatusGroups();
+    el("section-jira")?.setAttribute("open", "");
+    statusGroupList.scrollIntoView({ block: "center", behavior: "smooth" });
+    return flash(groupCheck.problems[0].message, "warning");
+  }
+  const validGroups = groupCheck.groups;
   const extraFields = additionalFieldsInput.value
     .split(",")
     .map((s) => s.trim())

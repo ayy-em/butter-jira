@@ -970,9 +970,14 @@ js/issue-link.js    # issue links: direction, grouping, picker JQL (DOM-free)
 js/utils.js         # board/field/date/theme helpers + response cache
 js/router.js        # hash routing, setup flow, board picker
 js/components/      # nav, filter bar, re-auth, issue detail, board, drawer,
-                    #   click-to-edit cells, create-issue panel, link picker
+                    #   click-to-edit cells, create-issue panel, link picker,
+                    #   icons, theme toggle, view header
+js/components/icons.js       # the app's icon sprite: authored SVG paths
+js/components/theme-toggle.js# the sun/moon toggle, drawn in one place
+js/components/view-header.js # the header every view puts at the top of itself
 js/views/           # dashboard, backlog, gantt, kanban, monitor, standup
-css/                # one stylesheet per view, plus nav.css for the shell
+css/                # one stylesheet per view, plus nav.css for the shell and
+                    #   settings.css for the settings page
 assets/sfx/         # standup sound cues
 libs/               # vendored frappe-gantt
 manifest.base.json  # shared manifest; overlays in manifest.<target>.json
@@ -982,6 +987,149 @@ scripts/            # jira-smoke.js, manual smoke checklist
 
 No build step — plain ES modules, loaded directly by Chrome.
 
+## Design system
+
+No CSS framework, no icon package, no component library — see
+[PRODUCT.md](PRODUCT.md). What holds the screens together instead is a small set
+of tokens and two or three shared implementations, all of them in
+`css/app.css` and `js/components/`. This section is the reference; each rule also
+carries its reasoning where it lives.
+
+**Type.** Every font size in the app is written `calc(<design px> *
+var(--font-scale))`. That one number moves all of them together, and it is above
+1 because the app is read off a shared screen during standup, where 11px body
+copy is unreadable from the far end of the room. **New CSS that hardcodes a pixel
+font size is a bug, not a style choice.**
+
+**Colour.** Four accents, an extended palette (purple, yellow, cyan, neutral) and
+six status tones, each declared per theme on `:root` / `[data-theme="light"]`.
+Two things about them are easy to get wrong:
+
+- **`--on-accent` is the label colour for anything sitting *on*
+  `--accent-primary`.** The accents are picked to read against `--bg`, which
+  means the text on top of them has to flip per theme: `#fff` on the dark theme's
+  accent is 3.21:1 and fails AA at every size a button uses, while near-black on
+  the same blue is 5.98:1. Light theme is the other way round.
+  `scripts/test-contrast.mjs` enforces it.
+- **A colour written as a literal is right in one theme.** `#EF4444` is the dark
+  theme's danger colour and 3.76:1 on the light theme's white surface. Both of
+  those shipped once.
+
+**Radii.** `--radius-xs|sm|md|lg` (3/4/7/10px) plus `--radius-pill`. The app
+shipped ten different values before that, which is not a system, it is a history.
+**1px and 2px stay literals on purpose**: they sit on 8px legend dots, 7px timer
+pips, chart segments and the theme toggle's rays, where the radius is a softened
+corner on a shape a few pixels wide rather than a box with a corner style —
+rounding those up rounds them away.
+
+**Buttons.** Two implementations, in `css/app.css`:
+
+- `.btn` — a thing you press. Modifiers `.primary`, `.ghost`, `.small`.
+- `.btn-chip` — a small mono control in a toolbar. Modifiers `.active`, `.plain`.
+
+There were about fifteen. The old class names (`.bl-btn`, `.su-btn`,
+`.standup-btn`, `.kanban-group-btn`, `.gantt-mode-btn`, `.gantt-dropdown-btn`,
+`.filter-toggle`, `.monitor-chip`, `.dash-freeze-btn`, `.issue-links-action`,
+`.expiry-banner-btn`) are kept as **aliases on those two rules** rather than
+renamed across the markup: the win was one definition of a button, and renaming
+twenty call sites to get it would have been a second, riskier change wearing the
+same hat. Each view stylesheet now holds only what its button genuinely does
+differently, which in most cases is nothing. New code should use `.btn` and
+`.btn-chip`.
+
+**Icons.** `js/components/icons.js` — authored SVG paths on a 24×24 grid,
+stroked, inheriting `currentColor`, so one drawing works in both themes.
+`icon(name, size, { label })` is aria-hidden by default and takes a name only
+when it asks for one, so the decorative case is the quiet one. There is **one
+cross** and **one caret** — everything that points another way is that caret
+rotated (`.icon-rot-*`, `.icon-caret.open/.closed`), not a different glyph.
+Two places cannot hold an element and get the same drawing another way:
+`svgIconPath()` for the roadmap's in-chart caret, and the `--caret-mask` custom
+property for the settings page's `::before` section marker. There are no emoji in
+the UI: they had no accessible name, carried their meaning in hue, and rendered
+as a different picture on every platform.
+
+**Headers.** `js/components/view-header.js` — icon tile, title, a line saying
+what you are looking at, and an optional strip of counts. Every view has one. The
+Backlog's `.bl-*` class names are aliases on the same rules, for the reason the
+buttons are.
+
+**Focus.** One visible ring for everything the keyboard can reach
+(`:focus-visible`, so a mouse click does not paint it), with `outline: none`
+allowed only where something replaces it. The two containers focused by script
+and never by Tab — the drawer panel and `#view-container` — suppress it
+deliberately, because a ring around a full-height region reads as a rendering
+fault rather than as focus.
+
+**Three things are pinned and are not up for re-litigation.** A mechanical design
+scan flags all three on every run; all three findings are declined, not
+outstanding:
+
+1. **The animated gradient** on the STANDUP nav tab, the standup counters and the
+   Start Standup button. Stops live in `--flair-stops` / `--flair-sweep` — one
+   source, do not re-inline them.
+2. **The dark palette.** Light theme was fixed because it was broken (chips at
+   1.5–3.3:1). Dark was left alone on purpose, including `--tone-red` (3.96:1)
+   and `--tone-purple` (3.71:1), which are marginally under AA against their own
+   chip backgrounds. Changing them is a scheme change, not a contrast fix.
+3. **The theme toggle's sky** — sun, moon, stars, clouds, craters. Its markup is
+   in `js/components/theme-toggle.js`, which is the one place it is drawn.
+
+### Traps
+
+Each of these has already cost someone an hour.
+
+- **Tokens must be in scope, not merely defined.** `css/recap.css` declared its
+  whole palette on `.recap`, while the toolbar is a sibling of `.recap-sheet`.
+  Every `var()` in three rules was invalid at computed-value time, so the Print
+  button lost its background *and* its border and rendered white-on-near-white at
+  1.19:1 — the primary action of that page, invisible in production for however
+  long. Check where a custom property is declared relative to everything that
+  reads it.
+- **`var(--accent)` does not exist.** It was used once in `css/standup.css` and
+  silently fell through to `currentColor`, working by accident. The token is
+  `--accent-primary`.
+- **`toISOString()` is a bug in date-only code.** A Jira due date is a calendar
+  day; formatting one through UTC shifts it a day backwards anywhere east of
+  Greenwich. `deliveryState` compares local midnights for this reason, and
+  `scripts/test-gantt.mjs` was itself briefly wrong in exactly this way. Run it
+  under `TZ=Pacific/Auckland` and `TZ=America/Anchorage` after touching anything
+  date-shaped.
+- **frappe-gantt only draws its today marker in Day view.**
+  `make_grid_highlights()` is guarded on it, so Month, Week and Quarter — the
+  views a roadmap is actually read in — have no `.today-highlight` element to
+  read a position from. The line is computed in `js/views/gantt.js` (`todayX`) by
+  copying the library's own `compute_x`, including its Month special case where
+  columns are a nominal thirtieth of a month rather than a fixed step. Re-check
+  that function if you change view modes or upgrade the library.
+- **Preview harnesses can hide the bug they exist to show, and invent ones that
+  are not there.** `preview-standup.html` set `#view-container { position: static }`
+  with no height, so `height: 100%` on the running stage resolved against nothing
+  and the screen rendered at content height in the harness and full height in the
+  app. `preview-kanban.html` briefly made that container a flex parent, which let
+  the board's wrap grow to its full content width and pushed the COLUMNS button
+  off-screen — in the harness and nowhere else. `preview-issue.js` still omits
+  the page shell, so the issue page renders flush to x=0 there and correctly in
+  production. Distrust a harness before filing a layout bug from one.
+- **Headless Chrome's `--virtual-time-budget` will not wait for the app.** A
+  `setTimeout` polling loop burns the entire budget before the page's own pending
+  work has run, so a harness that waits for an element by sleeping never finds it
+   — and the element is there in the `--dump-dom` afterwards. Watch for it with a
+  `MutationObserver` instead; `preview-standup.js` does, for `?done=1`. Add
+  `--force-prefers-reduced-motion` to stop the standup's confetti landing on top
+  of the screen you are trying to photograph.
+- **`prefers-reduced-motion` has been forgotten twice.** `css/app.css` held the
+  app's only infinite animation and was the one stylesheet of eleven with no
+  clause; `js/components/nav.js` shipped a second confetti implementation that
+  skipped the check the real one makes. `js/confetti.js` is the only confetti —
+  it does nothing at all under reduced motion, by design.
+- **Board colour is deliberate, not decoration.** Inline `link.style.color` in
+  `monitor.js` and `gantt.js` colours an issue key by its board, matching
+  `board.js`. It looks like a workaround for the unstyled-link bug and is not.
+- **Every write is user-initiated and enumerable.** The app writes in six places
+  and nowhere else. Anything that would add a seventh — notably undo on
+  drag-to-transition — is a product decision, not a polish task.
+
 ## Checks
 
 Config-layer unit checks — no dependencies, no network, no browser:
@@ -989,7 +1137,7 @@ Config-layer unit checks — no dependencies, no network, no browser:
 ```bash
 node scripts/test-backlog.mjs      # grouping, paging, tones, views    (115 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
-node scripts/test-imports.mjs      # every module imports what it calls  (50 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (54 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (49 checks)
 node scripts/test-config.mjs       # config layer, field discovery      (88 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
@@ -1001,19 +1149,24 @@ node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (226 check
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (117 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
 node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (206 checks)
-node scripts/test-write.mjs        # field writes, undo, bulk, links  (136 checks)
+node scripts/test-write.mjs        # field writes, undo, bulk, links  (152 checks)
 node scripts/test-create.mjs       # createmeta -> form -> payload      (71 checks)
 node scripts/test-activity.mjs     # issue history -> per-person activity (75 checks)
 node scripts/test-gantt.mjs        # roadmap delivery colouring         (18 checks)
+node scripts/test-kanban.mjs       # column config, grouping, key nav   (47 checks)
+node scripts/test-contrast.mjs     # theme tokens against WCAG AA       (24 checks)
+node scripts/test-drawer.mjs       # the drawer's focus layer           (24 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it:
 `preview-standup.html`, `preview-backlog.html`, `preview-dashboard.html`,
-`preview-recap.html`, `preview-issue.html`, `preview-create.html` and
-`preview-gantt.html` mount the
+`preview-recap.html`, `preview-issue.html`, `preview-create.html`,
+`preview-gantt.html`, `preview-kanban.html` and `preview-monitor.html` mount the
 real view against stubbed extension storage and a stubbed Jira/GitHub network, so
 a screen can be looked at in each of its states without a site, a token or a
-roster. The create panel in particular has no other way of being checked — its
+roster. Every view has one, and that is not decoration: for a long stretch only
+five did, and every light-theme defect a design review found in September 2026
+was in one of the three that did not. The create panel in particular has no other way of being checked — its
 form is generated from whatever createmeta returns, so reading the code tells you
 very little about what appears. The last four share their fixture
 (`preview-fixture.js`) — three boards, three staggered sprints, synthetic people
@@ -1031,7 +1184,22 @@ detail (which open that cell and the link picker — the states a screenshot
 cannot reach on its own; `?link=search` types a query, lists results and picks
 one, and `?link=refuse` submits it and has Jira say no), and `?createmeta=minimal|blocked` · `?create=refuse` · `?parent=ABC-1` on
 the create panel — a project that asks for nothing, one that requires a field the
-form cannot render, a refused create, and the sub-task form. `?jira=slow` and `?stats=slow` hold the recap's
+form cannot render, a refused create, and the sub-task form.
+
+The Kanban and Monitor harnesses are self-contained rather than sharing that
+fixture, because they want the opposite of a tidy sprint: Kanban wants a wide
+spread of statuses across two boards, Monitor wants issues that are deliberately
+wrong in four specific ways. Kanban takes `?editor=1` (opens the column editor),
+`?groups=stale` — the four columns the app ships with, against a site that spells
+almost none of them that way, which is what a fresh clone actually looks like —
+`?groups=none`, and `?refuse=1`, which makes every workflow transition refuse, so
+the refusal wording is reachable without a Jira that says no. Monitor takes
+`?clean=1` (nothing to fix — the good day a live Jira will never show you on
+demand), `?fields=none` (no story-points field mapped, so that check reports as
+unavailable rather than flagging every issue), `?checks=muted`, `?roster=off` and
+`?scope=all`. Standup adds `?done=1`, which starts a session, leaves a parking-lot
+note and ends it, because the end screen cannot otherwise be reached without
+sitting through a meeting. `?jira=slow` and `?stats=slow` hold the recap's
 loading states open long enough to look at — the states that must never offer a
 print button — and `?stats=partial` marks one repo half-answered and another
 truncated, which is what the undercount warning is for. None of them ships: `scripts/build.mjs` copies an
@@ -1136,7 +1304,38 @@ read off the response header.
 missed two imports and shipped: `node --check` parses without resolving
 identifiers, and the unit suites do not import the DOM-heavy view modules. It
 flags any identifier a module calls that another module exports and this one
-never imported.
+never imported. It used to skip template literals whole, on the grounds that a
+name inside one is usually prose — and then a call inside `${…}` went in without
+its import and the file said nothing, which is precisely the bug it was written
+for. Interpolations are code; only the text between them is prose.
+
+`test-kanban.mjs` covers the board's pure layer: what a column editor is allowed
+to save (a row nobody touched is dropped quietly, a half-finished one is refused
+loudly and says which row and why, a status claimed by two columns is refused
+because `resolveStatusGroup` would otherwise silently give it to the earlier
+one), the statuses the editor's shelf offers and how they are counted, how issues
+fall into columns once it has saved — including the forgiving case where a status
+in no column gets a column of its own — and the arrow-key grid, whose interesting
+edges are the ends of a column, the ends of the board, and the empty column in
+the middle that has to be stepped over rather than landed in.
+
+`test-contrast.mjs` reads the theme tokens out of `css/app.css` rather than from
+numbers retyped into the test, checks the pairs the app actually paints against
+the 4.5:1 AA floor in both themes, and fails if any rule sets a solid
+`background: var(--accent-primary)` and then names its own `color` — the label on
+an accent belongs to `--on-accent`, which flips per theme, and a literal there is
+wrong in one of them by construction. It exists because ten primary buttons
+shipped at 3.21:1 in dark theme while an eleventh was correct and got "fixed"
+into line with the other ten. No reviewer holds eleven selectors and two palettes
+in their head; this file does.
+
+`test-drawer.mjs` covers the issue drawer's focus layer — which elements a Tab
+may land on, where the cycle wraps, and how a trigger is described so it can be
+found again after the board repaints out from under it. Written because the bug
+it replaces was invisible to every other kind of test: `role="dialog"` was set,
+`aria-label` was set, the panel looked right in a screenshot, and focus was still
+sitting on `<body>` behind the backdrop while the view underneath answered the
+keyboard.
 
 `test-browser.mjs` is the one that matters for the port: it runs the real
 modules against a Firefox-shaped `browser` global with **no `chrome` global at
@@ -1228,15 +1427,17 @@ change the shape.
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for the full record, including why each thing is
-built the way it is, and [UX.md](UX.md) for the design and UX backlog — the
-surface-level work that belongs to no milestone, with the quirks that bite
-anyone picking it up cold.
+built the way it is. Design and UX work had its own backlog until 2026-09-06,
+when the last of it was closed; the reference that outlived it is
+[Design system](#design-system) above, and the things that were deliberately not
+done are in the roadmap's icebox, stated as decisions rather than as omissions.
 
 **Done:** hygiene (M0), whitelabelling (M1), durable identity and config (M2),
 the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode
 (M6), the sprint dashboard (M7), the write layer and issue creation (M8), the
 command palette (M9), GitHub sync (M11), the Firefox and Edge ports (M12), the
-sprint freeze and diff (M13), and linked issues (M18).
+sprint freeze and diff (M13), linked issues (M18), and the design backlog
+(ad-hoc, 2026-09-06).
 M10 is vacant: it was Sprint Wrapped, re-aimed at the quarter and renumbered to
 M16 on 2026-09-03, and the number is retired rather than reused.
 

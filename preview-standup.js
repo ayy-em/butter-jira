@@ -14,7 +14,7 @@ const NAMES = [
 ];
 
 // ?theme=light · ?select=nobody · ?roster=empty · ?github=off · ?resume=1 ·
-// ?start=1 · ?sprint=undated
+// ?start=1 · ?done=1 · ?sprint=undated
 const params = new URLSearchParams(location.search);
 document.documentElement.dataset.theme = params.get("theme") || "dark";
 
@@ -327,6 +327,49 @@ await mount(
 
 if (params.get("select") === "nobody") document.querySelectorAll(".su-seg")[1]?.click();
 if (params.get("start") === "1") document.querySelector(".su-start")?.click();
+
+// ?done=1 — the end screen. It is the one screen in this view that cannot be
+// reached without living through a meeting first, which is why it was the last
+// part of the standup still wearing the previous generation's design: nobody
+// looks at it except at the end of a real standup, when they are busy.
+//
+// The confirm is the real one and it fires because most of the roster has not
+// spoken; it is answered here rather than suppressed, so this takes exactly the
+// path a facilitator takes.
+if (params.get("done") === "1") {
+  document.querySelector(".su-start")?.click();
+  // startNow() paints the stage asynchronously — it asks for fullscreen on the
+  // way — so the End button does not exist on the tick that made it. Watched
+  // for rather than polled on a timer: under headless Chrome's virtual clock a
+  // sleep loop burns its whole budget before the app's own work has run, which
+  // is a trap worth only falling into once.
+  const end = await new Promise((resolve) => {
+    const find = () =>
+      [...document.querySelectorAll(".standup-ctrl")]
+        .find((b) => b.textContent.trim().toLowerCase() === "end") || null;
+    const found = find();
+    if (found) return resolve(found);
+    const observer = new MutationObserver(() => {
+      const el = find();
+      if (el) { observer.disconnect(); resolve(el); }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+  // A parking-lot note, so the end screen has the panel it exists for. Without
+  // one the summary is only the times, and the half of the screen with the
+  // Copy-message and Download actions never renders.
+  const parking = document.querySelector(".standup-parking-input");
+  if (parking) {
+    parking.value = "Index split needs a decision on the flag before Thursday.";
+    parking.dispatchEvent(new Event("input", { bubbles: true }));
+    parking.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  const originalConfirm = window.confirm;
+  window.confirm = () => true;   // most of the roster has not spoken; that is the point
+  end.click();
+  window.confirm = originalConfirm;
+}
 
 // ?pressure=0.8 · ?over=0.5 — pin the time-pressure channel so its states can
 // be looked at without sitting through a two-minute slot and then running over

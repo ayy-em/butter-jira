@@ -20,79 +20,10 @@
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 
-.bl-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-.bl-header-left { display: flex; align-items: center; gap: 13px; min-width: 0; }
-.bl-header-icon {
-  display: flex; align-items: center; justify-content: center;
-  width: 42px; height: 42px; flex: 0 0 42px;
-  border-radius: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--accent-primary);
-}
-.bl-title {
-  font-size: calc(21px * var(--font-scale));
-  font-weight: 600;
-  letter-spacing: -0.2px;
-  color: var(--text);
-  line-height: 1.15;
-}
-.bl-subtitle { font-size: calc(12.5px * var(--font-scale)); color: var(--muted); margin-top: 2px; }
-
-.bl-tiles {
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  overflow: hidden;
-}
-.bl-tile {
-  display: grid;
-  grid-template-columns: auto auto;
-  grid-template-rows: auto auto;
-  align-items: center;
-  gap: 0 7px;
-  padding: 10px 18px;
-  border-left: 1px solid var(--border);
-}
-.bl-tile:first-child { border-left: none; padding-left: 20px; }
-.bl-tile-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--tone, var(--muted));
-  grid-row: 1;
-}
-.bl-tile-num {
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: calc(19px * var(--font-scale)); font-weight: 600; color: var(--text); line-height: 1.1;
-}
-.bl-tile-label {
-  grid-column: 1 / -1;
-  font-size: calc(10.5px * var(--font-scale)); color: var(--muted); white-space: nowrap;
-}
-/* The total is the headline figure, so it loses the dot and gains an underline
-   — colour would make it look like just another status. */
-.bl-tile.tone-total .bl-tile-dot { display: none; }
-.bl-tile.tone-total .bl-tile-num {
-  grid-column: 1 / -1;
-  font-size: calc(22px * var(--font-scale));
-  border-bottom: 2px solid var(--accent-primary);
-  padding-bottom: 1px;
-  justify-self: start;
-}
-.bl-tile.tone-gray   { --tone: var(--tone-gray); }
-.bl-tile.tone-blue   { --tone: var(--tone-blue); }
-.bl-tile.tone-green  { --tone: var(--tone-green); }
-.bl-tile.tone-orange { --tone: var(--tone-orange); }
-.bl-tile.tone-red    { --tone: var(--tone-red); }
-.bl-tile.tone-purple { --tone: var(--tone-purple); }
+/* The header and its strip of counts are the app's, not the Backlog's — see the
+   View header block in css/app.css, where .bl-header and the rest are aliases
+   on the same rules. Kanban and Monitor use it too; they used to have no header
+   at all, which is most of what made them read as an older generation. */
 
 /* ── Toolbar ────────────────────────────────────────────────────────────── */
 
@@ -107,7 +38,7 @@
   display: flex;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   padding: 2px;
   gap: 2px;
 }
@@ -116,11 +47,11 @@
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(11px * var(--font-scale)); letter-spacing: 0.3px;
   color: var(--muted);
-  padding: 5px 11px; border-radius: 5px;
+  padding: 5px 11px; border-radius: var(--radius-sm);
   transition: background 0.12s, color 0.12s;
 }
 .bl-seg:hover { color: var(--text); }
-.bl-seg.on { background: var(--accent-primary); color: #fff; }
+.bl-seg.on { background: var(--accent-primary); color: var(--on-accent); }
 
 /* Search is the primary control, so it takes the slack in the row. */
 .bl-search {
@@ -128,7 +59,7 @@
   flex: 1 1 260px; min-width: 200px; max-width: 520px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   padding: 0 10px;
   color: var(--muted);
   transition: border-color 0.12s;
@@ -144,7 +75,7 @@
 .bl-kbd {
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(10px * var(--font-scale)); color: var(--muted);
-  border: 1px solid var(--border); border-radius: 4px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 1px 5px; background: var(--bg);
 }
 
@@ -152,7 +83,7 @@
   display: flex; align-items: center; gap: 6px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   padding: 0 8px 0 10px;
   height: 34px;
 }
@@ -172,7 +103,7 @@
   width: 34px; height: 34px; flex: 0 0 34px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-md);
   color: var(--muted);
   cursor: pointer;
   transition: color 0.12s, border-color 0.12s;
@@ -182,21 +113,9 @@
 .bl-icon-btn:hover { color: var(--text); border-color: var(--muted); }
 .bl-icon-btn::-webkit-details-marker { display: none; }
 
-.bl-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  color: var(--text);
-  font-size: calc(12.5px * var(--font-scale));
-  padding: 8px 14px;
-  cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
-}
-.bl-btn:hover { border-color: var(--muted); }
-.bl-btn.primary {
-  background: var(--accent-primary); border-color: var(--accent-primary); color: #fff;
-}
-.bl-btn.primary:hover { filter: brightness(1.08); }
+/* .bl-btn is the app's button — see the Buttons block in css/app.css, where it
+   is defined once alongside .su-btn, .standup-btn and .btn. Nothing on this
+   screen needs it to differ, so nothing is written here. */
 
 .bl-counts {
   margin-left: auto;
@@ -214,7 +133,7 @@
   min-width: 190px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px;
   box-shadow: 0 12px 28px rgba(0,0,0,0.35);
 }
@@ -225,7 +144,7 @@
 }
 .bl-menu-row {
   display: flex; align-items: center; gap: 8px;
-  padding: 5px 6px; border-radius: 5px;
+  padding: 5px 6px; border-radius: var(--radius-sm);
   font-size: calc(12.5px * var(--font-scale)); color: var(--text); cursor: pointer;
 }
 .bl-menu-row:hover { background: var(--bg); }
@@ -282,18 +201,18 @@
 .bl-filter-count {
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(10px * var(--font-scale)); color: var(--muted);
-  background: var(--surface); border-radius: 10px; padding: 1px 7px;
+  background: var(--surface); border-radius: var(--radius-lg); padding: 1px 7px;
 }
 .bl-filter-body { padding: 0 0 9px; max-height: 230px; overflow-y: auto; }
 .bl-filter-search {
   width: 100%;
-  background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
   color: var(--text); font-size: calc(11.5px * var(--font-scale)); padding: 5px 7px; margin-bottom: 6px;
   outline: none;
 }
 .bl-opt {
   display: flex; align-items: center; gap: 7px;
-  padding: 4px 4px; border-radius: 5px;
+  padding: 4px 4px; border-radius: var(--radius-sm);
   font-size: calc(12px * var(--font-scale)); color: var(--text); cursor: pointer;
 }
 .bl-opt:hover { background: var(--surface); }
@@ -320,7 +239,7 @@
   min-height: 0;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -376,7 +295,9 @@
 .bl-col-sp .bl-th-inner { justify-content: center; }
 .bl-table thead th.sortable { cursor: pointer; }
 .bl-table thead th.sortable:hover { color: var(--text); }
-.bl-sort { font-size: calc(8px * var(--font-scale)); line-height: 1; color: var(--accent-primary); }
+/* Drawn rather than ▲ / ▼, which were two glyphs of different weights that
+   swapped instead of turning — nothing on screen moved when the sort flipped. */
+.bl-sort { color: var(--accent-primary); }
 
 .bl-col-select { width: 38px; }
 .bl-col-key { width: 104px; }
@@ -449,7 +370,7 @@
   gap: 5px;
   max-width: 100%;
   padding: 3px 9px 3px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: calc(10.5px * var(--font-scale));
   font-weight: 600;
   letter-spacing: 0.3px;
@@ -481,7 +402,7 @@
 .bl-status {
   display: inline-block;
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: calc(10.5px * var(--font-scale));
   font-weight: 600;
   letter-spacing: 0.3px;
@@ -504,7 +425,7 @@
   align-items: center;
   justify-content: center;
   width: 24px; height: 22px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(11px * var(--font-scale));
   font-weight: 600;
@@ -562,7 +483,7 @@
 .bl-group-count {
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(10px * var(--font-scale)); color: var(--muted);
-  background: var(--surface); border-radius: 10px; padding: 1px 7px;
+  background: var(--surface); border-radius: var(--radius-lg); padding: 1px 7px;
 }
 
 /* ── Empty and loading ──────────────────────────────────────────────────── */
@@ -579,7 +500,7 @@
 .bl-skeleton-row {
   height: 30px;
   margin-bottom: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: linear-gradient(90deg, var(--surface) 0%, var(--border) 50%, var(--surface) 100%);
   background-size: 200% 100%;
   animation: bl-shimmer 1.3s ease-in-out infinite;
@@ -604,22 +525,22 @@
   font-size: calc(11px * var(--font-scale));
   color: var(--accent-primary);
   background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
-  border-radius: 999px; padding: 3px 10px;
+  border-radius: var(--radius-pill); padding: 3px 10px;
 }
 .bl-pages { display: flex; align-items: center; gap: 3px; margin: 0 auto; }
 .bl-page {
   min-width: 28px; height: 28px;
-  background: none; border: 1px solid transparent; border-radius: 6px;
+  background: none; border: 1px solid transparent; border-radius: var(--radius-md);
   color: var(--muted); cursor: pointer; font-size: calc(12px * var(--font-scale));
   transition: background 0.12s, color 0.12s;
 }
 .bl-page:hover:not(:disabled) { color: var(--text); background: var(--surface); }
-.bl-page.on { background: var(--accent-primary); color: #fff; }
+.bl-page.on { background: var(--accent-primary); color: var(--on-accent); }
 .bl-page:disabled { opacity: 0.3; cursor: default; }
 .bl-page-gap { color: var(--muted); padding: 0 2px; }
 .bl-perpage { display: flex; align-items: center; gap: 6px; }
 .bl-perpage select {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
   color: var(--text); font-size: calc(12px * var(--font-scale)); padding: 4px 6px; cursor: pointer; outline: none;
 }
 

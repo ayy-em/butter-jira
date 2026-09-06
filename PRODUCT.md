@@ -186,8 +186,31 @@ store listing, no uptime or support commitment.
 
 No product-specific standard has been established. What exists today is
 evidence, not a commitment: `lang="en"`, ARIA in use (`aria-label`,
-`aria-expanded`, `aria-sort`, `aria-checked`, `aria-haspopup`, `aria-hidden`),
-`prefers-reduced-motion` honoured across six stylesheets and the confetti and
-nav modules, light and dark themes via `data-theme`, and keyboard shortcuts for
-every view with the standup deliberately taking the keyboard for its duration.
-English only; no i18n layer.
+`aria-expanded`, `aria-sort`, `aria-checked`, `aria-haspopup`, `aria-hidden`,
+`aria-modal`, `role="alert"`), `prefers-reduced-motion` honoured across all
+eleven stylesheets and the confetti and nav modules, light and dark themes via
+`data-theme`, and keyboard shortcuts for every view with the standup deliberately
+taking the keyboard for its duration. English only; no i18n layer.
+
+A design pass on 2026-09-06 raised the floor in four specific places, each of
+which had been shipping:
+
+- **Contrast.** Twelve primary buttons read `#fff` on the dark theme's accent at
+  3.21:1. They take an `--on-accent` token now, and `scripts/test-contrast.mjs`
+  computes the theme's own pairs against the 4.5:1 AA floor on every run rather
+  than trusting a reviewer to hold two palettes in their head. Two dark chip tones
+  remain marginally under AA and are a stated, recorded decision — see the
+  roadmap's icebox.
+- **Focus.** The issue drawer said `role="dialog"` and did none of the rest of
+  it: focus stayed on the trigger behind a dimmed backdrop and Tab walked into
+  the live view underneath. It now takes focus, traps it, restores it, and sets
+  `aria-modal`. That is also what made the standup's Escape collision possible,
+  so it is a correctness fix as much as an accessibility one.
+- **Colour as the only channel.** Card priority was four coloured emoji with no
+  text and no title — the only encoding of priority on the board, legible only to
+  someone who can separate red from orange. It is a shape in a tone with a name.
+  Status tone, delivery state and sprint hygiene each print a word beside the
+  colour for the same reason.
+- **Keyboard.** Changing an issue's status was drag-only, on the surface most
+  often corrected during a standup on a shared screen. The board takes arrow keys
+  and `Shift+←/→`, through the same code path the drop uses.

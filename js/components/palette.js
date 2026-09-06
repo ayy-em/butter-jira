@@ -13,7 +13,7 @@
 
 import { localGet, localSet, runtimeUrl } from "../browser.js";
 import { getAllBacklogIssues, getAllSprintIssues, searchIssuesByJql } from "../api.js";
-import { boardColor, cache, isOverdue, showToast } from "../utils.js";
+import { boardColor, cache, isOverdue, recallToast, showToast } from "../utils.js";
 import { allMembers, avatarOverrideFor, memberLabel } from "../team.js";
 import { requestAssigneeFilter } from "./filters.js";
 import { buildExport, downloadJson, exportFilename } from "../portable.js";
@@ -183,6 +183,16 @@ export async function openPalette(creds) {
           window.dispatchEvent(new HashChangeEvent("hashchange"));
           showToast("Cache cleared — reloading");
         },
+      },
+      {
+        kind: "action",
+        id: "lastMessage",
+        label: "Show the last message again",
+        keywords: ["toast", "error", "notification", "what did it say", "recall"],
+        // Toasts leave on a timer, and a refusal — the workflow wording after a
+        // failed move — was readable for five seconds and then gone for good.
+        // This is the way back to it.
+        run: () => recallToast(),
       },
       {
         kind: "action",

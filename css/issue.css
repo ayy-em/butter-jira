@@ -46,6 +46,14 @@
   .issue-drawer, .issue-drawer-overlay { animation: none; }
 }
 
+/* The panel takes focus on open so the dialog is announced, which means the
+   app-wide focus ring would otherwise draw a 2px accent outline around a
+   full-height panel. The panel is a container, not a control — the ring belongs
+   on the things inside it. Everything the keyboard can actually reach keeps
+   its own. */
+.issue-drawer:focus,
+.issue-drawer:focus-visible { outline: none; }
+
 .issue-drawer-close {
   position: absolute;
   top: 10px;
@@ -56,7 +64,7 @@
   color: var(--muted);
   width: 26px;
   height: 26px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: calc(12px * var(--font-scale));
 }
@@ -104,7 +112,7 @@ body.issue-page-body {
   max-width: 520px;
   padding: 16px;
   border: 1px solid var(--accent-danger);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--accent-danger);
   font-size: calc(13px * var(--font-scale));
   text-align: center;
@@ -137,7 +145,7 @@ body.issue-page-body {
   text-transform: uppercase;
   letter-spacing: 0.6px;
   border: 1px solid currentColor;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 2px 7px;
   white-space: nowrap;
 }
@@ -156,7 +164,7 @@ body.issue-page-body {
   color: var(--muted);
   text-decoration: none;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 3px 8px;
   white-space: nowrap;
 }
@@ -185,7 +193,7 @@ body.issue-page-body {
   text-transform: uppercase;
   letter-spacing: 0.8px;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 1px 5px;
 }
 .issue-parent-summary { color: var(--muted); }
@@ -235,7 +243,7 @@ body.issue-page-body {
   max-width: 100%;
   background: var(--bg);
   border: 1px solid var(--accent-primary);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   color: var(--text);
   font-size: calc(13px * var(--font-scale));
   padding: 2px 6px;
@@ -283,13 +291,13 @@ body.issue-page-body {
   font-size: calc(12px * var(--font-scale));
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 1px 4px;
 }
 .rich-text pre {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 10px 12px;
   overflow-x: auto;
   font-size: calc(12px * var(--font-scale));
@@ -300,7 +308,7 @@ body.issue-page-body {
   padding-left: 12px;
   color: var(--muted);
 }
-.rich-text img { max-width: 100%; height: auto; border-radius: 4px; }
+.rich-text img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
 .rich-text table { border-collapse: collapse; width: 100%; font-size: calc(13px * var(--font-scale)); }
 .rich-text th, .rich-text td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
 .rich-text th { background: var(--surface); font-weight: 600; }
@@ -339,7 +347,7 @@ body.issue-page-body {
   flex: none;
   background: none;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   font-size: calc(11px * var(--font-scale));
   line-height: 1;
@@ -359,7 +367,7 @@ body.issue-page-body {
 
 .issue-comment {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   padding: 10px 13px;
 }
@@ -378,7 +386,7 @@ body.issue-page-body {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
   font-size: calc(13px * var(--font-scale));
@@ -402,8 +410,8 @@ body.issue-page-body {
 .issue-reply-post {
   background: var(--accent-primary);
   border: none;
-  border-radius: 4px;
-  color: #fff;
+  border-radius: var(--radius-sm);
+  color: var(--on-accent);
   font-size: calc(11px * var(--font-scale));
   font-weight: 600;
   text-transform: uppercase;
@@ -424,17 +432,9 @@ body.issue-page-body {
    would move every time. */
 .issue-links-heading { display: flex; align-items: center; gap: 12px; }
 .issue-links-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-.issue-links-action {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--muted);
-  font-size: calc(11px * var(--font-scale));
-  letter-spacing: 0;
-  text-transform: none;
-  padding: 3px 9px;
-  cursor: pointer;
-}
+/* The shared toolbar chip in its sentence-case form (css/app.css), a little
+   tighter: these sit inline with the LINKED ISSUES heading. */
+.issue-links-action { padding: 3px 9px; }
 .issue-links-action:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
 
 /* ── Create issue / sub-task panel ────────────────────────────────────────── */
@@ -468,7 +468,7 @@ body.issue-page-body {
 .create-input {
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-size: calc(13px * var(--font-scale));
   font-family: inherit;
@@ -493,8 +493,8 @@ textarea.create-input { resize: vertical; line-height: 1.5; }
 .create-submit {
   background: var(--accent-primary);
   border: none;
-  border-radius: 4px;
-  color: var(--bg);
+  border-radius: var(--radius-sm);
+  color: var(--on-accent);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   font-size: calc(13px * var(--font-scale));
   padding: 9px 18px;
@@ -504,7 +504,7 @@ textarea.create-input { resize: vertical; line-height: 1.5; }
 .create-cancel {
   background: none;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   font-size: calc(12px * var(--font-scale));
   padding: 8px 14px;
@@ -521,7 +521,7 @@ textarea.create-input { resize: vertical; line-height: 1.5; }
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   max-height: 260px;
   overflow-y: auto;
 }

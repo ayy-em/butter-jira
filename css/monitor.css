@@ -4,6 +4,8 @@
   margin: 0 auto;
 }
 
+.monitor-wrap > .view-header { margin-bottom: 16px; }
+
 /* Three tracks so the scope switch sits dead centre whatever the side content
    weighs — a plain flex row would drift as the team toggle appears. */
 .monitor-controls {
@@ -49,7 +51,7 @@
   height: 24px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg);
   cursor: pointer;
   transition: background 0.18s, border-color 0.18s;
@@ -97,7 +99,7 @@
 
 .monitor-summary {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   padding: 14px 16px;
   margin-bottom: 18px;
@@ -113,15 +115,14 @@
 
 .monitor-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
+/* The shared toolbar chip (css/app.css), with a ground of its own: these sit on
+   the summary card rather than on the page, and a transparent chip there reads
+   as part of the card. Sentence case comes from .btn-chip.plain, which this is
+   listed under. */
 .monitor-chip {
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
   color: var(--text);
-  font-size: calc(11px * var(--font-scale));
   padding: 4px 9px;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
 }
 .monitor-chip:hover { border-color: var(--muted); }
 .monitor-chip.clean { color: var(--muted); }
@@ -145,7 +146,7 @@
   font-size: calc(11px * var(--font-scale));
   text-decoration: none;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 2px 7px;
 }
 .monitor-worst-item:hover { border-color: currentColor; }
@@ -156,7 +157,7 @@
 
 .monitor-section {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   margin-bottom: 10px;
   overflow: hidden;
   background: var(--surface);
@@ -194,7 +195,7 @@
   min-width: 22px;
   text-align: center;
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(247, 145, 79, 0.16);
   color: var(--accent-warning);
   flex: 0 0 auto;
@@ -228,6 +229,14 @@
 }
 .monitor-table tr:hover { background: rgba(139, 145, 160, 0.06); }
 .monitor-table td:first-child { padding-left: 34px; }
+/* The summary cell is width:100%, so every other column is squeezed to its
+   content — and with nothing stopping them, they wrap. A board whose name is
+   three words rather than an acronym was enough to break the *key* over two lines, as
+   "ACME-" and "102", which is the one string on the row that has to stay one
+   token. Found the day this view got a preview harness; there was nowhere to
+   see it before, because the board names in a live Jira are whatever they are
+   and nobody screenshots the Monitor. */
+.monitor-table td:not(.monitor-cell-summary) { white-space: nowrap; }
 
 .monitor-cell-summary {
   width: 100%;

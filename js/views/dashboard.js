@@ -20,6 +20,7 @@ import {
   scopeBasis,
 } from "../freeze.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
+import { icon } from "../components/icons.js";
 import { memberFor } from "../team.js";
 import {
   FALLBACK_SPRINT_DAYS,
@@ -1026,9 +1027,9 @@ function renderDelivery(summary, github) {
       // Caret beside the label, help mark last: the sort state belongs to the
       // heading, the "?" is an affordance sitting after it.
       if (sort.id === column.id) {
-        const caret = document.createElement("span");
-        caret.className = "dash-sort";
-        caret.textContent = sort.dir === "asc" ? "▲" : "▼";
+        const caret = icon("chevron", 11);
+        caret.classList.add("dash-sort");
+        if (sort.dir === "asc") caret.classList.add("icon-rot-180");
         th.appendChild(caret);
       }
       if (column.hint) {

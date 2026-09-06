@@ -24,7 +24,7 @@
   flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
   overflow: hidden;
 }
@@ -133,7 +133,7 @@
   font-size: calc(9px * var(--font-scale));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 1px 5px;
 }
 .palette-badge.overdue {

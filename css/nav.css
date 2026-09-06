@@ -114,7 +114,7 @@
   content: "";
   position: absolute;
   inset: -1px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 1px;
   background: var(--flair-sweep);
   background-size: 300% 100%;
@@ -178,7 +178,7 @@
   margin-left: 6px;
   min-width: 16px;
   padding: 0 5px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--accent-warning);
   color: var(--bg);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;

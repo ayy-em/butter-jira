@@ -3,7 +3,11 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  gap: 14px;
 }
+/* The header does not scroll with the board and does not compete with it for
+   height: the columns take whatever is left. */
+.kanban-wrap > .view-header { flex: 0 0 auto; }
 
 /* Profile pictures on this screen are circles — person pills in the controls
    and assignee avatars in card footers alike. Scoped to .kanban-wrap rather
@@ -29,10 +33,10 @@
 }
 
 .kanban-controls {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
   flex-wrap: wrap;
 }
 
@@ -48,7 +52,7 @@
   gap: 5px;
   padding: 4px 10px;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--muted);
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
@@ -76,7 +80,7 @@
 .sprint-toggle {
   display: flex;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   margin-left: auto;
 }
@@ -113,7 +117,7 @@
   flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   max-height: 100%;
 }
 
@@ -136,7 +140,7 @@
   color: var(--text);
   font-size: calc(10px * var(--font-scale));
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .kanban-col-cards {
@@ -159,6 +163,14 @@
   position: relative;
 }
 .kanban-card:hover { border-color: var(--muted); }
+/* The keyboard's position on the board. Inset rather than the app-wide outward
+   ring: cards sit inside a scrolling column, and an outward ring on the first
+   or last card is clipped by that overflow. */
+.kanban-card:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
 
 .kanban-card-header {
   display: flex;
@@ -177,7 +189,7 @@
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
   padding: 1px 5px;
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 
 .kanban-card-summary {
@@ -212,7 +224,7 @@
   top: 3px;
   bottom: 0;
   width: 3px;
-  border-radius: 0 0 0 4px;
+  border-radius: 0 0 0 var(--radius-sm);
 }
 
 /* An em dash at 16px was larger than the card summaries beside it, so the
@@ -243,6 +255,12 @@
 .kanban-col-drop-target .kanban-col-header { color: var(--accent-primary); }
 
 /* ── Overdue and unfinished ──────────────────────────────────────────────── */
+
+/* The due-date mark in a card footer. Muted while there is time, danger once
+   there is not — the same token the card's own overdue treatment uses, rather
+   than a hue-rotate on an emoji that rendered differently on every platform. */
+.kanban-card-due { color: var(--muted); }
+.kanban-card-due.overdue { color: var(--accent-danger); }
 
 /* Past due and not in a done state: red edge, red wash, and a pulsing pool of
    red light under the card. Loud on purpose — in standup this is the thing the
@@ -319,25 +337,275 @@
   }
 }
 
-.kanban-group-btn {
-  background: transparent;
-  border: 1px solid var(--border);
+/* .kanban-group-btn is the app's toolbar chip — defined once in css/app.css
+   with .gantt-mode-btn, .filter-toggle and the rest. Only .kge-save below adds
+   anything to it. */
+
+/* The board's keyboard path, said once where the board is. Nothing else on the
+   screen announces it, and a shortcut nobody knows about is not a path. Hidden
+   below the width where the controls row starts wrapping, where it would push
+   the real controls onto a third line. */
+.kanban-keys {
+  font-size: calc(10.5px * var(--font-scale));
   color: var(--muted);
-  font-size: calc(11px * var(--font-scale));
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 5px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
 }
-.kanban-group-btn:hover { color: var(--text); border-color: var(--muted); }
+.kanban-keys kbd {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: inherit;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 0 4px;
+}
+@media (max-width: 1180px) { .kanban-keys { display: none; } }
 
 .kanban-group-editor-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 14px 16px;
   margin-bottom: 12px;
   animation: modal-in 0.15s ease;
+}
+
+/* ── The column editor ────────────────────────────────────────────────────── */
+/* This panel used to ask for raw Jira status strings, comma-separated, from
+   memory — and it is the first thing anyone who clones this app has to do,
+   because their statuses are not the four this ships with. Everything below
+   exists so that the statuses the app has *already fetched* are the thing you
+   click, and typing one by hand is the escape hatch rather than the interface.
+
+   Laid out as two panes stacked rather than side by side: the columns are the
+   thing being built and want the full width for their tokens, and the palette
+   underneath is a shelf you take from. Side by side at this width gives the
+   tokens about 300px, which is two chips and a scrollbar. */
+
+.kge-title {
+  font-size: calc(11px * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+.kge-desc {
+  font-size: calc(11.5px * var(--font-scale));
+  color: var(--muted);
+  margin: 6px 0 12px;
+  max-width: 78ch;
+}
+
+.kge-rows { display: flex; flex-direction: column; gap: 6px; }
+
+.kge-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  transition: border-color 0.12s, background 0.12s;
+}
+/* Which row a palette click lands in. Without this the shelf below has no
+   target and the whole two-pane idea collapses back into typing. */
+.kge-row.selected {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+}
+.kge-row.invalid {
+  border-color: var(--accent-danger);
+  background: color-mix(in srgb, var(--accent-danger) 8%, transparent);
+}
+
+.kge-name {
+  width: 140px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 6px 8px;
+  font-size: calc(11.5px * var(--font-scale));
+}
+
+/* The token field. A real <input> sits at the end of the chip flow, so the
+   whole box behaves like one control: click anywhere in it and you are typing
+   at the end, which is what every tag input people have used does. */
+.kge-tokens {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 4px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: text;
+}
+.kge-tokens:focus-within { border-color: var(--accent-primary); }
+
+.kge-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 2px 4px 2px 8px;
+  background: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  border-radius: var(--radius-lg);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--font-scale));
+  color: var(--text);
+}
+/* A status this site has not shown us. It is allowed — a workflow can hold a
+   status no issue is currently in — but it is worth being able to see, because
+   the other way to get one is a typo. */
+.kge-token.unseen {
+  background: none;
+  border-style: dashed;
+  border-color: var(--muted);
+  color: var(--muted);
+}
+.kge-token-x {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+  font-size: calc(13px * var(--font-scale));
+  line-height: 1;
+  padding: 0 3px;
+  border-radius: var(--radius-xs);
+}
+.kge-token-x:hover { opacity: 1; color: var(--accent-danger); }
+
+.kge-token-input {
+  flex: 1;
+  min-width: 120px;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11.5px * var(--font-scale));
+  padding: 3px 2px;
+}
+.kge-token-input::placeholder { color: var(--muted); }
+
+/* Completion. Positioned against the token field rather than the row so it
+   lines up with what is being typed. */
+.kge-suggest {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+.kge-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--text);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11.5px * var(--font-scale));
+  cursor: pointer;
+}
+.kge-suggest-item:hover,
+.kge-suggest-item.active { background: color-mix(in srgb, var(--accent-primary) 18%, transparent); }
+.kge-suggest-note { margin-left: auto; color: var(--muted); font-size: calc(10.5px * var(--font-scale)); }
+
+.kge-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: calc(15px * var(--font-scale));
+  line-height: 1;
+  padding: 6px 6px;
+  border-radius: var(--radius-xs);
+}
+.kge-remove:hover { color: var(--accent-danger); }
+
+/* ── The shelf ───────────────────────────────────────────────────────────── */
+.kge-palette { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 12px; }
+.kge-palette-label {
+  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.kge-palette-label b { color: var(--text); font-weight: 600; }
+/* An issue in a status no column claims still appears — groupIssues gives it a
+   column of its own on the end. Worth saying, because the alternative reading
+   is that the issue has gone missing. */
+.kge-palette-warn { color: var(--accent-warning); }
+
+.kge-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.kge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(11px * var(--font-scale));
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.kge-chip:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+.kge-chip-count { color: var(--muted); font-size: calc(10px * var(--font-scale)); }
+/* Already in some column. Still clickable — clicking moves it here, which is
+   how you fix a status filed under the wrong column without hunting for it. */
+.kge-chip.assigned { opacity: 0.5; }
+.kge-chip.assigned:hover { opacity: 1; }
+/* In the row that is currently selected: clicking would be a no-op. */
+.kge-chip.here {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  opacity: 1;
+  cursor: default;
+}
+/* In no column yet. A warning-tinted edge rather than warning-coloured text:
+   on a first run every status is unmapped, and eight chips shouting at once
+   reads as an error state when it is only a to-do list. The sentence above
+   carries the meaning; this just says which ones it means. */
+.kge-chip.unmapped { border-color: color-mix(in srgb, var(--accent-warning) 60%, var(--border)); }
+
+.kge-error {
+  margin-top: 10px;
+  font-size: calc(11.5px * var(--font-scale));
+  color: var(--accent-danger);
+  min-height: calc(14px * var(--font-scale));
+}
+
+.kge-actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+.kge-actions .kge-spacer { margin-left: auto; }
+/* The primary action, as a modifier on the button this panel already uses
+   rather than a sixteenth button implementation. --on-accent because #fff on
+   the dark theme's accent is 3.21:1. */
+.kge-save {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.kge-save:hover { color: var(--on-accent); border-color: var(--accent-primary); filter: brightness(1.08); }
+
+@media (prefers-reduced-motion: reduce) {
+  .kge-row { transition: none; }
+  .kge-chip { transition: none; }
 }

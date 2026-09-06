@@ -661,10 +661,13 @@ export async function mount(container, creds) {
 
   // ── 1. Participants ────────────────────────────────────────────────────────
 
+  // `step` may be null. The numbered badge is what makes the three setup panels
+  // read as a sequence; the end screen's panels are not a sequence, so they take
+  // the same heading without one.
   function panelHead(step, title, hint) {
     const head = el("div", "su-panel-head");
+    if (step !== null) head.append(el("span", "su-step", String(step)));
     head.append(
-      el("span", "su-step", String(step)),
       el("h2", "su-panel-title", title),
       el("span", "su-panel-hint", hint)
     );
@@ -1047,14 +1050,6 @@ export async function mount(container, creds) {
     await sfx.unlock();
     await savePrefs({ attendance: ids, durations });
     beginSession(ids);
-  }
-
-  function bulkBtn(label, onClick, { primary = false } = {}) {
-    const btn = document.createElement("button");
-    btn.className = primary ? "standup-btn small primary" : "standup-btn small ghost";
-    btn.textContent = label;
-    btn.addEventListener("click", onClick);
-    return btn;
   }
 
   // ── Running ────────────────────────────────────────────────────────────────
@@ -1635,43 +1630,52 @@ export async function mount(container, creds) {
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
-
+  //
+  // Built in the setup screen's vocabulary — `.su-wrap`, `.su-panel`,
+  // `panelHead`, `.su-btn` — and not in its own.
+  //
+  // There were two design languages inside this one view: setup was `.su-*`
+  // (1180px, tiles, panels with numbered steps) and the end screen was
+  // `.standup-setup`, the generation before it — a single 620px card, later
+  // widened to 980px but never merged. The two screens bracket the same meeting
+  // and are the only two anyone looks at for more than a few seconds, so
+  // reading as two different products was the most visible seam in the app.
+  //
+  // What the end screen keeps of its own: the headline, which is a celebration
+  // and is sized for the room rather than for a reader.
   function renderSummary() {
     document.body.dataset.standupActive = "";
-    wrap.className = "standup-wrap";
+    wrap.className = "standup-wrap su-wrap su-done";
     wrap.innerHTML = "";
 
-    const card = document.createElement("div");
-    // `summary` widens and enlarges the card. The title was already sized for
-    // the room; everything under it — the per-person times everyone is actually
-    // reading — was still the 620px setup card at 13px.
-    card.className = "standup-setup summary";
-
-    const title = document.createElement("h1");
-    title.className = "standup-title mono done";
-    title.textContent = "STANDUP = DONE";
-    card.appendChild(title);
-
     const total = Object.values(session.actualMs || {}).reduce((a, b) => a + b, 0);
-    const summary = document.createElement("p");
-    summary.className = "standup-subtitle";
-    summary.textContent = `${session.order.length} ${session.order.length === 1 ? "person" : "people"} · ${formatClock(total)} of speaking`;
-    card.appendChild(summary);
 
-    const list = document.createElement("div");
-    list.className = "standup-people";
+    const header = el("div", "su-done-header");
+    const title = el("h1", "standup-title mono done", "STANDUP = DONE");
+    header.appendChild(title);
+    header.appendChild(
+      el(
+        "p",
+        "su-done-subtitle",
+        `${session.order.length} ${session.order.length === 1 ? "person" : "people"} · ${formatClock(total)} of speaking`
+      )
+    );
+    wrap.appendChild(header);
+
+    // ── Who spoke, and for how long ─────────────────────────────────────────
+    const timesPanel = el("section", "su-panel");
+    timesPanel.appendChild(
+      panelHead(null, "Speaking time", "Planned against what it actually took")
+    );
+
+    const list = el("div", "su-done-people");
     for (const id of session.order) {
-      const row = document.createElement("div");
-      row.className = "standup-person";
-      const name = document.createElement("span");
-      name.className = "standup-person-name";
-      name.textContent = labelFor(id);
-      row.appendChild(name);
+      const row = el("div", "su-done-person");
+      row.appendChild(el("span", "su-done-person-name", labelFor(id)));
 
       const spent = session.actualMs?.[id];
       const planned = (session.durations[id] ?? DEFAULT_DURATION_SEC) * 1000;
-      const time = document.createElement("span");
-      time.className = "standup-person-count mono";
+      const time = el("span", "su-done-person-time mono");
       if (spent === undefined) {
         time.textContent = "not reached";
         time.classList.add("none");
@@ -1682,41 +1686,32 @@ export async function mount(container, creds) {
       row.appendChild(time);
       list.appendChild(row);
     }
-    card.appendChild(list);
+    timesPanel.appendChild(list);
+    wrap.appendChild(timesPanel);
 
+    // ── The thing to hand over ──────────────────────────────────────────────
     const entries = notesEntries(session);
     if (entries.length) {
-      const notesTitle = document.createElement("div");
-      notesTitle.className = "standup-parking-label mono summary";
-      notesTitle.textContent = "Parking lot — paste into Slack";
-      card.appendChild(notesTitle);
+      const notesPanel = el("section", "su-panel");
+      const head = panelHead(null, "Parking lot", "Paste this into Slack");
 
       // A textarea rather than a <pre>: the point is to select and copy it, and
       // it stays editable so the facilitator can tidy wording before pasting.
       const digestBox = document.createElement("textarea");
-      digestBox.className = "standup-digest";
+      digestBox.className = "su-done-digest mono";
       digestBox.value = slackDigest(session);
       // Sub-bullets make the line count unpredictable, so measure the text.
       digestBox.rows = Math.min(18, digestBox.value.split("\n").length + 1);
       digestBox.spellcheck = false;
-      card.appendChild(digestBox);
+      digestBox.setAttribute("aria-label", "Standup summary to paste into Slack");
 
-      const missing = entries.filter((e) => !memberFor(e.id)?.slackHandle);
-      if (missing.length) {
-        const note = document.createElement("div");
-        note.className = "standup-hint mono";
-        note.textContent =
-          `No Slack username for ${missing.map((e) => labelFor(e.id)).join(", ")}` +
-          " — display names used instead. Add handles in Settings → Team roster.";
-        card.appendChild(note);
-      }
-
-      const actions = document.createElement("div");
-      actions.className = "standup-bulk";
-      // The two things this screen exists to hand over. They were ghost
-      // buttons under a full-width primary that read "Back to setup" — the
-      // loudest control on the peak screen was the least important one.
-      const copyBtn = bulkBtn("Copy message", async () => {
+      // The two things this screen exists to hand over, in the panel head where
+      // the setup screen puts a panel's actions. They were ghost buttons under
+      // a full-width primary that read "Back to setup" — the loudest control on
+      // the peak screen was the least important one.
+      const actions = el("div", "su-panel-actions");
+      const copyBtn = el("button", "su-btn small primary", "Copy message");
+      copyBtn.addEventListener("click", async () => {
         if (await copyDigest(digestBox.value)) {
           copyBtn.textContent = "Copied";
           setTimeout(() => { copyBtn.textContent = "Copy message"; }, 1500);
@@ -1725,23 +1720,37 @@ export async function mount(container, creds) {
           digestBox.focus();
           digestBox.select();
         }
-      }, { primary: true });
-      actions.append(copyBtn, bulkBtn("Download .txt", () => downloadNotes(session)));
-      card.appendChild(actions);
+      });
+      const downloadBtn = el("button", "su-btn small", "Download .txt");
+      downloadBtn.addEventListener("click", () => downloadNotes(session));
+      actions.append(copyBtn, downloadBtn);
+      head.appendChild(actions);
+      notesPanel.appendChild(head);
+      notesPanel.appendChild(digestBox);
+
+      const missing = entries.filter((e) => !memberFor(e.id)?.slackHandle);
+      if (missing.length) {
+        notesPanel.appendChild(
+          el(
+            "div",
+            "su-done-note",
+            `No Slack username for ${missing.map((e) => labelFor(e.id)).join(", ")}` +
+              " — display names used instead. Add handles in Settings → Team roster."
+          )
+        );
+      }
+      wrap.appendChild(notesPanel);
     }
 
-    const again = document.createElement("button");
-    again.className = "standup-btn small ghost standup-again";
-    again.textContent = "Back to setup";
+    // Leaving is not the action this screen is for.
+    const again = el("button", "su-btn small ghost su-done-again", "Back to setup");
     again.addEventListener("click", () => {
       session = null;
       renderSetup();
     });
-    card.appendChild(again);
+    wrap.appendChild(again);
 
-    wrap.appendChild(card);
-
-    // After the card is in the DOM, so the bursts land on the finished screen
+    // After the panels are in the DOM, so the bursts land on the finished screen
     // rather than on the one being torn down.
     confetti.celebrate();
   }
