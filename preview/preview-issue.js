@@ -15,7 +15,7 @@
 // unlink). This harness adds ?edit=<field> and ?link=open.
 import { params } from "./preview-fixture.js";
 
-const { renderIssueInto } = await import("./js/components/issue-detail.js");
+const { renderIssueInto } = await import("../js/components/issue-detail.js");
 await renderIssueInto(
   document.getElementById("view-container"),
   "ACME-101",

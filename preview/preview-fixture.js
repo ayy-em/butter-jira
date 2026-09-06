@@ -83,7 +83,7 @@ const area = (store, { slow = false } = {}) => ({
 });
 
 globalThis.chrome = {
-  runtime: { getURL: (p) => p },
+  runtime: { getURL: (p) => `../${p}` },
   storage: {
     local: area(local, { slow: params.get("stats") === "slow" }),
     sync: area(sync),
@@ -587,7 +587,7 @@ function createFieldsFor(typeId) {
 
 // ── Seed config, roster and the GitHub window cache ──────────────────────────
 
-export const { loadConfig, saveConfig, CONFIG } = await import("./js/config.js");
+export const { loadConfig, saveConfig, CONFIG } = await import("../js/config.js");
 await saveConfig({
   site: { baseUrl: "https://example.atlassian.net", wikiPath: "/wiki" },
   // The recap header prints brand.orgLogo when it is set. Pointed at the app's
@@ -617,15 +617,15 @@ await loadConfig();
 // A page that reads its own credentials — recap.html does, the way issue.html
 // does — needs them in storage rather than handed in as an argument. Synthetic,
 // obviously, and only ever in the stubbed store this file installs.
-const { saveCredentials } = await import("./js/credentials.js");
+const { saveCredentials } = await import("../js/credentials.js");
 await saveCredentials({ email: "preview@example.invalid", token: "preview-token" });
 
 // BOARDS is a module-level array the API layer iterates; nothing fills it until
 // this runs, and an empty one means "no sprints anywhere".
-const { loadBoards } = await import("./js/utils.js");
+const { loadBoards } = await import("../js/utils.js");
 await loadBoards();
 
-const { TEAMS, saveTeam } = await import("./js/team.js");
+const { TEAMS, saveTeam } = await import("../js/team.js");
 TEAMS.activeTeamId = "default";
 TEAMS.teams = [{
   id: "default",
@@ -645,7 +645,7 @@ TEAMS.teams = [{
 }];
 await saveTeam(TEAMS);
 
-const { statsCacheKey } = await import("./js/github.js");
+const { statsCacheKey } = await import("../js/github.js");
 slowKey = statsCacheKey(CONFIG);
 
 // ?stats=partial keeps the payload but marks one repo as half-answered and
@@ -772,9 +772,9 @@ if (params.get("stats") !== "error") {
 //                 scope tile reads "approx." and says what it is blind to
 const freezeMode = (params.get("freeze") || "").toLowerCase();
 if (freezeMode !== "none") {
-  const { freezeFrom, recordFreeze } = await import("./js/freeze.js");
-  const { sprintKey } = await import("./js/snapshots.js");
-  const { loadStatusGroups } = await import("./js/utils.js");
+  const { freezeFrom, recordFreeze } = await import("../js/freeze.js");
+  const { sprintKey } = await import("../js/snapshots.js");
+  const { loadStatusGroups } = await import("../js/utils.js");
 
   const sprints = BOARD_FIXTURE.map((b) => ({
     id: b.sprint.id,

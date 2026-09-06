@@ -42,7 +42,7 @@ const area = (store) => ({
   remove: (keys) => { for (const k of [].concat(keys)) delete store[k]; return Promise.resolve(); },
 });
 globalThis.chrome = {
-  runtime: { getURL: (p) => p },
+  runtime: { getURL: (p) => `../${p}` },
   storage: { local: area(local), sync: area(sync) },
 };
 
@@ -210,7 +210,7 @@ const GROUPS = {
   none: [],
 };
 
-const { saveConfig } = await import("./js/config.js");
+const { saveConfig } = await import("../js/config.js");
 await saveConfig({
   site: { baseUrl: "https://preview.atlassian.net" },
   boards: [
@@ -224,10 +224,10 @@ await saveConfig({
 // BOARDS in js/utils.js is a module-level array the API layer iterates, and it
 // stays empty until this runs — saveConfig() alone is not enough, and an empty
 // BOARDS means "no sprints anywhere" rather than an error.
-const { loadBoards } = await import("./js/utils.js");
+const { loadBoards } = await import("../js/utils.js");
 await loadBoards();
 
-const { mount } = await import("./js/views/kanban.js");
+const { mount } = await import("../js/views/kanban.js");
 await mount(
   document.getElementById("view-container"),
   { email: "preview@example.com", token: "preview" }

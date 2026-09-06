@@ -1175,8 +1175,12 @@ export async function fetchTeamStats({
             query: commitQuery,
           }).catch((err) => ({ commits: [], truncated: false, error: err })),
         ]);
+        noteRepoDone("stats", repoSlug(repo), {
+          capped: Boolean(data.truncated || commits?.truncated),
+        });
         return { repo, data, commits };
       } catch (err) {
+        noteRepoDone("stats", repoSlug(repo), { failed: true });
         return { repo, error: err };
       }
     })
@@ -1237,6 +1241,104 @@ export async function fetchTeamStats({
   };
 }
 
+// ── Progress ─────────────────────────────────────────────────────────────────
+
+// What the two fetches are doing right now, for a caller that has to explain a
+// wait to somebody.
+//
+// The standup showed "Partial" for twenty minutes and no one could tell whether
+// that meant *finished, with gaps*, *still working* or *wedged* — the three have
+// very different answers and the screen said the same word for all of them. The
+// promise alone cannot answer it: it settles once, tells you nothing on the way,
+// and `fetchTeamStats` reaches every repo concurrently behind a single await.
+//
+// Recorded per kind rather than per caller, matching `shared()` below: two
+// callers on one in-flight promise are watching one piece of work, and the
+// standup's own call and the nav bar's prewarm are exactly that case.
+const PROGRESS_KINDS = ["activity", "stats"];
+
+function blankProgress() {
+  return {
+    phase: "idle", // idle | running | done | error
+    source: "", // network | cache — only meaningful once phase is done
+    startedAt: 0,
+    finishedAt: 0,
+    reposTotal: 0,
+    reposDone: 0,
+    failed: [], // slugs that could not be read at all
+    capped: [], // slugs whose history hit the page ceiling
+    error: "",
+  };
+}
+
+const progress = {
+  activity: blankProgress(),
+  stats: blankProgress(),
+};
+
+const progressListeners = new Set();
+
+function emitProgress() {
+  for (const fn of progressListeners) {
+    // One listener throwing must not stop the others from being told.
+    try {
+      fn(getGithubProgress());
+    } catch {
+      /* a subscriber's problem, not the fetch's */
+    }
+  }
+}
+
+// A snapshot, deep enough that a caller holding one across a repaint is not
+// reading state that has moved underneath it.
+export function getGithubProgress() {
+  const out = {};
+  for (const kind of PROGRESS_KINDS) {
+    out[kind] = { ...progress[kind], failed: [...progress[kind].failed], capped: [...progress[kind].capped] };
+  }
+  return out;
+}
+
+// Returns an unsubscribe function. Fires on every transition, including the
+// per-repo ones inside the stats fetch.
+export function onGithubProgress(fn) {
+  progressListeners.add(fn);
+  return () => progressListeners.delete(fn);
+}
+
+function startProgress(kind, { reposTotal = 0, now = Date.now() } = {}) {
+  progress[kind] = { ...blankProgress(), phase: "running", startedAt: now, reposTotal };
+  emitProgress();
+}
+
+function noteRepoDone(kind, slug, { failed = false, capped = false } = {}) {
+  const p = progress[kind];
+  if (p.phase !== "running") return;
+  p.reposDone += 1;
+  if (failed) p.failed.push(slug);
+  if (capped) p.capped.push(slug);
+  emitProgress();
+}
+
+function finishProgress(kind, { source = "network", error = "", now = Date.now() } = {}) {
+  const p = progress[kind];
+  p.phase = error ? "error" : "done";
+  p.source = source;
+  p.error = error;
+  p.finishedAt = now;
+  // A cache hit answers for every repo at once; saying "0 of 9" next to a
+  // finished fetch would read as a fetch that never started.
+  if (!error && p.reposTotal && p.reposDone < p.reposTotal) p.reposDone = p.reposTotal;
+  emitProgress();
+}
+
+// Test seam: the suites drive the two fetches directly and would otherwise
+// inherit whatever the previous case left behind.
+export function resetGithubProgress() {
+  for (const kind of PROGRESS_KINDS) progress[kind] = blankProgress();
+  emitProgress();
+}
+
 // ── Cache ────────────────────────────────────────────────────────────────────
 
 // Keyed by the repo set, not by the org: changing the allowlist must not serve
@@ -1295,25 +1397,49 @@ async function writeCached(key, value) {
   }
 }
 
+// The progress marks live out here rather than inside the fetches so that a
+// cache hit is also reported: from the outside "answered from the cache in 4ms"
+// and "answered by GitHub in 40s" are the same settled promise, and a screen
+// explaining a wait has to be able to tell them apart.
 export function getTeamActivity({ config = CONFIG, now = new Date(), force = false } = {}) {
   const key = activityCacheKey(config);
   return shared(key, force, async () => {
-    const cached = force ? null : await readCached(key, ACTIVITY_TTL_MS);
-    if (cached) return cached;
-    const activity = await fetchTeamActivity({ config, now });
-    await writeCached(key, activity);
-    return activity;
+    startProgress("activity", { reposTotal: githubConfig(config).repos.length });
+    try {
+      const cached = force ? null : await readCached(key, ACTIVITY_TTL_MS);
+      if (cached) {
+        finishProgress("activity", { source: "cache" });
+        return cached;
+      }
+      const activity = await fetchTeamActivity({ config, now });
+      await writeCached(key, activity);
+      finishProgress("activity", { source: "network" });
+      return activity;
+    } catch (err) {
+      finishProgress("activity", { error: String(err?.message || err) });
+      throw err;
+    }
   });
 }
 
 export function getTeamStats({ config = CONFIG, now = new Date(), force = false } = {}) {
   const key = statsCacheKey(config);
   return shared(key, force, async () => {
-    const cached = force ? null : await readCached(key, ACTIVITY_TTL_MS);
-    if (cached) return cached;
-    const stats = await fetchTeamStats({ config, now });
-    await writeCached(key, stats);
-    return stats;
+    startProgress("stats", { reposTotal: githubConfig(config).repos.length });
+    try {
+      const cached = force ? null : await readCached(key, ACTIVITY_TTL_MS);
+      if (cached) {
+        finishProgress("stats", { source: "cache" });
+        return cached;
+      }
+      const stats = await fetchTeamStats({ config, now });
+      await writeCached(key, stats);
+      finishProgress("stats", { source: "network" });
+      return stats;
+    } catch (err) {
+      finishProgress("stats", { error: String(err?.message || err) });
+      throw err;
+    }
   });
 }
 

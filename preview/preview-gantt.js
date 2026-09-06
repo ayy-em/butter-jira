@@ -39,7 +39,7 @@ const area = (store) => ({
   remove: (keys) => { for (const k of [].concat(keys)) delete store[k]; return Promise.resolve(); },
 });
 globalThis.chrome = {
-  runtime: { getURL: (p) => p },
+  runtime: { getURL: (p) => `../${p}` },
   storage: { local: area(local), sync: area(sync) },
 };
 
@@ -129,7 +129,7 @@ globalThis.fetch = async (input, init = {}) => {
 // getAllEpics() builds its project-key list from, and it stays empty until
 // loadBoards() syncs it from the stored config. Without this the roadmap
 // renders its empty state against a fixture full of epics.
-const { saveConfig } = await import("./js/config.js");
+const { saveConfig } = await import("../js/config.js");
 await saveConfig({
   site: { baseUrl: "https://preview.atlassian.net" },
   boards: [
@@ -138,10 +138,10 @@ await saveConfig({
   ],
   fields: { startDate: ["customfield_start"], storyPoints: [], sprint: [], epicLink: [], epicName: [] },
 });
-const { loadBoards } = await import("./js/utils.js");
+const { loadBoards } = await import("../js/utils.js");
 await loadBoards();
 
-const { mount } = await import("./js/views/gantt.js");
+const { mount } = await import("../js/views/gantt.js");
 await mount(
   document.getElementById("view-container"),
   { email: "preview@example.com", token: "preview" }

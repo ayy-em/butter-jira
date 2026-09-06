@@ -7,6 +7,8 @@
 //
 //   open preview-standup.html            (or serve the folder over http)
 
+// Invented, like every other name in these harnesses: a preview is a public
+// file and a roster of real colleagues is personal data.
 const NAMES = [
   ["Avery", 16, 4, 0], ["Bo", 11, 3, 1], ["Cy", 6, 5, 0],
   ["Devi", 12, 2, 1], ["Emil", 9, 1, 0], ["Freya", 10, 6, 0],
@@ -14,7 +16,16 @@ const NAMES = [
 ];
 
 // ?theme=light · ?select=nobody · ?roster=empty · ?github=off · ?resume=1 ·
-// ?start=1 · ?done=1 · ?sprint=undated
+// ?start=1 · ?done=1 · ?sprint=undated · ?github=slow · ?github=stuck ·
+// ?github=partial · ?ghhover=1
+//
+// The three GitHub states the seeded caches cannot reach on their own. Both
+// caches are warm here, so the fetch normally settles before the first paint
+// and the status line only ever says "connected": ?github=slow holds the
+// sprint-window cache back for eight seconds, ?github=stuck never answers it
+// at all — which is the case the status line exists for, and the one that
+// raises the start-anyway warning — and ?github=partial answers it with two
+// repos it could not read and one it had to cut short.
 const params = new URLSearchParams(location.search);
 document.documentElement.dataset.theme = params.get("theme") || "dark";
 
@@ -31,14 +42,34 @@ const pick = (store, keys) =>
     : Object.fromEntries(
         (Array.isArray(keys) ? keys : [keys]).filter((k) => k in store).map((k) => [k, store[k]])
       );
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Set once js/github.js has been imported, since the key is derived from the
+// configured repo list. Only this one key is held back: delaying the whole
+// store would hold up the roster and the prefs as well, and what is being
+// looked at is a GitHub fetch running behind a screen that is already up.
+let heldKey = "";
+const held = params.get("github");
+const holdFor = async (keys) => {
+  if (!heldKey || !keys) return;
+  const wanted = Array.isArray(keys) ? keys : [keys];
+  if (!wanted.includes(heldKey)) return;
+  if (held === "slow") await sleep(8000);
+  // Never resolves. The view is built to survive exactly this — the standup
+  // starts without GitHub — so the harness is allowed to be this rude.
+  if (held === "stuck") await new Promise(() => {});
+};
+
 const area = (store) => ({
-  get: (keys) => Promise.resolve(pick(store, keys)),
+  get: async (keys) => {
+    await holdFor(keys);
+    return pick(store, keys);
+  },
   set: (obj) => { Object.assign(store, obj); return Promise.resolve(); },
   remove: (keys) => { for (const k of [].concat(keys)) delete store[k]; return Promise.resolve(); },
 });
 
 globalThis.chrome = {
-  runtime: { getURL: (p) => p },
+  runtime: { getURL: (p) => `../${p}` },
   storage: { local: area(local), sync: area(sync) },
 };
 
@@ -179,7 +210,7 @@ globalThis.fetch = async (input) => {
 
 // ── Seed config, roster and the GitHub cache ─────────────────────────────────
 
-const { loadConfig, saveConfig, CONFIG } = await import("./js/config.js");
+const { loadConfig, saveConfig, CONFIG } = await import("../js/config.js");
 await saveConfig({
   site: { baseUrl: "https://example.atlassian.net", wikiPath: "/wiki" },
   boards: [{ id: 1, name: "ACME", projectKey: "ACME", color: "#4F8EF7" }],
@@ -191,10 +222,10 @@ await loadConfig();
 
 // BOARDS is a module-level array the API layer iterates; nothing fills it until
 // this runs, and an empty one means "no sprints anywhere".
-const { loadBoards } = await import("./js/utils.js");
+const { loadBoards } = await import("../js/utils.js");
 await loadBoards();
 
-const { TEAMS, saveTeam } = await import("./js/team.js");
+const { TEAMS, saveTeam } = await import("../js/team.js");
 TEAMS.activeTeamId = "default";
 TEAMS.teams = [{
   id: "default",
@@ -212,7 +243,8 @@ TEAMS.teams = [{
 }];
 await saveTeam(TEAMS);
 
-const { activityCacheKey, statsCacheKey } = await import("./js/github.js");
+const { activityCacheKey, statsCacheKey } = await import("../js/github.js");
+heldKey = statsCacheKey(CONFIG);
 local[activityCacheKey(CONFIG)] = {
   ts: Date.now(),
   value: {
@@ -301,8 +333,16 @@ local[statsCacheKey(CONFIG)] = {
     since: daysAgo(45),
     repos: ["example/alpha", "example/beta"],
     reached: ["example/alpha", "example/beta"],
-    truncated: [],
-    failures: [],
+    // ?github=partial: one repo cut short at the page cap and two the token
+    // could not read, which is what puts the status line on "partial" and fills
+    // the hover panel with names rather than counts.
+    truncated: held === "partial" ? ["example/alpha"] : [],
+    failures: held === "partial"
+      ? [
+          { repo: "example/gamma", type: "not-found", message: "Repository not found" },
+          { repo: "example/delta", type: "auth", message: "Resource not accessible by personal access token" },
+        ]
+      : [],
     pullRequests: windowPrs,
     reviews: windowReviews,
     comments: windowComments,
@@ -310,7 +350,7 @@ local[statsCacheKey(CONFIG)] = {
 };
 
 if (params.get("resume") === "1") {
-  const { SESSION_KEY, createSession } = await import("./js/standup.js");
+  const { SESSION_KEY, createSession } = await import("../js/standup.js");
   local[SESSION_KEY] = createSession({
     participants: NAMES.slice(0, 5).map((_, i) => ({ accountId: `acc-${i}` })),
     seed: 7,
@@ -319,11 +359,21 @@ if (params.get("resume") === "1") {
   local[SESSION_KEY].index = 2;
 }
 
-const { mount } = await import("./js/views/standup.js");
+const { mount } = await import("../js/views/standup.js");
 await mount(
   document.getElementById("view-container"),
   { email: "preview@example.com", token: "preview" }
 );
+
+// The hover panel behind the GitHub status, pinned open. A screenshot cannot
+// hover, and this panel is the whole answer to "is it still fetching or is it
+// stuck" — so it needs a way to be looked at.
+if (params.get("ghhover") === "1") {
+  const style = document.createElement("style");
+  style.textContent =
+    ".su-gh-report { opacity: 1 !important; visibility: visible !important; transform: none !important; }";
+  document.head.appendChild(style);
+}
 
 if (params.get("select") === "nobody") document.querySelectorAll(".su-seg")[1]?.click();
 if (params.get("start") === "1") document.querySelector(".su-start")?.click();

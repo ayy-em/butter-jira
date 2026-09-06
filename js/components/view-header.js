@@ -27,6 +27,7 @@ export function viewHeader({ iconName, title, subtitle, right = null }) {
   left.appendChild(mark);
 
   const titles = document.createElement("div");
+  titles.className = "view-header-titles";
   const h1 = document.createElement("h1");
   h1.className = "view-title";
   h1.textContent = title;

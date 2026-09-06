@@ -6,8 +6,54 @@
   gap: 14px;
 }
 /* The header does not scroll with the board and does not compete with it for
-   height: the columns take whatever is left. */
-.kanban-wrap > .view-header { flex: 0 0 auto; }
+   height: the columns take whatever is left.
+
+   On this screen it also runs as a single row. Everywhere else the header can
+   afford two lines — here every pixel it takes is a pixel of column, so the
+   subtitle sits beside the title rather than under it, and the icon tile, the
+   title and the count strip all come down a size to match. Scoped to
+   .kanban-wrap: the other views keep the roomier header. */
+.kanban-wrap > .view-header { flex: 0 0 auto; flex-wrap: nowrap; gap: 16px; }
+.kanban-wrap > .view-header .view-header-left { gap: 10px; }
+.kanban-wrap > .view-header .view-header-icon {
+  width: 32px; height: 32px; flex: 0 0 32px;
+  border-radius: var(--radius-md);
+}
+.kanban-wrap > .view-header .view-header-icon svg { width: 18px; height: 18px; }
+.kanban-wrap > .view-header .view-header-titles {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+.kanban-wrap > .view-header .view-title { font-size: calc(18px * var(--font-scale)); }
+/* The one thing on the row allowed to lose characters: title and counts are
+   facts, the subtitle is a description. */
+.kanban-wrap > .view-header .view-subtitle {
+  margin-top: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A tile is a number and its label side by side rather than stacked, which is
+   what made the strip the tallest thing in the header. */
+.kanban-wrap > .view-header .view-tile {
+  grid-template-columns: auto auto auto;
+  grid-template-rows: auto;
+  padding: 5px 12px;
+}
+.kanban-wrap > .view-header .view-tile:first-child { padding-left: 14px; }
+.kanban-wrap > .view-header .view-tile-label { grid-column: auto; }
+.kanban-wrap > .view-header .view-tile-num { font-size: calc(15px * var(--font-scale)); }
+.kanban-wrap > .view-header .view-tile.tone-total .view-tile-num {
+  grid-column: auto;
+  font-size: calc(16px * var(--font-scale));
+}
+/* Narrow enough and the description is the first thing to go, before the row
+   starts squeezing the counts. */
+@media (max-width: 900px) {
+  .kanban-wrap > .view-header .view-subtitle { display: none; }
+}
 
 /* Profile pictures on this screen are circles — person pills in the controls
    and assignee avatars in card footers alike. Scoped to .kanban-wrap rather

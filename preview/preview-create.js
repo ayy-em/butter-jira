@@ -18,7 +18,7 @@
 //   ?parent=ABC-1         the sub-task form: parent fixed, type discovered
 import { params } from "./preview-fixture.js";
 
-const { openCreateIssue } = await import("./js/components/issue-create.js");
+const { openCreateIssue } = await import("../js/components/issue-create.js");
 
 // Something behind the panel, so the drawer's backdrop and its measuring have a
 // page to sit over rather than a blank window.

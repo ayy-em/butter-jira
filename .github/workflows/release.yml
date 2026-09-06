@@ -113,11 +113,19 @@ jobs:
 
       # Notes are written here rather than generated from commit subjects: this
       # project's subjects are milestone labels (M13:, M18:) and say nothing to
-      # somebody deciding whether to download a zip. Edit the release afterwards
-      # to say what actually changed.
+      # somebody deciding whether to download a zip. Install first, because that
+      # is what somebody arriving at a release page needs first; what changed
+      # comes from CHANGELOG.md, whose section for this version is appended
+      # below. A tag with no section in that file fails here rather than
+      # publishing a release that does not say what is in it.
       - name: Release notes
         run: |
           version="${{ steps.v.outputs.version }}"
+          if ! awk -v v="## v$version" '$0 == v {found=1; next} /^## / && found {exit} found' CHANGELOG.md | grep -q '[^[:space:]]'; then
+            echo "::error::CHANGELOG.md has no '## v$version' section. Add one and re-tag."
+            exit 1
+          fi
+          awk -v v="## v$version" '$0 == v {found=1; next} /^## / && found {exit} found' CHANGELOG.md > /tmp/changes.md
           cat > /tmp/notes.md <<NOTES
           ## Install
 
@@ -142,7 +150,15 @@ jobs:
           Settings, boards and roster live in browser storage, not in the folder, so
           they survive an upgrade — unzip the new version over the old folder and
           press refresh on the extension's card.
+
+          ---
+
+          ## What's new in $version
           NOTES
+          cat /tmp/changes.md >> /tmp/notes.md
+          echo "" >> /tmp/notes.md
+          echo "Full reasoning for every change is in [ROADMAP.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/ROADMAP.md)." >> /tmp/notes.md
+          cat /tmp/notes.md
 
       - name: Publish
         env:
@@ -151,8 +167,9 @@ jobs:
           version="${{ steps.v.outputs.version }}"
           assets="dist/chrome-$version.zip dist/firefox-$version.zip dist/edge-$version.zip dist/SHA256SUMS.txt"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME exists — replacing its assets"
+            echo "Release $GITHUB_REF_NAME exists — replacing its assets and notes"
             gh release upload "$GITHUB_REF_NAME" $assets --clobber
+            gh release edit "$GITHUB_REF_NAME" --notes-file /tmp/notes.md
           else
             gh release create "$GITHUB_REF_NAME" $assets \
               --title "$GITHUB_REF_NAME" \

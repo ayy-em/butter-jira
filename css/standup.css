@@ -61,7 +61,136 @@
   color: var(--muted);
 }
 .su-meta-item { display: inline-flex; align-items: center; gap: 6px; }
+/* The GitHub state rides in this line now that its card is gone. Tone on the
+   whole item rather than on a chip: at 12px a coloured dot beside grey text is
+   two things to read where one will do. */
+.su-meta-item.ok { color: var(--accent-success); }
+.su-meta-item.warn { color: var(--accent-warning); }
+.su-meta-item.bad { color: var(--accent-danger); }
 .su-meta-sep { opacity: 0.5; }
+
+/* ── GitHub status, and the report behind it ──────────────────────────────── */
+
+/* The state is one or two words; everything that explains it is in a panel one
+   hover away. Native `title` was what this had, and it could not say what a
+   screen showing "partial" for twenty minutes needed to be asked: is it
+   finished, still working, or wedged. A title cannot update while you look at
+   it, cannot be reached by keyboard, and cannot show a warning tone. */
+.su-gh-status-holder { display: inline-flex; align-items: center; position: relative; }
+.su-gh-status {
+  cursor: help;
+  border-bottom: 1px dashed color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 2px;
+}
+.su-gh-status:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+
+.su-gh-report {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: calc(var(--z-nav) + 40);
+  width: max-content;
+  max-width: 380px;
+  padding: 11px 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.32);
+  color: var(--text);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-3px);
+  transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
+}
+/* The gap between the word and the panel is dead space the pointer has to
+   cross, and a tooltip that vanishes on the way to being read is not readable.
+   This bridges it: the panel is a DOM child of the status, so hovering the
+   bridge keeps the status hovered. */
+.su-gh-report::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -9px;
+  height: 9px;
+}
+.su-gh-status:hover .su-gh-report,
+.su-gh-status:focus-visible .su-gh-report {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.su-gh-report-head {
+  font-size: calc(12.5px * var(--font-scale));
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.su-gh-report-head.ok { color: var(--accent-success); }
+.su-gh-report-head.warn { color: var(--accent-warning); }
+.su-gh-report-head.bad { color: var(--accent-danger); }
+/* Label and figure, so two queries reporting different things still line up. */
+.su-gh-report-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  font-size: calc(11.5px * var(--font-scale));
+}
+.su-gh-report-label { color: var(--muted); }
+.su-gh-report-value {
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  color: var(--text);
+}
+.su-gh-report-value.ok { color: var(--accent-success); }
+.su-gh-report-value.warn { color: var(--accent-warning); }
+.su-gh-report-value.bad { color: var(--accent-danger); }
+.su-gh-report-note {
+  margin-top: 7px;
+  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* The same panel again inside the start-anyway warning, where it is the body of
+   the modal rather than a hover: no absolute positioning, no shadow, and it
+   stays put. */
+.su-warn-modal .su-gh-report {
+  position: static;
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  max-width: none;
+  width: auto;
+  box-shadow: none;
+  background: var(--bg);
+}
+
+/* ── Start-anyway warning ─────────────────────────────────────────────────── */
+
+/* Same overlay the re-auth prompt uses. A dialog rather than window.confirm
+   because what it has to show is a live report, and a native confirm freezes
+   the page it is asking about. */
+.su-warn-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  height: auto;
+  background: rgba(13, 15, 18, 0.82);
+  backdrop-filter: blur(2px);
+}
+[data-theme="light"] .su-warn-overlay { background: rgba(243, 244, 246, 0.85); }
+.su-warn-modal { width: 440px; max-width: calc(100vw - 32px); padding: 28px 26px 22px; }
+.su-warn-modal .setup-subtitle { margin-bottom: 16px; }
+.su-warn-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .su-gh-report { transition: none; }
+}
 .su-live-dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--accent-success);
@@ -155,15 +284,6 @@
 }
 /* The numbered badge is the whole reason the three panels read as a sequence
    rather than as three unrelated boxes. */
-.su-step {
-  display: flex; align-items: center; justify-content: center;
-  width: 25px; height: 25px; flex: 0 0 25px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--tone-purple) 22%, transparent);
-  color: var(--tone-purple);
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: calc(12px * var(--font-scale)); font-weight: 600;
-}
 .su-panel-title { font-size: calc(16px * var(--font-scale)); font-weight: 600; color: var(--text); }
 .su-panel-hint { font-size: calc(12px * var(--font-scale)); color: var(--muted); }
 .su-panel-actions {
@@ -188,6 +308,22 @@
   transition: background 0.12s, color 0.12s;
 }
 .su-seg:hover { background: var(--surface); color: var(--text); }
+
+/* Square, the height of the segmented control beside it: one boolean, no label.
+   Muted is a state worth seeing without hovering, so it dims as well as
+   changing the drawing. */
+.su-icon-toggle {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.su-icon-toggle:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+.su-icon-toggle.off { color: var(--muted); }
 
 .su-stepper {
   display: flex; align-items: center;
@@ -330,63 +466,32 @@
 .su-mins:focus { border-color: var(--accent-primary); }
 .su-mins option { background: var(--surface); color: var(--text); }
 
-/* ── Quick info and shortcuts ─────────────────────────────────────────────── */
+/* ── Keyboard shortcuts ───────────────────────────────────────────────────── */
 
-.su-info-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
+/* Three keys under the Start button, on one line. They were three bordered
+   cells in a panel of their own, next to a "Quick info" panel — together about
+   a fifth of a 14" screen, which is what pushed Start below the fold. The
+   GitHub state moved to the header meta line and the chime became a toggle in
+   the Participants row; the keys are the only part that still needs a place of
+   its own, and a line is the whole of it. */
+.su-keyline {
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
 }
-
-.su-cards, .su-keys {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
-}
-
-.su-card {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
-}
-label.su-card { cursor: pointer; }
-.su-card-head { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
-.su-card-icon { display: flex; color: var(--text); }
-.su-card-title { font-size: calc(14px * var(--font-scale)); font-weight: 600; color: var(--text); }
-.su-card-note { font-size: calc(12px * var(--font-scale)); color: var(--muted); line-height: 1.45; }
-
-.su-chip {
-  margin-left: auto;
-  font-size: calc(11px * var(--font-scale));
-  color: var(--muted);
-  white-space: nowrap;
-}
-.su-chip.ok { color: var(--accent-success); }
-.su-chip.warn { color: var(--accent-warning); }
-.su-chip.bad { color: var(--accent-danger); }
-
-.su-switch { margin-left: auto; cursor: pointer; accent-color: var(--accent-primary); }
-
-.su-key-cell {
-  display: flex; flex-direction: column; align-items: center; gap: 9px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 13px 10px;
-}
+.su-keyline-sep { color: var(--muted); opacity: 0.5; margin: 0 3px; }
 .su-kbd {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 30px;
   font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: calc(12px * var(--font-scale));
+  font-size: calc(11px * var(--font-scale));
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 5px 11px;
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
 }
-.su-key-what { font-size: calc(12px * var(--font-scale)); color: var(--muted); }
+.su-key-what { font-size: calc(11.5px * var(--font-scale)); color: var(--muted); }
 
 /* ── Start ────────────────────────────────────────────────────────────────── */
 
@@ -396,7 +501,7 @@ label.su-card { cursor: pointer; }
    once in css/app.css with .bl-btn and .btn, modifiers and all. */
 
 .su-start-row {
-  display: flex; justify-content: center;
+  display: flex; flex-direction: column; align-items: center;
   margin-top: 4px;
 }
 .su-start {
@@ -465,7 +570,6 @@ label.su-card { cursor: pointer; }
 
 @media (max-width: 1080px) {
   .su-tiles { width: 100%; }
-  .su-info-row { grid-template-columns: minmax(0, 1fr); }
   /* Below this width the pips and the sprint-item count are the first things
      that can go: the name, the flag and the clock are what the meeting needs. */
   .su-person { grid-template-columns: 16px 30px minmax(90px, 1fr) minmax(105px, auto) 104px 86px; }

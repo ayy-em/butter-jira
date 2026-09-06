@@ -25,7 +25,7 @@ const area = (store) => ({
 });
 
 globalThis.chrome = {
-  runtime: { getURL: (p) => p },
+  runtime: { getURL: (p) => `../${p}` },
   storage: { local: area(local), sync: area(sync) },
 };
 
@@ -89,7 +89,7 @@ globalThis.fetch = async (input, init) => {
 
 // ── Seed config and roster ───────────────────────────────────────────────────
 
-const { loadConfig, saveConfig } = await import("./js/config.js");
+const { loadConfig, saveConfig } = await import("../js/config.js");
 await saveConfig({
   site: { baseUrl: "https://example.atlassian.net", wikiPath: "/wiki" },
   boards: [{ id: 1, name: "ACME", projectKey: "ACME", color: "#4F8EF7" }],
@@ -104,10 +104,10 @@ await saveConfig({
 });
 await loadConfig();
 
-const { loadBoards } = await import("./js/utils.js");
+const { loadBoards } = await import("../js/utils.js");
 await loadBoards();
 
-const { TEAMS, saveTeam } = await import("./js/team.js");
+const { TEAMS, saveTeam } = await import("../js/team.js");
 TEAMS.activeTeamId = "default";
 TEAMS.teams = [{
   id: "default",
@@ -128,7 +128,7 @@ if (params.get("sort")) {
 if (params.get("density")) prefs.density = params.get("density");
 if (Object.keys(prefs).length) local.backlogPrefs = prefs;
 
-const { mount } = await import("./js/views/backlog.js");
+const { mount } = await import("../js/views/backlog.js");
 await mount(
   document.getElementById("view-container"),
   { email: "preview@example.com", token: "preview" }

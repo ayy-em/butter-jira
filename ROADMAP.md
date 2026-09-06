@@ -37,7 +37,8 @@ rather than as omissions.
 | Releases | Tag-led and automated (M19, 2026-09-06). `.github/workflows/release.yml` on a `v*` tag builds, verifies and publishes the three zips plus checksums, then pushes the version bump to main; `ci.yml` runs the suites on every push to main and every pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](LICENSE), chosen 2026-09-06. Source-available, not open source: fork and modify freely for noncommercial purposes, commercial use reserved to the copyright holder, no warranty and no liability |
 | Version control | Git, `.gitignore` in place |
-| Tests | Twenty-two `scripts/test-*.mjs` suites (1938 checks) + nine preview harnesses, one per view, + a manual smoke checklist. Every suite runs in CI on push and pull request, and again as the gate before a release publishes |
+| Tests | Twenty-two `scripts/test-*.mjs` suites (1956 checks) + nine preview harnesses in `preview/`, one per view, + a manual smoke checklist. Every suite runs in CI on push and pull request, and again as the gate before a release publishes |
+| Repo root | Only what ships or governs: the four HTML entry points, `settings.js`, `background.js`, the manifests, the docs and `LICENSE`. Harnesses live in `preview/`, tooling in `scripts/` |
 | Design | Empty backlog as of 2026-09-06. Tokens, the two button bases, the icon sprite and the shared view header are documented in [README.md](README.md#design-system) |
 
 ## Sizing
@@ -598,6 +599,150 @@ Not oversights, and not backlog. Each of these was looked at during the
 # Completed
 
 Newest first.
+
+## Repo root, and de-identified fixtures ✔ *(ad-hoc, 2026-09-06)*
+
+**Size: S** · Twenty-three `preview-*` files sat in the repo root next to the
+six that ship, so the root did not say what the extension is. They are now
+`preview/`, and the root holds only what ships or governs the repo.
+
+**Nothing about packaging changed, because there was nothing to change.**
+`scripts/build.mjs` has always copied an allowlist — four HTML entry points,
+`settings.js`, `background.js`, `js/ css/ libs/ assets/` — so no preview file
+has ever been in a zip. The move fixes what a reader sees, not what a user
+downloads. Each harness now reaches `../js` and `../css`, and the
+`chrome.runtime.getURL` stub returns `../${path}`, which is what the fixture's
+`assets/logo.png` needed. All nine were re-rendered from the new location before
+the move was committed.
+
+**The fixtures were also carrying things they should not have been.** These are
+public files, and two of them held what read as a real team roster — nine first
+names, including the author's — while the boards, project key and issue
+summaries across all of them described the employer's actual line of business
+in enough detail to name the industry and the desk. This entry deliberately
+does not restate what was in them. None of it was live data, and all of
+it said more about the org than a sample fixture has any business saying. The
+cast is now the invented one the other seven harnesses already used (Avery
+Quinn, Bo Ferreira, Cy Nakamura…), the key is `ACME`, and the summaries describe
+a generic web platform.
+
+**The rule this leaves behind,** written into README and PRODUCT: everything in
+a harness is invented. A roster of real colleagues is personal data, and a
+fixture naming real projects publishes what a team is working on — neither
+belongs in a file anybody can read.
+
+## The GitHub fetch says what it is doing ✔ *(ad-hoc, 2026-09-06)*
+
+**Size: S** · Reported from use: the standup setup screen had said **GitHub
+partial** for twenty minutes, and there was no way to tell which of three very
+different things that meant — finished with gaps, still working, or wedged.
+
+**It was the first one, and the screen could not say so.** `settleGithubState()`
+only reaches "partial" once *both* queries have answered, so the word has always
+meant *finished, and short*. Nothing was hung. But the state a screen shows and
+the state a person infers are different things, and one word covering a
+twenty-minute-old finished fetch and a fetch still in flight is a screen that
+cannot be believed either way.
+
+**What was missing was time.** A promise settles once and says nothing on the way
+there, and `fetchTeamStats` reaches every declared repo concurrently behind a
+single `await`, so even "how far along is it" had no answer to give.
+
+- **`js/github.js` keeps a progress record** — per query, not per caller, which
+  matches the `shared()` in-flight map it sits next to: the standup's own call
+  and the nav bar's prewarm are two callers watching one piece of work. Phase,
+  start, finish, repos done of repos total, the repos that failed, the repos cut
+  short at the page cap. `getGithubProgress()` snapshots it and
+  `onGithubProgress()` subscribes; per-repo marks are made inside the stats
+  fetch as each repo lands.
+- **A cache hit is reported as a cache hit.** From outside, "answered from
+  storage in 4ms" and "answered by GitHub in 40s" are the same settled promise,
+  and a screen explaining a wait has to tell them apart — so the marks are made
+  in the cache wrappers rather than in the fetches.
+- **The status line has a hover panel.** Both queries, what each is doing, how
+  long it has taken, which repos are missing *by name*, and a headline that
+  answers the original question outright: "Finished 18m ago — nothing is still
+  running", or "Still fetching — 3m 19s so far". Past ninety seconds it says so
+  and stops implying the fetch is about to land. Native `title`, which is what
+  this had, cannot update while you look at it, cannot be reached by keyboard
+  and cannot carry a tone.
+- **The report reads the payload, not just the progress record.** A cache hit
+  knows nothing about which repos failed — that is a fact about the *answer*.
+  So reach comes from `reached` / `failures` / `truncated` when there is a
+  payload, and from the live counters while there is not.
+- **Starting a standup mid-fetch now warns.** Only for a fetch actually in
+  flight: "partial" is a finished answer and waiting on it would be waiting on
+  nothing. The dialog carries the same live report, updates while it is open,
+  and rewrites itself to "GitHub landed" if the fetch finishes while the
+  question is on screen. `Start anyway` is focused, because Enter already meant
+  start; Escape, the overlay and `Wait for it` all mean wait. A dialog rather
+  than `window.confirm` for one reason: a native confirm freezes the page it is
+  asking about, and what this has to show is a moving figure.
+
+**Nothing was given a timeout.** GitHub is allowed to be slow, the standup has
+never waited for it, and a cancel that loses a paged query half-finished would
+be a worse answer than a line saying it has been three minutes. The elapsed
+figure is there so a person can make that call.
+
+**Reachable in the harness now, which it was not before:** `preview-standup.js`
+seeds both caches warm, so the status line could only ever say "connected".
+`?github=slow`, `?github=stuck`, `?github=partial` and `?ghhover=1` reach the
+four states this work is about. Checked in both themes, plus ten new checks in
+`test-github.mjs` over the progress record — start, per-repo counting,
+subscriber notification, cache attribution, failure phase and unsubscribe.
+
+## Screen space: board header, backlog density, standup setup, nav tabs ✔ *(ad-hoc, 2026-09-06)*
+
+**Size: S** · Four fixes with one thing in common: chrome taking room the
+content wanted, or saying nothing while it took it.
+
+- **The Board's header is one row.** The shared view header stacks a 21px title
+  over a 12.5px line and puts a two-row count strip beside it — fine on the
+  Backlog and the Monitor, and about 60px of a screen whose whole job is
+  columns. On this view the subtitle sits beside the title, the icon tile drops
+  to 32px, and each count tile is a number beside its label rather than above
+  it: ~34px, so the columns gain ~28px. Scoped to `.kanban-wrap` in
+  `css/kanban.css` rather than changed for everyone, because the other views are
+  not short of height. The subtitle ellipsizes and then disappears under 900px —
+  it is the only thing in the row that is a description rather than a fact.
+- **The Backlog's density pills mark which one is on.** They always had the
+  styling for it; `renderAll()` repaints the table and not the toolbar, so the
+  class was set once at first paint and never moved again. Clicking changed the
+  row heights and left the highlight behind, and applying a saved view did the
+  same. The marking now lives in a function `renderShellState()` calls, which
+  covers both, and carries `aria-pressed` with it.
+- **The standup setup fits a 14" MacBook Pro.** The Start button was below the
+  fold on the machine this is run from, under two panels: "Quick info" (a GitHub
+  status card and a sound-cues card) and "Keyboard shortcuts" (three bordered
+  cells). Both are gone. The chime is a 30px icon toggle beside Everyone/Nobody —
+  a speaker, struck out when muted, with the words in its title and
+  `aria-pressed`. The GitHub state moved into the header meta line beside the
+  date and the sprint, tone-coloured, its detail on hover: without it, an off or
+  failed fetch would have gone back to being a silent gap, since the Open PRs
+  tile only appears when there is a list to count. The three keys are one line
+  under the button. With setup down to a single panel, the numbered step badges
+  went too — "1" on its own is a sequence of one.
+
+- **The nav tabs are one width.** BACKLOG, SPRINT and STANDUP were 123, 135 and
+  98px, 4px apart, with the label pinned to the left padding on the two that
+  open a menu — the caret and the rollup count took the right-hand side, so no
+  two chips lined up. All three are 148px now, label centred, 10px apart:
+  148 is SPRINT with its caret and a two-digit count, which also means the
+  monitor finding something no longer widens that tab and shifts the one after
+  it. Below 1200px the widths relax to fit the labels again, because the centred
+  clock is absolutely positioned and equal widths are not worth colliding with
+  it. The row's `display:flex;gap` came off an inline style in
+  `js/components/nav.js` and into `.nav-tabs`, which was the last of that file's
+  hand-drawn layout.
+
+Verified by rendering the previews: Kanban dark at 1400px, light at 1000px and
+760px (subtitle gone, counts intact); Backlog with a scripted click on a density
+pill, which is the case a screenshot of the first frame cannot reach; standup
+default, light, GitHub off, and the end screen. The nav has no preview, so it
+was checked against a scratch harness holding the real markup and stylesheets,
+at 1512px and 1100px, menu open and shut, with a one- and two-digit rollup
+count. `test-kanban`, `test-backlog`, `test-standup`, `test-imports` and
+`test-contrast` all pass.
 
 ## M19 — Tagged releases, built and published by CI ✔ *(2026-09-06)*
 
@@ -1308,7 +1453,9 @@ checkbox list and a number input per person — became a full-width screen:
 header with an inline SVG mark, a date / team / sprint / availability meta
 line, four live stat tiles (attendees, speaking time, total estimated, open
 PRs), and three numbered panels (participants, quick info, keyboard shortcuts)
-over a full-width start button.
+over a full-width start button. *(The last two panels were folded away on
+2026-09-06 to get the start button onto a 14" screen — see
+[Screen space](#screen-space-board-header-backlog-density-standup-setup-nav-tabs--ad-hoc-2026-09-06).)*
 
 Each participant row now answers, at a glance, what the facilitator would
 otherwise have to ask: sprint items with a relative workload bar, four GitHub
@@ -1320,7 +1467,7 @@ numbers (open PRs, PRs opened, reviews and comments, lines merged — added in
 - **The blocked column is decided once, for the whole table.** Jira gives no universal "blocked" field, so it is read off the status name (`block|impediment|on hold`) — but only when this sprint actually *has* such a status. Otherwise the same slot shows overdue, which every site can answer. Per-row fallback would have made one column mean two things.
 - **The pip bar is relative to the busiest person on the roster,** not to a fixed ceiling nobody agreed on. It reads as "who is carrying the most", which is the question a standup asks.
 - **An absent PR count and a zero are different facts.** GitHub off, still loading, or no login on the roster renders `—` with a title explaining which; only a real answer renders a number.
-- **The GitHub status line was promoted, not dropped.** It used to be one chip under the button; GitHub now appears in four places (tile, the per-person stat cluster, Quick info card and its note), so a fetch landing repaints the setup screen wholesale instead of patching one node.
+- **The GitHub status line was promoted, not dropped.** It used to be one chip under the button; GitHub now appears in four places (tile, the per-person stat cluster, Quick info card and its note), so a fetch landing repaints the setup screen wholesale instead of patching one node. *(Three places since 2026-09-06: the card became an item in the header meta line. The wholesale repaint stayed.)*
 
 Enter now starts the standup, matching the hint under the button. The running
 stage and the summary screen are untouched.

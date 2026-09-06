@@ -15,7 +15,7 @@
 // like. This harness adds ?sort=<column> · ?flip=1
 import { params } from "./preview-fixture.js";
 
-const { mount } = await import("./js/views/dashboard.js");
+const { mount } = await import("../js/views/dashboard.js");
 await mount(
   document.getElementById("view-container"),
   { email: "preview@example.com", token: "preview" }

@@ -10,13 +10,35 @@
    standup flair reads its stops from `--flair-sweep` instead of restating
    them. */
 
+/* The tab row: the logo, then one control per view group. The gap and the
+   margins were an inline style on the div in js/components/nav.js, which is the
+   last of what that file used to draw in a string. */
+.nav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 1rem;
+  margin-right: auto;
+}
+
+/* One width for every tab, whether or not it carries a caret or a rollup count,
+   and the label centred in it. They were three chips of three different widths
+   with the text hard against the left padding on the two that open a menu — the
+   caret and the count ate the right-hand side, so nothing in the row lined up
+   with anything else. 148px is the widest of them (SPRINT, plus a caret, plus a
+   two-digit count) rounded up, which also means a count appearing no longer
+   widens its own tab and shifts the one after it. */
 .nav-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 148px;
   text-decoration: none;
   color: var(--muted);
   font-size: calc(13px * var(--font-scale));
   font-weight: 600;
   letter-spacing: 1px;
-  padding: 5px 14px;
+  padding: 6px 14px;
   border-radius: var(--radius-sm);
   transition: color 0.15s, background 0.15s, box-shadow 0.2s;
 }
@@ -29,8 +51,7 @@
 /* ── Grouped views ─────────────────────────────────────────────────── */
 .nav-menu { position: relative; display: flex; align-items: center; }
 .nav-menu-trigger {
-  display: flex;
-  align-items: center;
+  /* Width, padding and centring come from .nav-tab, which this also is. */
   gap: 6px;
   background: none;
   border: none;
@@ -99,6 +120,15 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   padding: 0 4px;
+}
+
+/* Below this the centred clock is closer to the tabs than the equal widths are
+   worth: they go back to being as wide as their labels, which is what they were
+   before. Same threshold in spirit as the rest of the app — the fixed layout
+   holds while there is room for it, and yields rather than overlapping. */
+@media (max-width: 1200px) {
+  .nav-tab { min-width: 0; }
+  .nav-tabs { gap: 8px; }
 }
 
 /* Standup is a timed, run-once-a-day ritual rather than a view you browse,

@@ -22,4 +22,4 @@ if (params.get("print") !== "1") {
   history.replaceState(null, "", url);
 }
 
-await import("./js/recap-page.js");
+await import("../js/recap-page.js");

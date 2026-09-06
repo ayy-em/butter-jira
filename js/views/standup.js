@@ -13,9 +13,11 @@ import {
   FALLBACK_SPRINT_DAYS,
   PR_STATE_LABELS,
   activityFor,
+  getGithubProgress,
   getTeamActivity,
   getTeamStats,
   isGithubConfigured,
+  onGithubProgress,
   statsFor,
 } from "../github.js";
 import {
@@ -136,6 +138,9 @@ export async function mount(container, creds) {
   let session = null;
   let ticker = null;
   let countdownCuePlayed = false;
+  // Enter and the button both call startNow(); without this, holding Enter
+  // stacks warning modals.
+  let warnOpen = false;
 
   // Two queries, two failure modes, one status line. The activity query is what
   // the panel lists; the window query is what the per-person numbers count. The
@@ -202,10 +207,43 @@ export async function mount(container, creds) {
     github.state = partial ? "partial" : "ready";
   }
 
+  // While either query is in flight the status line counts seconds, so a screen
+  // left open says "still fetching — 3m 40s" rather than the same word it said
+  // three minutes ago. One second is enough for a figure measured in them, and
+  // it patches a single node.
+  let githubTick = null;
+
+  function syncGithubTicker() {
+    const running = getGithubProgress();
+    const busy = ["activity", "stats"].some((k) => running[k].phase === "running");
+    if (busy && !githubTick) {
+      githubTick = setInterval(() => paintGithubStatus(), 1000);
+    } else if (!busy && githubTick) {
+      clearInterval(githubTick);
+      githubTick = null;
+      // One last paint, so the line settles on "finished 0s ago" rather than on
+      // whatever the last tick happened to say.
+      paintGithubStatus();
+    }
+  }
+
+  function stopGithubTicker() {
+    if (githubTick) clearInterval(githubTick);
+    githubTick = null;
+  }
+
+  // Per-repo progress lands here as it happens. Only the status line is
+  // repainted: a repo finishing is not a reason to rebuild the roster table.
+  const unsubscribeGithub = onGithubProgress(() => {
+    if (!mounted || session) return;
+    paintGithubStatus();
+    syncGithubTicker();
+  });
+
   function repaintGithub() {
     if (!mounted) return;
-    // The setup screen reports GitHub in four places now — the Open PRs tile,
-    // the per-person stat cluster, the Quick info card and its note — so it is
+    // The setup screen reports GitHub in three places — the Open PRs tile, the
+    // per-person stat cluster and the state in the header meta line — so it is
     // repainted wholesale rather than having one chip patched in place.
     if (!session) renderSetup(setupNotice);
     // A person already on screen when a fetch lands gets their numbers without
@@ -275,6 +313,9 @@ export async function mount(container, creds) {
     alert: ["M10.3 4.4 2.7 17.5A2 2 0 0 0 4.4 20.5h15.2a2 2 0 0 0 1.7-3L13.7 4.4a2 2 0 0 0-3.4 0Z", "M12 9.5v4", "M12 17h.01"],
     ban: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "m5.9 5.9 12.2 12.2"],
     sound: ["M11 5 6.5 9H3v6h3.5L11 19V5Z", "M15.4 9.2a4 4 0 0 1 0 5.6", "M18.2 6.4a8 8 0 0 1 0 11.2"],
+    // The same speaker with the waves struck out: muted has to be legible as a
+    // shape, since the toggle carries no label.
+    soundOff: ["M11 5 6.5 9H3v6h3.5L11 19V5Z", "m16 9.5 5 5", "m21 9.5-5 5"],
     play: ["m8 5.5 11 6.5-11 6.5v-13Z"],
     arrow: ["M4 12h15", "m13 6 6 6-6 6"],
   };
@@ -528,7 +569,6 @@ export async function mount(container, creds) {
     if (resumable) wrap.appendChild(resumeBanner());
     if (notice) wrap.appendChild(bannerEl("su-banner", notice));
     wrap.appendChild(participantsPanel());
-    wrap.appendChild(infoRow());
     wrap.appendChild(startRow());
   }
 
@@ -580,6 +620,12 @@ export async function mount(container, creds) {
     // sprint, and "DP-82 · DP-82" would read as two.
     const sprintLabels = [...new Set(sprintNames.map(trimSprintLabel))];
     if (sprintLabels.length) metaItem(meta, "sprint", sprintLabels.join(" · "));
+    // What the Quick info card used to say, in the space a meta item costs.
+    // The Open PRs tile only appears when there is a list to count, so without
+    // this an off, failed or half-fetched GitHub is a silent gap again. The word
+    // alone cannot say whether a fetch is still running, so the hover panel
+    // built in githubStatusEl() carries the rest.
+    meta.appendChild(githubStatusEl(meta.childElementCount > 0));
     meta.appendChild(el("span", "su-meta-sep", "·"));
     const available = el("span", "su-meta-item");
     available.append(
@@ -593,11 +639,48 @@ export async function mount(container, creds) {
     return header;
   }
 
-  function metaItem(parent, name, text) {
+  function metaItem(parent, name, text, { tone = "", title = "" } = {}) {
     if (parent.childElementCount) parent.appendChild(el("span", "su-meta-sep", "·"));
-    const item = el("span", "su-meta-item");
+    const item = el("span", `su-meta-item${tone ? ` ${tone}` : ""}`);
+    if (title) item.title = title;
     item.append(icon(name, 14), el("span", null, text));
     parent.appendChild(item);
+  }
+
+  // The GitHub state, and everything behind it one hover away. A wrapper of its
+  // own rather than a metaItem() call because the hover panel has to be
+  // positioned against this item and repainted on its own, once a second, while
+  // a fetch is in flight — repainting the header for that would take focus off
+  // whatever the facilitator was clicking.
+  function githubStatusEl(withSeparator) {
+    const holder = el("span", "su-gh-status-holder");
+    if (withSeparator) holder.appendChild(el("span", "su-meta-sep", "·"));
+    const item = el("span", "su-meta-item su-gh-status");
+    item.id = "su-gh-status";
+    item.tabIndex = 0;
+    holder.appendChild(item);
+    paintGithubStatus(item);
+    return holder;
+  }
+
+  // Called on first paint, on every progress event, and once a second while
+  // something is running. Patches the one node rather than the screen.
+  function paintGithubStatus(node = document.getElementById("su-gh-status")) {
+    if (!node) return;
+    const gh = githubStatus();
+    const report = githubReport();
+    node.className = `su-meta-item su-gh-status${gh.tone ? ` ${gh.tone}` : ""}`;
+    node.replaceChildren(
+      icon("github", 14),
+      el("span", null, `GitHub ${gh.chip.toLowerCase()}`),
+      githubReportEl(report)
+    );
+    // A screen reader gets the headline; the panel below is the same words with
+    // a shape, so it is hidden from the tree rather than read out twice.
+    node.setAttribute("aria-label", `GitHub: ${gh.chip}. ${report.headline}.`);
+    node.querySelector(".su-gh-report")?.setAttribute("aria-hidden", "true");
+    // The panel is the tooltip, so a native one on top of it would be two.
+    node.removeAttribute("title");
   }
 
   function tilesEl() {
@@ -661,12 +744,10 @@ export async function mount(container, creds) {
 
   // ── 1. Participants ────────────────────────────────────────────────────────
 
-  // `step` may be null. The numbered badge is what makes the three setup panels
-  // read as a sequence; the end screen's panels are not a sequence, so they take
-  // the same heading without one.
-  function panelHead(step, title, hint) {
+  // The numbered badge went with the panels it numbered: setup is one panel now,
+  // and "1" on its own is a sequence of one.
+  function panelHead(title, hint) {
     const head = el("div", "su-panel-head");
-    if (step !== null) head.append(el("span", "su-step", String(step)));
     head.append(
       el("h2", "su-panel-title", title),
       el("span", "su-panel-hint", hint)
@@ -676,10 +757,9 @@ export async function mount(container, creds) {
 
   function participantsPanel() {
     const panel = el("section", "su-panel");
-    const head = panelHead(1, "Participants", "Who's in today?");
+    const head = panelHead("Participants", "Who's in today?");
 
     const actions = el("div", "su-panel-actions");
-    actions.append(el("span", "su-field-label", "Select:"));
 
     const segmented = el("div", "su-segmented");
     segmented.append(
@@ -692,7 +772,12 @@ export async function mount(container, creds) {
         renderSetup(setupNotice);
       })
     );
-    actions.append(segmented, el("span", "su-field-label", "Speaking time per person"), stepperEl());
+    actions.append(
+      segmented,
+      soundToggle(),
+      el("span", "su-field-label", "Speaking time per person"),
+      stepperEl()
+    );
     head.appendChild(actions);
     panel.appendChild(head);
 
@@ -710,6 +795,31 @@ export async function mount(container, creds) {
   function segBtn(label, onClick) {
     const btn = el("button", "su-seg", label);
     btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  // The chime was a card in a panel of its own, which is a lot of screen for one
+  // boolean nobody changes twice. It is a button here: the speaker says on, the
+  // struck-out speaker says off, and the title and aria-pressed say it in words
+  // for anyone the shape does not reach.
+  function soundToggle() {
+    const btn = el("button", "su-icon-toggle");
+    const paint = () => {
+      const on = !sfx.isMuted();
+      btn.innerHTML = "";
+      btn.appendChild(icon(on ? "sound" : "soundOff", 16));
+      btn.classList.toggle("off", !on);
+      btn.setAttribute("aria-pressed", String(on));
+      btn.title = on
+        ? "Sound cues on — a chime on time up"
+        : "Sound cues off — timers run silently";
+      btn.setAttribute("aria-label", btn.title);
+    };
+    paint();
+    btn.addEventListener("click", async () => {
+      await sfx.setMuted(!sfx.isMuted());
+      paint();
+    });
     return btn;
   }
 
@@ -908,13 +1018,7 @@ export async function mount(container, creds) {
     return select;
   }
 
-  // ── 2 & 3. Quick info and shortcuts ────────────────────────────────────────
-
-  function infoRow() {
-    const row = el("div", "su-info-row");
-    row.append(quickInfoPanel(), shortcutsPanel());
-    return row;
-  }
+  // ── GitHub status ──────────────────────────────────────────────────────────
 
   // Says which of the five things happened to the GitHub fetch, so an absent
   // panel or a row of dashes during the standup is explained here rather than
@@ -968,64 +1072,179 @@ export async function mount(container, creds) {
     }
   }
 
-  function quickInfoPanel() {
-    const panel = el("section", "su-panel");
-    panel.appendChild(panelHead(2, "Quick info", "Everything you need to know"));
+  // ── GitHub progress ────────────────────────────────────────────────────────
 
-    const cards = el("div", "su-cards");
+  // "Partial" on its own says nothing about *when*: this screen showed it for
+  // twenty minutes and there was no way to tell a finished fetch with gaps from
+  // one still working from one wedged. These read js/github.js's progress record
+  // and answer that in words, on hover and in the start-anyway warning.
 
-    const status = githubStatus();
-    const gh = el("div", "su-card");
-    const ghHead = el("div", "su-card-head");
-    const ghMark = el("span", "su-card-icon");
-    ghMark.appendChild(icon("github", 20));
-    ghHead.append(
-      ghMark,
-      el("span", "su-card-title", "GitHub"),
-      el("span", `su-chip ${status.tone}`, status.chip)
-    );
-    gh.append(ghHead, el("div", "su-card-note", status.note));
-    cards.appendChild(gh);
-
-    // A label, so the click target is the whole card rather than a 14px box.
-    const sound = el("label", "su-card");
-    const soundHead = el("div", "su-card-head");
-    const soundMark = el("span", "su-card-icon");
-    soundMark.appendChild(icon("sound", 20));
-    const soundBox = el("input", "su-switch");
-    soundBox.type = "checkbox";
-    soundBox.checked = !sfx.isMuted();
-    const soundNote = el(
-      "div",
-      "su-card-note",
-      soundBox.checked ? "You'll hear a chime on time up" : "Timers run silently"
-    );
-    soundBox.addEventListener("change", async () => {
-      await sfx.setMuted(!soundBox.checked);
-      soundNote.textContent = soundBox.checked
-        ? "You'll hear a chime on time up"
-        : "Timers run silently";
-    });
-    soundHead.append(soundMark, el("span", "su-card-title", "Sound cues"), soundBox);
-    sound.append(soundHead, soundNote);
-    cards.appendChild(sound);
-
-    panel.appendChild(cards);
-    return panel;
+  function fmtElapsed(ms) {
+    const sec = Math.max(0, Math.round(ms / 1000));
+    if (sec < 60) return `${sec}s`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return sec % 60 ? `${min}m ${sec % 60}s` : `${min}m`;
+    const hrs = Math.floor(min / 60);
+    return `${hrs}h ${min % 60}m`;
   }
 
-  function shortcutsPanel() {
-    const panel = el("section", "su-panel");
-    panel.appendChild(panelHead(3, "Keyboard shortcuts", "During the standup"));
+  // Past this a fetch is not merely slow. Nothing aborts it — GitHub is allowed
+  // to take its time and the standup never waited for it anyway — but the
+  // tooltip stops implying it is about to land.
+  const GITHUB_SLOW_MS = 90 * 1000;
 
-    const keys = el("div", "su-keys");
-    for (const [key, what] of [["Space", "Pause / Resume"], ["→", "Next speaker"], ["Shift+Esc", "End session"]]) {
-      const cell = el("div", "su-key-cell");
-      cell.append(el("kbd", "su-kbd", key), el("span", "su-key-what", what));
-      keys.appendChild(cell);
+  // The two halves of the fetch, in the order they are reported.
+  const GITHUB_QUERIES = [
+    ["activity", "Pull-request list"],
+    ["stats", "Sprint counts"],
+  ];
+
+  // What the payload itself says about reach, which is the half the progress
+  // record cannot know: a cache hit answers for every repo in one go, and the
+  // repos that failed are a fact about the *answer*, not about the fetch that
+  // has just replayed it from storage.
+  function githubReach(kind) {
+    const payload = kind === "activity" ? github.activity : github.stats;
+    if (!payload) return null;
+    const failed = (payload.failures || []).map((f) => f.repo).filter(Boolean);
+    const reached = payload.reached?.length ?? Math.max(0, (payload.repos?.length || 0) - failed.length);
+    // A repo cannot be reached that was never asked for. Clamped rather than
+    // trusted so a payload whose two lists disagree reads as a count, not as
+    // "14 of 2".
+    const total = Math.max(payload.repos?.length || 0, reached);
+    return {
+      total,
+      reached,
+      // De-duplicated: the stats fetch reports a repo twice when the pull
+      // requests came back and only the commit history did not.
+      failed: [...new Set(failed)],
+      capped: [...new Set(payload.truncated || [])],
+    };
+  }
+
+  function githubQueryLine(kind, label, now) {
+    const p = getGithubProgress()[kind];
+    const reach = githubReach(kind);
+
+    if (p.phase === "running") {
+      const waited = fmtElapsed(now - p.startedAt);
+      // The activity query is a single POST covering every repo, so it has no
+      // count to report; the window query reaches each repo on its own and does.
+      const where =
+        kind === "stats" && p.reposTotal
+          ? `${p.reposDone} of ${p.reposTotal} ${plural(p.reposTotal, "repo")}`
+          : "in flight";
+      return {
+        label,
+        value: `${where} · ${waited}`,
+        tone: now - p.startedAt > GITHUB_SLOW_MS ? "warn" : "",
+      };
     }
-    panel.appendChild(keys);
-    return panel;
+
+    if (p.phase === "error" || (!reach && p.phase === "done")) {
+      const why = p.error || (kind === "activity" ? github.error : github.statsError);
+      const took = p.startedAt && p.finishedAt ? ` after ${fmtElapsed(p.finishedAt - p.startedAt)}` : "";
+      return { label, value: `failed${took} — ${why || "no answer"}`, tone: "bad" };
+    }
+
+    if (!reach) return { label, value: "not started", tone: "" };
+
+    const took =
+      p.source === "cache"
+        ? "from cache"
+        : p.finishedAt && p.startedAt
+          ? `in ${fmtElapsed(p.finishedAt - p.startedAt)}`
+          : "";
+    const gaps = [];
+    if (reach.failed.length) gaps.push(`${reach.failed.length} unreachable`);
+    if (reach.capped.length) gaps.push(`${reach.capped.length} capped`);
+    const scope = reach.total
+      ? `${reach.reached} of ${reach.total} ${plural(reach.total, "repo")}`
+      : "done";
+    return {
+      label,
+      value: [scope, took, ...gaps].filter(Boolean).join(" · "),
+      tone: gaps.length ? "warn" : "ok",
+    };
+  }
+
+  // { headline, tone, rows, notes, running } — the same report on hover and in
+  // the modal, so the warning and the tooltip can never disagree.
+  function githubReport(now = Date.now()) {
+    const progress = getGithubProgress();
+    const kinds = GITHUB_QUERIES.map(([kind]) => kind);
+    const rows = GITHUB_QUERIES.map(([kind, label]) => githubQueryLine(kind, label, now));
+    const notes = [];
+
+    const running = kinds.filter((k) => progress[k].phase === "running");
+    const started = kinds.map((k) => progress[k].startedAt).filter(Boolean);
+    const finished = kinds.map((k) => progress[k].finishedAt).filter(Boolean);
+
+    let headline;
+    let tone = "";
+    if (github.state === "off") {
+      headline = "GitHub is not connected";
+      notes.push("Add repos in Settings → GitHub.");
+    } else if (running.length) {
+      const waited = now - Math.min(...started);
+      headline = `Still fetching — ${fmtElapsed(waited)} so far`;
+      if (waited > GITHUB_SLOW_MS) {
+        tone = "warn";
+        notes.push(
+          "Longer than this usually takes. Nothing has failed and nothing is " +
+            "retrying — GitHub may be rate-limiting the paged query. The standup " +
+            "can start without it."
+        );
+      }
+    } else if (finished.length) {
+      // The question this panel was built to answer: after twenty minutes on
+      // "Partial", is anything still working? No — and this is how long ago it
+      // stopped.
+      const ago = now - Math.max(...finished);
+      const when = ago < 5000 ? "just now" : `${fmtElapsed(ago)} ago`;
+      headline =
+        github.state === "ready"
+          ? `Finished ${when} — everything landed`
+          : `Finished ${when} — nothing is still running`;
+      tone = github.state === "ready" ? "ok" : github.state === "error" ? "bad" : "warn";
+    } else {
+      headline = "Not started";
+    }
+
+    // Which repos, by name. The counts above say how many; a fix needs the name.
+    for (const [kind, label] of GITHUB_QUERIES) {
+      const reach = githubReach(kind);
+      const failed = reach?.failed.length ? reach.failed : progress[kind].failed;
+      const capped = reach?.capped.length ? reach.capped : progress[kind].capped;
+      if (failed.length) notes.push(`${label} — could not read ${failed.join(", ")}.`);
+      if (capped.length) {
+        notes.push(`${label} — ${capped.join(", ")} hit the page cap, so its older half is not counted.`);
+      }
+    }
+    if (github.error) notes.push(`Pull-request list: ${github.error}`);
+    if (github.statsError) notes.push(`Sprint counts: ${github.statsError}`);
+    if (github.stats?.since && !running.length) {
+      notes.push(`Counted since ${fmtDate(github.stats.since)}.`);
+    }
+
+    return { headline, tone, rows, notes, running: running.length > 0 };
+  }
+
+  // The hover panel itself. Built fresh each paint — it is three rows and a
+  // couple of lines, and a diff would cost more than the nodes do.
+  function githubReportEl(report) {
+    const box = el("div", "su-gh-report");
+    box.append(el("div", `su-gh-report-head ${report.tone}`, report.headline));
+    const table = el("div", "su-gh-report-rows");
+    for (const row of report.rows) {
+      table.append(
+        el("span", "su-gh-report-label", row.label),
+        el("span", `su-gh-report-value ${row.tone}`, row.value)
+      );
+    }
+    box.appendChild(table);
+    for (const note of report.notes) box.appendChild(el("div", "su-gh-report-note", note));
+    return box;
   }
 
   // ── Start ──────────────────────────────────────────────────────────────────
@@ -1039,17 +1258,120 @@ export async function mount(container, creds) {
     // on the screen was earning nothing.
     start.disabled = attendingIds().length === 0;
     start.addEventListener("click", startNow);
-    row.appendChild(start);
+    row.append(start, shortcutsLine());
     return row;
+  }
+
+  // Three keys, in the width of a line. They were three bordered cells in a
+  // numbered panel, which cost about a fifth of a 14" screen — enough that the
+  // Start button fell below the fold on the machine this is run from.
+  function shortcutsLine() {
+    const line = el("div", "su-keyline");
+    const parts = [
+      ["Space", "pause"],
+      ["→", "next"],
+      ["Shift+Esc", "end"],
+    ];
+    parts.forEach(([key, what], i) => {
+      if (i) line.appendChild(el("span", "su-keyline-sep", "·"));
+      line.append(el("kbd", "su-kbd", key), el("span", "su-key-what", what));
+    });
+    return line;
   }
 
   async function startNow() {
     const ids = attendingIds();
     if (!ids.length) return;
-    // Inside the gesture handler, so the audio policy is satisfied here.
+    if (warnOpen) return;
+    // Inside the gesture handler, so the audio policy is satisfied here, and
+    // before the warning below: a click that stops to ask a question no longer
+    // counts as the gesture that unlocks audio.
     await sfx.unlock();
+    // The GitHub numbers are what half this screen is for, and a standup started
+    // thirty seconds early runs with dashes where the per-person figures should
+    // be. Only for a fetch actually in flight — "partial" is a finished answer
+    // and waiting on it would be waiting on nothing.
+    if (githubReport().running && !(await confirmStartWhileFetching())) return;
     await savePrefs({ attendance: ids, durations });
     beginSession(ids);
+  }
+
+  // Resolves true to start anyway, false to wait. Escape, the overlay and the
+  // Wait button all mean wait; the standup is not blocked either way, so this
+  // is a warning with a way past it rather than a gate.
+  function confirmStartWhileFetching() {
+    return new Promise((resolve) => {
+      warnOpen = true;
+      const overlay = el("div", "setup-overlay su-warn-overlay");
+      const modal = el("div", "setup-modal su-warn-modal");
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("aria-labelledby", "su-warn-title");
+
+      const title = el("div", "setup-title", "STILL FETCHING");
+      title.id = "su-warn-title";
+      modal.append(
+        title,
+        el(
+          "div",
+          "setup-subtitle",
+          "GitHub has not finished answering. Start now and the per-person " +
+            "pull-request numbers show dashes until it lands."
+        ),
+        githubReportEl(githubReport())
+      );
+
+      const actions = el("div", "su-warn-actions");
+      const wait = el("button", "btn ghost", "Wait for it");
+      const anyway = el("button", "btn primary", "Start anyway");
+      actions.append(wait, anyway);
+      modal.appendChild(actions);
+      overlay.appendChild(modal);
+
+      // The panel repaints while the modal is up, so a fetch that lands during
+      // the question answers it in front of the person asking.
+      const tick = setInterval(() => {
+        const fresh = githubReport();
+        modal.querySelector(".su-gh-report")?.replaceWith(githubReportEl(fresh));
+        if (!fresh.running) {
+          // Nothing left to wait for. Say so rather than leaving a warning about
+          // a fetch that has finished on screen.
+          title.textContent = "GITHUB LANDED";
+          modal.querySelector(".setup-subtitle").textContent =
+            "It finished while you were reading this. Nothing to wait for.";
+          wait.textContent = "Close";
+          anyway.textContent = "Start";
+        }
+      }, 1000);
+
+      const close = (answer) => {
+        clearInterval(tick);
+        document.removeEventListener("keydown", onKey, true);
+        overlay.remove();
+        warnOpen = false;
+        resolve(answer);
+      };
+      const onKey = (e) => {
+        if (e.key === "Escape") {
+          // Consumed here: plain Escape is the app's dismiss gesture, and the
+          // view's own handler would otherwise see it too.
+          e.preventDefault();
+          e.stopPropagation();
+          close(false);
+        }
+      };
+      wait.addEventListener("click", () => close(false));
+      anyway.addEventListener("click", () => close(true));
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) close(false);
+      });
+      document.addEventListener("keydown", onKey, true);
+
+      document.body.appendChild(overlay);
+      // Enter starts the standup on this screen, so the button Enter would press
+      // is the one it already meant to press.
+      anyway.focus();
+    });
   }
 
   // ── Running ────────────────────────────────────────────────────────────────
@@ -1665,7 +1987,7 @@ export async function mount(container, creds) {
     // ── Who spoke, and for how long ─────────────────────────────────────────
     const timesPanel = el("section", "su-panel");
     timesPanel.appendChild(
-      panelHead(null, "Speaking time", "Planned against what it actually took")
+      panelHead("Speaking time", "Planned against what it actually took")
     );
 
     const list = el("div", "su-done-people");
@@ -1693,7 +2015,7 @@ export async function mount(container, creds) {
     const entries = notesEntries(session);
     if (entries.length) {
       const notesPanel = el("section", "su-panel");
-      const head = panelHead(null, "Parking lot", "Paste this into Slack");
+      const head = panelHead("Parking lot", "Paste this into Slack");
 
       // A textarea rather than a <pre>: the point is to select and copy it, and
       // it stays editable so the facilitator can tidy wording before pasting.
@@ -1871,6 +2193,8 @@ export async function mount(container, creds) {
   const observer = new MutationObserver(() => {
     if (!wrap.isConnected) {
       stopTicker();
+      stopGithubTicker();
+      unsubscribeGithub();
       sfx.stopAll();
       // The canvas is on document.body, not inside the view, so it does not go
       // with the container — it has to be torn down by hand.
@@ -1887,5 +2211,6 @@ export async function mount(container, creds) {
   // Start is what the panel shows, and the rest fills in behind.
   mounted = true;
   renderSetup();
+  syncGithubTicker();
   githubFetch?.then(repaintGithub);
 }

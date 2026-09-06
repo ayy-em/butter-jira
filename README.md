@@ -171,7 +171,7 @@ steps and the second one gets skipped. `scripts/set-version.mjs 0.6.0` is the
 same rewrite if you ever need it locally; it edits the one `"version"` line and
 regenerates the root `manifest.json` from it.
 
-Four things fail the run rather than being trusted, all of them before anything
+Five things fail the run rather than being trusted, all of them before anything
 is published:
 
 | Check | Why it is there |
@@ -180,11 +180,15 @@ is published:
 | The tag parses as `vX.Y.Z` | `v0.6` would otherwise produce three files nobody can name |
 | Nothing changed but the version | A generated file edited by hand, which the build has just silently undone |
 | No `assets/brand`, `assets/avatars`, `config.local.json` or `*.pem` inside any zip | The build's allowlist already guarantees this; re-checked against the real archive because a colleague's photograph in a permanent release asset is the one failure here with no undo |
+| `CHANGELOG.md` has a `## vX.Y.Z` section for the tag | A release page that cannot say what changed is a release nobody can decide about. Write the section first; the tag is the last step |
 
-The release notes are written by the workflow, not generated from commit
-subjects — this project's subjects are milestone labels (`M13:`, `M18:`) and say
-nothing to somebody deciding whether to download a zip. Edit the release
-afterwards to say what actually changed.
+**Write the changelog section before tagging.** The notes are assembled by the
+workflow — install instructions first, because that is what somebody arriving at
+a release page needs first, then that version's section from
+[CHANGELOG.md](CHANGELOG.md) verbatim under *What's new*. Not generated from
+commit subjects: this project's subjects are milestone labels (`M13:`, `M18:`)
+and say nothing to somebody deciding whether to download a zip. Re-pushing a tag
+refreshes both the assets and the notes.
 
 **The Firefox asset is not the same kind of thing as the other two.** Chrome and
 Edge load an unpacked folder permanently; a Firefox zip loaded through
@@ -790,8 +794,32 @@ careful about:
 Sound cues live in `assets/sfx/` (`dun-dun-dun.mp3` at the start,
 `countdown.mp3` before each handover). They're bundled rather than fetched — the
 extension's CSP rules out remote media, and a standup shouldn't lose its cues to
-a slow network. Replace the files to change the sounds; the toggle under the
-start button mutes them.
+a slow network. Replace the files to change the sounds; the speaker button next
+to Everyone / Nobody mutes them.
+
+**The setup screen fits one screen, deliberately.** Participants, the speaking
+clock, the sound toggle and Start, with the three keys the meeting uses
+(`Space` pause, `→` next, `Shift+Esc` end) on one line beneath the button. It
+carried two further panels until 2026-09-06 — a "Quick info" card and a
+three-cell keyboard-shortcut grid — which between them pushed Start below the
+fold on a 14" laptop. What they said is still on the screen: the sound toggle
+moved up into the participants row, and GitHub's state moved into the header's
+meta line beside the date and sprint.
+
+**Hovering that GitHub state says what the fetch is doing** — both queries, how
+far the paged one has got, how long it has taken, and which repos are missing by
+name. The headline answers the question the word alone cannot: *Finished 18m ago
+— nothing is still running*, or *Still fetching — 3m 19s so far*. Past ninety
+seconds it says that is longer than usual and stops implying the answer is
+about to land. **Partial means finished and short**, not still working: the
+state only settles once both queries have answered.
+
+**Starting while a fetch is still in flight warns first**, with the same live
+report and a `Start anyway`. Only for a fetch actually running — waiting on a
+`partial` would be waiting on nothing. Nothing is ever blocked: the standup has
+never waited for GitHub, and starting early costs dashes in the per-person
+pull-request numbers until the fetch lands, at which point the rows fill in
+behind the meeting.
 
 Needs a team roster (Settings → Team roster) — that's where the participant list
 comes from.
@@ -912,6 +940,21 @@ arriving while one is in flight joins it rather than issuing it again. Pull
 requests are **not** correlated to Jira issue keys; that is a separate problem
 and is in the roadmap's deferred backlog.
 
+**Both queries report their progress while they run.** `js/github.js` keeps a
+record per query — phase, when it started, when it finished, how many repos the
+paged one has reached, which repos failed, which hit the page cap — readable
+through `getGithubProgress()` and subscribable through `onGithubProgress()`. A
+cache hit is recorded as one, because *answered from storage in 4ms* and
+*answered by GitHub in 40s* are otherwise the same settled promise, and a screen
+explaining a wait has to tell them apart. The record is per query rather than
+per caller, matching the in-flight map beside it: the standup's own call and the
+nav bar's prewarm are two callers watching one piece of work. The standup's
+status line is the first thing to read it.
+
+Nothing here has a timeout. GitHub is allowed to be slow, no view waits on it,
+and cancelling a paged query half-finished would be a worse answer than a line
+saying it has been three minutes.
+
 ### Monitor tab
 
 Four hygiene checks over the sprint, derived from data the other views already
@@ -1027,11 +1070,22 @@ css/                # one stylesheet per view, plus nav.css for the shell and
 assets/sfx/         # standup sound cues
 libs/               # vendored frappe-gantt
 manifest.base.json  # shared manifest; overlays in manifest.<target>.json
+LICENSE             # PolyForm Noncommercial 1.0.0
 scripts/build.mjs   # copies source + writes each target's manifest
-scripts/            # jira-smoke.js, manual smoke checklist
+scripts/set-version.mjs      # writes a tag's version into the manifests
+scripts/            # test-*.mjs suites, jira-smoke.js, manual smoke checklist
+preview/            # one harness per view — dev only, never packaged
+.github/workflows/  # ci.yml (every push and PR), release.yml (a v* tag)
 ```
 
 No build step — plain ES modules, loaded directly by Chrome.
+
+**The root holds only what ships or governs the repo.** `build.mjs` packages an
+allowlist — the four HTML entry points, `settings.js`, `background.js`, and
+`js/ css/ libs/ assets/` — so nothing else has ever reached a zip; keeping the
+root to that same set means the file list you see is the extension. The preview
+harnesses moved into `preview/` on 2026-09-06 for that reason, and nothing else
+belongs beside them.
 
 ## Design system
 
@@ -1149,19 +1203,19 @@ Each of these has already cost someone an hour.
   columns are a nominal thirtieth of a month rather than a fixed step. Re-check
   that function if you change view modes or upgrade the library.
 - **Preview harnesses can hide the bug they exist to show, and invent ones that
-  are not there.** `preview-standup.html` set `#view-container { position: static }`
+  are not there.** `preview/preview-standup.html` set `#view-container { position: static }`
   with no height, so `height: 100%` on the running stage resolved against nothing
   and the screen rendered at content height in the harness and full height in the
-  app. `preview-kanban.html` briefly made that container a flex parent, which let
+  app. `preview/preview-kanban.html` briefly made that container a flex parent, which let
   the board's wrap grow to its full content width and pushed the COLUMNS button
-  off-screen — in the harness and nowhere else. `preview-issue.js` still omits
+  off-screen — in the harness and nowhere else. `preview/preview-issue.js` still omits
   the page shell, so the issue page renders flush to x=0 there and correctly in
   production. Distrust a harness before filing a layout bug from one.
 - **Headless Chrome's `--virtual-time-budget` will not wait for the app.** A
   `setTimeout` polling loop burns the entire budget before the page's own pending
   work has run, so a harness that waits for an element by sleeping never finds it
    — and the element is there in the `--dump-dom` afterwards. Watch for it with a
-  `MutationObserver` instead; `preview-standup.js` does, for `?done=1`. Add
+  `MutationObserver` instead; `preview/preview-standup.js` does, for `?done=1`. Add
   `--force-prefers-reduced-motion` to stop the standup's confetti landing on top
   of the screen you are trying to photograph.
 - **`prefers-reduced-motion` has been forgotten twice.** `css/app.css` held the
@@ -1194,7 +1248,7 @@ node scripts/test-standup.mjs      # session timing, order, pressure (183 checks
 node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (226 checks)
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (117 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
-node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (206 checks)
+node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (216 checks)
 node scripts/test-write.mjs        # field writes, undo, bulk, links  (152 checks)
 node scripts/test-create.mjs       # createmeta -> form -> payload      (71 checks)
 node scripts/test-activity.mjs     # issue history -> per-person activity (75 checks)
@@ -1202,21 +1256,35 @@ node scripts/test-gantt.mjs        # roadmap delivery colouring         (18 chec
 node scripts/test-kanban.mjs       # column config, grouping, key nav   (47 checks)
 node scripts/test-contrast.mjs     # theme tokens against WCAG AA       (24 checks)
 node scripts/test-drawer.mjs       # the drawer's focus layer           (24 checks)
-node scripts/test-release.mjs      # version rewriting, licence, CI     (33 checks)
+node scripts/test-release.mjs      # version rewriting, licence, notes   (41 checks)
 ```
 
-View code is verified by rendering it rather than asserting on it:
-`preview-standup.html`, `preview-backlog.html`, `preview-dashboard.html`,
-`preview-recap.html`, `preview-issue.html`, `preview-create.html`,
-`preview-gantt.html`, `preview-kanban.html` and `preview-monitor.html` mount the
-real view against stubbed extension storage and a stubbed Jira/GitHub network, so
-a screen can be looked at in each of its states without a site, a token or a
-roster. Every view has one, and that is not decoration: for a long stretch only
+View code is verified by rendering it rather than asserting on it. The nine
+harnesses live in `preview/` — `preview/preview-standup.html`,
+`preview/preview-backlog.html`, `preview/preview-dashboard.html`,
+`preview/preview-recap.html`, `preview/preview-issue.html`,
+`preview/preview-create.html`, `preview/preview-gantt.html`,
+`preview/preview-kanban.html` and `preview/preview-monitor.html` — and each
+mounts the real view against stubbed extension storage and a stubbed Jira/GitHub
+network, so a screen can be looked at in each of its states without a site, a
+token or a roster. Open one directly (`open preview/preview-standup.html`) or
+serve the repo root and visit `/preview/preview-standup.html`; the harnesses
+reference `../js` and `../css`, so the folder they sit in is the only thing that
+must not move.
+
+**Everything in them is invented.** Names, boards, project keys, sprint goals
+and issue summaries are placeholders — `ACME-101`, `Avery Quinn`, `Preview Team`,
+`example.atlassian.net`. That is a rule, not a coincidence: these files are
+public, a roster of real colleagues is personal data, and a fixture that names
+real projects publishes what a team is working on. Anything that looks like it
+came from a real board should be replaced rather than kept.
+
+Every view has a harness, and that is not decoration: for a long stretch only
 five did, and every light-theme defect a design review found in September 2026
-was in one of the three that did not. The create panel in particular has no other way of being checked — its
-form is generated from whatever createmeta returns, so reading the code tells you
-very little about what appears. The last four share their fixture
-(`preview-fixture.js`) — three boards, three staggered sprints, synthetic people
+was in one of the three that did not. The create panel in particular has no
+other way of being checked — its form is generated from whatever createmeta
+returns, so reading the code tells you very little about what appears. The last four share their fixture
+(`preview/preview-fixture.js`) — three boards, three staggered sprints, synthetic people
 and generated avatars — so the dashboard and the recap are always previewed
 against the same sprint. Query parameters pick the state: `?theme=light`,
 `?github=off`, `?stats=slow`, `?stats=error`, `?sprint=undated`, `?push=off`,
@@ -1246,7 +1314,14 @@ demand), `?fields=none` (no story-points field mapped, so that check reports as
 unavailable rather than flagging every issue), `?checks=muted`, `?roster=off` and
 `?scope=all`. Standup adds `?done=1`, which starts a session, leaves a parking-lot
 note and ends it, because the end screen cannot otherwise be reached without
-sitting through a meeting. `?jira=slow` and `?stats=slow` hold the recap's
+sitting through a meeting, plus four for the GitHub fetch, whose caches the
+harness seeds warm so that the status line would otherwise only ever say
+"connected": `?github=slow` holds the sprint-window cache back for eight
+seconds, `?github=stuck` never answers it — the state that raises the
+start-anyway warning, and the one the status line was built for —
+`?github=partial` answers with two unreadable repos and one cut short at the
+page cap, and `?ghhover=1` pins the status line's hover panel open, since a
+screenshot cannot hover. `?jira=slow` and `?stats=slow` hold the recap's
 loading states open long enough to look at — the states that must never offer a
 print button — and `?stats=partial` marks one repo half-answered and another
 truncated, which is what the undercount warning is for. None of them ships: `scripts/build.mjs` copies an

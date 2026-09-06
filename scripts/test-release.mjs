@@ -105,6 +105,28 @@ check("release asserts the archive's manifest version",
 check("release publishes checksums", release.includes("SHA256SUMS"));
 check("release needs write permission to publish and to push the bump",
   /permissions:\s*\n\s*contents:\s*write/.test(release));
+// The notes a release page opens with. Install first, then what changed, and
+// the changed half comes from a file rather than from commit subjects.
+const changelog = read("CHANGELOG.md");
+const manifestVersion = JSON.parse(read("manifest.base.json")).version;
+check("CHANGELOG.md carries a section for the version in the manifests",
+  new RegExp(`^## v${manifestVersion.replace(/\./g, "\\.")}\\s*$`, "m").test(changelog));
+check("that section says something",
+  (changelog.split(`## v${manifestVersion}`)[1] || "").split(/^## /m)[0].trim().length > 200);
+check("release notes lead with how to install",
+  /## Install/.test(release) && release.indexOf("## Install") < release.indexOf("What's new"));
+check("release notes name a file per browser",
+  release.includes("chrome-$version.zip") && release.includes("firefox-$version.zip") &&
+  release.includes("edge-$version.zip"));
+check("release notes say Firefox installs are temporary",
+  /Firefox installs are temporary/.test(release));
+check("what changed is lifted out of CHANGELOG.md rather than from commit subjects",
+  release.includes("CHANGELOG.md") && /awk -v v="## v\$version"/.test(release));
+check("a tag with no changelog section fails instead of publishing",
+  /no '## v\$version' section/.test(release) && /exit 1/.test(release));
+check("re-running a tag refreshes the notes, not only the assets",
+  /gh release edit "\$GITHUB_REF_NAME" --notes-file/.test(release));
+
 check("CI needs no write permission",
   /permissions:\s*\n\s*contents:\s*read/.test(ci));
 

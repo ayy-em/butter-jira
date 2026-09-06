@@ -46,7 +46,7 @@ const area = (store) => ({
   remove: (keys) => { for (const k of [].concat(keys)) delete store[k]; return Promise.resolve(); },
 });
 globalThis.chrome = {
-  runtime: { getURL: (p) => p },
+  runtime: { getURL: (p) => `../${p}` },
   storage: { local: area(local), sync: area(sync) },
 };
 if (params.get("scope") === "all") local.monitorScope = "all";
@@ -185,7 +185,7 @@ globalThis.fetch = async (input) => {
 };
 
 // ── Config ──────────────────────────────────────────────────────────────────
-const { saveConfig } = await import("./js/config.js");
+const { saveConfig } = await import("../js/config.js");
 await saveConfig({
   site: { baseUrl: "https://preview.atlassian.net" },
   boards: [
@@ -206,13 +206,13 @@ await saveConfig({
 
 // BOARDS in js/utils.js is a module-level array the API layer iterates, and it
 // stays empty until this runs — saveConfig() alone is not enough.
-const { loadBoards } = await import("./js/utils.js");
+const { loadBoards } = await import("../js/utils.js");
 await loadBoards();
 
 // The roster decides whether the Team Only toggle exists at all, so it is a
 // fixture state rather than a fixed fact. Synthetic names, as everywhere else
 // here: no colleague belongs in a fixture file.
-const { TEAMS, loadTeamOnly, saveTeam } = await import("./js/team.js");
+const { TEAMS, loadTeamOnly, saveTeam } = await import("../js/team.js");
 if (params.get("roster") !== "off") {
   await saveTeam({
     activeTeamId: "default",
@@ -229,7 +229,7 @@ if (params.get("roster") !== "off") {
 }
 await loadTeamOnly();
 
-const { mount } = await import("./js/views/monitor.js");
+const { mount } = await import("../js/views/monitor.js");
 await mount(
   document.getElementById("view-container"),
   { email: "preview@example.com", token: "preview" }

@@ -131,11 +131,13 @@ share of issues with no Monitor finding, explicitly a nudge and not a KPI.
 *Roster* = the local team list with display-name overrides, emoji and optional
 GitHub login.
 
-**Open product decisions.** Licence is unchosen — and it is on the critical
-path for the tagged-release plan above, since a public repo shipping downloadable
-builds with no licence grants nobody the right to use them. M14 (weekly 1:1 screen) has a
-first-pass scope that is explicitly not agreed. M10 is retired unbuilt and its
-number stays vacant.
+**Open product decisions.** M14 (weekly 1:1 screen) has a first-pass scope that
+is explicitly not agreed. M10 is retired unbuilt and its number stays vacant.
+*Settled 2026-09-06:* the licence, which was on the critical path for tagged
+releases — a public repo shipping downloadable builds with no licence grants
+nobody the right to use them — is PolyForm Noncommercial 1.0.0. Releases are
+built and published by GitHub Actions from a `v*` tag; nothing is built by hand
+and nothing is uploaded by hand.
 
 ## Brand Commitments
 
@@ -158,14 +160,21 @@ number stays vacant.
 - `ROADMAP.md` (~121 KB) — the full milestone record, kept unsummarised because
   it holds the reasoning; includes the 2026-09-03 renumbering reconciliation
   table (M13 ↔ M15 swap, M10 retired).
-- Seventeen `scripts/test-*.mjs` suites (1755 checks, no dependencies, no
-  network, no browser), six preview harnesses with a shared fixture
-  (`preview-fixture.js`), and `scripts/SMOKE-CHECKLIST.md`.
+- Twenty-two `scripts/test-*.mjs` suites (1956 checks, no dependencies, no
+  network, no browser), nine preview harnesses in `preview/` — one per view,
+  four of them sharing `preview/preview-fixture.js` — and
+  `scripts/SMOKE-CHECKLIST.md`. Every suite runs in GitHub Actions on push and
+  pull request, and again as the gate before a tag publishes a release.
 - Real running app against live Jira; `scripts/jira-smoke.js` for CLI checks.
 
+**Every fixture is invented.** The harnesses are public files: names, boards,
+project keys and issue summaries in them are placeholders, never a real roster
+or a real board. A preview that names real work publishes it.
+
 **Absences future work must not fabricate:** no users beyond the author, no
-adoption numbers, no testimonials, no benchmarks, no pricing, no licence, no
-store listing, no uptime or support commitment.
+adoption numbers, no testimonials, no benchmarks, no pricing, no store listing,
+no uptime or support commitment. The licence *is* chosen — PolyForm
+Noncommercial 1.0.0, at the repo root since 2026-09-06.
 
 ## Product Principles
 

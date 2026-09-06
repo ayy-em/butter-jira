@@ -761,6 +761,64 @@ check("and it is reported rather than silently zeroed",
   halfFailed.failures.some((f) => /Direct pushes unavailable/.test(f.message)));
 commitResponse = null;
 
+section("fetch progress");
+// The standup's status line reads this: "Partial" alone cannot say whether a
+// fetch is finished, still working, or wedged, and the promise settles once
+// without saying anything on the way.
+storage.github = { enabled: true, host: "github.com", org: "acme", repos: ["acme/platform-api", "acme/web-ui"] };
+await cfg.loadConfig();
+localStore = {};
+await creds.saveGithubToken("gh-token");
+gh.resetGithubProgress();
+check("nothing running before anything is asked for",
+  gh.getGithubProgress().stats.phase === "idle" &&
+  gh.getGithubProgress().activity.phase === "idle");
+
+const seen = [];
+const stopWatching = gh.onGithubProgress((p) => seen.push(p.stats.reposDone));
+// One page per repo, and an empty default-branch history for each, so both
+// repos land and the count runs to completion.
+responseQueue = [
+  windowPage([prNode(1, "2026-08-06T00:00:00Z")], false),
+  windowPage([prNode(2, "2026-08-06T00:00:00Z")], false),
+];
+commitQueue = [];
+commitResponse = emptyHistory();
+nextResponse = null;
+const statsRun = gh.getTeamStats({ now: NOW });
+check("the fetch is marked running the moment it starts, before it resolves",
+  gh.getGithubProgress().stats.phase === "running");
+check("and it says how many repos it is going to reach",
+  gh.getGithubProgress().stats.reposTotal === 2);
+await statsRun;
+const doneStats = gh.getGithubProgress().stats;
+check("every repo is counted off as it lands", doneStats.reposDone === 2);
+check("subscribers heard about each one on the way",
+  seen.length >= 2 && seen.includes(1) && seen.includes(2));
+check("and the run is marked finished, from the network", doneStats.phase === "done" && doneStats.source === "network");
+check("with a start and an end to measure a wait against",
+  doneStats.startedAt > 0 && doneStats.finishedAt >= doneStats.startedAt);
+stopWatching();
+const heardBefore = seen.length;
+
+requests = [];
+await gh.getTeamStats({ now: NOW });
+check("an unsubscribed listener stops hearing", seen.length === heardBefore);
+check("a cache hit is reported as one, so a screen can tell 4ms from 40s",
+  requests.length === 0 && gh.getGithubProgress().stats.source === "cache");
+
+gh.resetGithubProgress();
+localStore = {};
+await creds.saveGithubToken("gh-token");
+responseQueue = [];
+nextResponse = { status: 401, headers: {}, body: { message: "Bad credentials" } };
+let progressErr = null;
+try { await gh.getTeamActivity({ now: NOW }); } catch (err) { progressErr = err; }
+check("a whole-query failure is a phase, not a silence",
+  progressErr instanceof Error &&
+  gh.getGithubProgress().activity.phase === "error" &&
+  /Bad credentials|401/.test(gh.getGithubProgress().activity.error));
+
 section("repo access check");
 storage.github = { enabled: true, host: "github.com", org: "acme", repos: ["acme/platform-api"] };
 await cfg.loadConfig();

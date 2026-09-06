@@ -96,6 +96,11 @@ export async function mount(container, creds) {
     },
   };
 
+  // Set by toolbarEl, which renderShell() calls below. The toolbar is built
+  // once and renderAll() does not rebuild it, so the density pills are
+  // repainted from renderShellState().
+  let paintDensity = () => {};
+
   // Skeleton first, so the layout is the layout from the first frame rather
   // than a spinner that gets replaced by something a different size.
   renderShell();
@@ -167,17 +172,32 @@ export async function mount(container, creds) {
   function toolbarEl() {
     const bar = el("div", "bl-toolbar");
 
+    // Which density is on was decided once, when the toolbar was built, and
+    // then never moved: clicking changed the row heights and left the pill
+    // behind. Saved views set the density too, so the marking lives in a
+    // function renderShellState() can call rather than in the click handler.
     const density = el("div", "bl-segmented");
+    const densityBtns = [];
+    paintDensity = () => {
+      for (const btn of densityBtns) {
+        const on = btn.dataset.density === state.density;
+        btn.classList.toggle("on", on);
+        btn.setAttribute("aria-pressed", String(on));
+      }
+    };
     for (const d of DENSITIES) {
-      const btn = el("button", "bl-seg" + (state.density === d.id ? " on" : ""), d.label);
+      const btn = el("button", "bl-seg", d.label);
+      btn.dataset.density = d.id;
       btn.title = d.hint;
       btn.addEventListener("click", () => {
         state.density = d.id;
         persist();
         renderAll();
       });
+      densityBtns.push(btn);
       density.appendChild(btn);
     }
+    paintDensity();
     bar.appendChild(density);
 
     const search = el("label", "bl-search");
@@ -533,6 +553,7 @@ export async function mount(container, creds) {
 
   function renderShellState() {
     wrap.dataset.density = state.density;
+    paintDensity();
     const counts = document.getElementById("bl-counts");
     if (counts) {
       counts.innerHTML = "";

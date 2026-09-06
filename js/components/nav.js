@@ -148,7 +148,7 @@ export async function renderNav(onRefresh) {
   }
 
   const leftGroup = document.createElement("div");
-  leftGroup.style.cssText = "display:flex;align-items:center;gap:4px;margin-left:1rem;margin-right:auto;";
+  leftGroup.className = "nav-tabs";
   leftGroup.appendChild(logoArea);
 
   for (const tab of TABS) {
