@@ -144,12 +144,58 @@ Firefox and Edge need a package first:
 
 ```bash
 node scripts/build.mjs                  # writes dist/chrome, dist/firefox, dist/edge
-node scripts/build.mjs --zip            # …and a zip per target, for releases and store uploads
+node scripts/build.mjs --zip            # …and a zip per target, the way CI builds a release
 node scripts/build.mjs --local-assets   # …including your own avatars and brand marks
 ```
 
 `--local-assets` is for an install on your own machine. It refuses to combine
-with `--zip`: a store package must not carry colleagues' photographs.
+with `--zip`: a published package must not carry colleagues' photographs.
+
+## Releasing
+
+**Push a tag. That is the whole ritual.**
+
+```bash
+git tag v0.6.0 && git push origin v0.6.0
+```
+
+`.github/workflows/release.yml` then runs every suite, writes `0.6.0` into the
+manifests, builds the three zips, checks them, publishes them on the Releases
+page with a `SHA256SUMS.txt`, and pushes the version bump back to `main`. There
+is no local build step and nothing is uploaded by hand.
+
+**The tag is the source of truth for the version**, not `manifest.base.json`.
+The alternative — bump the file, commit, then tag, with CI failing on a mismatch
+— keeps the repo self-consistent at every commit, but it makes releasing two
+steps and the second one gets skipped. `scripts/set-version.mjs 0.6.0` is the
+same rewrite if you ever need it locally; it edits the one `"version"` line and
+regenerates the root `manifest.json` from it.
+
+Four things fail the run rather than being trusted, all of them before anything
+is published:
+
+| Check | Why it is there |
+|---|---|
+| Every `scripts/test-*.mjs` passes | A release that ships a red build is worse than a release that does not happen |
+| The tag parses as `vX.Y.Z` | `v0.6` would otherwise produce three files nobody can name |
+| Nothing changed but the version | A generated file edited by hand, which the build has just silently undone |
+| No `assets/brand`, `assets/avatars`, `config.local.json` or `*.pem` inside any zip | The build's allowlist already guarantees this; re-checked against the real archive because a colleague's photograph in a permanent release asset is the one failure here with no undo |
+
+The release notes are written by the workflow, not generated from commit
+subjects — this project's subjects are milestone labels (`M13:`, `M18:`) and say
+nothing to somebody deciding whether to download a zip. Edit the release
+afterwards to say what actually changed.
+
+**The Firefox asset is not the same kind of thing as the other two.** Chrome and
+Edge load an unpacked folder permanently; a Firefox zip loaded through
+`about:debugging` is dropped when the browser quits. The release notes say so
+rather than the release page letting somebody find out. Signing through AMO for
+a permanently installable `.xpi` is the real fix and is not done — it needs an
+AMO account, a listing decision and Mozilla's review latency on a path that is
+otherwise instant.
+
+`.github/workflows/ci.yml` is the same suites plus the drift check, on every
+push to `main` and every pull request, publishing nothing.
 
 ## Moving between browsers
 
@@ -1156,6 +1202,7 @@ node scripts/test-gantt.mjs        # roadmap delivery colouring         (18 chec
 node scripts/test-kanban.mjs       # column config, grouping, key nav   (47 checks)
 node scripts/test-contrast.mjs     # theme tokens against WCAG AA       (24 checks)
 node scripts/test-drawer.mjs       # the drawer's focus layer           (24 checks)
+node scripts/test-release.mjs      # version rewriting, licence, CI     (33 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it:
@@ -1436,8 +1483,8 @@ done are in the roadmap's icebox, stated as decisions rather than as omissions.
 the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode
 (M6), the sprint dashboard (M7), the write layer and issue creation (M8), the
 command palette (M9), GitHub sync (M11), the Firefox and Edge ports (M12), the
-sprint freeze and diff (M13), linked issues (M18), and the design backlog
-(ad-hoc, 2026-09-06).
+sprint freeze and diff (M13), linked issues (M18), the design backlog
+(ad-hoc, 2026-09-06), and tagged releases (M19).
 M10 is vacant: it was Sprint Wrapped, re-aimed at the quarter and renumbered to
 M16 on 2026-09-03, and the number is retired rather than reused.
 
@@ -1452,12 +1499,8 @@ table.
 | M15 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
 | M16 | Quarter Wrapped | Quarter-to-date stats recap, printed to PDF on demand |
 | M17 | Per-sprint history | Issues, completion, PRs and lines per sprint, from rollups written at each rollover |
-| M19 | Tagged releases | A release tag builds all three targets in CI and publishes the zips this README already tells you to download. Depends on nothing; carries the licence decision |
 
-**Releases are not automated yet.** The install instructions above send you to
-the Releases page for `chrome-<version>.zip` — today those files are built by
-hand with `node scripts/build.mjs --zip` and uploaded the same way. M19 is the
-workflow that does it on a tag.
+**Releases are automated as of 2026-09-06** — see [Releasing](#releasing).
 
 The app writes to Jira in four places and nowhere else: dragging a card between
 columns (a workflow transition), editing assignee, due date or story points on
@@ -1467,5 +1510,25 @@ Jira said if it refused.
 
 ## Licence
 
-Not yet chosen — add one before making this repo public if you want others to
-be able to use it.
+[PolyForm Noncommercial License 1.0.0](LICENSE), chosen 2026-09-06. In plain
+terms, and the file is what governs:
+
+- **Run it, fork it, change it, share your changes** — for any noncommercial
+  purpose. Personal use, hobby projects, and use inside a charity, school,
+  public research body or government institution all count as noncommercial.
+- **Commercial use is not granted.** The copyright holder keeps it. Running the
+  extension to manage the sprints of a company that sells things is commercial
+  use, whoever wrote the sprint. Open an issue if you want a commercial licence.
+- **No warranty, no liability.** As far as the law allows, the software comes
+  as is, and nothing that happens to your Jira is the author's problem.
+
+This is **source-available, not open source** — GitHub will not show an
+open-source licence badge, and it is not OSI-approved, because the noncommercial
+restriction is the one thing an open-source licence may not have. That is the
+intended trade, not an oversight. PolyForm Noncommercial was picked over a
+hand-written notice because it is a standard, lawyer-drafted text that says
+exactly this, so nobody has to guess what "noncommercial" was meant to cover.
+
+If you redistribute a copy or a fork, the licence's *Notices* clause obliges you
+to carry the `Required Notice:` line at the top of [LICENSE](LICENSE) along with
+it.

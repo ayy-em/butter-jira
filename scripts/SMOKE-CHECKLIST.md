@@ -8,8 +8,10 @@ cross-browser shim and the per-target manifests:
 for f in scripts/test-*.mjs; do node "$f" >/dev/null || echo "FAIL $f"; done
 ```
 
-This checklist is for everything they cannot reach: the UI, the browser APIs,
-and real Jira data. Run it after touching config, API, or view code. Reload the
+CI runs exactly that loop on every push to `main`, on every pull request, and
+again as the gate before a release publishes — so the suites are covered whether
+or not anyone remembers. This checklist is for everything they cannot reach: the
+UI, the browser APIs, and real Jira data. Run it after touching config, API, or view code. Reload the
 extension first, and keep DevTools open on the app tab — a clean console is part
 of every pass.
 

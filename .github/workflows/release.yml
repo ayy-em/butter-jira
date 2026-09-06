@@ -1,0 +1,181 @@
+# Push a tag, get a release (M19).
+#
+#   git tag v0.6.0 && git push origin v0.6.0
+#
+# builds chrome / firefox / edge zips from a green test run, checks that none of
+# them carries anything personal, publishes them with checksums, and carries the
+# version bump back to main. Nothing is typed by hand and nothing is built
+# locally.
+#
+# Tag-led, not manifest-led: the tag is the source of truth for the version and
+# scripts/set-version.mjs writes it into manifest.base.json here, rather than CI
+# checking a hand-bumped file and failing on a mismatch. The trade-off is that
+# main is briefly a commit behind the release it shipped — closed by the last
+# step, which pushes the bump.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, verify and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Read the version out of the tag
+        id: v
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag $GITHUB_REF_NAME is not vX.Y.Z. Nothing was published."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version from $GITHUB_REF_NAME"
+
+      # A release that ships a red build is worse than a release that does not
+      # happen, so this gate is before anything is written or uploaded.
+      - name: Test suites
+        run: |
+          for f in scripts/test-*.mjs; do
+            echo "── $f"
+            node "$f" || exit 1
+          done
+
+      - name: Write the tag's version into the manifests
+        run: node scripts/set-version.mjs "${{ steps.v.outputs.version }}"
+
+      - name: Build the three packages
+        run: node scripts/build.mjs --zip
+
+      # The version bump is the only thing the build is allowed to have changed.
+      # Anything else means a generated file was edited by hand and the build
+      # has just undone it.
+      - name: Nothing changed but the version
+        run: |
+          git diff --name-only | sort > /tmp/changed.txt
+          printf 'manifest.base.json\nmanifest.json\n' | sort > /tmp/allowed.txt
+          comm -23 /tmp/changed.txt /tmp/allowed.txt > /tmp/unexpected.txt
+          if [ -s /tmp/unexpected.txt ]; then
+            echo "::error::the build changed files it should not have:"
+            cat /tmp/unexpected.txt
+            exit 1
+          fi
+
+      # build.mjs's allowlist already makes assets/brand, assets/avatars and
+      # config.local.json unshippable, and --zip refuses --local-assets. This
+      # re-checks the actual archives at the moment of publication, because a
+      # colleague's photograph in a permanent release asset is the one failure
+      # here that cannot be taken back.
+      - name: Nothing personal in the archives
+        run: |
+          version="${{ steps.v.outputs.version }}"
+          failed=0
+          for target in chrome firefox edge; do
+            zip="dist/$target-$version.zip"
+            if [ ! -f "$zip" ]; then
+              echo "::error::$zip was not built"
+              failed=1
+              continue
+            fi
+            echo "── $zip"
+            if unzip -l "$zip" | grep -Ei 'assets/(brand|avatars)/|config\.local\.json|\.DS_Store|\.pem$'; then
+              echo "::error::$zip carries files that must never be published"
+              failed=1
+            fi
+            if ! unzip -p "$zip" manifest.json | grep -q "\"version\": \"$version\""; then
+              echo "::error::$zip does not declare version $version"
+              failed=1
+            fi
+          done
+          exit $failed
+
+      # The only integrity signal available to somebody installing an unpacked
+      # extension from a downloaded archive — there is no store review in this
+      # distribution model.
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum *-${{ steps.v.outputs.version }}.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # Notes are written here rather than generated from commit subjects: this
+      # project's subjects are milestone labels (M13:, M18:) and say nothing to
+      # somebody deciding whether to download a zip. Edit the release afterwards
+      # to say what actually changed.
+      - name: Release notes
+        run: |
+          version="${{ steps.v.outputs.version }}"
+          cat > /tmp/notes.md <<NOTES
+          ## Install
+
+          Download the zip for your browser, unzip it somewhere permanent, and load
+          the folder unpacked. Full instructions, with screenshots of each step, are
+          in the [README](https://github.com/${GITHUB_REPOSITORY}#install-on-chrome--step-by-step).
+
+          | Browser | File | Load it via |
+          |---|---|---|
+          | Chrome | \`chrome-$version.zip\` | \`chrome://extensions\` → Developer mode → Load unpacked |
+          | Edge | \`edge-$version.zip\` | \`edge://extensions\` → Developer mode → Load unpacked |
+          | Firefox | \`firefox-$version.zip\` | \`about:debugging\` → This Firefox → Load Temporary Add-on |
+
+          **Firefox installs are temporary.** Firefox drops an add-on loaded through
+          \`about:debugging\` when you quit; a permanent install needs a build signed
+          by addons.mozilla.org, which this release does not include. Chrome and Edge
+          keep the extension across restarts.
+
+          \`SHA256SUMS.txt\` lists the checksum of each zip. Verify with
+          \`sha256sum -c SHA256SUMS.txt\` in the download folder.
+
+          Settings, boards and roster live in browser storage, not in the folder, so
+          they survive an upgrade — unzip the new version over the old folder and
+          press refresh on the extension's card.
+          NOTES
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.v.outputs.version }}"
+          assets="dist/chrome-$version.zip dist/firefox-$version.zip dist/edge-$version.zip dist/SHA256SUMS.txt"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME exists — replacing its assets"
+            gh release upload "$GITHUB_REF_NAME" $assets --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" $assets \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file /tmp/notes.md
+          fi
+
+      # Last, and deliberately after publishing: the assets are the deliverable
+      # and have passed every check by this point, so a push race here should
+      # not throw them away. If this step fails, the release stands and the
+      # bump is two commands by hand.
+      - name: Carry the version bump back to main
+        run: |
+          version="${{ steps.v.outputs.version }}"
+          git checkout -- manifest.base.json manifest.json
+          git fetch origin main
+          git checkout -B main origin/main
+          node scripts/set-version.mjs "$version"
+          if git diff --quiet -- manifest.base.json manifest.json; then
+            echo "main is already at $version — nothing to carry back"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.base.json manifest.json
+          git commit -m "Release $version: set the manifest version from the tag"
+          git push origin main
