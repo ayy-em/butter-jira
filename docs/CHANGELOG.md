@@ -8,6 +8,18 @@ it about what a user gets, and leave the reasoning to
 
 ## Unreleased
 
+**Recap a sprint after it has closed.** The Sprint Dashboard has a second button,
+**Recap previous sprint**, which builds the same printable document for the last
+sprint each board closed rather than the one running now. It is there whether or
+not a sprint is currently active — a board between sprints is exactly when you
+want it — so a fortnight that rolled over while you were away is no longer a
+document you missed the chance to make.
+
+The closed document says so on the page, and its figures are as at the moment the
+sprint was completed, not the day you printed it: no "5 days remaining" on a
+sprint that finished a fortnight ago, and pull requests merged the week after do
+not count towards it.
+
 **The loading screen is the mark, breathing.** Where a small spinning logo used
 to sit while a view loaded, the ButterJira wordmark now fades in and out at the
 centre of the window. For anyone whose system asks for reduced motion it drops

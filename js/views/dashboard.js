@@ -227,17 +227,36 @@ function renderHeader(summary) {
   // cached calls this view used. A new tab rather than a dialog here: the
   // document is the artefact, and it should be reloadable and keepable on its
   // own. Absent with no sprint, which is the one case it has nothing to say.
+  const recapLink = (label, href, tooltip) => {
+    const link = document.createElement("a");
+    link.className = "dash-recap-btn";
+    link.href = runtimeUrl(href);
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = label;
+    link.title = tooltip;
+    top.appendChild(link);
+  };
+
   if (summary.sprintNames.length || summary.issueCount) {
-    const recap = document.createElement("a");
-    recap.className = "dash-recap-btn";
-    recap.href = runtimeUrl("recap.html");
-    recap.target = "_blank";
-    recap.rel = "noopener";
-    recap.textContent = "Generate recap";
-    recap.title =
-      "Opens a printable end-of-sprint recap — pick Save as PDF in the print dialog";
-    top.appendChild(recap);
+    recapLink(
+      "Generate recap",
+      "recap.html",
+      "Opens a printable end-of-sprint recap — pick Save as PDF in the print dialog"
+    );
   }
+
+  // Deliberately *not* gated on there being an active sprint, unlike the button
+  // above. The week you most want last sprint's recap is the week you were not
+  // there to take it while it was running, and a board between sprints — rolled
+  // over, nothing started yet — is exactly the state in which this screen has no
+  // active sprint to offer and the previous one is the only thing worth
+  // printing. Hiding it there would hide it precisely when it is the answer.
+  recapLink(
+    "Recap previous sprint",
+    "recap.html?sprint=previous",
+    "Recaps the last sprint each board closed, as it stood when it closed"
+  );
   header.appendChild(top);
 
   const meta = document.createElement("div");

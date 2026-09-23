@@ -216,6 +216,60 @@ export async function getActiveSprint(boardId, creds) {
   });
 }
 
+// Every sprint the board has closed, newest first.
+//
+// Paged, unlike the active call above, and that is not symmetry for its own
+// sake: a board accumulates every sprint it has ever run, Jira returns them
+// oldest first, and on a board two years old the one anybody wants is the last
+// of eighty-odd. A single unpaged request answers with 2024.
+//
+// Sorted on `completeDate` rather than trusting the order it arrives in. A
+// sprint closed late — a fortnight's work marked complete the following Monday
+// — comes back after one that started later and closed on time, and "the
+// previous sprint" means the last one to actually end.
+export async function getClosedSprints(boardId, creds) {
+  return cached(`cache_closedSprints_${boardId}`, async () => {
+    const values = await fetchAllPages(
+      `/rest/agile/1.0/board/${boardId}/sprint`,
+      creds,
+      { state: "closed" },
+      "values"
+    );
+    const ended = (s) => new Date(s?.completeDate || s?.endDate || 0).getTime() || 0;
+    return values.slice().sort((a, b) => ended(b) - ended(a));
+  });
+}
+
+// The sprint before the current one, as a **list** rather than a sprint — the
+// same shape `getActiveSprint` answers in, and for the same reason: a caller
+// holding "the sprints this document is about" should not have to know which of
+// the two produced them, nor special-case the board that has none.
+export async function getPreviousSprint(boardId, creds) {
+  const closed = await getClosedSprints(boardId, creds);
+  return closed.slice(0, 1);
+}
+
+// Sprint issues for an explicit board-to-sprints mapping, rather than for
+// whatever is active.
+//
+// `getAllSprintIssues` resolves the sprints itself, which is right for the six
+// views that only ever mean "now" and wrong for a document about a sprint that
+// has already closed. This takes the pairing as an argument, so the caller that
+// chose the sprints is the caller that reads their issues — and `getSprintIssues`
+// underneath is the same cached, board-tagged call either way.
+export async function getIssuesForSprints(boardSprints, creds) {
+  const all = [];
+  await Promise.all(
+    boardSprints.map(async ({ board, sprints = [] }) => {
+      const results = await Promise.all(
+        sprints.map((s) => getSprintIssues(board.id, s.id, creds))
+      );
+      for (const issues of results) all.push(...issues);
+    })
+  );
+  return all;
+}
+
 export async function getEpicChildren(epicKey, creds) {
   return cached(`cache_epicChildren_${epicKey}`, async () => {
     const jql = `"Epic Link" = ${epicKey} OR parent = ${epicKey}`;

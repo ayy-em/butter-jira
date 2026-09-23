@@ -11,12 +11,26 @@
 // dynamically import the view, knowing the stubs are already in place.
 //
 // ?theme=light · ?github=off · ?stats=slow · ?stats=error · ?sprint=undated
-// ?push=off · ?roster=empty · ?avatars=off · ?jira=slow · ?stats=partial
+// ?sprint=previous · ?push=off · ?roster=empty · ?avatars=off · ?jira=slow
+// ?stats=partial
 
 export const params = new URLSearchParams(location.search);
 document.documentElement.dataset.theme = params.get("theme") || "dark";
 
-const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+// ?sprint=previous winds the entire fixture back by one sprint plus a couple of
+// days, so that the sprint it describes has already ended and can honestly be
+// served as closed.
+//
+// A uniform shift, applied here and nowhere else, which is the whole trick: every
+// date in this file — issue creation, changelog entries, pull requests, commits,
+// the freeze — is expressed through `daysAgo`, so moving the clock moves all of
+// them together and the issues stay inside the sprint they belong to. The first
+// attempt bolted a second, older sprint onto the boards and left the data where
+// it was, which rendered a document claiming every issue in the sprint had crept
+// in after it started — the fixture lying about the model rather than exercising
+// it.
+const CLOCK_SHIFT_DAYS = params.get("sprint") === "previous" ? 16 : 0;
+const daysAgo = (n) => new Date(Date.now() - (n + CLOCK_SHIFT_DAYS) * 86400000).toISOString();
 // Nine days into a two-week sprint, which is when somebody stops to look at the
 // numbers.
 const SPRINT_START = daysAgo(9);
@@ -259,6 +273,11 @@ ISSUES_BY_BOARD.get(1).push({
   },
 });
 
+// The *request's* query string, not the page's. `params` above is the preview
+// harness's own switchboard; this reads what the caller actually asked Jira for,
+// which is how `state=active` and `state=closed` are told apart.
+const params2 = (url) => new URL(url, "https://x.invalid").searchParams;
+
 globalThis.fetch = async (input, options = {}) => {
   const url = String(input);
   // ?jira=slow holds the *agile* endpoints back — the sprint reads a view waits
@@ -291,6 +310,31 @@ globalThis.fetch = async (input, options = {}) => {
     const board = BOARD_FIXTURE.find((b) => b.id === Number(sprintList[1]));
     if (!board) return json({ values: [] });
     const undated = params.get("sprint") === "undated";
+
+    // The endpoint is asked for one state at a time, and the caller means it:
+    // the recap reads `state=closed` when it is recapping the sprint before this
+    // one. A fixture that answered with the active sprint whichever was asked
+    // for made the closed-sprint document impossible to preview — it rendered,
+    // and it rendered the live sprint with a different heading, which is the
+    // failure that looks most like success.
+    if (params2(url).get("state") === "closed") {
+      // The same sprint the rest of this fixture describes — the clock shift
+      // above has already put it in the past — marked closed, and closed a day
+      // after its end date on purpose: `completeDate` trailing `endDate` is the
+      // ordinary case, and it is the moment the recap computes itself as at.
+      return json({
+        values: [{
+          id: board.sprint.id,
+          name: board.sprint.name,
+          goal: board.sprint.goal,
+          state: "closed",
+          startDate: undated ? undefined : daysAgo(board.sprint.startsAgo),
+          endDate: undated ? undefined : daysAgo(-board.sprint.endsIn),
+          completeDate: undated ? undefined : daysAgo(-board.sprint.endsIn - 1),
+        }],
+      });
+    }
+
     return json({
       values: [{
         id: board.sprint.id,

@@ -153,18 +153,20 @@ const STATS = {
 
 function build({
   issues, stats = STATS, freeze = null, departed = [], now = new Date("2026-08-10T09:00:00"),
+  boardSprints = BOARD_SPRINTS, until = "",
 } = {}) {
-  const sprints = [SPRINT_A, SPRINT_B];
+  const sprints = boardSprints.flatMap((b) => b.sprints);
   const summary = dash.summarize({
     issues, sprints, statusGroups: GROUPS, boards: BOARDS, freeze, now,
   });
   return recapMod.buildRecap({
     summary,
     issues,
-    boardSprints: BOARD_SPRINTS,
+    boardSprints,
     statusGroups: GROUPS,
     stats,
     since: SPRINT_A.startDate,
+    until,
     freeze,
     departed,
     now,
@@ -498,6 +500,60 @@ check("given the lookup, it says where the issue went",
     issues: [PLANNED[0]], stats: null, freeze: frozen,
     departed: [{ key: "ACME-502", fields: { cf_sprint: [] } }],
   }).diff.pulledOut[0].where === "backlog");
+
+section("a sprint that has already closed");
+
+// The same two sprints, completed. `completeDate` deliberately trails `endDate`
+// on one of them: a fortnight's work marked complete the following Monday is
+// the normal case, not the exception, and it is the moment the recap is
+// computed as at.
+const closedSprints = (patch = {}) => [
+  { board: BOARDS[0], sprints: [{ ...SPRINT_A, state: "closed", completeDate: "2026-08-17T09:00:00Z", ...patch }] },
+  { board: BOARDS[1], sprints: [{ ...SPRINT_B, state: "closed", completeDate: "2026-08-16T09:00:00Z" }] },
+];
+
+const live = build({ issues: PLANNED, stats: null });
+check("a live document carries no closing instant", live.closedAt === "");
+
+const closed = build({ issues: PLANNED, stats: null, boardSprints: closedSprints() });
+check("a closed sprint carries the instant it closed",
+  Date.parse(closed.closedAt) === Date.parse("2026-08-17T09:00:00Z"));
+check("and it is the latest close across the boards, not the first",
+  new Date(closed.closedAt) > new Date("2026-08-16T09:00:00Z"));
+
+const halfClosed = build({
+  issues: PLANNED, stats: null,
+  boardSprints: [closedSprints()[0], BOARD_SPRINTS[1]],
+});
+check("one board still running makes the whole document a live one",
+  halfClosed.closedAt === "");
+
+const noDates = build({
+  issues: PLANNED, stats: null,
+  boardSprints: [
+    { board: BOARDS[0], sprints: [{ ...SPRINT_A, state: "closed", endDate: "", completeDate: "" }] },
+  ],
+});
+check("closed with no date to close at is not a closing instant", noDates.closedAt === "");
+
+check("falls back to the end date when Jira recorded no completion",
+  Date.parse(build({
+    issues: PLANNED, stats: null,
+    boardSprints: [{ board: BOARDS[0], sprints: [{ ...SPRINT_A, state: "closed" }] }],
+  }).closedAt) === Date.parse(SPRINT_A.endDate));
+
+// The upper bound has to reach the per-person figures, not just the model: the
+// commit on the 8th is inside the sprint, the one below cuts it out.
+const bounded = build({ issues: PLANNED, until: "2026-08-07T00:00:00Z" });
+const unbounded = build({ issues: PLANNED });
+const acc1 = (recap) => recap.people.find((p) => p.accountId === "acc-1");
+check("the bound reaches each person's GitHub figures — the commit on the 8th falls out",
+  acc1(unbounded).github.lines === 160 && acc1(bounded).github.lines === 120 &&
+  acc1(bounded).github.directCommits === 0);
+check("the document states the window it counted, not the one up to today",
+  Date.parse(bounded.github.to) === Date.parse("2026-08-07T00:00:00Z"));
+check("a live document leaves that end open, as every screen does",
+  unbounded.github.to === "" && unbounded.github.until === "");
 
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

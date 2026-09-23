@@ -1777,6 +1777,58 @@ at rollover rather than re-fetching a closed sprint out of Jira. M13's freeze
 replaces the scope-creep approximation this document inherits, and M16's quarter
 document reuses this page's print route and all four of its lessons.
 
+**That drop was partly reversed on 2026-09-23** — see below.
+
+### Recapping a closed sprint, after all *(ad-hoc, 2026-09-23)*
+
+**Size: S** · Done. `recap.html?sprint=previous` builds the document for the last
+sprint each board closed; `?sprint=<id>[,<id>]` names sprints outright; the
+default is unchanged. The Sprint Dashboard carries a second button for it,
+deliberately **not** gated on there being an active sprint, because a board
+between sprints is exactly the state in which this is the only thing worth
+printing.
+
+**Why this does not undo the 2026-09-03 decision.** That decision was about where
+per-sprint *history* should come from, and it still stands: M17 writes a rollup
+forward at rollover because a trend chart wants a cheap row per sprint going back
+years, and re-fetching each of them from Jira to draw one is the wrong shape.
+What was wrong was reading it as also settling whether the *document* could be
+pointed at a sprint that had ended. One recap of one closed sprint is two extra
+paged reads and no new storage — the agile API answers "what was in sprint N"
+whatever state N is in — and the case for it turned out to be the ordinary one:
+the fortnight you most want a recap of is the one that rolled over while you were
+away, which is precisely the week nobody was there to press the button.
+
+**Three things the closed document had to get right**, none of which was about
+fetching:
+
+1. **It is computed as at the moment the sprint closed, not as at now.**
+   `summarize` measures days remaining and overdue-ness against a clock, and
+   against today's clock a sprint that ended last Tuesday has nothing left to run
+   and is a week overdue — true of the calendar, false of the sprint. The page
+   picks the close instant, winds the freeze diff and the GitHub window back with
+   it, and prints the date it used. One document, one clock.
+2. **The GitHub window grew an upper bound.** `statsFor` only ever took a
+   `since`, which is right for every live screen — they all mean "up to now". A
+   pull request merged the Tuesday after the sprint closed was counting towards
+   it, inflating a finished number somebody is about to read out in a retro.
+   `until` is set by this page and nothing else, and the document prints the
+   window it actually counted.
+3. **The tense.** "Past its end date" is a warning about a sprint running now and
+   a statement of fact about one that is over; the closed document says "closed
+   after its planned end date" instead. Small, and the difference between a retro
+   note and an alarm about nothing.
+
+**The preview fixture got the same treatment, and got it wrong first.** The first
+version bolted an older sprint onto each board and left the synthetic issues where
+they were — which rendered a document claiming every issue in the sprint had crept
+in after it started. It rendered, which is the failure that looks most like
+success, and it is the same mistake this entry's own lessons are about: checking
+the artefact without checking the conditions it was produced under. Replaced by a
+uniform clock shift (`?sprint=previous` winds the whole fixture back sixteen days),
+so the issues stay inside the sprint they belong to and the preview exercises the
+model instead of libelling it.
+
 ---
 
 ## Standup setup UX refresh ✔ *(ad-hoc, 2026-08-07)*

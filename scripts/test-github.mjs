@@ -405,6 +405,29 @@ check("a sprint older than the fetch window is clamped", clamped.clamped === tru
 check("clamping counts from the fetch window, not from the sprint",
   Date.parse(clamped.from) === Date.parse(STATS.since));
 
+// ── The upper bound, for a sprint that has already closed ────────────────────
+// Every live screen asks "since the sprint started" and means "up to now". A
+// recap of a closed sprint means "up to the day it closed", and without that
+// bound a pull request merged the Tuesday after counts towards a fortnight it
+// was not part of.
+const SPRINT_END = "2026-08-05T12:00:00Z";
+const bounded = gh.statsFor(STATS, "samlee", { since: SPRINT_START, until: SPRINT_END });
+check("a PR opened after the sprint closed is out of the window",
+  bounded.prsOpened === 1 && samStats.prsOpened === 2);
+check("a merge after the sprint closed takes its lines with it",
+  bounded.prsMerged === 1 && bounded.additions === 10 && bounded.deletions === 5);
+check("a review after the sprint closed is out of the window",
+  bounded.reviews === 0 && samStats.reviews === 1);
+check("a comment after the sprint closed is out of the window",
+  bounded.comments === 0 && samStats.comments === 3);
+check("the bound is reported, so the document can print what it covers",
+  Date.parse(bounded.to) === Date.parse(SPRINT_END));
+check("no bound given, none reported — the window runs to now", samStats.to === "");
+check("the bound is inclusive of the closing instant itself",
+  gh.statsFor(STATS, "samlee", { since: SPRINT_START, until: "2026-08-06T00:00:00Z" }).prsMerged === 2);
+check("a bound before the sprint starts answers zero, not everything",
+  gh.statsFor(STATS, "samlee", { since: SPRINT_START, until: "2026-08-04T00:00:00Z" }).prsOpened === 0);
+
 section("roster matcher");
 const proposal = gh.proposeGithubMatches(
   [

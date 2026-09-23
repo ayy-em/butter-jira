@@ -801,12 +801,22 @@ async function fetchRepoCommits(repo, { token, host, since, maxPages, query }) {
 //     branch has not shipped, so it is not counted. Direct pushes were invisible
 //     until they were asked for separately, which flattered anyone working
 //     through pull requests and undercounted everyone else.
-export function statsFor(stats, login, { since = "" } = {}) {
+export function statsFor(stats, login, { since = "", until = "" } = {}) {
   const me = fold(login);
   if (!me || !stats) return null;
 
   const windowStart = Math.max(msOf(stats.since), since ? msOf(since) : 0);
-  const inWindow = (iso) => msOf(iso) >= windowStart;
+  // An upper bound, for the one caller that is looking backwards: a recap of a
+  // sprint that has already closed. Every live screen wants "since the sprint
+  // started, up to now" and leaves this empty, but a closed sprint has an end,
+  // and without one a pull request merged the following Tuesday counts towards
+  // a fortnight it was not part of — inflating a finished number that somebody
+  // is about to read out in a retro.
+  const windowEnd = until ? msOf(until) : Infinity;
+  const inWindow = (iso) => {
+    const at = msOf(iso);
+    return at >= windowStart && at <= windowEnd;
+  };
   const mine = (l) => fold(l) === me;
 
   let prsOpened = 0;
@@ -851,6 +861,11 @@ export function statsFor(stats, login, { since = "" } = {}) {
 
   return {
     from: new Date(windowStart).toISOString(),
+    // Empty when the window runs to now, which is what every live screen asks
+    // for. Set only by the closed-sprint recap, and printed by it, because
+    // "merged during the sprint" and "merged since the sprint started" are
+    // different claims about the same person.
+    to: Number.isFinite(windowEnd) ? new Date(windowEnd).toISOString() : "",
     // The sprint started before the fetch window reaches: these numbers cover
     // the window, not the sprint, and whoever shows them has to say so.
     clamped: Boolean(since) && msOf(since) < msOf(stats.since),

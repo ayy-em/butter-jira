@@ -8,10 +8,16 @@
 //   open preview-recap.html              (or serve the folder over http)
 //
 // Fixture states: ?theme=light · ?github=off · ?stats=error · ?sprint=undated ·
-// ?push=off · ?avatars=off · ?roster=empty · ?freeze=mid|none — the last of
-// which is the one to check before changing the scope wording: with no freeze
-// the document prints the creation-date approximation and the "what changed"
-// section says there is nothing to compare against.
+// ?sprint=previous · ?push=off · ?avatars=off · ?roster=empty · ?freeze=mid|none
+// — the last of which is the one to check before changing the scope wording:
+// with no freeze the document prints the creation-date approximation and the
+// "what changed" section says there is nothing to compare against.
+//
+// `?sprint=previous` is read by the page itself rather than by the fixture: it
+// is a real option on recap.html, and the fixture answers `state=closed` so the
+// closed-sprint document can be printed here. Check it before changing anything
+// about the window wording — that document is the only one with an end to its
+// GitHub window, and the only one computed as at a moment other than now.
 import { params } from "./preview-fixture.js";
 
 // The print dialog is opt-in here. Previewing is reading, and a dialog opening

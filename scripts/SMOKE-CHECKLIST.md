@@ -118,6 +118,11 @@ is the fastest way to see all six buckets.
 - [ ] With a start-of-sprint freeze the "Added after start" tile reads **exact**; with one taken mid-sprint it reads **approx.** and names the day
 - [ ] The recap PDF's "What changed underneath the plan" section matches the panel, and its scope note matches the tile
 - [ ] A recap opened for a sprint the dashboard has never seen says there is no frozen state — and writes no freeze (Storage unchanged)
+- [ ] **Recap previous sprint** builds the last closed sprint on each board, names the closing date on the page, and shows no "days remaining"
+- [ ] That button is present with no active sprint on any board, and the document it opens is still the previous sprint's
+- [ ] The GitHub line on a closed recap states both ends of the window ("from … up to …, when the sprint closed")
+- [ ] A sprint that was completed after its end date reads "closed after its planned end date", not "past its end date"
+- [ ] `recap.html?sprint=999` fails with the board-scoped-ids message rather than an empty document
 - [ ] After nine sprints, `sprintFreezes` and `sprintSnapshots` hold the same eight keys
 
 ## 3b. Monitor tab

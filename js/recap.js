@@ -63,6 +63,7 @@ export function buildRecap({
   statusGroups = [],
   stats = null,
   since = "",
+  until = "",
   freeze = null,
   departed = [],
   now = new Date(),
@@ -83,6 +84,20 @@ export function buildRecap({
   });
   const allSprints = boardSprints.flatMap(({ sprints = [] }) => sprints);
   const activeSprintIds = allSprints.map((s) => s?.id).filter((id) => id !== undefined);
+
+  // Whether this document is about sprints that have already been closed, and
+  // when the last of them closed.
+  //
+  // "Every sprint in the set is closed" rather than "any", because a recap
+  // spanning a board that has rolled over and one that has not is a live
+  // document with a stale block in it, and printing it as a finished record
+  // would be the wrong claim about the half still running.
+  const closedAt = allSprints.length
+    && allSprints.every((s) => s?.state === "closed" && (s.completeDate || s.endDate))
+      ? new Date(
+          Math.max(...allSprints.map((s) => new Date(s.completeDate || s.endDate).getTime()))
+        ).toISOString()
+      : "";
 
   // With a freeze for this sprint, the scope-creep flags stop being an
   // approximation: "was this issue in the sprint when it was frozen" is set
@@ -155,7 +170,7 @@ export function buildRecap({
       const progress = reviewOrDone(bucket);
       const extra = perPerson.get(bucket.key) || bump(new Map(), bucket.key);
       const login = memberFor(bucket.key)?.githubLogin || "";
-      const gh = login && stats ? statsFor(stats, login, { since }) : null;
+      const gh = login && stats ? statsFor(stats, login, { since, until }) : null;
       const jira = jiraActivityFor(activity, bucket.key);
       return {
         accountId: bucket.key,
@@ -262,10 +277,19 @@ export function buildRecap({
   const teamPeople = people.filter((p) => p.accountId !== "__unassigned__");
   const withGithub = teamPeople.filter((p) => p.github);
   const withJira = teamPeople.filter((p) => p.jira);
-  const sample = withGithub[0]?.github ? statsFor(stats, withGithub[0].githubLogin, { since }) : null;
+  const sample = withGithub[0]?.github
+    ? statsFor(stats, withGithub[0].githubLogin, { since, until })
+    : null;
 
   return {
     generatedAt: now.toISOString(),
+    // Empty for the live document. Set when every sprint in the set has been
+    // closed, and carrying the instant the last of them closed — which is the
+    // instant the rest of this object was computed as at, not the instant it
+    // was printed. The renderer says so on the page: a reader handed a PDF in
+    // October needs to know whether its "5 days remaining" was true when the
+    // document was made or is simply out of date.
+    closedAt,
     // The freeze diff, or null when this sprint has none. Computed here rather
     // than in the renderer so the document and the dashboard panel print the
     // same six buckets from the same function — a recap that disagreed with the
@@ -365,6 +389,12 @@ export function buildRecap({
       unmapped: teamPeople.length - withGithub.length,
       since,
       from: sample?.from || "",
+      // The far end of the window, empty unless this is a closed sprint. Carried
+      // beside `from` so the document states the window it actually counted
+      // rather than letting a reader assume it runs to the day they are holding
+      // the page.
+      until,
+      to: sample?.to || "",
       clamped: Boolean(sample?.clamped),
       // A repo that answered for pull requests but not for commits, or one whose
       // history ran past the page cap, makes every figure below it an undercount.

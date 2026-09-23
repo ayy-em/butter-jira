@@ -6,16 +6,28 @@
 // way the document is reloadable, linkable and inspectable on its own.
 //
 // It recomputes from the same cached calls the dashboard uses rather than being
-// handed a payload. Nothing is re-fetched in practice — `getAllSprintIssues`,
-// `getActiveSprint` and `getTeamStats` are all cached and de-duplicated — and it
-// means the recap cannot be generated from a stale snapshot of a screen someone
-// left open yesterday.
+// handed a payload. For the active sprint — the default, and what this page did
+// before it could do anything else — nothing is re-fetched in practice: the
+// sprint read, the issue read and `getTeamStats` are all cached and
+// de-duplicated. Either way it means the recap cannot be generated from a stale
+// snapshot of a screen someone left open yesterday.
+//
+// A closed sprint is the one case that does cost requests the app has not
+// already made: no screen asks for a sprint that has ended, so its sprint list
+// and issues are read fresh, and the sprint list is paged. That is why the status
+// line says so while it works.
 //
 // The GitHub window *is* awaited here, unlike on the dashboard: a document is
 // generated once and kept, so it is worth a second of waiting to have the pull
 // request numbers in it rather than a row of dashes.
 
-import { getActiveSprint, getAllSprintIssues, getIssuesByKeys } from "./api.js";
+import {
+  getActiveSprint,
+  getClosedSprints,
+  getIssuesByKeys,
+  getIssuesForSprints,
+  getPreviousSprint,
+} from "./api.js";
 import { getCredentials } from "./credentials.js";
 import { CONFIG, isConfigured } from "./config.js";
 import { loadTeam } from "./team.js";
@@ -37,6 +49,48 @@ const JIRA_TIMEOUT_MS = 60000;
 const GITHUB_TIMEOUT_MS = 180000;
 
 const params = new URLSearchParams(location.search);
+
+// Which sprint this document is about. `active` is the default and the original
+// behaviour; the other two exist because a sprint you meant to recap is
+// routinely one you are looking at *after* it rolled over — somebody was away
+// the week it closed, or the retro is on the Wednesday.
+//
+//   ?sprint=active     the sprint running now on each board (default)
+//   ?sprint=previous   the last sprint each board closed
+//   ?sprint=7938,7735  those sprints by id, whatever state they are in
+//
+// Per board, not per document: boards roll over on their own schedules, and
+// "the previous sprint" is a question each board answers for itself.
+const SELECTION = (params.get("sprint") || "active").trim().toLowerCase();
+const WANTED_IDS = new Set(
+  SELECTION.split(",")
+    .map((part) => part.trim())
+    .filter((part) => /^\d+$/.test(part))
+);
+
+async function sprintsFor(board, creds) {
+  if (SELECTION === "previous") return getPreviousSprint(board.id, creds);
+  if (WANTED_IDS.size) {
+    // Both lists, because an id given by hand may name either, and a document
+    // asked for by id should not refuse to find a sprint that happens to still
+    // be running.
+    const [active, closed] = await Promise.all([
+      getActiveSprint(board.id, creds).catch(() => []),
+      getClosedSprints(board.id, creds).catch(() => []),
+    ]);
+    // Deduplicated by id. Jira puts a sprint in exactly one state, so the two
+    // lists should not overlap — but a sprint counted twice would double every
+    // figure on the page, which is too quiet a way to be wrong to leave to an
+    // assumption about someone else's API.
+    const byId = new Map();
+    for (const sprint of [...active, ...closed]) {
+      if (WANTED_IDS.has(String(sprint?.id)) && !byId.has(sprint.id)) byId.set(sprint.id, sprint);
+    }
+    return [...byId.values()];
+  }
+  return getActiveSprint(board.id, creds);
+}
+
 const root = document.getElementById("recap-root");
 const printBtn = document.getElementById("recap-print");
 const toolbarNote = document.getElementById("recap-toolbar-note");
@@ -92,7 +146,11 @@ function withTimeout(promise, ms, what) {
 }
 
 async function init() {
-  showStatus("Building the recap — reading the sprint from Jira…");
+  showStatus(
+    SELECTION === "active"
+      ? "Building the recap — reading the sprint from Jira…"
+      : "Building the recap — reading the sprint from Jira. Closed sprints are paged, so this takes a moment longer…"
+  );
 
   // Same config, roster and boards the app uses: display-name overrides, avatar
   // overrides and field mappings all have to resolve here too.
@@ -105,23 +163,51 @@ async function init() {
     return;
   }
 
+  // Sprints first, issues second — the reverse of the order this page used when
+  // it could only ever mean the active sprint. Which sprint the document is
+  // about is now a question with more than one answer, and the issue fetch
+  // depends on it, so it cannot ride alongside.
+  //
+  // Kept paired with their board, unlike on the dashboard, because the recap
+  // prints a block per board and needs to know whose sprint is whose.
+  const boardSprints = await withTimeout(
+    Promise.all(
+      BOARDS.map(async (board) => ({
+        board,
+        sprints: await sprintsFor(board, creds).catch(() => []),
+      }))
+    ),
+    JIRA_TIMEOUT_MS,
+    "Jira"
+  );
+  const sprints = boardSprints.flatMap(({ sprints: list }) => list);
+
   const [issues, statusGroups] = await withTimeout(
-    Promise.all([getAllSprintIssues(creds), loadStatusGroups()]),
+    Promise.all([getIssuesForSprints(boardSprints, creds), loadStatusGroups()]),
     JIRA_TIMEOUT_MS,
     "Jira"
   );
 
-  // Kept paired with their board, unlike on the dashboard, because the recap
-  // prints a block per board and needs to know whose sprint is whose.
-  const boardSprints = await Promise.all(
-    BOARDS.map(async (board) => ({
-      board,
-      sprints: await getActiveSprint(board.id, creds).catch(() => []),
-    }))
-  );
-  const sprints = boardSprints.flatMap(({ sprints: list }) => list);
-
   const now = new Date();
+
+  // The instant the document is computed *as at*, which is not always the
+  // instant it is printed.
+  //
+  // For a closed sprint it is the moment that sprint closed. `summarize`
+  // measures days remaining and overdue-ness against a clock, and against
+  // today's clock a sprint that ended last Tuesday has nothing left to run and
+  // is a week overdue — both true of the calendar and neither true of the
+  // sprint. A recap is a record of how a sprint stood at its end, so that is
+  // the moment it is built at. The freeze diff and the GitHub window are
+  // wound back with it, for the same reason and to keep the page internally
+  // consistent: one document, one clock.
+  const closedAt =
+    sprints.length && sprints.every((s) => s?.state === "closed" && (s.completeDate || s.endDate))
+      ? new Date(
+          Math.max(...sprints.map((s) => new Date(s.completeDate || s.endDate).getTime()))
+        )
+      : null;
+  const asAt = closedAt || now;
 
   // Read, never taken. Taking a freeze is a write to local history, and a
   // document generator has no business creating the record it is reporting on —
@@ -146,17 +232,23 @@ async function init() {
     monitorSettings: CONFIG.monitorChecks,
     boards: BOARDS,
     freeze,
-    now,
+    now: asAt,
   });
 
   const since = (
-    summary.window.start || new Date(now.getTime() - FALLBACK_SPRINT_DAYS * 86400000)
+    summary.window.start || new Date(asAt.getTime() - FALLBACK_SPRINT_DAYS * 86400000)
   ).toISOString();
+
+  // Only a closed sprint gets an upper bound. Leaving it empty is what every
+  // live screen does and what this page did before there was anything else to
+  // recap: the window runs to now.
+  const until = closedAt ? closedAt.toISOString() : "";
 
   const dated = Boolean(summary.window.start);
   const build = (stats) =>
     buildRecap({
-      summary, issues, boardSprints, statusGroups, stats, since, freeze, departed, now,
+      summary, issues, boardSprints, statusGroups, stats, since, until, freeze, departed,
+      now: asAt,
     });
 
   const firstPass = build(null);
@@ -167,9 +259,17 @@ async function init() {
   // Nothing to recap is an answer, and it is printed as one. A document that
   // rendered its furniture around no content would look like a failure.
   if (!firstPass.combined.issues && !firstPass.sprintNames.length) {
+    // Named by what was asked for. "No active sprint" printed under
+    // ?sprint=previous sends the reader to check a board that is running
+    // perfectly well, which is a worse answer than none.
     showStatus(
-      "No active sprint on any configured board, so there is nothing to recap yet." +
-        " Start a sprint in Jira, or check the boards under Settings.",
+      SELECTION === "active"
+        ? "No active sprint on any configured board, so there is nothing to recap yet." +
+            " Start a sprint in Jira, or check the boards under Settings."
+        : WANTED_IDS.size
+          ? `No configured board has a sprint with ${WANTED_IDS.size === 1 ? "that id" : "any of those ids"}.` +
+            " Sprint ids are board-scoped — check that the board is one of yours under Settings."
+          : "No configured board has ever closed a sprint, so there is no previous sprint to recap.",
       { failed: true }
     );
     return;
@@ -387,8 +487,31 @@ function renderTitle(recap) {
   } else {
     bits.push("No sprint dates in Jira");
   }
-  if (recap.isOverdue) bits.push("past its end date");
+  // The same fact, and two different sentences, because the tense is the whole
+  // meaning. On a live document "past its end date" is a warning about a sprint
+  // running now. On a closed one it is a fact about a fortnight that is over —
+  // it was wrapped up a day or two after the date it was meant to end — and the
+  // present tense turns a retro note into an alarm about nothing.
+  if (recap.isOverdue) {
+    bits.push(recap.closedAt ? "closed after its planned end date" : "past its end date");
+  }
   wrap.appendChild(el("p", "recap-subtitle", bits.join("  ·  ")));
+
+  // A closed sprint says so, on the page, in the document itself — not only in
+  // the tab title, which does not survive being saved as a PDF and mailed on.
+  // Without it a recap of a fortnight that ended three weeks ago is
+  // indistinguishable from one of the sprint running now, and every figure on
+  // it reads as current.
+  if (recap.closedAt) {
+    wrap.appendChild(
+      el(
+        "p",
+        "recap-asat",
+        `Closed sprint — figures are as at ${fmtDate(recap.closedAt)}, when the sprint was completed,` +
+          ` not as at the day this was printed.`
+      )
+    );
+  }
 
   wrap.appendChild(renderSprintList(recap));
   return wrap;
@@ -946,7 +1069,13 @@ function peopleNote(recap, { statsError, dated, statsPending = false }) {
       : dated
         ? `from ${fmtDate(recap.github.from)}`
         : `over the last ${FALLBACK_SPRINT_DAYS} days, there being no start date on the active sprint`;
-    parts.push(`GitHub figures are counted ${window}.`);
+    // The far end is stated only when there is one, which is only on a closed
+    // sprint. Saying "to today" on a live document would be noise; leaving the
+    // bound unsaid on a closed one invites the reader to assume it runs to the
+    // day they are holding the page, which is the thing the bound exists to
+    // stop being true.
+    const to = recap.github.to ? ` up to ${fmtDate(recap.github.to)}, when the sprint closed` : "";
+    parts.push(`GitHub figures are counted ${window}${to}.`);
 
     // A partial answer must not print as a whole one.
     if (recap.github.failures.length) {
