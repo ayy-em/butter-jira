@@ -6,6 +6,8 @@ import {
   sendTabMessage,
   updateTab,
   focusWindow,
+  localGet,
+  localSet,
 } from "./js/browser.js";
 import {
   CONFIG,
@@ -18,6 +20,7 @@ import {
 } from "./js/config.js";
 import { discoverFieldMappings, listBoards } from "./js/api.js";
 import { clearAllOneOnes, loadOneOnes, storeSize } from "./js/oneone.js";
+import { OPEN_IN_APP_KEY, syncJiraLinkRules } from "./js/jira-links.js";
 import {
   applyRestore,
   backupFilename,
@@ -559,6 +562,37 @@ exportBtn.addEventListener("click", async () => {
     caveats.length ? "warning" : "success"
   );
 });
+
+// ── Jira links open here ─────────────────────────────────────────────────────
+// A device-level switch (it changes what links do in this browser), stored
+// locally and applied as redirect rules by js/jira-links.js.
+const openLinksBox = document.getElementById("openLinksInApp");
+const openLinksNote = document.getElementById("openLinksNote");
+
+const LINK_STATES = {
+  on: (host) => `On for ${host}.`,
+  off: () => "Off — Jira links open in Jira.",
+  "no-site": () => "Set the Jira site above first; nothing is redirected until then.",
+  "unsupported-host": (host) =>
+    `Not available for ${host}: only Atlassian Cloud sites (*.atlassian.net) can be redirected.`,
+  unsupported: () => "This browser does not support redirect rules, so links keep opening in Jira.",
+};
+
+async function renderOpenLinks() {
+  const stored = await localGet([OPEN_IN_APP_KEY]);
+  openLinksBox.checked = Boolean(stored[OPEN_IN_APP_KEY]);
+  const result = await syncJiraLinkRules().catch((err) => ({ state: "error", error: err }));
+  openLinksNote.textContent =
+    result.state === "error"
+      ? `Could not apply the redirect rules — ${result.error?.message || result.error}`
+      : LINK_STATES[result.state](result.host);
+}
+
+openLinksBox.addEventListener("change", async () => {
+  await localSet({ [OPEN_IN_APP_KEY]: openLinksBox.checked });
+  await renderOpenLinks();
+});
+renderOpenLinks();
 
 // ── Device backup ────────────────────────────────────────────────────────────
 // See js/backup.js for what is in the file, what is never in it, and why a

@@ -11,14 +11,21 @@
     "",
     "manifest.json at the repo root is the Chrome build, and the only manifest",
     "that belongs there: it is where a browser looks when the repo is loaded",
-    "unpacked with no build step. It is generated — see the README."
+    "unpacked with no build step. It is generated — see the README.",
+    "",
+    "declarativeNetRequestWithHostAccess and web_accessible_resources are the",
+    "Jira-links redirect (js/jira-links.js), off until switched on in Settings.",
+    "The WithHostAccess form acts only where host access is already granted, so",
+    "it adds no install warning; the two pages are reachable from Jira Cloud",
+    "only, which is what a redirect into them needs."
   ],
   "manifest_version": 3,
   "name": "butter_jira",
   "version": "0.7.0",
   "description": "Visualize your Jira in a Gantt chart, using a backlog list or Kanban views across all your Jira boards, run an efficient daily standup, and see your team's GitHub activity. Fast, lean, no AI. ButterJira: Fighting bloat since 2026.",
   "permissions": [
-    "storage"
+    "storage",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "https://*.atlassian.net/*",
@@ -26,6 +33,12 @@
   ],
   "optional_host_permissions": [
     "https://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["issue.html", "app.html"],
+      "matches": ["https://*.atlassian.net/*"]
+    }
   ],
   "icons": {
     "16": "assets/logo-16.png",

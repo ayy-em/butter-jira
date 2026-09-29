@@ -176,6 +176,33 @@
     </details>
 
     <!-- ── Team ─────────────────────────────────────────────────────────── -->
+    <!-- ── Jira links ───────────────────────────────────────────────────── -->
+    <details class="settings-section" id="section-links">
+      <summary class="section-head">
+        Jira links
+        <span class="section-note">Open issue and board links here instead of in Jira</span>
+      </summary>
+      <div class="section-body">
+        <div class="hint">
+          When this is on, clicking a Jira link anywhere in this browser — Slack,
+          a pull request, an email — opens the matching screen here: an issue
+          link opens the issue page, a board link opens the Kanban, a backlog link
+          opens the Backlog. Every other Jira page (filters, dashboards, project
+          settings, Confluence) opens in Jira as usual. Only your configured
+          Atlassian Cloud site is affected.
+        </div>
+        <div class="hint">
+          To reach Jira itself, use the app's own "Open in Jira" links — they
+          always go to Jira — or add <code>?butterjira=skip</code> to a Jira URL.
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="openLinksInApp">
+          <span>Open Jira issue, board and backlog links in butter_jira</span>
+        </label>
+        <div class="hint" id="openLinksNote"></div>
+      </div>
+    </details>
+
     <details class="settings-section" id="section-team">
       <summary class="section-head">
         Team settings

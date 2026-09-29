@@ -714,7 +714,34 @@ trigger, and this app has no background schedule); whether one file covers every
 store or one file per store; and what restore looks like, since importing an old
 1:1 archive over a newer one is a merge, not a replace.
 
-### Jira links open in the extension *(ad-hoc, 2026-09-06)*
+### Jira links open in the extension *(ad-hoc, 2026-09-06)* — **built 2026-09-29**
+
+Shipped as Settings → *Jira links* (`js/jira-links.js`), off by default. It uses
+**declarativeNetRequest redirect rules**, written as dynamic rules from the
+configured site, with the `declarativeNetRequestWithHostAccess` permission.
+That permission acts only where host access is already granted, so it adds no
+install warning, which removes the objection this entry was deferred on. The
+open questions were answered like this:
+
+1. **Escape hatch:** `butterjira=skip` in a URL. An allow rule at higher priority
+   lets it through. `browseUrl` adds it to every Jira link the app renders, so
+   "Open in Jira" always reaches Jira.
+2. **The one-app-tab rule:** a redirected link lands in the tab it was clicked
+   in. Knowingly different from the toolbar button: a link opens where links
+   open.
+3. **Opt-in**, a device-local switch (`openJiraLinksInApp`, which the backup
+   carries).
+4. **The configured site only**, and only Atlassian Cloud hosts. Redirecting
+   into an extension page needs the page in `web_accessible_resources` for that
+   site, and listing every https site so that custom domains work was not worth
+   exposing the pages to all of them.
+
+Rules cover top-level navigations only, so the app's own API calls to Jira are
+never redirected. Verified in Chromium with the unpacked build: all four URL
+shapes redirect, the escape hatch and Confluence pass through, and switching it
+off removes the rules. **Not verified on Firefox**, whose MV3 support for this
+API is the thinnest of the three browsers. Settings reports "not supported" if
+the API is missing.
 
 Today the app is somewhere you go. Every Jira link everywhere else — a Slack
 message, a PR description, a calendar invite, and the `/browse/ABC-123` link

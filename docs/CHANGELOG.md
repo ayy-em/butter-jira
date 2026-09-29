@@ -8,6 +8,12 @@ it about what a user gets, and leave the reasoning to
 
 ## Unreleased
 
+**Jira links can open here.** Switch on Settings → Jira links, and clicking a
+Jira issue, board or backlog link anywhere in the browser opens the issue page,
+the Kanban or the Backlog in butter_jira instead. Everything else still opens in
+Jira, and the app's own "Open in Jira" links always do. Atlassian Cloud sites
+only; off unless you turn it on.
+
 **Back up this device.** Settings → Backup & transfer can now save everything the
 app has recorded and could not fetch again: the snapshots behind every burndown,
 sprint freezes, your todos, preferences and the config, plus the roster if you

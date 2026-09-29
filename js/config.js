@@ -10,6 +10,7 @@
 // `additionalFields` is the exception: it is the union of the local file and
 // storage, so a local override can always add fields without fighting the UI.
 
+import { withSkip } from "./jira-links.js";
 import { runtimeUrl, syncGet, syncSet } from "./browser.js";
 import { runMigrations } from "./migrations.js";
 
@@ -210,8 +211,11 @@ export function jiraUrl(path) {
   return `${CONFIG.site.baseUrl}${path}`;
 }
 
+// Carries the Jira-links escape hatch, so a link this app renders *to* Jira
+// still reaches Jira when those links are set to open here (js/jira-links.js).
+// Harmless when that is off: Jira ignores an unknown parameter.
 export function browseUrl(issueKey) {
-  return CONFIG.site.baseUrl ? `${CONFIG.site.baseUrl}/browse/${issueKey}` : "#";
+  return CONFIG.site.baseUrl ? withSkip(`${CONFIG.site.baseUrl}/browse/${issueKey}`) : "#";
 }
 
 // A bare Atlassian Cloud origin lands on the product picker rather than on

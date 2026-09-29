@@ -38,7 +38,7 @@ const CONFIG_KEYS = [
 // Small conveniences, restored only where this device has none of its own.
 const PREFERENCE_KEYS = [
   "standupPrefs", "standupMuted", "backlogPrefs", "monitorScope", "paletteRecents",
-  "teamOnly", "recapConfig",
+  "teamOnly", "recapConfig", "openJiraLinksInApp",
 ];
 
 export const STORES = {

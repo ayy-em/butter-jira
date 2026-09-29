@@ -73,6 +73,33 @@ export function runtimeUrl(path) {
   return api().runtime.getURL(path);
 }
 
+export function onStartup(handler) {
+  api().runtime.onStartup?.addListener(handler);
+}
+
+export function onStorageChanged(handler) {
+  api().storage.onChanged?.addListener(handler);
+}
+
+// Dynamic declarativeNetRequest rules — the Jira-links redirect. Absent on a
+// browser without the API (or without the permission), which callers treat as
+// "not supported here" rather than an error.
+export function hasRedirectRules() {
+  return Boolean(api().declarativeNetRequest?.updateDynamicRules);
+}
+
+export async function getRedirectRules() {
+  const dnr = api().declarativeNetRequest;
+  return dnr?.getDynamicRules ? await dnr.getDynamicRules() : [];
+}
+
+export async function setRedirectRules({ removeRuleIds = [], addRules = [] } = {}) {
+  const dnr = api().declarativeNetRequest;
+  if (!dnr?.updateDynamicRules) return false;
+  await dnr.updateDynamicRules({ removeRuleIds, addRules });
+  return true;
+}
+
 export function onMessage(handler) {
   api().runtime.onMessage?.addListener(handler);
 }

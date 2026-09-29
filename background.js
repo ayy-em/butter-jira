@@ -3,11 +3,14 @@ import {
   focusWindow,
   onActionClicked,
   onInstalled,
+  onStartup,
+  onStorageChanged,
   queryTabs,
   runtimeUrl,
   updateTab,
 } from "./js/browser.js";
 import { runMigrations } from "./js/migrations.js";
+import { OPEN_IN_APP_KEY, syncJiraLinkRules } from "./js/jira-links.js";
 
 // Bring storage up to date as soon as a new build lands, so the first page load
 // already sees the current shape. loadConfig()/loadCredentials() call this too —
@@ -36,4 +39,15 @@ onActionClicked(async () => {
     return;
   }
   await createTab({ url: appUrl });
+});
+
+// The Jira-links redirect follows its switch and the configured site. Rules
+// persist across restarts on their own; re-syncing on install and startup is
+// what catches a site changed while the worker was asleep, or an extension
+// update that changed the rules themselves.
+const syncLinks = () => syncJiraLinkRules().catch((err) => console.error("butter_jira: link rules", err));
+onInstalled(syncLinks);
+onStartup(syncLinks);
+onStorageChanged((changes, area) => {
+  if ((area === "local" && OPEN_IN_APP_KEY in changes) || (area === "sync" && "site" in changes)) syncLinks();
 });

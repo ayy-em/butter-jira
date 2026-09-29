@@ -124,7 +124,7 @@ check("additionalFields unioned",
 check("isConfigured true", cfg.isConfigured() === true);
 check("hasBoards true", cfg.hasBoards() === true);
 check("jiraUrl builds", cfg.jiraUrl("/rest/api/3/myself") === "https://stored.atlassian.net/rest/api/3/myself");
-check("browseUrl builds", cfg.browseUrl("ABC-1") === "https://stored.atlassian.net/browse/ABC-1");
+check("browseUrl builds, carrying the Jira-links escape hatch", cfg.browseUrl("ABC-1") === "https://stored.atlassian.net/browse/ABC-1?butterjira=skip");
 check("wikiUrl builds", cfg.wikiUrl() === "https://stored.atlassian.net/wiki");
 check("siteHost extracted", cfg.siteHost() === "stored.atlassian.net");
 

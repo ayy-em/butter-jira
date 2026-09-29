@@ -485,3 +485,12 @@ that loses them loses them.
 - [ ] **Restore a backup** on the same device reports nothing to add; after deleting all todos, it brings them back
 - [ ] Restoring onto a configured install says the config here is kept
 - [ ] A config export picked for restore is refused with "use Import config"
+
+## Jira links open here
+
+- [ ] Settings → Jira links is off by default; turning it on reports "On for <site>"
+- [ ] Updating the extension to this build shows no new permission prompt, and Chrome does not disable it
+- [ ] A `/browse/ABC-123` link from Slack or a PR opens the issue page; a board link opens the Kanban, a backlog link the Backlog
+- [ ] The issue page's "Open in Jira" link still opens Jira
+- [ ] Filters, dashboards and Confluence pages still open in Jira
+- [ ] Turning it off, then clicking the same link, opens Jira
