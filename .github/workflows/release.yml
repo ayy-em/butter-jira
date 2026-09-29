@@ -157,7 +157,7 @@ jobs:
           NOTES
           cat /tmp/changes.md >> /tmp/notes.md
           echo "" >> /tmp/notes.md
-          echo "Full reasoning for every change is in [ROADMAP.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/docs/ROADMAP.md)." >> /tmp/notes.md
+          echo "What is planned next is in [ROADMAP.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/docs/ROADMAP.md)." >> /tmp/notes.md
           cat /tmp/notes.md
 
       - name: Publish

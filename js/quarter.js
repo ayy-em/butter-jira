@@ -29,7 +29,7 @@
 //     no roster, everyone who appears in the Jira data is a row.
 //
 // **Per person, deliberately.** This reverses the 2026-09-03 rule that kept
-// quarter-length line and pull-request counts team-level (see ROADMAP M16), and
+// quarter-length line and pull-request counts team-level, and
 // — asked for the same day — the per-person table is ordered by `rankPeople`, a
 // weighted sum of each person's rank on Jira activity, commits to main and
 // lines to main, rather than by name. The small multiples stay in name order.

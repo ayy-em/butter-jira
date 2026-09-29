@@ -3,10 +3,10 @@
 What changed between released versions, for somebody deciding whether to
 download a zip. `.github/workflows/release.yml` lifts the section matching the
 tag into the release notes, so the wording here is the wording published — keep
-it about what a user gets, and leave the reasoning to
-[ROADMAP.md](ROADMAP.md), which keeps the full record.
+it about what a user gets. The reasoning is in the commit history;
+[ROADMAP.md](ROADMAP.md) is what is still to come.
 
-## Unreleased
+## v0.8.0
 
 **Development on every issue.** With GitHub connected, an issue's page and
 drawer now list the pull requests, branches and commits that mention its key in

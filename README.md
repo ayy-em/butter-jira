@@ -160,10 +160,10 @@ with `--zip`: a published package must not carry colleagues' photographs.
 **Push a tag. That is the whole ritual.**
 
 ```bash
-git tag v0.6.0 && git push origin v0.6.0
+git tag v0.8.0 && git push origin v0.8.0
 ```
 
-`.github/workflows/release.yml` then runs every suite, writes `0.6.0` into the
+`.github/workflows/release.yml` then runs every suite, writes `0.8.0` into the
 manifests, builds the three zips, checks them, publishes them on the Releases
 page with a `SHA256SUMS.txt`, and pushes the version bump back to `main`. There
 is no local build step and nothing is uploaded by hand.
@@ -171,7 +171,7 @@ is no local build step and nothing is uploaded by hand.
 **The tag is the source of truth for the version**, not `manifests/base.json`.
 The alternative — bump the file, commit, then tag, with CI failing on a mismatch
 — keeps the repo self-consistent at every commit, but it makes releasing two
-steps and the second one gets skipped. `scripts/set-version.mjs 0.6.0` is the
+steps and the second one gets skipped. `scripts/set-version.mjs 0.8.0` is the
 same rewrite if you ever need it locally; it edits the one `"version"` line and
 regenerates the root `manifest.json` from it.
 
@@ -227,6 +227,15 @@ Two things to know before you rely on it:
 
 Delete the export file once the other browser has it. It is a plaintext
 credential if you ticked either token box.
+
+**A config export moves a setup; a backup keeps a history.** Settings → Backup &
+transfer → **Back up this device** saves what the app has recorded and could not
+fetch again: the daily snapshots behind every burndown, the sprint freezes, your
+todos and preferences, plus the config and, if ticked, the roster. **Restore a
+backup** merges it in. Where the device and the file both have an entry, the
+device keeps its own and the file only fills the gaps, so restoring an old backup
+never loses anything newer. Config is restored only onto an install that is not
+set up yet. Tokens, your account email and 1:1 notes are never in the file.
 
 ## Browser targets
 
@@ -383,6 +392,15 @@ unassigned issues visible on purpose — those are usually the team's problem to
 People outside the roster are labelled `· outside team` in the assignee filter
 rather than silently dropped.
 
+**The reporting screens count the roster and nobody else.** With a roster set
+up, the Sprint Dashboard, the sprint recap and the quarterly overview count only
+issues held by an active roster member, plus unassigned ones. Other people
+opening, closing or picking up tickets on the same boards are left out of every
+row, total, burndown and diff, and the dashboard header and the recap say how
+many issues that was. The board views (Kanban, Backlog, Monitor) keep the toggle
+instead, because a board is where somebody else's ticket gets reassigned. With
+no roster at all, everyone counts.
+
 The roster lives in device-local extension storage only, because it holds
 other people's personal data. It is never written to synced storage, never
 belongs in `config.local.json`, and is excluded from config exports unless you
@@ -401,8 +419,21 @@ Escape closes it, as does clicking the dimmed area or navigating away.
 
 Shows the header (key, status, type, parent, project, links out to Jira),
 assignee and reporter, description, start/due dates, story points, sprint,
-linked issues grouped by relationship (creatable and removable), sub-tasks, and
-comments.
+linked issues grouped by relationship (creatable and removable), sub-tasks,
+**development** and comments.
+
+**Development**, shown when GitHub sync is on, lists what mentions the issue's
+key in your configured repositories:
+- pull requests, with their state (open, draft, merged, closed), review status,
+  branch, author and last update
+- branches with no pull request yet
+- commits whose message names the key
+
+Matching is exact, so `ABC-1` does not pick up `ABC-12` or `XABC-1`. GitHub is
+asked only when an issue opens, and the answer is kept for ten minutes, because
+GitHub's search allows 30 requests a minute; **↻ Refresh** asks again. The
+links out to Jira carry `?butterjira=skip`, so they reach Jira even when Jira
+links are set to open here (see [Jira links](#jira-links)).
 
 **Assignee, due date and story points are editable in place.** Click the value,
 type or pick, and press Enter — or click away, which also saves, because losing
@@ -521,6 +552,13 @@ lists, and offers to open what it created.
 Press `d` or the SPRINT tab. Sprint name, goal, dates and working days left, then
 a KPI row: points complete, issues done, carried in, added after start, projected
 carry-out, and a hygiene score that links through to the Monitor tab.
+
+With a roster, every figure on it counts the team only. See
+[Team roster](#team-roster).
+
+In the top right, **Generate recap** prints the sprint running now, and the
+**Recap past sprint** menu offers the last closed sprint, a quarterly overview,
+and **Configure a recap…** for any other choice of sprints.
 
 Below that: a burndown, **what changed since the freeze**, sprint progression by
 status, and breakdowns by board and by person. Everything is derived from data
@@ -642,11 +680,13 @@ What is in it, in order:
 | Board by board | One block per board with its sprint name, dates and goal, then issues, done, points, completion, crept in and carried in |
 | Tickets in this sprint | Every ticket grouped by board — key, summary, assignee, status, points, and a flag when it crept in or carried over |
 
-**It recaps the sprints the dashboard is showing**, which on retro day are the
-ones ending. It rebuilds from the same cached calls the dashboard made rather
-than being handed a copy of the screen, so a recap can't be generated from a tab
-someone left open yesterday — but equally, once a sprint is *closed* in Jira the
-boards have moved on and it will recap the new one.
+**Which sprints it covers is up to you.** **Generate recap** covers the sprints
+the dashboard is showing, which on retro day are the ones ending.
+**Recap past sprint** covers the last sprint each board closed, computed as at
+the moment it closed. **Recap config** (below) covers any mix of sprints. A
+recap rebuilds from Jira rather than being handed a copy of the screen, so it
+can't be generated from a tab someone left open yesterday. With a roster, it
+counts the team only, like the dashboard.
 
 **Completion is given twice, by issue and by points.** The issue-based figure is
 the one that exists for everybody, including anyone whose tickets carry no
@@ -733,11 +773,59 @@ worth a second to have the numbers in it. When GitHub is off, fails, or has
 nobody mapped, the affected figures are dashes and the note under the section
 says which of the three it was.
 
-**Framing is deliberate.** The per-person section is ordered by name, never by
-output, and it is headed "contribution", not "performance" — the same discipline
-the roadmap sets for M16 and M14. It is material for a retro conversation, and a
+**Framing is deliberate.** The per-person cards are ordered by name, never by
+output, and headed "contribution", not "performance". It is material for a retro conversation, and a
 document that ranked colleagues would be read as an assessment however it was
 labelled. The footer says so on every copy.
+
+### Recap config
+
+`LAUNCH → RECAP CONFIG`, or *Configure a recap…* in the dashboard's recap menu.
+Each board is a card: tick it to include it, then tick its sprints — the active
+one first, closed ones newest first, with **Active**, **Last closed** and
+**Last 3 closed** as shortcuts. **Generate recap** makes one combined document
+across everything ticked, dated from the earliest start to the latest end.
+
+- **The selection is the link.** The recap's link carries it
+  (`recap.html?sprint=<board>:<sprint>,…`), so a recap can be reloaded or
+  bookmarked. The screen remembers your last choice on this device.
+- **Gaps between sprints are flagged.** The Jira figures count only the chosen
+  sprints' issues, but the GitHub figures are a date range from the first start
+  to the last end, so they also cover the time in between. The screen warns
+  about this, and so does the recap.
+- **Old sprints get GitHub figures for their own dates.** Sprints that started
+  more than 45 days ago are fetched over their own dates rather than cut off at
+  the last 45 days.
+- **The same board choice opens the quarterly overview** for just those boards.
+  Only the Jira figures are narrowed: GitHub is per repository, not per board,
+  and the document says so.
+
+### Quarterly overview
+
+*Recap past sprint → Prepare a quarterly overview* opens a printable document
+for a calendar quarter. Pick this quarter so far or one of the three before it
+on the page; `quarter.html?q=2026-Q2` names any quarter. In order:
+
+| Section | Contents |
+|---|---|
+| Team velocity, week by week | Two charts per ISO week: **Jira activity** — comments + 3 × tickets closed + tickets opened + 3 × epics closed, the formula printed under it — and **GitHub commits to main**, every commit in the default branch's history |
+| The quarter in figures | Jira and GitHub totals side by side: tickets opened and closed, comments, epics closed and in progress, the activity score and its weekly average, commits, pull requests opened, reviews, lines added and removed |
+| Per person, week by week | A small chart each, Jira and GitHub on one axis, each person on their own scale |
+| Per person, whole quarter | Tickets opened, closed, comments, PRs opened, commits to main, PR reviews and lines to main, ordered by a combined ranking — each person's rank on activity score, commits and lines, summed with equal weights — with a bold **Team total** |
+| Epics closed, epics in progress | Key, summary, date or status, assignee and board |
+
+The rules it counts by:
+- **Closes are credited to the assignee at the moment the ticket closed.**
+- **Sub-tasks count for comments only.**
+- **Team totals are the sum of the rows**, so the two tables always agree.
+- **Short weeks stay off the charts.** A week with fewer than three full days
+  inside the quarter so far isn't drawn, but it is still counted in every
+  figure.
+- **GitHub is read over the whole quarter**, with page caps sized for about
+  ninety days. It is slow the first time and cached for 30 minutes after.
+- **The PDF prints edge to edge.**
+- **Epics in progress are as they stand today**, even for a past quarter,
+  because Jira keeps no record of an epic's past state. The page says so.
 
 ### Standup mode
 
@@ -873,13 +961,11 @@ next time, pushes the ones *you* took on to **Launch → My todos**, and offers 
 copy at that moment, because the end of the meeting is when the summary actually
 gets sent.
 
-**Per-person line counts appear here and nowhere else.** Everywhere else in this
-app — the quarter document, the per-sprint history — pull-request counts and
-lines stay team-level, because those are read by the team. A 1:1 sheet is read by
-two people about one of them, and per-person output over the window is what the
-conversation is actually about. What survives of the rule here: one person on
-screen at a time, never two side by side, no line-count trend, and a note beside
-the figures saying they are conversation fuel and not a score.
+**Per-person line counts over the window are part of the sheet**, because
+per-person output is what the conversation is about. The sheet shows one person
+at a time, never two side by side, with no line-count trend and a note beside
+the figures saying they are conversation fuel, not a score. The sprint recap
+and the quarterly overview show per-person figures too, for the whole team.
 
 **Where a source cannot answer, the screen says so where the number would be** —
 "No GitHub login mapped for this person", "GitHub reaches back 45 days and this
@@ -1057,6 +1143,28 @@ unavailable instead of flagging every issue.
 Scope defaults to the current sprint; switch to **All Issues** to include the
 backlog. **Team Only** and the scope choice are both remembered.
 
+### Jira links
+
+**Settings → Jira links** makes the Jira links you click anywhere in the browser
+(Slack, a pull request, an email) open here instead:
+
+| Link | Opens |
+|---|---|
+| `/browse/ABC-123`, or a board URL with `?selectedIssue=ABC-123` | the issue page |
+| `/jira/software/projects/ABC/boards/12/backlog` | the Backlog |
+| `/jira/software/projects/ABC/boards/12` | the Kanban |
+
+- **Everything else opens in Jira as usual:** filters, dashboards, project
+  settings, Confluence.
+- **To reach Jira itself**, use the app's own "Open in Jira" links, which always
+  go to Jira, or add `?butterjira=skip` to any Jira URL.
+- **Scope:** it's off until you switch it on, it only touches your configured
+  site, and only Atlassian Cloud sites (`*.atlassian.net`) are supported.
+- **Where it lands:** a redirected link opens in the tab you clicked it in.
+- **How it works:** redirect rules the browser applies before Jira loads, to
+  page loads only, so the app's own requests to Jira are never affected. No code
+  runs inside Jira's page.
+
 ### Branding
 
 `assets/brand/` is gitignored apart from its `.gitkeep`. Drop a logo there,
@@ -1068,6 +1176,11 @@ the product logo stands alone.
 ## Permissions
 
 - `storage` — configuration and cached Jira responses
+- `declarativeNetRequestWithHostAccess` — the [Jira links](#jira-links)
+  redirect, and only when you switch it on. It acts only on sites the extension
+  already has access to, so it adds no install warning
+- `web_accessible_resources` — `issue.html` and `app.html`, reachable from
+  `*.atlassian.net` only, which is what a redirect into them needs
 - `https://*.atlassian.net/*` — granted up front, covers any Jira Cloud site
 - `https://api.github.com/*` — granted up front, used only when GitHub sync is
   switched on and only for the repos you list
@@ -1112,7 +1225,8 @@ app.html            # main app shell
 settings.html/.js   # configuration UI
 issue.html          # full-page issue detail (new-tab target)
 recap.html          # printable sprint recap (new-tab target)
-background.js       # service worker: opens the app tab
+quarter.html        # printable quarterly overview (new-tab target)
+background.js       # service worker: opens the app tab, keeps link rules in sync
 js/browser.js       # the only module that knows browser.* from chrome.*
 js/config.js        # all instance-specific config lives here
 js/credentials.js   # device-local token storage + expiry lifecycle
@@ -1121,6 +1235,11 @@ js/monitor.js       # sprint hygiene checks (pure derivation)
 js/dashboard.js     # sprint aggregation (pure derivation)
 js/recap.js         # sprint recap model (pure derivation)
 js/recap-page.js    # the printable recap document
+js/recap-selection.js # which boards and sprints a recap covers, in its URL
+js/quarter.js       # quarterly overview model: weeks, scores, ranking
+js/quarter-page.js  # the printable quarterly overview
+js/backup.js        # device backup and merge-on-restore
+js/jira-links.js    # the Jira-links redirect rules
 js/snapshots.js     # daily sprint snapshots — the burndown's history
 js/freeze.js        # per-issue sprint freeze and the diff over it (DOM-free)
 js/charts.js        # inline SVG chart primitives, no libraries
@@ -1147,7 +1266,7 @@ js/components/icons.js       # the app's icon sprite: authored SVG paths
 js/components/theme-toggle.js# the sun/moon toggle, drawn in one place
 js/components/view-header.js # the header every view puts at the top of itself
 js/views/           # dashboard, backlog, gantt, kanban, monitor, standup,
-                    #   oneone (1:1 picker + sheet), todos
+                    #   oneone (1:1 picker + sheet), todos, recap-config
 css/                # one stylesheet per view, plus nav.css for the shell and
                     #   settings.css for the settings page
 assets/logo*.png    # the product mark at four sizes, plus the full lockup
@@ -1157,7 +1276,7 @@ libs/               # vendored frappe-gantt
 manifests/base.json # shared manifest; overlays in manifests/<target>.json
 manifest.json       # generated Chrome manifest — what unpacked loading reads
 docs/PRODUCT.md     # what this is and what it commits to
-docs/ROADMAP.md     # the full milestone record and its reasoning
+docs/ROADMAP.md     # what is still open, and the rules in force
 docs/CHANGELOG.md   # per-version notes; the release page quotes it verbatim
 LICENSE             # PolyForm Noncommercial 1.0.0
 scripts/build.mjs   # copies source + writes each target's manifest
@@ -1338,16 +1457,16 @@ Config-layer unit checks — no dependencies, no network, no browser:
 ```bash
 node scripts/test-backlog.mjs      # grouping, paging, tones, views    (115 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
-node scripts/test-imports.mjs      # every module imports what it calls  (58 checks)
-node scripts/test-manifests.mjs    # per-target manifest rules          (49 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (64 checks)
+node scripts/test-manifests.mjs    # per-target manifest rules          (55 checks)
 node scripts/test-config.mjs       # config layer, field discovery      (88 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
-node scripts/test-team.mjs         # roster, display names, filtering (137 checks)
+node scripts/test-team.mjs         # roster, display names, filtering (138 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
 node scripts/test-standup.mjs      # session timing, order, pressure (183 checks)
-node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (226 checks)
-node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (117 checks)
+node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (232 checks)
+node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (126 checks)
 node scripts/test-quarter.mjs      # quarter weeks, score, ranking     (54 checks)
 node scripts/test-recap-selection.mjs # recap URL selection, gaps       (17 checks)
 node scripts/test-backup.mjs       # device backup, merge-on-restore   (27 checks)
@@ -1630,6 +1749,11 @@ section of its own rather than a line in Backup & transfer. The same section
 deletes the personal todo list, which carries a colleague's name on any item
 that came out of a 1:1.
 
+A device backup (Settings → Back up this device) never contains either token,
+your account email or any 1:1 note, and contains the roster only if you tick its
+box. It can contain your todos, which may name colleagues, so keep the file
+somewhere only you can read.
+
 Jira responses are cached in device-local storage for five minutes. Nothing is
 sent anywhere except your own Jira site, and — if you switch GitHub sync on —
 your GitHub host, for the repos you listed.
@@ -1669,40 +1793,26 @@ change the shape.
 
 ## Roadmap
 
-See [ROADMAP.md](docs/ROADMAP.md) for the full record, including why each thing is
-built the way it is. Design and UX work had its own backlog until 2026-09-06,
-when the last of it was closed; the reference that outlived it is
-[Design system](#design-system) above, and the things that were deliberately not
-done are in the roadmap's icebox, stated as decisions rather than as omissions.
-
-**Done:** hygiene (M0), whitelabelling (M1), durable identity and config (M2),
-the team roster (M3), the monitoring tab (M4), issue detail (M5), standup mode
-(M6), the sprint dashboard (M7), the write layer and issue creation (M8), the
-command palette (M9), GitHub sync (M11), the Firefox and Edge ports (M12), the
-sprint freeze and diff (M13), the weekly 1:1 screen and the personal todo list
-(M14), linked issues (M18), the design backlog (ad-hoc, 2026-09-06), and tagged
-releases (M19).
-M10 is vacant: it was Sprint Wrapped, re-aimed at the quarter and renumbered to
-M16 on 2026-09-03, and the number is retired rather than reused.
-
-**Open, in queue order** — re-sequenced on 2026-09-03 and renumbered the same
-day so the number and the position agree. Anything written before that date uses
-the old numbers, and M13 and M15 swapped; `docs/ROADMAP.md` has the reconciliation
-table.
+[ROADMAP.md](docs/ROADMAP.md) holds what is still open and the product rules in
+force. What shipped is in [CHANGELOG.md](docs/CHANGELOG.md), and the reasoning
+behind it is in the commit history.
 
 | | | |
 |---|---|---|
-| M15 | Sprint planner | Capacity, carryover and drag-to-assign, pushed as one reviewed batch |
-| M16 | Quarter Wrapped | Quarter-to-date stats recap, printed to PDF on demand |
-| M17 | Per-sprint history | Issues, completion, PRs and lines per sprint, from rollups written at each rollover |
-| M20 | 1:1 recording | Record and transcribe a 1:1 on the device. Depends on M14; engine and consent unresolved |
+| M15 | Sprint planner | Capacity, carryover and assignment, pushed to Jira as one reviewed batch. Open questions recorded before it is built |
+| M17 | Per-sprint history | A per-sprint trend on the dashboard, from rollups written at each rollover |
+| M20 | 1:1 recording | Record and transcribe a 1:1 on the device. Engine and consent unresolved |
 
-**Releases are automated as of 2026-09-06** — see [Releasing](#releasing).
+Releases are automated; see [Releasing](#releasing).
 
-The app writes to Jira in four places and nowhere else: dragging a card between
-columns (a workflow transition), editing assignee, due date or story points on
-the issue detail, creating an issue or a sub-task, and posting a comment. Every
-one of them is something you asked for by clicking it, and every one reports what
+The app writes to Jira in five kinds of place and nowhere else:
+- dragging a card between columns (a workflow transition)
+- editing assignee, due date or story points on the issue detail
+- creating an issue or a sub-task
+- posting a comment
+- adding or removing an issue link
+
+Every one is something you asked for by clicking it, and every one reports what
 Jira said if it refused.
 
 ## Licence

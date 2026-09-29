@@ -1,5 +1,5 @@
 // Backup and restore of what this app records on the device and cannot fetch
-// again (ROADMAP, deferred backlog: "A backup for the device-local stores").
+// again. Built 2026-09-29.
 //
 // ── Decisions, taken 2026-09-29 ──────────────────────────────────────────────
 //

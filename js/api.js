@@ -277,7 +277,9 @@ export async function getIssuesForSprints(boardSprints, creds) {
 // counted twice: in dashboard points and completion, the hygiene findings,
 // backlog tiles, the standup's per-person counts, and permanently in that day's
 // snapshot. An inflated total looks entirely plausible, which is what made it
-// the worse half of the several-boards problem (ROADMAP, deferred backlog).
+// the worse half of the several-boards problem. The other half — epics
+// attributed to the first board over their project — is still open in the
+// roadmap's deferred backlog.
 //
 // `lists` is one array per board **in configured board order**. The first
 // occurrence is kept, so `issue.boardId` stays the lowest-indexed board — the

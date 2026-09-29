@@ -1296,8 +1296,7 @@ export async function fetchTeamStats({
 // ── Development on an issue ─────────────────────────────────────────────────
 //
 // Pull requests, branches and commits for one Jira issue, found by its key in
-// the declared repos (ROADMAP, deferred backlog: "Development links on the issue
-// detail", built 2026-09-29). Jira's own development panel is backed by an
+// the declared repos (built 2026-09-29). Jira's own development panel is backed by an
 // undocumented endpoint, so this asks GitHub instead:
 //
 //   * **Pull requests** — a search for the key in titles and bodies, plus any

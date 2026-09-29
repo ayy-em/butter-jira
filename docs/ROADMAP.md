@@ -1,569 +1,278 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-09-06
+Last updated: 2026-09-29
 
-An MV3 browser extension for Chrome, Firefox and Edge, giving Gantt, Backlog,
-and Kanban views over Jira Cloud boards. This roadmap takes it from an internal single-tenant tool to a
-configurable, team-facing sprint cockpit that any org can clone and point at
-their own Jira site.
+An MV3 browser extension for Chrome, Firefox and Edge that gives one tab of
+Gantt, Backlog, Kanban, sprint and team views over several Jira Cloud boards.
 
-**How this file is ordered:** context first, then what is still open, then the
-deferred backlog, then everything already shipped. Completed milestones are kept
-in full rather than summarised away — they are the record of *why* each thing is
-built the way it is, which is the part that gets forgotten.
-
-**Design and UX work used to live in `UX.md`.** That file was a backlog of what a
-2026-09-05 design review found — contrast, focus, icon vocabularies, screens that
-needed a second pass — and it is gone because the backlog is empty: see
-[Design backlog, closed](#design-backlog-closed--ad-hoc-2026-09-06) below. The durable
-half of it moved rather than being deleted. The design system, the three pinned
-decisions and the traps are in [README.md](../README.md#design-system); the things
-that were deliberately *not* done are in [Icebox](#icebox), stated as decisions
-rather than as omissions.
+**This file holds what is still open, plus the rules that constrain it.**
+Completed milestones were removed on 2026-09-29. What shipped is in
+[CHANGELOG.md](CHANGELOG.md). The full milestone record, with the reasoning
+behind every shipped decision, is the version of this file at commit `c818893`
+(`git show c818893:docs/ROADMAP.md`). Shipped milestone labels still appear in
+code comments and commit subjects, so they are indexed at the bottom.
 
 ## Current state
 
 | Aspect | Status |
 |---|---|
 | Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
-| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, 1:1 (picker + per-person sheet), My todos, Issue detail (drawer + full page) |
-| Data access | HTTP Basic (email + API token), `js/api.js`. Reads, plus five writes: transitions, field edits, issue and sub-task creation, comments, issue links (the app's only DELETE) |
-| Derived reads | Per-person Jira activity (`js/activity.js`) from `expand=changelog` riding the sprint fetch — no requests of its own. Sprint freeze and diff (`js/freeze.js`) over a per-issue record written forward at rollover |
-| Endpoints | `/rest/api/3/myself`, `/rest/api/3/field`, `/rest/api/3/search/jql`, `/rest/api/3/issue/*` (incl. `createmeta`), `/rest/api/3/issueLinkType`, `/rest/api/3/issueLink/*`, `/rest/agile/1.0/board/*`, `/rest/agile/1.0/sprint/*/issue` |
-| Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist |
-| Config | Single source: `js/config.js` (site, brand, boards, status groups, field mapping, GitHub block), overridable via `config.local.json` |
-| Storage | Synced extension storage for config; device-local for both tokens, the roster, view prefs, schema version, the daily snapshots and per-sprint freezes, and a 5-minute response cache. One accessor module (`js/browser.js`) |
-| Build step | None for Chrome; `scripts/build.mjs` packages Firefox and Edge (copy + manifest, no compilation) |
-| Releases | Tag-led and automated (M19, 2026-09-06). `.github/workflows/release.yml` on a `v*` tag builds, verifies and publishes the three zips plus checksums, then pushes the version bump to main; `ci.yml` runs the suites on every push to main and every pull request |
-| Licence | [PolyForm Noncommercial 1.0.0](../LICENSE), chosen 2026-09-06. Source-available, not open source: fork and modify freely for noncommercial purposes, commercial use reserved to the copyright holder, no warranty and no liability |
-| Version control | Git, `.gitignore` in place |
-| Tests | Twenty-three `scripts/test-*.mjs` suites (2113 checks) + eleven preview harnesses in `preview/`, one per view, + a manual smoke checklist. Every suite runs in CI on push and pull request, and again as the gate before a release publishes |
-| Repo root | Only what has to be there: the four HTML entry points, `settings.js`, `background.js`, the generated `manifest.json` (where a browser looks when the repo is loaded unpacked), `README.md`, `LICENSE` and `config.local.example.json`. Manifest sources live in `manifests/`, prose in `docs/`, harnesses in `preview/`, tooling in `scripts/` |
-| Design | Empty backlog as of 2026-09-06. Tokens, the two button bases, the icon sprite and the shared view header are documented in [README.md](../README.md#design-system) |
+| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
+| Documents | Sprint recap PDF (active, last closed, or any chosen sprints) and quarterly overview PDF, both print-styled pages of their own |
+| Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE). Nothing else writes |
+| Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist. Feeds the standup, dashboard, recap, quarterly overview and each issue's Development section |
+| Permissions | `storage`, `declarativeNetRequestWithHostAccess` (the opt-in Jira-links redirect), host access to `*.atlassian.net` and `api.github.com`, optional host access for anything else |
+| Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, 1:1 notes, todos and a five-minute response cache. Settings backs up everything but tokens and 1:1 notes to a file, and restore merges |
+| Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
+| Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
+| Tests | 27 `scripts/test-*.mjs` suites (2295 checks), 13 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
 
 T-shirt sizes, not dates: **S** ≈ a sitting, **M** ≈ a few sittings, **L** ≈ a
 sustained chunk of work, **XL** ≈ needs breaking down further once started.
 
-## Milestone numbering
-
-**Renumbered 2026-09-03.** The open milestones were renumbered so the number
-matches the queue position: reading down the list and reading up the numbers now
-give the same order. The queue had been re-sequenced the same day and the numbers
-had been left alone, which meant M13 was third and M10 fourth — a list that
-needs a decoder ring to read in order.
-
-The cost is paid here, once, in this table. Every completed milestone keeps its
-number: M0–M9, M11 and M12 are cited in commit subjects (`M8:`, `M11:`, `M12:`)
-and in code comments, and renumbering shipped work would strand all of it.
-
-| Old | New | Milestone |
-|---|---|---|
-| M15 | **M13** | Sprint freeze and diff |
-| M14 | **M14** | Weekly 1:1 screen (unchanged) |
-
-**M20 was added on 2026-09-06** under the rule below: next free number, joining
-the queue at its number, at the end. It came out of the conversation that agreed
-M14's scope and depends on M14, so its position is a dependency and not only a
-preference.
-| M13 | **M15** | Sprint planner |
-| M10 | **M16** | Quarter Wrapped |
-| M16 | **M17** | Per-sprint history |
-| M17 | **M18** | Linked issues |
-
-**M13 and M15 swapped**, which is the one genuinely dangerous row: anything
-written before this renumbering that says "M13" means the *planner*, and "M15"
-means the sprint freeze — under its earlier placeholder name in `45e560c`
-("split M8, add M13/M14/M15"), and fully scoped in `44a55a8` ("re-sequence the
-queue, scope M15/M16/M17"), which is dated the same day and landed hours before
-the renumbering. Commit history is not rewritable, so this table is the only
-place those two subjects can be reconciled.
-
-**M10 is retired unbuilt.** It was Sprint Wrapped, re-aimed at the quarter on
-2026-09-03 and renumbered to M16 the same day, so the number now names nothing
-and stays vacant rather than being recycled onto a different feature. The
-completed run therefore reads M0–M9, M11, M12 with a hole where a milestone was
-planned and never shipped.
-
-**The rule going forward:** a new milestone takes the next free number and joins
-the queue at its number. If the queue is re-sequenced again, either the numbers
-follow it and a dated row lands in the table above, or the sequence is stated
-separately — and the second option is what produced the mess this table cleans
-up, so the first is the default.
-
-## Milestone sequence at a glance
-
-**Dependencies** — what each thing needs, not the order it gets built in:
+## Order of work
 
 ```
-M0 Hygiene ✔ ─▶ M1 Whitelabel ✔ ─▶ M2 Durable config ✔ ─▶ M3 People ✔ ──┬──▶ M4 Monitoring ✔ ─▶ M5 Issue detail ✔
-                                                                        │
-                                                                        ├──▶ M6 Standup ✔ ─▶ M11 GitHub sync ✔ ─▶ M12 Firefox + Edge ✔
-                                                                        │
-                                                                        ├──▶ M7 Dashboard ✔ ──┬──▶ M9 Palette + Triage ✔
-                                                                        │                     ├──▶ M8 Writes ✔ ──┬──▶ M15 Sprint planner
-                                                                        │                     │                  └──▶ M18 Linked issues ✔
-                                                                        │                     ├──▶ M13 Sprint freeze + diff ✔
-                                                                        │                     └──▶ M17 Per-sprint history ─▶ M16 Quarter Wrapped
-                                                                        │
-                                                                        └──▶ M14 Weekly 1:1 ✔ ─▶ M20 1:1 recording
+M15 Sprint planner (L) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated)
 ```
 
-**Order of work** — re-sequenced 2026-09-03, and the numbers were renumbered the
-same day to match it, so this is the dependency graph's rows read in queue order
-rather than a second scheme to keep in your head:
+The deferred backlog below is scoped but unscheduled, and any item in it can be
+taken in a gap. New milestones take the next free number and join the queue at
+the end.
 
-```
-M18 Linked issues ✔ ─▶ M13 Freeze + diff ✔ ─▶ M14 Weekly 1:1 ✔ ─▶ M15 Sprint planner ─▶ M16 Quarter Wrapped ─▶ M17 Per-sprint history ─▶ M20 1:1 recording
+## Rules in force
 
-M19 Tagged releases ✔ — off to one side, depended on nothing, blocked nothing
-```
+Product decisions that constrain open work. Re-open any of them only with the
+author.
 
-**M19 was never in that chain and never waited for it.** It is packaging, not a
-feature: it depended on no milestone, stranded nothing behind it, and could be
-taken in any gap. It sat at the end of the numbering because that is what the
-rule says a new milestone does, not because it was the least urgent thing here —
-and it shipped first of the five open items, a day after it was written down,
-because the README was already sending people to a Releases page that nothing
-populated.
-
-**M18 was taken first, out of order, on 2026-09-03** — the second time the queue
-has been jumped, after M11, and for the same reason both times: it hangs off a
-finished dependency and strands nothing behind it. It was the S at the end of a
-queue of Ms and Ls, its write layer had been sitting finished since M8, and
-pulling it forward cost the rest of the queue a sitting. The order above is
-otherwise the one the re-sequencing settled on, and the reason M13 leads it —
-history only accrues forward — is unaffected by a milestone that touches no
-history at all.
-
-M16 is queued ahead of M17 because the button is the ask and the history is the
-machinery behind it — but the arrow above runs the other way, and M16's GitHub
-half is capped at 45 days until M17's rollups exist. That tension is stated in
-both entries rather than resolved on this diagram.
-
-Ordering logic: config plumbing first (M0–M2), because every later feature reads
-from it and because losing your settings on every extension reload makes the
-rest miserable to build. The people layer (M3) is a hard dependency for standup,
-planning and the 1:1 screen. Monitoring (M4) lands early — it is pure
-client-side derivation over data already being fetched, so it is the cheapest
-real feature in the list. The write layer was deliberately isolated in M8, and
-everything built before it is read-only.
-
-**M8 was split on 2026-08-12.** It had been "write layer + sprint planner", an
-XL carrying two things that share a dependency and nothing else. The write layer
-was a gate — M9's triage mode and M4's in-app fixing both sat behind it, and both
-were otherwise finished — while the planner is a screen that happens to need
-writes at the very end of its flow. Bundled, the gate could not ship until the
-screen did. Split, M8 is a shippable milestone that unblocks two others, and the
-planner (now M15) is honestly sized on its own. Issue and sub-task creation
-joined M8 rather than standing alone: they are the smallest useful thing the
-write layer can carry, and they exercise it end to end.
-
-M12 (the Firefox and Edge port) came out of the icebox on 2026-08-07 and is
-orthogonal to the feature chain — it changes how every module reaches storage
-without changing what any of them do.
-
-M11 was taken **out of order, ahead of M8**, on 2026-08-07. It hangs off standup
-rather than the M8 chain, is read-only against a second API, and shares nothing
-with the Jira write path — so it could be pulled forward without stranding
-anything, and the planner keeps its place in the queue rather than losing it.
-
-**The queue was re-sequenced on 2026-09-03, the milestones were renumbered to
-match, and the planner did lose its place — twice over, its position and its
-number.**
-Not for the reason the sentence above guarded against — nothing was pulled ahead
-of it opportunistically. M13 went first because it writes history, and history
-only accrues forward: a sprint boundary that passes unfrozen cannot be
-reconstructed later, so every week M13 waits costs a data point M15's successors
-would have wanted. M14 went ahead of it too, being an M whose dependencies were
-all paid against the planner's L. The planner is still fully unblocked, is still
-the largest thing in the file, and is now **M15** — it was M13 for three weeks,
-and M8b before that, which is a third label for one screen and the reason the
-renumbering rule is written down rather than left to judgement.
-
-**Three entries changed shape the same day.** M13 went from a one-paragraph
-placeholder to an agreed scope. M16 was re-aimed from a per-sprint PNG card to a
-quarter-to-date PDF, because the formal sprint document already shipped on
-2026-08-18 and nothing in the app looks past the current sprint. And the
-*recapping closed sprints* follow-up was dropped in favour of M17, which keeps a
-per-sprint rollup written forward at rollover instead of re-fetching a closed
-sprint from Jira — the same build-history-forward argument as the burndown and
-open question 3, applied a third time. M18 was added new.
+- **Binding constraints** (from [PRODUCT.md](PRODUCT.md)): no build step and no
+  runtime dependencies; credentials device-local and no telemetry; nothing
+  instance-specific hardcoded.
+- **Every Jira write is user-initiated and enumerable.** A new kind of write is
+  a product decision, not an implementation detail. That matters for M15, which
+  may need several.
+- **The reporting screens count the roster only.** The dashboard, recap and
+  quarterly overview count issues held by active roster members, plus unassigned
+  ones (`teamScope` in `js/team.js`). The board views keep a Team only /
+  Everyone toggle instead.
+- **Per-person figures.** Per-person GitHub figures are shown on the 1:1 sheet,
+  the sprint recap and the quarterly overview. The quarterly overview's
+  per-person table is ranked (Jira activity, commits, lines, equal weights), and
+  its charts stay in name order. Every such surface prints a
+  not-an-assessment note.
+- **1:1 notes never leave the device.** There is no export path and they are not
+  in the backup; the only way out is Copy for Slack. Retention is unbounded, and
+  the Settings delete is the whole retention policy.
+- **Figures that are approximate say so where they are printed.** Absent, pending
+  and zero are three different things on every surface.
+- **History is built forward.** Where Jira cannot cheaply answer a question about
+  the past, the app records the answer locally from now on, rather than mining
+  Jira backwards.
 
 ## Risk register
 
-| Risk | Milestone | Mitigation |
+| Risk | Where | Mitigation |
 |---|---|---|
-| Request fan-out across boards hits rate limits | M7, M15 | Reuse cached aggregates, per-resource TTLs, batch where the API allows |
-| Writes corrupt real sprint data | M8, M15 | Draft mode, batch confirmation, undo window, isolated write helpers |
-| A generated create form still 400s on an unfamiliar site | M8 | Fields come from `createmeta` per project and type; the sub-task type is read from `subtask: true`, never matched by name |
-| Notes about a named colleague are the app's most sensitive data | M14 | Device-local, never synced, **no export path at all** (agreed 2026-09-06 — there is no checkbox because there is nothing to tick), one person at a time, no ranking or comparison framing. Retention is deliberately unbounded, so the Settings clear action is the whole mitigation and has to be findable |
-| Per-person line counts on the 1:1 sheet get read as a productivity measure | M14 | The 2026-09-06 reversal is bounded to that one screen: one person at a time, no comparison between colleagues, no line-count trend, framing note printed beside the number. M16 and M17 stay team-level |
-| Recording a colleague's voice is a different category of data from anything else the app holds | M20 | Local-only processing, off by default, started per session, visible indicator for the duration, audio discarded after transcription unless deliberately kept — and an AI Enablement / DPIA review before any code, because manager-operated recording of reports is worker-management-shaped under the EU AI Act's Annex III |
-| ~~A per-issue freeze for eight sprints is the largest thing kept on device~~ | M13 ✔ | Measured, not assumed: a 60-issue sprint freezes to ~22 KB, eight to ~170 KB, asserted and printed by `scripts/test-dashboard.mjs`. Pruned with `MAX_SPRINTS_KEPT` **imported from `js/snapshots.js`** rather than copied, so the two caps cannot drift apart |
-| ~~Scope-added silently changes meaning depending on whether a freeze exists~~ | M13 ✔ | Resolved, and in three states rather than two: no freeze is the creation-date approximation, a start-of-sprint freeze is exact, and a mid-sprint freeze is exact only from the day it was taken and says which day. One function (`scopeBasis`) writes the sentence for the tile and the PDF, so they cannot disagree |
-| ~~A published release asset cannot be unpublished~~ | M19 ✔ | Resolved, in depth rather than once: the `build.mjs` allowlist makes `assets/brand/`, `assets/avatars/` and `config.local.json` unshippable and `--zip` refuses `--local-assets`, and the *Nothing personal in the archives* step re-checks each real zip with `unzip -l` before a byte is uploaded. Verified against the already-published `chrome-0.5.0.zip`, which was clean — by a careful hand, which is the thing that has now been replaced |
-| ~~A tag and the manifest version disagree, and the release is named one thing and ships another~~ | M19 ✔ | Resolved by removing the second number rather than reconciling two: open question 1 answered **tag-led**, so `scripts/set-version.mjs` writes the tag's version into the manifests during the run and the archive check re-reads it back out of each zip. There is nothing left to disagree with |
-| ~~Public repo, downloadable builds, no licence~~ | M19 ✔ | Resolved 2026-09-06: [PolyForm Noncommercial 1.0.0](../LICENSE). It had stopped being a future risk — the repo was already public and `v0.5.0` already carried three downloadable zips, one of them downloaded, all under default exclusive copyright |
-| CI pushes the version bump to `main` and the push is rejected | M19 | Ordered so it cannot cost a release: the bump is the last step, after publishing, so a protected branch or a push race leaves the assets on the page and the fix at two commands by hand. Loud rather than silent — the job goes red |
-| A quarter is ~90 days and the GitHub window is 45 | M16, M17 | Store per-sprint rollups at rollover; until they exist, the quarter document states the shorter window it actually covers |
-| Lines of code read as a productivity measure | M16, M17 | Team-level per sprint only, never per person, labelled as lines reaching the default branch. M14's 1:1 sheet is the one stated exception and carries its own row above |
-| ~~Unlinking an issue is destructive and Jira offers no undo~~ | M18 ✔ | Resolved: a confirm naming both issues and the relationship, and no ✕ at all on a sub-task row, which has no link to remove. The DELETE goes through the same `jiraWrite` every other write does — `jiraWrite` learned to send no body rather than the method getting a path of its own |
-| ~~`/rest/dev-status/1.0/` is undocumented~~ | M5 → deferred | Avoided entirely: dev links move to the GitHub API in the deferred backlog |
-| ~~Untrusted Jira HTML reaching the DOM~~ | M5 ✔ | Allowlist sanitiser with the element walk unit-tested; CSP as defence in depth |
-| ~~First write path (comments) misfiring~~ | M5 ✔ | Single narrow endpoint, comment re-rendered from Jira's response, explicit 403 handling |
-| ~~Hardcoded `customfield_*` IDs are instance-specific~~ | M1 ✔ | Resolved: discovery via `/rest/api/3/field` + manual override per role |
-| ~~greenhopper sprint report is undocumented~~ | M7 ✔ | Avoided: daily local snapshots instead, with the trade-off stated in the UI |
-| ~~Token expiry mistaken for a broken app~~ | M2 ✔ | Resolved: expiry tracking, T-14 banner, token-only re-auth prompt |
-| ~~GitHub search rate limit (30/min) throttles standup~~ | M11 ✔ | Avoided: the search API is not used at all. Aliased `repository()` fields over the declared repos, one POST, against the 5000-point/hour budget |
-| ~~A wide-access token quietly widens the standup's scope~~ | M11 ✔ | Resolved: the repo allowlist is the only scope. An empty list means off, whatever the enable flag says |
-| ~~A dead GitHub token reads as the app being broken~~ | M11 ✔ | Resolved: separate credential, separate banner, separate wording. Every GitHub failure degrades to the panel being absent |
-| ~~A second identifier per colleague widens the personal-data surface~~ | M11 ✔ | Resolved: `githubLogin` lives in the roster record — local-only, excluded from export unless explicitly ticked |
+| Writes corrupt real sprint data | M15 | Draft mode, one reviewed batch, per-issue failures reported by name. No write on drag |
+| Request fan-out across boards hits rate limits | M15, M17 | Reuse cached aggregates, batch where the API allows (sprint moves already batch 50) |
+| Per-person figures read as a performance measure | 1:1, recap, quarterly | Stated framing on every surface. Ranked only in the quarterly overview, at the author's request |
+| Recording a colleague's voice is a different category of data | M20 | Local-only, off by default, per-session start, visible indicator, and an AI Enablement / DPIA review before any code |
+| The Jira-links redirect misbehaves on Firefox | shipped | Verified in Chromium only. Settings reports "not supported" where the API is missing; check with the smoke checklist before relying on it there |
+| GitHub search (30 requests a minute) throttles the Development section | shipped | Fetch only when an issue opens, batch repos per search, cache per key for 10 minutes |
+| CI's version-bump push to `main` is rejected | releases | The bump is the last step, after publishing, so a failed push leaves the release up and the fix at two commands |
 
 ## Open questions
 
-1. ~~**Distribution**~~ — answered 2026-08-05 (*unpacked now, possible Web Store listing later*), and **settled 2026-09-05: unpacked installs only, permanently.** A public repo, zips built by CI on a release tag and published on the Releases page, and no Chrome, Edge or Firefox store submission planned — scoped as M19. Two consequences of dropping the store half: the manifest `key` **stays** rather than being a thing to remember to delete (it is what keeps an unpacked install's `chrome.storage` namespace across a remove-and-re-add, which matters more in this model, not less), and the store-safe packaging rules stay load-bearing for a different reason — a public release asset must not carry colleagues' photographs whether or not a store ever sees it. Firefox is the loose end: an unsigned zip is a *temporary* add-on, so one of the three files behaves differently from the other two. See M19.
-2. ~~**Board-per-project assumption**~~ — answered 2026-08-12: the fix is chosen and written up under *Several boards over one project* in the deferred backlog, but not scheduled. The current deployment is one board per project, so neither of the two bugs is live here; the entry names which half to pull forward first if that changes.
-3. ~~**Velocity source for the planner**~~ (originally "for M8"; the planner became M13 at the split and is **M15** since the 2026-09-03 renumbering) — answered 2026-08-12: **historical, from the app's own stored history.** Not from closed-sprint data mined out of Jira — same reasoning as the M7 burndown, which is the precedent this follows: build history forward in `js/snapshots.js` rather than lean on `sprintreport`. **Consequence acted on 2026-08-20, ahead of M15:** snapshots recorded team totals only, and per-person velocity needs a `byPerson` block. Since a forward-built history accrues only from the day it starts being written, the field was added on its own rather than waiting for the planner — `snapshotFrom` (`js/snapshots.js:39`) now writes one row per person, keyed by account id, carrying assigned and completed points and issue counts plus the display name as it read that day. M14 reads the same field.
-4. ~~**Team scope**~~ — answered 2026-08-05: one roster, but stored under a team key from the start so a switcher can be added later without a migration.
-5. ~~**Repo list per board?**~~ — answered 2026-08-12: no, one flat list stays. Revisited only if a real team runs into it. The allowlist is already the only scope, so scoping it per board stays cheap whenever it is actually wanted.
-
-6. **How much history should the app keep?** Open, raised 2026-09-03 by M17. Daily snapshots are capped at eight sprints (`MAX_SPRINTS_KEPT`), which is right for sixty rows per sprint and wrong for one rollup row per sprint — a trend chart wants years of those. M13's per-issue freezes pull the other way, being the bulkiest thing stored. Three stores with three different right answers, so the cap stops being one constant and becomes a decision about what the extension keeps on the device.
-7. ~~**Lines of code as a metric**~~ — answered 2026-09-03, when it was asked for in M17: **team-level per sprint, never per person.** It sits next to issue counts as a volume signal, and `fetchTeamStats` measures lines reaching the default branch, so that is what it is labelled — the reason the recap PDF prints its own framing. **Amended 2026-09-06 when M14's scope was agreed: the rule holds everywhere except the 1:1 sheet**, which shows lines added and removed **per person** for the selected window, because that is what the manager sits down with. The distinction is the audience, not the number: M16's quarter document and M17's per-sprint chart are read by the team and stay team-level; a 1:1 sheet is read by two people about one of them. What M14 keeps of the rule is one person at a time, no comparison between colleagues, and no line-count trend line. See M14, *Per-person lines shipped — a stated reversal*.
-8. ~~**Where does a quarter start?**~~ — answered 2026-09-29 when M16 was built: calendar quarters, ISO weeks clipped at the edges, and no sprint assignment at all — the overview counts events by date, not sprints. Raised 2026-09-03 by M16. Sprints straddle quarter boundaries, so a quarter-to-date document either cuts a sprint in half or counts a sprint that started in the previous quarter. Calendar quarters with whole sprints assigned to the quarter they end in is the likely answer, but it needs stating on the document rather than implying.
+1. **How much history should the app keep?** Daily snapshots and freezes are
+   capped at eight sprints (`MAX_SPRINTS_KEPT`). That is right for sixty rows a
+   sprint and wrong for M17's one rollup row a sprint, which a trend wants years
+   of. Decide per store, with a visible clear action, as part of M17.
 
 ---
 
 # Open
 
-**Re-sequenced 2026-09-03**, and **M18 and M13 both shipped the same day** —
-M18 out of order and ahead of the rest, M13 in its place at the head of the
-queue. **M14 was scoped and shipped on 2026-09-06** and its entry is under
-*Completed*. What is left, in order: **M15** (sprint planner) → **M16** (Quarter
-Wrapped) → **M17** (per-sprint history) → **M20** (1:1 recording, added
-2026-09-06). The sections below are in that order.
-
-**M14 had carried a "not an agreed spec" warning and four open questions since
-2026-08-12.** All four were answered on 2026-09-06 and the milestone was built
-the same day. It grew from M to L on the way, recorded three decisions that
-reverse something already written down — per-person line counts on that one
-screen, unbounded note retention behind a Settings clear action, and Standup and
-the recap moving behind a new `LAUNCH` menu — moved one piece out to the
-deferred backlog before any code, and spun out **M20**. Its entry keeps both the
-spec and a record of the four places the code differs from it.
-
-**M19 was added on 2026-09-05 and shipped on 2026-09-06**, out of the queue
-entirely rather than ahead of it: it depended on no milestone and blocked none,
-and it was taken first because it was the only open item where the *shipped*
-product was wrong rather than incomplete. The README sent people to a Releases
-page for zips that only a hand-run build produced, and the repo had been public,
-with downloadable builds, under no licence — which grants nobody the right to
-run them. Its entry is under *Completed*.
-
-**The numbers were renumbered to match**, the same day and for the obvious
-reason: a queue whose numbers run 13, 14, 15, 16, 17, 18 can be read in order,
-and one that ran 15, 14, 13, 10, 16, 17 could not. The old numbers, and the two
-commit subjects that use them, are reconciled in the table under *Milestone
-numbering* above — M13 and M15 swapped, so that table is worth reading before
-trusting any pre-2026-09-03 reference to either.
-
-Why this order — written when all six were open, and kept because the reasoning
-is what makes the remaining four's order legible. The first two shipped on
-2026-09-03 and their entries are under *Completed*:
-
-- **M13 first** ✔, though it was the vaguest of the three, because a forward-built history only accrues from the day it ships. Every sprint boundary that passes without a freeze is one that cannot be reconstructed afterwards — the same argument that pulled the snapshot `byPerson` block forward ahead of M15 on 2026-08-20, and the same argument `js/snapshots.js` opens with. It also makes M7's approximate scope-added figure exact, which is a caveat currently printed in the UI and in the recap PDF.
-- **M14 next** ✔, and the head of the queue until it shipped: an M whose dependencies were already paid (the roster, `activityFrom`, the `byPerson` block), against the planner's L. It had four open questions that wanted answering before any work started, and answering them was cheap — which turned out to be true, and also turned it into an L.
-- **M15 after that.** Still the biggest thing in the file, still fully unblocked; it loses its "next up" position rather than any of its readiness.
-- **M16 then M17**, in that order because the button is the ask and the history is the machinery behind it — but see M17's note on the 45-day GitHub window, which the quarter document runs straight into. If M16 is started first, its GitHub half is scoped to what one window covers until M17 lands.
-- **M19 whenever** ✔, and outside this reasoning entirely: it was packaging rather than a feature, it waited on nothing, and the only thing it was behind was a decision (the licence) rather than a milestone. "Whenever" turned out to be immediately, for the reason in the preamble above.
-- **M18 last** ✔ only because it is an S that unblocks nothing — "the obvious thing to pick up in a gap", which is what happened to it the same afternoon.
-
----
-
 ## M15 — Sprint planner
 
-**Size: L** · Depends on M8 (write layer, done 2026-08-20), M7 (aggregates) and
-M3 (roster). **Fully unblocked, third in the queue** — every dependency is in
-place, including the two things added ahead of time for it: the snapshot's
-`byPerson` block and the write layer's 50-issue sprint-move batching. It held
-"next up" from 2026-08-20 until the 2026-09-03 re-sequence put M13 and M14 in
-front of it; nothing about its readiness changed.
+**Size: L** · Every dependency is in place: the write layer (sprint moves
+batched 50 at a time, assignee and story-point writes with rollback), the roster,
+the dashboard aggregates, and the daily snapshot's per-person block, recorded
+since 2026-08-20.
 
-Split out of M8 on 2026-08-12 so the write layer could ship without waiting for
-a screen this size. **Three labels, in order: "M8b — Planner" before 2026-08-12,
-M13 from then until 2026-09-03, M15 since.** M8's own sub-parts were renumbered
-when issue creation joined it, so the M8b label does not point here any more —
-and M13 now points at the sprint freeze, so a pre-2026-09-03 reference to "M13
-Sprint planner" is this entry while a bare "M13" is not.
+**The scope as it stands:**
 
-- Inputs: sprint length, total working days, per-person OOO days, optional focus factor.
-- Capacity: per-person points capacity from historical velocity (open question 3, answered — the app's own snapshot history, not Jira's closed-sprint data), with a manual points-per-day rate as the fallback for a team with no history yet.
-- Carryover: unfinished issues from the previous sprint, with points, listed before you plan anything new.
-- Assignment board: drag issues from backlog to a person; live utilisation bar per member with over-allocation warnings at 100% and 120%.
-- Committed vs planned totals against team capacity, with the delta always visible.
-- Draft mode: plan locally, review the diff, then push all assignments in one confirmed batch. Never write on every drag.
+- **Inputs:** sprint length and working days, days off per person, an optional
+  focus factor.
+- **Capacity per person:** from historical velocity in the app's own snapshot
+  history, not Jira's closed-sprint data, with a manual points-per-day rate for
+  anyone without history.
+- **Carryover:** the unfinished issues from the current sprint, with their
+  points, listed before anything new.
+- **Assignment:** pick backlog issues and give each to a person. Each person has
+  a live utilisation bar, with warnings at 100% and 120%, and the team's
+  committed points show against its capacity throughout.
+- **Draft, then push:** plan locally, review the full diff, then push every
+  sprint move and assignment in one confirmed batch. Never write on a drag.
 
-**The dependency that had to be paid early — paid 2026-08-20.** Per-person
-velocity comes from snapshot history, and `snapshotFrom` recorded team totals
-only. A history built forward accrues from the day the field starts being
-written, so the `byPerson` block was added on its own well ahead of this
-milestone rather than as part of it; the planner will arrive to whatever has
-accrued since, instead of to an empty series and manual rates for its first
-eight sprints. What it reads: a map keyed by account id, one row per person per
-day, with `points`, `issues`, `donePoints`, `doneIssues` and the `label` as it
-stood that day. Two things for the planner to handle rather than assume — rows
-written before 2026-08-20 have no `byPerson` at all, and the unassigned bucket is
-present under `__unassigned__` so the rows sum to the day's totals.
+**What velocity history exists.** Snapshots before 2026-08-20 have no
+`byPerson`, so a person's history is at most about three sprints today. The
+unassigned bucket is recorded under `__unassigned__`, so rows sum to the day's
+totals.
 
-**Exit criteria:** a sprint can be planned in-app and pushed to Jira in one
-reviewed batch, with per-person utilisation visible throughout, and any failed
-write clearly attributed rather than silently dropped.
+**Exit criteria:** a sprint can be planned in the app and pushed to Jira in one
+reviewed batch, with per-person utilisation visible throughout and any failed
+write attributed rather than silently dropped.
 
----
+**A first cut was sketched on 2026-09-29 for a planning session the next day:**
+capacity, carryover first, click-to-assign into a draft, utilisation bars and a
+reviewed push, with drag-and-drop and multi-board planning deferred. It was not
+built. The questions below come first.
 
-## Recap config *(built 2026-09-29)*
+### Open questions — to settle in a scoping pass before building
 
-`LAUNCH → RECAP CONFIG` (`js/views/recap-config.js`), also reachable from the
-dashboard's recap menu, replaces the LAUNCH menu's *Sprint recap* link, which
-could only recap the active sprint. It picks boards and, within each, any mix of
-active and closed sprints. Decisions taken that day:
+**The session**
 
-- **One combined recap** for several sprints, which is what the recap already did
-  for several active ones.
-- **One-off, as a link, not saved presets.** The selection is the URL:
-  `recap.html?sprint=<board>:<sprint>,…` (`js/recap-selection.js`),
-  board-qualified so a sprint shared by two boards is read once. Bare
-  `?sprint=<id>` links still work. The screen remembers the last choice on the
-  device (`recapConfig` in local storage) and nothing more.
-- **The quarterly overview takes the board choice** (`quarter.html?boards=…`) for
-  its Jira half only. GitHub is per repository, and the document says so.
-- **GitHub over the sprints' own dates** when they start before the 45-day shared
-  window (`getWindowStats`, the quarterly overview's fetch). Sprints with gaps
-  between them are flagged, on the screen and in the recap, because GitHub
-  counts a date span while Jira counts the chosen sprints' issues.
+1. **Who drives it, and on what screen?** Shared on a big screen during the
+   meeting, like the standup (large type, the keyboard owned for the duration),
+   or prepared by one person beforehand and reviewed in the meeting? The answer
+   changes the whole layout.
+2. **One board or all of them?** The team works across several boards. Is it one
+   plan across every configured board, with capacity per person across all of
+   them, or one board at a time?
+3. **Can a draft be prepared the day before and finished in the meeting?** That
+   means keeping the draft on the device and re-checking it against Jira before
+   the push, since issues may have moved in between.
 
-## Reporting screens count the roster only *(settled 2026-09-29)*
+**The sprint itself**
 
-The Sprint Dashboard, the sprint recap and the quarterly overview describe the
-team and nobody else: with a roster, only issues held by active roster members
-and unassigned issues count, in every figure. Other people on the same boards
-were noise in completion, points, the burndown and the per-person rows. One
-helper, `teamScope` in `js/team.js`, applies the rule for all three screens, and
-it applies it to the freeze on read, by who held each row when it was frozen.
-The stored freeze keeps every issue, so a roster change never rewrites it. A team
-issue handed to an outsider is pulled out, "reassigned outside the team", and
-needs no lookup. Snapshots recorded before this change still include outsiders,
-so a burndown may step once. The board views are not scoped and keep their Team
-only / Everyone toggle, because a board is where someone else's ticket gets
-reassigned. GitHub figures were already roster-only, since they are looked up by
-roster login.
+4. **Plan into a sprint that already exists, or create it?** Today the app reads
+   only active and closed sprints. Reading future sprints is a new read.
+   Creating a sprint, and setting its name, dates or goal, would each be a new
+   kind of write.
+5. **Does the app start the sprint, or close the old one?** Jira's "complete
+   sprint" is also what moves unfinished issues on. Doing either here is a new
+   write with consequences Jira normally confirms itself. Leaving both in Jira
+   is the conservative answer.
 
-## M16 — Quarter Wrapped *(was "Sprint Wrapped", suggested feature 10)*
+**Capacity**
 
-**Re-scoped and built 2026-09-29 as the Quarterly Overview** (`quarter.html`,
-`js/quarter.js`, `js/quarter-page.js`), opened from the Sprint Dashboard's
-**Recap past sprint** menu → *Prepare a quarterly overview*. The scope below this
-block is the 2026-09-03 one and is kept as the record; where the two disagree,
-this block wins. What the document is now, in order:
+6. **What unit is capacity in?** Story points (what the velocity history
+   holds), issue count for people who don't estimate, or hours? And how are
+   unestimated issues treated: zero, a default, or a blocker until estimated?
+7. **How is a person's velocity computed?** Mean of their last N sprints'
+   completed points, done only or done plus in review, and what N, given at most
+   about three sprints of per-person history today? What about someone new to
+   the team?
+8. **Where do days off come from?** Typed in each session, or stored per person
+   as a working pattern (part-time, a four-day week)? And public holidays:
+   typed, or a Dutch calendar built in? A calendar feed is in the icebox.
+9. **A buffer for unplanned work?** A fixed share of capacity held back for
+   support and incidents, per team or per person, and does the focus factor
+   already cover it?
 
-1. Two team charts, per ISO week: **Jira activity** — comments + 3 × tickets
-   closed + tickets opened + 3 × epics closed, weights in `JIRA_WEIGHTS` and
-   printed on the page — and **GitHub commits to main**.
-2. A summary table of the quarter's key figures.
-3. Small multiples per person (Jira and GitHub on one shared axis and one shared
-   scale), then a whole-quarter table per person: tickets opened, tickets
-   closed, comments, PRs opened, commits to main, PR reviews, lines to main.
-4. Epics closed in the quarter, then epics in progress.
+**The plan**
 
-Decisions taken with the author that day:
+10. **Carryover by default?** Are unfinished issues included in the new sprint
+    automatically (their remaining points counting against capacity, and
+    removable), or offered for selection like everything else?
+11. **Which issues are candidates?** The board backlog in its rank order, plus
+    filters by epic, label or priority? Issues from other boards? Should it
+    surface each epic's remaining work to steer the choice?
+12. **Can the plan hold unassigned issues?** A team that pulls work needs
+    unassigned items in the sprint. Do they count against team capacity but
+    no one's bar?
+13. **Is estimating part of the session?** Editing story points in the planner
+    already works through the field write. Should unestimated candidates be
+    estimated in line, before they can be committed?
+14. **Order within the sprint.** Does the plan's order need writing back as Jira
+    rank? That is a new write (the rank API) and the one most likely to be
+    refused on a busy board.
 
-- **Per person, including lines and pull requests — a stated reversal** of the
-  2026-09-03 team-level rule for this document. M17 is unaffected. **Amended the
-  same day, a second reversal:** the per-person table is ordered by a combined
-  ranking — each person's rank on Jira activity score, commits to main and lines
-  to main, summed with equal weights (`RANK_WEIGHTS`), lowest first — and prints
-  its position. The small multiples stay in name order; the not-an-assessment
-  footer stays.
-- **Charts:** each per-person panel has its own y-scale, labelled at every step
-  (`niceScale`), and weeks with fewer than three whole days inside the quarter so
-  far are left off every chart, though counted in every figure.
-- **Printed edge to edge:** `@page { margin: 0 }` for this document only, with the
-  inset re-created inside the layout table. The sprint recap keeps its margins.
-- **A composite Jira score, a stated reversal** of `js/activity.js`'s "no total,
-  no score, no composite". It lives in `js/quarter.js`, not in the activity
-  reader, and the formula is printed wherever the number is.
-- **Commits to main = every commit in the default branch's history**, pull
-  request commits included (`fetchTeamStats({ keepHistory })` → `mainHistory`).
-  Lines to main keep `statsFor`'s definition, because a merge commit's diff
-  restates its pull request's.
-- **A close is credited to the assignee at the moment it closed**, walked back
-  through assignee changes in the changelog.
-- **Calendar quarters, ISO weeks** — answers open question 8. A picker on the
-  page offers this quarter (to date) and the three before it; `?q=2026-Q2` names
-  any. Part weeks at the edges are drawn hollow.
-- **The 45-day GitHub window is not a limit here.** `getQuarterStats` runs a
-  dedicated fetch over the quarter's own dates with page caps sized for ninety
-  days, cached for 30 minutes. M17's rollups are therefore no longer a
-  prerequisite.
-- **Dropped:** the superlatives and the per-sprint strip. Not ruled out — just
-  not in what was asked for.
-- **Epics in progress are as they stand today**, and the document says so for a
-  past quarter.
+**The push**
 
-**Size: M** · Depends on M7 aggregates. Reads M17's per-sprint rollups for its
-GitHub half — see the window problem below.
-
-**Re-aimed 2026-09-03 from a sprint card to a quarter document, and renumbered
-from M10 to M16 the same day.** Anything written before that date calls this
-"M10 — Sprint Wrapped" and describes a PNG card for the retro; M10 itself is
-retired rather than reused, so nothing else will ever answer to it. The reason for the change: the formal end-of-sprint artefact
-already shipped (Sprint recap PDF, 2026-08-18), so a second sprint-shaped
-document had nothing left to say, while nothing in the app looks further back
-than the sprint it is in. The quarter is the window the team is actually asked
-about and has no artefact at all.
-
-**Quarter-to-date, on demand, as a PDF.** A button in the UI opens a
-print-styled page that recaps the quarter so far.
-
-- **Headline figures for the quarter:** points shipped, issues closed and opened, completion rate, sprints run, carryover across sprint boundaries, scope added mid-sprint — the last of which is exact only for sprints M13 froze, and is labelled accordingly.
-- **A per-sprint strip** — the same series M17 draws, embedded rather than recomputed. This is the part that makes it a quarter document rather than three sprint recaps stapled together.
-- **The GitHub half:** pull requests opened, merged and reviewed, and lines reaching the default branch. Team-level per sprint, never per person — see the framing note below.
-- **The superlatives, kept.** They are the point of "Wrapped" and the only genuinely fun thing in the roadmap: *Deadline Whisperer* (most issues closed early), *The Ping-Pong Award* (most status transitions), *Carryover Champion*, *Epic Slayer* (finished the last child of an epic), *Ghost Ticket* (longest untouched issue still in sprint). Two are already read — *Ping-Pong* is `transitions` and *Deadline Whisperer* is `completed`, both per person out of `activityFrom` (`js/activity.js`) over whatever window the caller wants. What is left is picking a winner and drawing it. Note that the reader deliberately offers no sort-by-count: the superlative does its own ranking and owns the framing rather than inheriting one.
-- **Where the button goes:** the Sprint Dashboard header, beside **Generate recap** (`js/views/dashboard.js:160-170`). Two buttons opening two print-styled documents from the same header need wording that separates them at a glance — "Generate recap" is the sprint, so this one names the quarter and the period it covers rather than saying "Wrapped", which tells a reader nothing about which document they are about to print.
-
-**Print-to-PDF, not a canvas PNG.** The PNG export in the original sketch made
-sense for a card to paste into a channel. A quarter document is a document, and
-`recap.html` already established the route: print-styled page of its own, real
-vector text, no PDF library in a repo with no build step. It also inherits four
-paid-for lessons from that page, and re-learning any of them would be
-inexcusable — `css/app.css` deliberately not loaded (its `html, body { overflow:
-hidden }` clips a print job to one page), a readiness gate on every route to the
-print dialog, the running header in a `thead` so it repeats *and* reserves
-space, and per-source failures printed rather than degraded to a confident zero.
-
-**Two data problems it cannot assume away:**
-
-1. **The GitHub window is 45 days** (`STATS_LOOKBACK_DAYS`, `js/github.js:504`) and a quarter is about 90. The quarter's GitHub figures therefore cannot come from one live window. Either M17's stored per-sprint rollups supply the earlier half, or this document states that its GitHub figures cover only the last 45 days — which is a caveat, not a fix. This is the reason M17 sits next to it in the sequence.
-2. **`activityFrom` rides the sprint fetch.** The superlatives read per-person activity out of changelogs that arrive with the current sprint's issues, so a quarter of activity needs an issue source spanning the quarter — a JQL search over the period rather than the sprint fetch. **This is the same gap M14 names** for its week window; whichever milestone lands first should build it as a shared reader rather than a private one.
-
-**Keep it team-facing.** Superlatives name individuals, so: opt-in per team,
-per-person opt-out in the roster, aim the jokes at tickets rather than people,
-and no persistence of individual histories. A quarter is long enough that
-per-person figures over it start to look like a performance review, which is
-precisely what this must not be — so lines of code and pull-request counts stay
-team-level, and the document carries the same explicit "this is not an
-assessment" footer the recap PDF prints. **This is unchanged by M14's 2026-09-06
-reversal**, which put per-person line counts on the 1:1 sheet: that screen is
-read by two people about one of them, and this document is read by the team. The
-rule was always about the audience. It is a retro toy that grew a longer
-window, and it should stay too obviously silly to be mistaken for a metric.
-
----
+15. **What goes in the batch?** At least sprint moves and assignments. Story
+    points if estimated in the session. A sprint goal and rank only if 4 and 14
+    say so. Each extra kind of write is a product decision under "Rules in
+    force".
+16. **What happens on a partial failure?** Retry just the failures, report and
+    stop, or offer to undo what landed? Undo is a second write and the app has
+    none.
+17. **Hygiene before the push?** Should the Monitor checks (no estimate, no
+    assignee, overdue) run over the plan and warn before anything is written?
 
 ## M17 — Per-sprint history
 
-**Size: M** · Depends on M7 (snapshots) and M11 (GitHub stats). Sits naturally
-next to M13, which is the other thing that writes a record once per sprint.
+**Size: M** · Depends on the daily snapshots and GitHub sync, both in place.
 
-**Scoped 2026-09-03.** Replaces the deferred *recapping closed sprints*
-follow-up, which was dropped the same day: that entry proposed reading
-`/board/{id}/sprint?state=closed` and re-fetching a finished sprint's issues to
-produce a second recap document. This does the useful half of it — the trend
-across sprints — without depending on Jira retaining anything, and without a
-second document.
+**One chart, a row per sprint:** issues opened and closed, completion rate, pull
+requests merged and lines reaching the default branch, across the last N
+sprints, as a section on the Sprint Dashboard below the burndown. The quarterly
+overview no longer needs it: it now reads GitHub over the quarter's own dates.
 
-**One chart, several series, one row per sprint.** Issues opened, issues closed,
-completion rate, pull requests merged, and lines reaching the default branch,
-across the last N sprints.
-
-- **A rollup record written once per sprint, not recomputed on demand.** This is the whole design, and it follows the precedent `js/snapshots.js` sets and the answer to open question 3: build history forward rather than mine it back out of Jira. Neither source can be re-read far back (see the bounds below), so a figure not stored when it was available is gone.
-- **When it is written:** at sprint rollover, from the last daily snapshot of the outgoing sprint plus a GitHub window over that sprint's own dates. `sprintKey()` already detects the rollover for the snapshot store, and M13 hooks the same moment for its freeze — one detection, three writers.
-- **What a row holds:** sprint id, name, start and end dates, issues opened and closed, points committed and completed, completion rate, and the GitHub figures — PRs opened, merged and reviewed, additions and deletions. Plus a per-source `partial` flag, because a row assembled from a truncated GitHub window or a snapshot series that started mid-sprint must be drawable as incomplete rather than as a dip.
-
-**Two bounds to design around rather than discover:**
-
-1. **`MAX_SPRINTS_KEPT = 8`** (`js/snapshots.js:25`) caps the daily-snapshot history at eight sprints, so "the last year" is not available from snapshots today. The rollup rows are tiny by comparison — one row per sprint against sixty days of rows per sprint — so they want their **own, much longer retention** rather than inheriting that constant. That is a deliberate decision about what the extension keeps on the device, not an implementation detail: it should be set explicitly, with a visible clear action, the way snapshots are.
-2. **`STATS_LOOKBACK_DAYS = 45`** (`js/github.js:504`) caps a live GitHub window at 45 days, and `STATS_MAX_PAGES` truncates a busy repo at 300 PRs. So the GitHub half of any sprint older than roughly three sprints cannot be fetched at all — which is exactly why it is stored at rollover instead. A history built forward starts empty here too, and the chart says so rather than drawing a line from zero.
-
-**Lines of code is a volume signal, not a productivity one — and it is
-team-level only.** It answers "how much moved" alongside issue counts, which is
-the only reason it is in the list. Never per person, never in a ranking, never
-next to a name: the same rule M16 and M14 carry, and the reason the recap PDF
-prints its own framing rather than trusting the reader to supply one. The chart
-labels it as lines reaching the default branch, which is what
-`fetchTeamStats` actually measures — PR diffs merged to default plus direct
-commits — and not "lines written".
-
-**A fourth chart primitive.** `js/charts.js` has three — `horizontalBars`,
-`stackedBar` and `burndownChart` — and none of them draws several series over an
-ordinal axis of sprints. Expect one more primitive there, following the mark
-specs already stated at the top of that file, rather than a per-view SVG or a
-charting library the CSP would block anyway. Five series on one axis with two
-different units (counts and a percentage, plus lines of code at a wholly
-different magnitude) is a legibility problem before it is a code problem — small
-multiples are likelier to be the right answer than one chart with three y-axes.
-
-**Where it lives:** a section on the Sprint Dashboard, below the burndown, and
-embedded in M16's quarter document.
-
-**Exit criteria:** after two sprint rollovers with the extension installed, the
-dashboard draws a real per-sprint series for both halves, with partial rows
-visibly partial and the empty case explained rather than drawn as zero.
+- **A rollup record written once per sprint, at rollover**, from the last daily
+  snapshot of the outgoing sprint plus a GitHub window over that sprint's dates.
+  `sprintKey()` already detects the rollover, and the freeze hooks the same
+  moment. A figure not stored when it was available is gone, so history is built
+  forward.
+- **A row holds:** sprint id, name, dates, issues opened and closed, points
+  committed and completed, completion rate, PRs opened, merged and reviewed,
+  additions and deletions, and a per-source `partial` flag, so a row built from
+  a truncated window draws as incomplete rather than as a dip.
+- **Its own retention**, far longer than the eight sprints the daily snapshots
+  keep, set deliberately with a visible clear action (open question 1).
+- **Charting:** five series with two units and one very different magnitude.
+  Small multiples on the `weeklyLines` primitive, not a multi-axis chart.
 
 **Open questions:**
 
-1. **Active sprint on the chart, or closed sprints only?** A partial current sprint plotted next to complete ones reads as a drop every time someone looks mid-sprint. Excluding it is honest and slightly disappointing; including it needs distinct styling for "in progress".
-2. **Sprints, or calendar months?** Everything above is per sprint, which matches the app. A quarter document may want the calendar, and sprints straddle quarter boundaries.
-
----
+1. **Active sprint on the chart?** A partial current sprint beside complete ones
+   reads as a drop every time. Exclude it, or draw it in an in-progress style.
+2. **Sprints or calendar months?** Everything here is per sprint, which matches
+   the app. Months would need events counted by date, as the quarterly overview
+   does.
 
 ## M20 — 1:1 recording and local transcription
 
-**Size: L** · Depends on M14 (the sheet it writes into). Added 2026-09-06, out
-of the same conversation that agreed M14's scope, and **deliberately not in
-M14's first pass**. Last in the queue.
+**Size: L** · Depends on the 1:1 sheet. Last in the queue, and gated.
 
-**Record the 1:1 and turn it into text, entirely on the device.**
+**Record the 1:1 and turn it into text, entirely on the device.** v1 is a
+"Transcribe recording" button after the meeting that drops the text into that
+session's notes. v2 is streaming transcription during it.
 
-- **v1 — a "Transcribe recording" button, after the meeting.** Record during the session, transcribe when it ends, drop the text into that session's notes alongside what was typed by hand. A batch job with a clear start and end, which is the version worth building first.
-- **v2 — streaming.** Transcription as the meeting runs, so the text is there when Complete is pressed. Everything v1 needs plus a real-time path, which is why it is a second version and not a flag on the first.
+**Local, both versions, non-negotiable.** No audio or transcript leaves the
+device. Under the no-build, no-dependency constraint, that means the browser's
+own speech APIs or a vendored WASM model, and a WASM model would be the first
+large vendored binary in the repo. **Answer this before any other work,**
+because it decides whether the milestone is possible under the constraints at
+all.
 
-**Local, both versions, non-negotiable.** No audio and no transcript leaves the
-device — the same rule the notes carry, applied to a far more sensitive
-artefact. That constrains the engine hard: the extension has **no build step and
-no runtime dependencies** (binding constraint 1), so the realistic route is the
-browser's own speech APIs or a WASM model, and a WASM model is a vendored binary
-in a repo whose only vendored library today is frappe-gantt. **This is the
-question to answer before any other work on this milestone**, because the answer
-decides whether the milestone is possible under the constraints at all. If it is
-not, that is a finding worth recording rather than a reason to relax the
-constraint quietly.
+**Consent and legality are part of the feature.** The person being recorded
+knows it is happening every time, with a visible indicator for the duration.
+Recording is off by default and started per session. Audio is discarded after
+transcription unless deliberately kept, and the transcript gets the notes'
+never-leaves-the-device treatment.
 
-**Consent and legality are part of the feature, not a note on it.** This records
-a named colleague's voice in a workplace conversation. Whatever the engine turns
-out to be:
-
-- The person being recorded must know it is happening, every time — a visible indicator for the duration, not a setting ticked once months ago.
-- Recording is off by default and started explicitly per session.
-- Audio is discarded once transcribed unless deliberately kept, and the retention answer is decided here rather than inherited from the notes' unbounded default.
-- The transcript is subject to the same "never leaves the device, cleared from Settings" treatment as the notes.
-
-**Escalate before building, not after.** A manager-operated tool that records
-and transcribes conversations with reports, stored beside per-person output
-metrics, is the shape the EU AI Act treats as worker-management tooling under
-Annex III, and it is a DPIA question under GDPR regardless of the AI Act's
-verdict. It is also the point at which "it is just my own laptop" stops being an
-answer, because the data is somebody else's voice. **Raise it with AI Enablement
-before the first line is written**, alongside the engine question above:
+**Escalate before building.** A manager-operated tool that records and
+transcribes conversations with reports, stored beside per-person output
+figures, is worker-management tooling under the EU AI Act's Annex III, and a
+DPIA question under GDPR either way. Raise it with AI Enablement before the first
+line is written:
 https://stxgroup.atlassian.net/servicedesk/customer/portal/1/group/819
 
 **Open questions:**
 
-1. **Which engine, and does it survive the no-dependency rule?** Web Speech API (quality and offline availability vary by browser, and Chrome's implementation has historically not been local), a vendored WASM model (a large binary in the repo, and the first non-trivial one), or the milestone is not buildable as specified. Answer this first.
-2. **Does a transcript belong in the archived session at all?** A dated, read-only record of what a colleague said is a different object from notes about what was agreed, even though both live in the same pane.
-3. **Diarisation** — who said what. Without it a transcript of two people is a wall of text; with it, the feature is materially more complex and is attributing statements to a named person.
-4. **What happens to the recording if Complete is never pressed?** M14's drafts expire. Audio that expires silently and audio that persists silently are both wrong answers.
+1. **Which engine, and does it survive the no-dependency rule?** Web Speech API
+   (quality and offline availability vary, and Chrome's has not historically been
+   local), a vendored WASM model, or not buildable as specified.
+2. **Does a transcript belong in the archived session?** A dated record of what a
+   colleague said is a different object from notes about what was agreed.
+3. **Diarisation** — who said what. Without it, a transcript is a wall of text.
+   With it, the feature attributes statements to a named person.
+4. **What happens to a recording if Complete is never pressed?** Audio that
+   silently expires and audio that silently persists are both wrong.
 
 ---
 
@@ -571,1955 +280,102 @@ https://stxgroup.atlassian.net/servicedesk/customer/portal/1/group/819
 
 Scoped, wanted, and deliberately not scheduled yet.
 
-### Several boards over one project *(open question 2, resolved on paper)*
+### Epics on several boards over one project
 
-**The dedupe half shipped 2026-09-29.** `dedupeAcrossBoards` in `js/api.js`
-joins every per-board fan-out (`getAllSprintIssues`, `getAllBacklogIssues`,
-`getIssuesForSprints`) in configured board order. It keeps the first occurrence,
-so `issue.boardId` is the lowest-indexed board, and gives every issue a
-`boardIds` set. The board filter and the per-board split on the dashboard and in
-the recap read the set; everything else reads the primary, as planned. **No
-snapshot migration**, a deliberate departure from the plan below: snapshots can
-only hold duplicates on a site that already had two boards over one project,
-and this deployment never has, so dropping them would lose real history to fix
-nothing. **What is still open is the misattribution half**, which is resolving
-epics through `/board/{id}/epic`. Epics still land on the first board that
-matches their project key.
+**Size: S–M.** The duplication half of this shipped: an issue shown by two boards
+is counted once, carries a `boardIds` set, and the board filter and per-board
+splits read the set. **What is left is attribution.** An epic's board is still
+inferred from its project key, and `.find()` takes the first board that matches.
+With two boards over one project, every epic lands on the first board, and the
+second draws an empty Gantt row and an empty epic filter.
 
-An issue's board is inferred from its **project key** — `getAllEpics`
-(`js/api.js:167-168`), `tagByProject` (`js/api.js:242-252`), `getEpicNames` —
-and `.find()` takes the first board that matches. That assumes one board per
-project. Jira does not: a board is a saved filter, and any number of them can
-slice one project by component, team or label.
+**Chosen fix:** resolve epic membership from `/rest/agile/1.0/board/{id}/epic` —
+the mapping only, one cheap request per board on the Gantt refresh path — while
+the existing single JQL keeps supplying the epic data. Rejected: reading each
+board's saved filter through `/board/{id}/configuration`, which needs a
+permission many sites restrict.
 
-**It is two bugs, not one.**
+**Not scheduled** because this deployment runs one board per project, so the bug
+is not live here.
 
-- **Duplication, which corrupts totals.** Nothing to do with the inference above. `getAllSprintIssues` (`js/api.js:208-220`) and `getAllBacklogIssues` (`222-227`) fan out per board and concatenate with no dedupe, so an issue matching two boards' filters is counted twice — in dashboard points and completion, in the M4 findings, in backlog tiles, in the standup's per-person counts, and permanently in whatever snapshot gets written that day. The worse of the two: an inflated total looks entirely plausible.
-- **Misattribution, which corrupts the per-board split.** Every epic in a shared project lands on the first configured board. The second board draws an empty Gantt row (`js/views/gantt.js:246`), the board filter hides its own work (`js/components/filters.js:29`), backlog grouping yields one bucket (`js/backlog.js:109`), and `byBoard` reads zero against double (`js/dashboard.js:165`) — the specific reason M7's per-board stats were called untrustworthy.
+### A signed Firefox add-on
 
-**Chosen fix (of four considered, 2026-08-12):** dedupe by issue key while
-keeping a `boardIds` **set**, and resolve epic membership from
-`/rest/agile/1.0/board/{id}/epic` instead of from the key prefix. Keep
-`issue.boardId` as a *primary* — lowest configured board index, so colours stay
-stable across reloads — so the ten-odd consumers of `boardId` (card stripes,
-monitor badges, Gantt colours) keep working untouched and only the two that
-should care, the board filter and `byBoard`, learn to read the set. The board
-epic endpoint returns a slim shape without dates or points, so the existing
-single JQL still supplies the epic *data* and the per-board call supplies only
-the *mapping*: one extra cheap request per board, on the Gantt refresh path.
+A Firefox zip loaded through `about:debugging` is dropped when the browser quits,
+so one of the three release files behaves differently from the other two. **The
+fix is `web-ext sign`** in the release workflow, producing a permanently
+installable `.xpi`, with AMO credentials as repository secrets. It is a CI-time
+dependency, not a runtime one. What it costs is not the code: an AMO account, a
+public-or-unlisted decision, and Mozilla's review latency on a release path that
+is otherwise instant.
 
-Rejected: resolving each board's saved filter via `/board/{id}/configuration` →
-`/filter/{id}`, which is the most literal reading of what a board is but needs a
-permission many sites restrict and lands on the same data model with two more
-requests per board.
-
-**Why it is here rather than in a milestone:** the current deployment runs one
-board per project, so neither bug is live. Sizing **S–M**, and the dedupe half
-is worth pulling forward on its own the moment a second board over one project
-gets configured, since that is the half that silently produces wrong numbers.
-
-**Carries a migration.** Snapshots already on disk were recorded with the
-duplicated totals, so after a dedupe they are not comparable with new ones. A
-numbered migration (`js/migrations.js`) dropping pre-change snapshots is the
-cheap answer, and is better decided with the fix than discovered later as a kink
-in the burndown.
-
-### Development links on the issue detail *(was part of M5)* — **built 2026-09-29**
-
-Shipped as a *Development* section on the issue page and drawer
-(`getIssueDevelopment` in `js/github.js`), shown when GitHub sync is on.
-
-- **Pull requests:** a GraphQL search for the key, plus pull requests whose head
-  branch names it. Each shows state (open, draft, merged, closed), review
-  decision, branch → base, author and last update.
-- **Branches without a pull request:** each repo's `refs(query:)`.
-- **Commits:** the REST commit search.
-- **Key matching**, the spike this entry called for, is `mentionsKey`: exact,
-  case-insensitive, and not glued to a letter or digit on the left or a digit on
-  the right. `AB-1` does not match `AB-12` or `XAB-1`. Every search hit is
-  re-checked with it, because GitHub's search is fuzzy.
-- **Rate limits:** it fetches only when an issue opens, batches repos under the
-  256-character search ceiling (`searchBatches`), and caches per key for 10
-  minutes, with a Refresh button.
-- **Not verified against live GitHub** on the day it was built (no token in the
-  build environment): the reduction is unit-tested, and the section is checked
-  in the preview harness from a seeded answer.
-
-Show pull requests, branches and commits **for an issue**.
-
-**Why it was deferred:** Jira has no public REST API for this. The panel Jira
-itself renders is backed by
-`/rest/dev-status/1.0/issue/detail?issueId=…&applicationType=…&dataType=pullrequest`,
-which is undocumented, unsupported, and free to change without notice — a poor
-foundation for a feature people would come to rely on.
-
-**What M11 already built for it:** auth, the device-local GitHub credential, the
-repo allowlist, host derivation for github.com and Enterprise Server, the
-roster's `githubLogin`, and a tested GraphQL client. What is left here is only
-the per-issue correlation, which is a different problem — key matching, not
-plumbing.
-
-- Search PRs and commits by issue key, restricted to the declared repos: `search(query: "ABC-123 repo:org/api repo:org/web type:pr")`, plus branch names matching the key. The 256-character search-query ceiling matters here in a way it did not for M11, so long repo lists need batching.
-- Render as a "Development" section on the issue detail: PR state, review state, branch, recent commits, degrading to "no linked development" when nothing matches.
-- Rate limits matter: search endpoints are capped at 30/minute, so cache per issue key and only fetch when the detail view opens.
-
-**Sizing: S–M** now that M11 exists, plus a spike on key-matching accuracy
-(short keys like `AB-1` produce false positives in commit messages).
-
-### A signed Firefox add-on *(left open by M19, 2026-09-06)*
-
-The one asymmetry the release automation did not remove. Chrome and Edge load
-an unpacked folder permanently; a Firefox zip loaded through `about:debugging`
-is dropped when the browser quits, so one of the three files on every release
-page behaves differently from the other two. M19 shipped the cheapest of the
-three options it listed — the release notes and the README both say so — which
-is honest and still leaves Firefox users with a worse product.
-
-**The fix is `web-ext sign`** in the release workflow, producing a permanently
-installable `.xpi`, with an AMO API key and secret as repository secrets. It is
-a CI-time dependency rather than a runtime one, so it does not touch the
-project's no-dependencies constraint. What it actually costs is not the code: an
-AMO account, a decision about whether the listing is public or unlisted, and
-Mozilla's review latency on a release path that is otherwise instant — a tag
-currently becomes a download in about a minute.
-
-**Not scheduled** because nobody is running the Firefox build yet. The moment
-somebody is, this stops being a nicety. The third option M19 considered — drop
-the Firefox asset and document a source install — stays available and gives up a
-browser the codebase already fully supports, which is why it was not taken.
-
-### A backup for the device-local stores *(moved out of M14, 2026-09-06)* — **built 2026-09-29**
-
-Shipped as Settings → Backup & transfer → *Back up this device* / *Restore a
-backup* (`js/backup.js`). The open questions below were answered like this:
-
-- **A button**, not automatic. There is no background schedule to hang one on.
-- **One file for every store.** `STORES` in `js/backup.js` is the list, and a new
-  store gets added there.
-- **Restore merges, device first.** Where both sides have an entry, the device
-  keeps its own; the backup only fills gaps (missing snapshot days, freezes,
-  todos, roster members, preferences), within the same 8-sprint and 60-day
-  bounds. Config is restored only onto an unconfigured install.
-- **1:1 notes are not in it, which departs from this entry.** The entry listed
-  them, but the M14 rule that they have no path off the device (restated in
-  Settings) is the stronger commitment. Tokens, the account email and the caches
-  are never in it either. The roster is opt-in, as in the config export.
-  Re-open with the author if 1:1 notes should be backed up after all.
-
-
-**Size: S.** Everything this app records lives in device-local extension
-storage and nothing replicates: the roster, the daily snapshots, the per-sprint
-freezes, the 1:1 notes and archives, and now the todo list. Uninstall the
-extension, or lose the laptop, and all of it is gone. Config export/import
-already exists and deliberately carries almost none of it — it is a *config*
-export, and the personal-data half is opt-in for good reasons.
-
-Specified inside M14 on 2026-09-06 as a daily automatic JSON download of the
-todo list, and moved out here the same day, before any code was written. Two
-reasons, and the second is the real one:
-
-- **It is not about the 1:1 sheet.** It was the one piece of that milestone that would have been true of every other store just as much.
-- **Backing up one store is the wrong unit.** A backup that covers the todos and not the 1:1 archive, the roster or the freezes is a backup somebody will trust and should not. Design it once, over the list of local stores, with a restore path — not per feature as each one is built.
-
-**One correction to the note this entry was extracted from:** it claimed the
-download would need the `downloads` permission. It would not.
-`downloadJson()` in `js/portable.js` already saves a file from an extension
-page with an object URL on a synthetic `<a>`, no permission involved, and the
-config export has been doing exactly that since M2. Nothing here is blocked on
-a manifest change.
-
-**Open questions:** whether it is automatic or a button (automatic needs a
-trigger, and this app has no background schedule); whether one file covers every
-store or one file per store; and what restore looks like, since importing an old
-1:1 archive over a newer one is a merge, not a replace.
-
-### Jira links open in the extension *(ad-hoc, 2026-09-06)* — **built 2026-09-29**
-
-Shipped as Settings → *Jira links* (`js/jira-links.js`), off by default. It uses
-**declarativeNetRequest redirect rules**, written as dynamic rules from the
-configured site, with the `declarativeNetRequestWithHostAccess` permission.
-That permission acts only where host access is already granted, so it adds no
-install warning, which removes the objection this entry was deferred on. The
-open questions were answered like this:
-
-1. **Escape hatch:** `butterjira=skip` in a URL. An allow rule at higher priority
-   lets it through. `browseUrl` adds it to every Jira link the app renders, so
-   "Open in Jira" always reaches Jira.
-2. **The one-app-tab rule:** a redirected link lands in the tab it was clicked
-   in. Knowingly different from the toolbar button: a link opens where links
-   open.
-3. **Opt-in**, a device-local switch (`openJiraLinksInApp`, which the backup
-   carries).
-4. **The configured site only**, and only Atlassian Cloud hosts. Redirecting
-   into an extension page needs the page in `web_accessible_resources` for that
-   site, and listing every https site so that custom domains work was not worth
-   exposing the pages to all of them.
-
-Rules cover top-level navigations only, so the app's own API calls to Jira are
-never redirected. Verified in Chromium with the unpacked build: all four URL
-shapes redirect, the escape hatch and Confluence pass through, and switching it
-off removes the rules. **Not verified on Firefox**, whose MV3 support for this
-API is the thinnest of the three browsers. Settings reports "not supported" if
-the API is missing.
-
-Today the app is somewhere you go. Every Jira link everywhere else — a Slack
-message, a PR description, a calendar invite, and the `/browse/ABC-123` link
-this app itself renders (`js/config.js:214`) — lands on Jira Cloud, which is
-the product this exists to avoid. **Recognise the URLs that have an equivalent
-screen here, and open that screen instead.**
-
-**What maps to what.** The list is short on purpose:
-
-- `/browse/ABC-123`, and a board URL carrying `?selectedIssue=ABC-123`, → `issue.html?key=ABC-123`. That page already exists, is linkable and reloadable, and already validates the key shape (`js/issue-page.js:11-14`).
-- `/jira/software/projects/ABC/boards/N` → `app.html#kanban`; the same URL under `/backlog` → `#backlog`.
-- **Everything else is left alone.** Filters, dashboards, project and admin settings, Confluence pages on the same host under `/wiki/`: no equivalent screen exists, and landing somebody on a page that cannot answer their question is worse than landing them on Jira.
-
-**Three mechanisms, costing different things.**
-
-- **`declarativeNetRequest` redirect rules.** Fires before Jira loads anything, so there is no flash and no wasted request. Needs the `declarativeNetRequest` permission, and the rules have to be written as *dynamic* rules at config time rather than shipped in the manifest, because the site host is user configuration — see M1. Firefox's MV3 support here is the thinnest of the three browsers and would need checking before this is chosen.
-- **`tabs.onUpdated` + `tabs.update` in the service worker.** No content script, but the Jira page has already started loading (a visible flash), and Jira is an SPA, so navigation *within* Jira never fires a fresh top-level load and would not be caught.
-- **A content script on the configured host.** Catches SPA navigation, and can rewrite the links themselves rather than redirecting the tab — the least surprising behaviour of the three, because the target of a link matches where it goes. It would also be this project's first content script and the first code it runs inside somebody else's page.
-
-**The permission cost is the real objection.** The extension holds `storage`
-and nothing else. Host access to `https://*.atlassian.net/*` is already declared
-because the API client needs it, so that half is paid — but `declarativeNetRequest`
-or `tabs` is a new line in the permission prompt on an extension whose entire
-pitch is that it is lean. That trade is the decision this entry is deferring,
-not the code.
-
-**Sizing: S** for the redirect on its own, **M** with a content script and
-in-page link rewriting.
-
-**Open questions:**
-
-1. **The escape hatch.** Somebody who wants the real Jira has to be able to reach it — a modifier key, a per-session toggle, a visible "open in Jira" on the issue page, or all three. Interception with no way out is a hijack, and the one screen this app *cannot* replace is the one you need when the app is wrong.
-2. **Does it fight the one-app-tab rule?** `background.js` deliberately reuses a single `app.html` tab on toolbar click rather than piling up duplicates. A redirect lands the issue in whichever tab the link was clicked in, which is a second, contradictory convention for where the app appears.
-3. **Opt-in or on by default?** This changes what a link does system-wide, including links in other people's messages. Off by default with a Settings switch is the safe answer and the one nobody discovers.
-4. **Scope it to the configured site only** — never `*.atlassian.net` at large. Another org's Jira, and any other Atlassian product on the same host, must pass through untouched.
-
----
+**Not scheduled** because nobody runs the Firefox build yet. The Jira-links
+redirect is also unverified there.
 
 ### Icebox
 
-- **"What changed since you last looked"** — diff current sprint state against the snapshot from your previous session. **Kept separate from M13 deliberately:** same diff machinery, different anchor — M13 compares against sprint start, this compares against your last visit, and the second is only worth building once the first has proved the comparison is useful. It would also need a per-issue record written per session rather than per sprint.
+- **"What changed since you last looked"** — diff the sprint against the state at
+  your previous session. Same diff machinery as the freeze, a different anchor,
+  and a per-issue record written per session.
 - WIP limits and blocked-chain visualisation on the Kanban.
 - Multi-site support (several Jira Cloud instances in one install).
-- Multi-org GitHub sync — one fine-grained token has exactly one resource owner, so a second org means a second credential. The config block and the credential keys would both become maps; deliberately not built until someone actually needs it.
-- OOO import from a calendar feed to prefill planner absences.
-- Confluence export of standup notes and the Quarter Wrapped document. **Not 1:1 notes** — settled 2026-09-06 when M14 was scoped: those never leave the device by any route the app builds.
-- Slack integration (press a button -> bot posts standup's recap on Slack via webhook)
-- A real build step + test runner, once module count justifies it.
+- Multi-org GitHub sync — one fine-grained token has one resource owner, so a
+  second org means a second credential.
+- OOO import from a calendar feed to prefill planner days off.
+- Confluence export of standup notes and the quarterly overview. Never 1:1 notes.
+- Slack integration: a button that posts the standup recap through a webhook.
+- Jira-links redirect for custom-domain (Data Center) sites, which would mean
+  listing every https site in `web_accessible_resources`.
+- A real build step and test runner, once module count justifies it.
 
 ### Design decisions taken and not revisited
 
-Not oversights, and not backlog. Each of these was looked at during the
-2026-09-06 design pass and deliberately left. Re-open only with the author.
+Looked at during the 2026-09-06 design pass and deliberately left. Re-open only
+with the author.
 
-- **Undo on drag-to-transition.** The board's one Jira write is also the least
-  reversible one — a workflow transition is frequently one-way, so "just drag it
-  back" is not always possible. Undo would mean issuing a *second* write, and
-  PRODUCT.md's commitment is that every write is user-initiated and enumerable:
-  the app writes in six places and nowhere else. Adding a seventh is a product
-  decision, not a polish task. The keyboard path added in the same pass calls the
-  same code the drop does, so it inherits the same refusal wording and the same
-  rollback, and neither of them invents an undo.
-- **The dark theme's chip tones.** `--tone-red` at 3.96:1 and `--tone-purple` at
-  3.71:1 against their own chip backgrounds are marginally under AA. Light theme
-  was fixed because it was genuinely broken (1.5–3.3:1); dark was left because
-  the palette is pinned, and moving two tones to clear a threshold is a scheme
-  change wearing a contrast fix's clothes.
-- **The hash-coloured card top border.** Every board card gets a 3px top edge
-  from `hashColor(issue.key)`. It carries no meaning, sits directly above a
-  *meaningful* board stripe, and puts around forty random hues on a full board.
-  Removing it, or making it carry days-to-due, is a taste call the author has not
-  made — so it stays as it is rather than being changed by whoever noticed.
-- **The nav's ticking wall clock.** It re-renders a seconds clock every 1000ms in
-  the visual centre of the shell, showing what the OS already shows, while the one
-  fact only this app knows — how stale its data is — sits in 11px muted text in
-  the bottom-left corner. Same kind of call.
-- **The dashboard's `✓ ! ✕ –` hygiene scale.** Text, not drawn, and the only
-  glyphs left in the UI after the icon pass. The tile prints the word beside the
-  mark, so the glyph is never the only carrier of the fact, and turning a severity
-  scale into icons is a design decision rather than a consistency fix — the `✕`
-  there means "bad", not "close".
-- **Kanban's and Monitor's interiors.** Both got headers, the app's buttons, drawn
-  icons, preview harnesses, and — on Kanban — a rebuilt column editor and a
-  keyboard path. What has *not* been reconsidered is the shape of the things
-  themselves: Kanban's card and column CSS is still generic, and Monitor is still
-  a stack of sections over tables. Both are defensible. Any further pass is a
-  redesign with a stated intent, not polish, and should start in the harnesses in
-  both themes.
-- **The Backlog still owns the view header's class names.** `.bl-header` and
-  friends are aliases in `css/app.css`, so there is one definition, but the markup
-  in `js/views/backlog.js` has not moved to `viewHeader()`. Worth doing the day
-  that file is open for another reason; not worth opening it for.
+- **No undo on drag-to-transition.** A workflow transition is often one-way.
+  Undo would be a second write, and every write is user-initiated and
+  enumerable.
+- **The dark theme's chip tones.** `--tone-red` (3.96:1) and `--tone-purple`
+  (3.71:1) sit marginally under AA against their chip backgrounds. The palette is
+  pinned, and moving two tones to clear a threshold is a scheme change.
+- **The hash-coloured card top border.** Every board card gets a 3px top edge from
+  `hashColor(issue.key)`, which carries no meaning. Removing it, or making it
+  carry days-to-due, is an open taste call.
+- **The nav's ticking wall clock**, in the visual centre of the shell, while how
+  stale the data is sits in 11px muted text. Same kind of call.
+- **The dashboard's `✓ ! ✕ –` hygiene scale.** Text, with the word printed beside
+  each mark. Turning a severity scale into icons is a design decision.
+- **Kanban's and Monitor's interiors.** Both had their chrome redone. The shape of
+  the things themselves has not been reconsidered; any further pass is a redesign
+  with a stated intent, started in the harnesses in both themes.
+- **The Backlog still owns the view header's class names** (`.bl-header` and
+  friends, aliased in `css/app.css`). Move it to `viewHeader()` the day that file
+  is open for another reason.
 
 ---
 
-# Completed
+## Shipped milestone labels
 
-Newest first.
+For decoding code comments and commit subjects. Details are in the changelog and
+in `git show c818893:docs/ROADMAP.md`.
 
-## M14 — Weekly 1:1 screen ✔ *(2026-09-06)*
-
-**Size: L** (was M) · Depends on M3 (roster). Reads M7 aggregates, the snapshot
-`byPerson` block and M11 GitHub activity. Read-only against Jira and GitHub —
-independent of the write layer. **Next up.**
-
-**Scope agreed 2026-09-06.** It was recorded 2026-08-12 from a one-line request
-and carried a "first pass, not an agreed spec" warning plus four open questions
-for three and a half weeks. All four are answered below, in place. Answering
-them grew the milestone rather than merely confirming it — a nav change, a
-mini-Gantt, a cross-person todo list, a reversal of a rule the file states three
-times, and a successor milestone (**M20**, recording and transcription) came out
-of the same conversation. The size went M → L with them.
-
-**The four questions, answered:**
-
-1. **Whose screen is it? The manager's.** A roster dropdown, not the logged-in account. The use case as stated: a weekly 1:1 — fortnightly with some people — the manager opens the sheet on their laptop and has what is on that person's plate, what they did over the window, what is planned and what is stuck, all in front of them, then takes notes in the room. This is the answer that makes every personal-data rule below load-bearing rather than precautionary.
-2. **Do notes leave the device? Never.** Not to `storage.sync`, not through config export, not behind a ticked checkbox. The M2 per-secret export checkbox is therefore *not* built for notes — there is nothing to tick, because there is no path. The one way notes move is the user's own clipboard, by pressing **Copy for Slack** (below), which is the manager moving text by hand and not the app sending anything anywhere.
-3. **Week or sprint? Both, and neither is the default.** Fetch the longest period once, then a **1 week / 2 weeks / this sprint** toggle re-derives every stat and list client-side without a second request. The default window is neither: it is **since the last completed 1:1 with that person** (below), which is what a mixed weekly/fortnightly cadence actually needs.
-4. **Read-only.** Action items stay local text and do not become Jira issues in this pass. M8 is not a dependency. "Action item → issue" is a named follow-on, not scope here.
-
-### The window: "Complete 1:1" sets the clock
-
-An explicit **Complete 1:1** button stamps a per-person timestamp. The default
-window on next open is *since that stamp* — so a fortnightly report gets a
-fortnight and a weekly one gets a week without anyone configuring a cadence, and
-nothing is shown twice or missed. Deliberately **not** last-opened: opening a
-sheet by accident, or to check something between meetings, must not move the
-boundary.
-
-**First-ever session with a person** has no stamp, and falls back to **the
-current sprint** — it matches every other screen in the app and gives the
-fullest first picture.
-
-Pressing Complete does three things: archives the session's notes as a dated,
-**read-only** entry; carries any unticked TODO into the next session, marked
-with the date it came from; and offers the Slack copy at that moment, because
-the end of the meeting is when the summary gets sent and a button you have to
-remember to press first is a button that gets forgotten. Archived sessions are
-never editable — a record that can be revised is not a record of what was said.
-
-### Layout: two panes
-
-Data left, notes right, both scrolling independently, with a full-width
-mini-Gantt strip. The notes pane is always visible and always focusable: nothing
-typed during a meeting may push the data off screen, which is the whole reason
-the stacked layout was rejected.
-
-```
-┌─ Person ▾  [1w][2w][sprint]  since last 1:1 ──────────────┐
-│                            │                              │
-│  ON THEIR PLATE            │  TODO                        │
-│  ▪ PROJ-412  In progress   │  ☐ [them] ship the migration │
-│  ▪ PROJ-455  In review     │        due 2026-09-12        │
-│                            │  ☐ [me] unblock the API key  │
-│  DID (2 weeks)             │  ─ carried from 2026-08-23 ─ │
-│  ▪ 7 closed  ▪ 3 moved     │  ☑ [them] write the RFC      │
-│  ▪ 5 PRs  +1,204 −380      │                              │
-│                            │  IMPORTANT INFO              │
-│  STUCK                     │  ┌────────────────────────┐  │
-│  ▪ PROJ-390 changes req'd  │  │                        │  │
-│  ▪ PROJ-401 overdue 4d     │  └────────────────────────┘  │
-│                            │                              │
-│  PLANNED                   │  [ Copy for Slack ]          │
-│  ▪ next sprint: 3 issues   │  [ Complete 1:1 ]            │
-├────────────────────────────┴──────────────────────────────┤
-│  ▬▬▬▬▬  ▬▬▬▬▬▬▬▬▬   │ ▬▬▬▬▬▬     ▬▬▬▬▬▬▬▬▬▬▬▬▬▬          │
-│      ▬▬▬▬▬▬▬        │      ▬▬▬▬▬▬▬▬▬                     │
-│  −3w                today (red)                      +6w  │
-└───────────────────────────────────────────────────────────┘
-```
-
-Sketched with the layout decision on 2026-09-06 and kept because it is the
-fastest way to see what the two-pane rule buys: the notes column never moves.
-
-**Left — what you read:**
-
-- **On their plate** — open issues assigned to them in the active sprint, with status and points.
-- **What they did** over the window — issues closed and moved (`activityFrom`, `js/activity.js`, done 2026-08-24, already exercised over a week-long window in `scripts/test-activity.mjs`), plus PRs opened, merged and reviewed, plus lines added and removed. See *Per-person lines* below.
-- **What is stuck** — blocked and overdue items, and PRs where they are the blocker or are blocked, reusing M11's "changes requested → failing checks → approved-and-unmerged → waiting on review" ordering, which already sorts by how stuck rather than how recent.
-- **What is planned** — three sources, together: assigned and unfinished in the current sprint, assigned in the next sprint, and anything of theirs with a due date falling inside the coming window regardless of sprint.
-- **Load over time** — their points per sprint from the snapshot `byPerson` block (exists since 2026-08-20, so this is a read and not new machinery), bounded by how far back history had accrued and saying so.
-- **Mini-Gantt** — full-bleed, short: every open issue and epic of theirs carrying start and/or due dates, over a **fixed −3 weeks to +6 weeks horizon with today drawn as a vertical red line**. Fixed rather than window-following on purpose: the strip looks the same every week, so position is read by habit instead of by re-reading the axis. Draws from the same data the Gantt view uses.
-
-**Right — what you write:**
-
-- **TODO** — items with a **two-way owner toggle (me / them)** and an optional deadline. Every action in a 1:1 belongs to one of the two people in the room, and a toggle is faster to set mid-conversation than a picker to open. Carried-over items sit above the new ones under a dated rule.
-- **Important info** — items added one at a time through dynamically created inputs, not one textarea: a new field fades in and the items below shift down. Motion is decorative here, so it goes behind `prefers-reduced-motion` like every other animation in the app — eleven stylesheets, the confetti and the nav modules already honour it, and this must not be the exception.
-- **Copy for Slack** — copies TODOs with owner and deadline, the important-info items, and any still-open carried-over TODOs. Deliberately **not** the left pane: the message is the meeting's outcomes, not a transcript of its numbers.
-
-**Draft notes expire.** Typing into a sheet and closing the tab without pressing
-Complete saves a draft that is restored next time — but a draft older than a set
-age is discarded, so a note typed a month ago cannot reappear mid-meeting
-looking current.
-
-### Per-person lines shipped — a stated reversal
-
-**Reversed 2026-09-06.** This entry, M16 and open question 7 all said the same
-thing: lines of code and pull-request counts stay **team-level, never per
-person**. On this screen they are now **per person**, by the author's explicit
-decision, because per-person output over the window is what the manager sits
-down with. The rule is not quietly dead — see the reconciliation in *Open
-questions* 7 and in M16's framing note, both amended the same day. What survives
-of it here:
-
-- **One person at a time, no comparison.** No rankings, no leaderboard, no two colleagues' figures on one screen.
-- **No LOC trend.** "Load over time" plots points per sprint, not lines. A line-count trend is the shape that reads as an evaluation.
-- **Team-level everywhere else.** M16 and M17 are unchanged: a quarter document and a public per-sprint chart are not a 1:1 sheet, and the reasoning that kept them team-level was about the audience, not the number.
-- **Conversation fuel, not a score.** The framing note stays on the screen.
-
-**How the numbers are fetched — and a correction.** The scoping conversation
-assumed lines would cost one REST request per pull request, and specified a cap
-to bound it. **They cost nothing extra.** `js/github.js` does not use the search
-API at all: `buildWindowQuery` already selects `additions` and `deletions` on
-every pull request in the 45-day window, `buildCommitQuery` does the same for
-commits pushed straight to the default branch, and `statsFor(stats, login,
-{ since })` already returns `prsOpened`, `prsMerged`, `reviews`, `comments`,
-`additions`, `deletions` and `lines` for one login over any window inside it.
-The 1:1 sheet is a **second caller of a fetch the standup already makes** — no
-cap, no new query, no extra round trip. What survives of the caution is the
-truthfulness rule, which the module already implements: `statsFor` returns
-`clamped: true` when the requested window starts before the 45-day fetch
-reaches, and the sheet prints that rather than a confident number.
-
-**Where a source cannot answer, the screen says so in place** — "no GitHub login
-mapped for this person", "GitHub reaches back 45 days and this window starts
-earlier" — printed where the number would be. Principle 3. Zeros are the one
-unacceptable answer: indistinguishable from a quiet week.
-
-### Navigation: a Launch menu
-
-**Standup, 1:1 and the sprint recap move behind one `Launch ▾` dropdown** in the
-top nav. Everything you *run* rather than *read* lives there; Gantt, Backlog,
-Kanban, Monitor and Dashboard stay where they are. This moves a shipped view —
-Standup loses its top-level tab and keeps its keyboard shortcut — so it is a
-change to navigation people already know, and belongs in the release note rather
-than being discovered.
-
-**The 1:1 entry screen is the person picker**, modelled on the standup setup
-card. Each roster row shows **days since the last 1:1** ("14 days ago", or
-"never"), which is the point of the per-person clock: who you are overdue with,
-at a glance. The **window selector sits on the picker** as well as in the sheet,
-so it is set before the data loads.
-
-### Launch → My todos
-
-A flat personal list, MVP-shaped: append an item, mark it done, remove it.
-Columns are **source** (from a 1:1, or added manually), **item text**, optional
-**deadline** and optional **link**. TODOs owned by *me* from any person's sheet
-land here, so the manager's own commitments are in one place instead of
-scattered across sheets.
-
-**Device-local extension storage, and nothing else** — the same store the
-roster, the snapshots and the 1:1 notes live in. A daily automatic JSON backup
-was specified here on 2026-09-06 and **moved out of scope the same day**, before
-any code: it is the only piece of this milestone that is not about the 1:1
-sheet, and a backup is worth designing once, for every local store at once,
-rather than for the newest one. It is in the deferred backlog under *A backup
-for the device-local stores*.
-
-### Personal data — the part to get right first
-
-Everything else in this app derives from Jira and GitHub and could be
-re-fetched. A 1:1 note is *written by the user, about a named colleague*, and
-exists nowhere else. That makes it the most sensitive thing the extension holds,
-so the roster's treatment is the floor and not the ceiling:
-
-- **Device-local, never `storage.sync`.** The roster is already local for weaker reasons than this.
-- **No export path at all** — see answer 2 above. The clipboard is the manager's own action, not a feature that moves data.
-- **A visible clear action: "Clear all 1:1 notes", in Settings**, beside the other destructive data actions, behind a confirm naming how much it deletes. **Retention is otherwise unbounded** — notes are kept until cleared. This is a *deliberate reversal* of the "bounded retention, should not accumulate silently and forever" line this entry carried from 2026-08-12: the author's answer is that a 1:1 history that silently forgets last quarter is worse than one that grows, and pruning notes about people on a timer is its own bad surprise. The clear action is what keeps it honest, so it must be findable rather than buried.
-- **Not a performance dashboard.** Per-person figures now appear here (above), which makes the framing note more load-bearing rather than less: one person at a time, no comparison, no LOC trend, and the note printed on the screen.
-- **Legal, for a manager using this on real colleagues.** Notes about named reports plus per-person output metrics is a combination that reads as worker-management tooling — a DPIA-shaped question the moment it is used on anyone's data but the author's own, and a live one under the EU AI Act's Annex III if it ever grows automated assessment. Nothing in this milestone requires that review to ship on one laptop. **M20 does**, and its entry says so.
-
-**Build order inside the milestone**, and where to cut if it has to be cut: the
-shared windowed reader → the sheet (left pane, then notes) → Complete/archive/
-carry-over → Slack copy → entry screen and Launch menu → mini-Gantt → **My
-todos**. The last item is the natural cut line: it is the only piece that is not
-about the 1:1 sheet.
-
-**The one real gap: a windowed issue source.** The reader is fed the current
-sprint fetch today, and this screen needs an arbitrary window. **Built as a
-shared reader taking a window, not a private one** — M16 needs the same thing
-over a quarter, and the roadmap has said so in both entries since 2026-09-03.
-
-**Follow-ons, named and out of scope here:** turning an action item into a Jira
-issue (would depend on M8); full-text search across past sessions; print/PDF of
-a session, which would be a second egress path for notes and needs the
-personal-data section revisited before it is built. Recording and transcription
-is **M20**.
-
-### What shipped, and the four places it differs from the spec above
-
-**Scoped and built the same day.** The entry above is the spec as agreed; this
-is the record of what the code does, which is not quite the same document and
-should not be edited into agreement with it.
-
-**Two views, two models, one stylesheet.** `js/oneone.js` holds everything
-decidable without a DOM — window resolution, the note shapes, `completeSession`,
-the Slack paste, the mini-Gantt geometry — and `js/todos.js` the personal list.
-`js/views/oneone.js` is the picker and the sheet on one route (`#oneone` and
-`#oneone/<accountId>`), `js/views/todos.js` the table, and `css/oneone.css`
-covers both. 148 checks in `scripts/test-oneone.mjs`; harnesses at
-`preview/preview-oneone.html` and `preview/preview-todos.html`.
-
-**The shared windowed reader is `getIssuesInWindow` in `js/api.js`**, built as
-the roadmap has said since 2026-09-03 that it should be: it takes `{ since,
-until }`, knows nothing about who is asking, and M16 can point a quarter at it
-without a rewrite. Its JQL builders (`jqlTimestamp`, `projectScopeJql`,
-`windowJql`) are exported and unit-tested separately, because a JQL string
-assembled from configuration is exactly the kind of thing that fails silently
-against a real site. `getAssignedOpenIssues` is its companion: an issue assigned
-to somebody and untouched for a month is invisible to a search on `updated`, and
-is precisely what a 1:1 is for.
-
-**Four differences from the spec, all recorded rather than reconciled:**
-
-1. **No per-PR fetch and no cap.** The spec assumed line counts would cost one request per pull request. They cost nothing: `buildWindowQuery` already selects `additions` and `deletions`, and the sheet is a second caller of the fetch the standup already makes. The corrected reasoning is in the section above; what survives is `statsFor`'s `clamped` flag, which the sheet prints.
-2. **The daily JSON backup is gone from this milestone** — moved to the deferred backlog as *A backup for the device-local stores* before any code, on the grounds that backing up one store is the wrong unit. My todos is plain device-local storage. The claim that a download would have needed the `downloads` permission was also wrong, and is corrected there.
-3. **Draft expiry keeps carried actions.** The spec said a stale draft is discarded. `pruneStaleDraft` discards what was *typed* and keeps what was *carried*: three-week-old scratch is misleading on a screen that looks current, while an action agreed last time is open business until it is ticked. Two rules, one function, tested both ways.
-4. **The picker sorts by how overdue you are** — longest gap first, never-met at the top. Not in the spec, and worth defending explicitly given everything else this milestone says about not ranking people: the number being sorted on is about *the user's* neglect, not about the colleague's output. That is the distinction, and it is the only sort in the app that touches a list of people.
-
-**Navigation changed for everybody.** `LAUNCH` is a third nav menu holding
-Standup, 1:1, My todos and the sprint recap; Standup lost its top-level tab and
-kept `s`. The recap had been reachable only from a button inside the dashboard
-header, so it gained a door rather than losing one. `routeOf()` in
-`js/components/nav.js` is the single definition of "the current view" now that a
-view can own a sub-route, and the router uses it too.
-
-**The personal-data rules are code, not intentions.** `js/portable.js` never
-reads either key, so there is no export path to opt out of. Settings grew its
-own section rather than a line under Backup & transfer, and both deletes name
-what they would destroy — the retention policy is unbounded by decision, which
-makes the button the whole mitigation.
-
----
-
-## Repo root, and de-identified fixtures ✔ *(ad-hoc, 2026-09-06)*
-
-**Size: S** · Twenty-three `preview-*` files sat in the repo root next to the
-six that ship, so the root did not say what the extension is. They are now
-`preview/`, and the root holds only what ships or governs the repo.
-
-**Nothing about packaging changed, because there was nothing to change.**
-`scripts/build.mjs` has always copied an allowlist — four HTML entry points,
-`settings.js`, `background.js`, `js/ css/ libs/ assets/` — so no preview file
-has ever been in a zip. The move fixes what a reader sees, not what a user
-downloads. Each harness now reaches `../js` and `../css`, and the
-`chrome.runtime.getURL` stub returns `../${path}`, which is what the fixture's
-`assets/logo.png` needed. All nine were re-rendered from the new location before
-the move was committed.
-
-**The fixtures were also carrying things they should not have been.** These are
-public files, and two of them held what read as a real team roster — nine first
-names, including the author's — while the boards, project key and issue
-summaries across all of them described the employer's actual line of business in
-enough detail to name the industry and the desk. None of it was live data, and
-all of it said more about the org than a sample fixture has any business saying.
-The cast is now the invented one the other seven harnesses already used (Avery
-Quinn, Bo Ferreira, Cy Nakamura…), the key is `ACME`, and the summaries describe
-a generic web platform. This entry deliberately does not restate what was in
-them, which would republish the thing it is recording the removal of.
-
-**One suite carried it too.** `test-standup.mjs` asserted the parking-lot digest
-against two real Slack handles and their real notes; same treatment.
-
-**The rule this leaves behind,** written into README and PRODUCT: everything in
-a harness is invented. A roster of real colleagues is personal data, and a
-fixture naming real projects publishes what a team is working on — neither
-belongs in a file anybody can read.
-
-## The GitHub fetch says what it is doing ✔ *(ad-hoc, 2026-09-06)*
-
-**Size: S** · Reported from use: the standup setup screen had said **GitHub
-partial** for twenty minutes, and there was no way to tell which of three very
-different things that meant — finished with gaps, still working, or wedged.
-
-**It was the first one, and the screen could not say so.** `settleGithubState()`
-only reaches "partial" once *both* queries have answered, so the word has always
-meant *finished, and short*. Nothing was hung. But the state a screen shows and
-the state a person infers are different things, and one word covering a
-twenty-minute-old finished fetch and a fetch still in flight is a screen that
-cannot be believed either way.
-
-**What was missing was time.** A promise settles once and says nothing on the way
-there, and `fetchTeamStats` reaches every declared repo concurrently behind a
-single `await`, so even "how far along is it" had no answer to give.
-
-- **`js/github.js` keeps a progress record** — per query, not per caller, which
-  matches the `shared()` in-flight map it sits next to: the standup's own call
-  and the nav bar's prewarm are two callers watching one piece of work. Phase,
-  start, finish, repos done of repos total, the repos that failed, the repos cut
-  short at the page cap. `getGithubProgress()` snapshots it and
-  `onGithubProgress()` subscribes; per-repo marks are made inside the stats
-  fetch as each repo lands.
-- **A cache hit is reported as a cache hit.** From outside, "answered from
-  storage in 4ms" and "answered by GitHub in 40s" are the same settled promise,
-  and a screen explaining a wait has to tell them apart — so the marks are made
-  in the cache wrappers rather than in the fetches.
-- **The status line has a hover panel.** Both queries, what each is doing, how
-  long it has taken, which repos are missing *by name*, and a headline that
-  answers the original question outright: "Finished 18m ago — nothing is still
-  running", or "Still fetching — 3m 19s so far". Past ninety seconds it says so
-  and stops implying the fetch is about to land. Native `title`, which is what
-  this had, cannot update while you look at it, cannot be reached by keyboard
-  and cannot carry a tone.
-- **The report reads the payload, not just the progress record.** A cache hit
-  knows nothing about which repos failed — that is a fact about the *answer*.
-  So reach comes from `reached` / `failures` / `truncated` when there is a
-  payload, and from the live counters while there is not.
-- **Starting a standup mid-fetch now warns.** Only for a fetch actually in
-  flight: "partial" is a finished answer and waiting on it would be waiting on
-  nothing. The dialog carries the same live report, updates while it is open,
-  and rewrites itself to "GitHub landed" if the fetch finishes while the
-  question is on screen. `Start anyway` is focused, because Enter already meant
-  start; Escape, the overlay and `Wait for it` all mean wait. A dialog rather
-  than `window.confirm` for one reason: a native confirm freezes the page it is
-  asking about, and what this has to show is a moving figure.
-
-**Nothing was given a timeout.** GitHub is allowed to be slow, the standup has
-never waited for it, and a cancel that loses a paged query half-finished would
-be a worse answer than a line saying it has been three minutes. The elapsed
-figure is there so a person can make that call.
-
-**Reachable in the harness now, which it was not before:** `preview-standup.js`
-seeds both caches warm, so the status line could only ever say "connected".
-`?github=slow`, `?github=stuck`, `?github=partial` and `?ghhover=1` reach the
-four states this work is about. Checked in both themes, plus ten new checks in
-`test-github.mjs` over the progress record — start, per-repo counting,
-subscriber notification, cache attribution, failure phase and unsubscribe.
-
-## Screen space: board header, backlog density, standup setup, nav tabs ✔ *(ad-hoc, 2026-09-06)*
-
-**Size: S** · Four fixes with one thing in common: chrome taking room the
-content wanted, or saying nothing while it took it.
-
-- **The Board's header is one row.** The shared view header stacks a 21px title
-  over a 12.5px line and puts a two-row count strip beside it — fine on the
-  Backlog and the Monitor, and about 60px of a screen whose whole job is
-  columns. On this view the subtitle sits beside the title, the icon tile drops
-  to 32px, and each count tile is a number beside its label rather than above
-  it: ~34px, so the columns gain ~28px. Scoped to `.kanban-wrap` in
-  `css/kanban.css` rather than changed for everyone, because the other views are
-  not short of height. The subtitle ellipsizes and then disappears under 900px —
-  it is the only thing in the row that is a description rather than a fact.
-- **The Backlog's density pills mark which one is on.** They always had the
-  styling for it; `renderAll()` repaints the table and not the toolbar, so the
-  class was set once at first paint and never moved again. Clicking changed the
-  row heights and left the highlight behind, and applying a saved view did the
-  same. The marking now lives in a function `renderShellState()` calls, which
-  covers both, and carries `aria-pressed` with it.
-- **The standup setup fits a 14" MacBook Pro.** The Start button was below the
-  fold on the machine this is run from, under two panels: "Quick info" (a GitHub
-  status card and a sound-cues card) and "Keyboard shortcuts" (three bordered
-  cells). Both are gone. The chime is a 30px icon toggle beside Everyone/Nobody —
-  a speaker, struck out when muted, with the words in its title and
-  `aria-pressed`. The GitHub state moved into the header meta line beside the
-  date and the sprint, tone-coloured, its detail on hover: without it, an off or
-  failed fetch would have gone back to being a silent gap, since the Open PRs
-  tile only appears when there is a list to count. The three keys are one line
-  under the button. With setup down to a single panel, the numbered step badges
-  went too — "1" on its own is a sequence of one.
-
-- **The nav tabs are one width.** BACKLOG, SPRINT and STANDUP were 123, 135 and
-  98px, 4px apart, with the label pinned to the left padding on the two that
-  open a menu — the caret and the rollup count took the right-hand side, so no
-  two chips lined up. All three are 148px now, label centred, 10px apart:
-  148 is SPRINT with its caret and a two-digit count, which also means the
-  monitor finding something no longer widens that tab and shifts the one after
-  it. Below 1200px the widths relax to fit the labels again, because the centred
-  clock is absolutely positioned and equal widths are not worth colliding with
-  it. The row's `display:flex;gap` came off an inline style in
-  `js/components/nav.js` and into `.nav-tabs`, which was the last of that file's
-  hand-drawn layout.
-
-Verified by rendering the previews: Kanban dark at 1400px, light at 1000px and
-760px (subtitle gone, counts intact); Backlog with a scripted click on a density
-pill, which is the case a screenshot of the first frame cannot reach; standup
-default, light, GitHub off, and the end screen. The nav has no preview, so it
-was checked against a scratch harness holding the real markup and stylesheets,
-at 1512px and 1100px, menu open and shut, with a one- and two-digit rollup
-count. `test-kanban`, `test-backlog`, `test-standup`, `test-imports` and
-`test-contrast` all pass.
-
-## M19 — Tagged releases, built and published by CI ✔ *(2026-09-06)*
-
-**Size: S–M** · Depended on nothing in the feature queue, blocked nothing.
-Added 2026-09-05, shipped the next day, out of the queue rather than ahead of
-it — see the note in *Open* for why it went first.
-
-**What it does now:** `git tag v0.6.0 && git push origin v0.6.0` runs every
-suite, writes `0.6.0` into the manifests, builds the three targets, verifies the
-archives, publishes `chrome-0.6.0.zip`, `firefox-0.6.0.zip`, `edge-0.6.0.zip`
-and `SHA256SUMS.txt` on the release, and pushes the version bump back to `main`.
-Nothing is built locally and nothing is uploaded by hand. Two workflow files,
-one script, one test suite, one licence:
-
-| File | What it is |
+| Label | What shipped |
 |---|---|
-| `.github/workflows/release.yml` | The tag path. Ten steps, all of the verification in the first six |
-| `.github/workflows/ci.yml` | The same suites plus the drift check, on every push to `main` and every pull request, publishing nothing |
-| `scripts/set-version.mjs` | Rewrites the one `"version"` line in `manifest.base.json` and regenerates the root `manifest.json` from it, via `build.mjs`'s own `buildManifest` rather than a copy of its logic |
-| `scripts/test-release.mjs` | 33 checks over the rewrite, the licence and the workflows themselves |
-| `LICENSE` | PolyForm Noncommercial 1.0.0 |
-
-**The producing half already existed** and was not touched: `build.mjs --zip`
-already wrote `dist/<target>-<version>.zip` from an allowlist with the manifest
-merged per target. There is no compilation and no dependency to install, so both
-workflows are a checkout, a `setup-node`, and shell. No `npm install` step and
-no lockfile — adding one to get a `zip` binary or a test runner would have been
-this project's first dependency, and `ubuntu-latest` already has `zip` on the
-PATH, which is the one host assumption `build.mjs` makes.
-
-**Four gates, all before anything is published.** The order matters more than
-the checks do: everything that can refuse the release runs before the first byte
-is uploaded, because a published asset can be deleted from the page but not from
-the machines that already pulled it.
-
-1. **Every suite passes.** By glob (`for f in scripts/test-*.mjs`), not by list, so a new suite is picked up by being written rather than by also being remembered here. A release that ships a red build is worse than a release that does not happen.
-2. **The tag parses as `vX.Y.Z`.** `v0.6` would otherwise name three files nobody can refer to.
-3. **Nothing changed but the version.** After the build, the only files allowed to differ are `manifest.base.json` and `manifest.json`. Anything else means a generated file was edited by hand and the build has just silently undone it — which is what `build.mjs`'s own comment has always warned about and what nothing could enforce until there was a CI.
-4. **Nothing personal in the archives.** `unzip -l` over each real zip for `assets/brand/`, `assets/avatars/`, `config.local.json`, `.DS_Store` and `*.pem`, plus `unzip -p manifest.json` to confirm the version inside matches the tag. The allowlist already guarantees the first part; this is defence in depth on the one operation with no undo. Checked against the already-published `chrome-0.5.0.zip` while writing it — clean, and clean because a person was careful, which is exactly the guarantee being replaced.
-
-### The three decisions
-
-**Open question 1 — tag or manifest as the source of truth? Answered: the tag.**
-Manifest-led was the smaller change and the one the entry leaned towards: CI
-checks the hand-bumped file against the tag and fails on a mismatch, and the
-repo is self-consistent at every commit. It lost on the sentence that was
-already in its own write-up — *it makes releasing a two-step ritual, and rituals
-get skipped.* Tag-led costs one thing, which the entry named too: `main` is
-briefly a commit behind the release it shipped. That is closed by the last step,
-which commits the bump on top of `origin/main` and pushes it, so the repo
-catches up instead of leading. The bump is deliberately **after** publishing:
-the assets have passed every gate by then, and a protected branch or a push race
-should not throw away a validated release. If that step fails the job goes red
-and the fix is two commands.
-
-**Open question 2 — does the root `manifest.json` stay committed? Yes**, and now
-as a decision rather than a status quo. It exists so the repo loads unpacked
-with no build step, which is a stated product constraint, and gate 3 above is
-the thing that protects it. `set-version.mjs` regenerates it in the same breath
-as the base manifest for the same reason — leaving it behind would fail the
-project's own drift check on the next push.
-
-**The licence — PolyForm Noncommercial 1.0.0.** Recorded as unchosen since M0
-and treated as a future problem gated on the first tagged release. It was not:
-the repo was already public, `v0.5.0` already carried three downloadable zips,
-and one of them had already been downloaded — all under default exclusive
-copyright, which grants nobody the right to run any of it. The brief was no
-liability, forking and modification welcome, commercial use reserved to the
-copyright holder. PolyForm Noncommercial says exactly that in a standard,
-lawyer-drafted text, which beats a hand-written notice for the same reason the
-manifest merge is tested: nobody should have to guess what "noncommercial" was
-meant to cover. Two consequences, both intended and both stated in the README:
-this is **source-available, not open source** — the noncommercial restriction is
-the one thing an OSI licence may not have, so there will be no licence badge —
-and anyone redistributing a fork carries the `Required Notice:` line with it,
-which the licence's own *Notices* clause obliges.
-
-### Firefox, and what was not done
-
-**The Firefox asset is still not the same kind of thing as the other two**, and
-the cheapest of the three options in the original entry is what shipped: the
-release notes say so, in the same table that names the three files. Chrome and
-Edge load an unpacked folder permanently; a Firefox zip loaded through
-`about:debugging` is dropped when the browser quits. Signing through AMO for a
-permanently installable `.xpi` is the real fix and remains undone — it needs an
-AMO account, a listing decision, and Mozilla's review latency on a path that is
-otherwise instant. It is a candidate for the deferred backlog, not a loose end
-inside this milestone.
-
-**Shipped from the original *nice, and deliberately not in scope* list:**
-SHA-256 sums beside each zip (the only integrity signal in a distribution model
-with no store review, and one line of the workflow), and the pull-request CI run
-(a second file, as predicted, and eight lines of it). **Not shipped:**
-generated release notes — the workflow writes install instructions and the
-Firefox caveat, and the rest is edited by hand afterwards, because this
-project's commit subjects are milestone labels (`M13:`, `M18:`) and say nothing
-to somebody deciding whether to download a zip.
-
-**Exit criteria, and the one thing still unproven:** the criteria were *a tag
-produces a release carrying three correctly-named zips, from a green test run,
-from a tree with no drift, containing no personal assets, with nothing typed by
-hand.* Every step of that was exercised locally against a synthetic `9.8.7` —
-the version rewrite, all three builds, the drift check, the archive checks
-(including a deliberately leaky zip, to watch the guard fire), the checksums and
-the rendered release notes. What has not run is the workflow itself, on GitHub,
-against a real tag. **The first `git push origin v0.6.0` is the real test**, and
-the two steps most likely to be the ones that fail are `gh release create`
-against this repository's token and the push to `main` if the branch is
-protected — both after every gate, so a failure there costs a re-run, not a bad
-release.
-
-## Design backlog, closed ✔ *(ad-hoc, 2026-09-06)*
-
-**Size: L** · Not a milestone, and that is why it was tracked separately in the
-first place: ten defects across eight surfaces, most of them half a sitting,
-belonging to no feature. A 2026-09-05 review found them and wrote them down with
-enough context to pick any one up cold; this is what happened to them. The file
-that held them is gone — its durable half is the
-[design system](../README.md#design-system) and the
-[decisions taken and not revisited](#design-decisions-taken-and-not-revisited)
-above.
-
-**The theme that runs through all ten:** almost every one of these was invisible
-to the person who wrote it. Ten buttons failed contrast in dark theme only. The
-drawer looked like a dialog in a screenshot. The column editor is the first thing
-a new clone has to use and the last thing its author ever touches again. Two views
-had no way to be looked at at all. The fix in most cases was not the change — it
-was building the thing that would have shown you.
-
-**1 · Primary button labels failed AA in dark theme.** Ten selectors put
-`color: #fff` on `var(--accent-primary)` = **3.21:1**. An eleventh,
-`.create-submit`, was correct and had been "fixed" into line with the other ten
-for consistency, which made twelve buttons uniformly wrong rather than noticing
-the outlier was right. There is now an `--on-accent` token — near-black in dark
-(5.98:1), white in light (5.17:1), written as literals rather than `var(--bg)` so
-a surface that re-declares `--bg` locally cannot silently repaint every primary
-label. `scripts/test-contrast.mjs` reads the palette out of `css/app.css` and
-fails on any rule that paints solid accent and then names its own colour. It
-caught a second one on the way in: `#toast.error` was hardcoded `#EF4444`, which
-is 3.76:1 on the light theme's white surface — the error message harder to read
-than the confirmation it replaces.
-
-**2 · The issue drawer was not really a dialog.** It set `role="dialog"` and
-stopped: no `aria-modal`, no focus move, no trap, no restore. This was the *root
-cause* of the standup Escape collision patched the day before, not an
-accessibility footnote — while focus sat on `<body>` behind a dimmed backdrop,
-every document-level key handler in the app still believed it was the frontmost
-thing, and standup's INPUT/TEXTAREA guard could not tell a card being open from
-nothing being open. Two things in the fix are load-bearing: the trap acts only
-while focus is *inside* the panel (a document-level `focusin` that drags focus
-back — the usual way to write one — would make the re-auth prompt and the command
-palette unusable, since both are appended to `<body>` outside the overlay and can
-open over an open drawer), and focus restoration re-*finds* the trigger by
-`data-*` or id, because boards repaint while a drawer is open and the element that
-was clicked is often gone by the time it closes.
-
-**3 · The Kanban column editor asked you to remember Jira.** Raw status strings,
-comma-separated, from memory, into a bare input — and a `filter(g => g.name &&
-g.statuses.length)` on save that dropped any half-finished row with no message and
-no highlight. It is the *first* thing anyone who clones this app has to do,
-because their statuses are not `To Do / In Progress / In Review / Done`, and it
-was the least-supported step in the product. Rebuilt as a two-pane picker over
-the statuses the app has **already fetched**: token fields with completion, a
-shelf ordered unmapped-first with issue counts, click-to-*move* (not copy, because
-`resolveStatusGroup` takes the first match and a status in two columns silently
-belongs to the earlier one), a draft that Cancel discards, and a save that refuses
-loudly by row with a message saying which column and why. Typing a status Jira has
-that no current issue is in still works, and is marked as such — because the other
-way to get one is a typo. The settings page had the identical silent drop and now
-shares `validateStatusGroups()`.
-
-**4 · Settings was the least designed screen in the app.** 449 lines of inline
-`<style>` — the only stylesheet in the project not in `css/`, which is exactly why
-it drifted — now `css/settings.css`, moved verbatim. All seven `<details>` were
-collapsed on first paint, so the settings page opened showing no settings; the
-first opens. The theme toggle was twenty spans hand-copied from
-`js/components/nav.js` and `settings.js` reimplemented `loadTheme`/`saveTheme`
-rather than importing them; both now come from `js/components/theme-toggle.js`.
-
-**5 · There was no keyboard path to change an issue's status.** Dragging was the
-only way, on the surface most often corrected during a standup, on a shared
-screen, by someone who may be driving from a laptop trackpad — while every other
-write in the app had one. The board now has a roving tabindex: arrows to move,
-Home/End, Enter to open, `Shift+←/→` to move the issue a column. It calls the same
-`onIssueMove` the drop does, so the transition matching, optimistic paint,
-rollback and refusal wording are all the drag's, and focus survives the repaint
-because the board remembers the focused *key* rather than the element. Every key
-it handles is stopped, not just prevented: standup binds ArrowRight on document to
-advance the turn, and a card somebody has deliberately focused owns its own
-arrows.
-
-**6 · Kanban and Monitor had no preview harness.** Five views had one, and every
-light-theme defect the review found was in one of the three that did not. They
-have one now, so every view does. It paid for itself the same hour: Monitor's
-finding table sets `width: 100%` on the summary cell, so every other column is
-squeezed to its content — and with nothing stopping them, they wrapped. A board whose
-name was three words rather than an acronym was enough to break an issue **key**
-across two lines as `ACME-` / `102`. There was nowhere to see that before, because
-the board names in a live Jira are whatever they are and nobody screenshots the
-Monitor.
-
-**7 · Error toasts vanished before they could be read.** 5000ms for everything.
-The refusal wording is the good part of the app — *"ACME-101: the workflow allows
-no move from In Review to Done — only Blocked, Reopened"* — and it got five
-seconds, bottom-centre, on a screen a room is reading, while the card you dropped
-sat wherever you dropped it. Errors now dwell fifteen seconds, carry a dismiss,
-pause while the pointer is on them, and announce assertively; and the last message
-can be brought back from the command palette. Recall never re-offers an action —
-an Undo that reappears an hour later points at a write long since overtaken.
-
-**8 · Four icon vocabularies, one with no accessible name.** Priority on a card
-was `🔴🟠🟡🔵` with no title and no text: the one element on a card with no
-accessible name at all, the only encoding of priority anywhere on the board, and a
-distinction carried entirely in hue. Overdue was a `📅` hue-rotated −60°, which
-renders as a different picture on every platform. Elsewhere: two crosses (`✕`
-U+2715 and `×` U+00D7) and five carets (`▾ ▸ ▶ ▼ ▲`) at five weights, swapping
-rather than turning. `js/components/icons.js` is now the app's sprite — authored
-paths, no icon package per PRODUCT.md — with one cross, one caret rotated for
-every direction, and priority as a *shape* in a tone with a name. Two places
-cannot hold an element and get the same drawing another way: the roadmap's
-in-chart caret and the settings section marker.
-
-**9 · Around fifteen button implementations, and ten radii.** Down to `.btn` and
-`.btn-chip`, with the old class names kept as **aliases** rather than renamed
-across the markup — the win was one definition, and renaming twenty call sites to
-get it would have been a second, riskier change wearing the same hat. Radii onto
-four tokens plus a pill; 1px and 2px stay literals because on an 8px dot they are
-a softened corner, not a corner style.
-
-**10 · Kanban and Monitor were the previous generation, and the standup was two
-generations at once.** The tell on the first two was that they opened straight
-onto controls while every newer view says what it is first;
-`js/components/view-header.js` is now the one implementation and both have one.
-Inside the standup, setup was `.su-*` and the end screen was `.standup-setup` —
-the generation before it, a single card with its own rows, its own subtitle, its
-own button row and its own textarea. They bracket the same meeting and are the
-only two screens anyone looks at for more than a few seconds, so reading as two
-different products was the most visible seam in the app. The end screen is `.su-*`
-now, keeping only its headline, which is a celebration sized for the room.
-
-**Left behind on purpose:** see
-[Design decisions taken and not revisited](#design-decisions-taken-and-not-revisited).
-
-**Added along the way:** `scripts/test-kanban.mjs`, `scripts/test-contrast.mjs`,
-`scripts/test-drawer.mjs`, `preview-kanban.*`, `preview-monitor.*`, a `?done=1`
-state on the standup harness for the end screen, and a fix to
-`scripts/test-imports.mjs`, which stripped template literals whole and therefore
-missed a call inside `${…}` that went in without its import **during this very
-pass** — precisely the bug that file exists to catch. Eighteen suites and 1791
-checks became twenty-one and 1905.
-
-## M13 — Sprint freeze and diff ✔ *(2026-09-03)*
-
-**Size: M** · Done the day it was scoped, first in the re-sequenced queue and for
-the reason that put it there: a forward-built history only accrues from the day
-it ships, so every sprint boundary that passed unfrozen was one that could never
-be reconstructed. **This was M15 until the renumbering earlier the same day** —
-anything written before that which says "M13" means the *planner*.
-
-Freeze the sprint's state, and show what happened to it. Not "how much got done",
-which the dashboard already answered, but **what changed underneath the plan**.
-
-**The freeze is per-issue, and that is the whole design decision.**
-`js/snapshots.js` writes one row of team totals per day plus a `byPerson` block,
-which is exactly right for a burndown and cannot answer this at any resolution: a
-burndown asks how many points were left on Tuesday, a diff asks *which issue*
-changed. So `js/freeze.js` is a second store under its own key, written once per
-sprint rather than once per day — and the alternative, a changelog per issue, is
-60 requests for a 60-issue sprint every time the tab opens, which is the same
-trade `js/snapshots.js` opens with, refused for the same reason.
-
-**Taken unasked, on the first dashboard load of a sprint.** The scope named two
-triggers — a new sprint key appearing, and the extension being installed
-mid-sprint — but from the code's point of view those are one condition: no freeze
-exists for this key. So there is one automatic path, and `atStart` records which
-of the two it turned out to be rather than the app assuming. **Freeze now**, on
-the panel, re-freezes a re-planned sprint; it confirms with the date, issue count
-and points it is about to discard, because `recordFreeze` returns what it
-replaced and there is no way back to it.
-
-**Six buckets, and an arithmetic line that makes them reconcile.** Crept in —
-split into *created after the freeze* and *already existed, dragged in later*,
-which is the split M7's approximation cannot make and the clearest argument for
-keeping the record at all. Pulled out, and where to. Re-estimated, with the
-sprint's total change from re-estimation alone, a figure a burndown cannot
-separate from work finishing. Due date moved, with direction and days.
-Re-assigned, and went backwards. Plus `frozen − pulled out + crept in = now`
-printed on screen: six buckets of issues invite exactly one question — "so what
-about the rest?" — and a panel that cannot answer it reads like a panel that is
-hiding something.
-
-**Three decisions worth keeping:**
-
-- **The scope figure has three states, not two.** The scope note said the M7 caveat becomes conditional; it becomes *ternary*. No freeze is the creation-date approximation. A freeze taken on the sprint's first day makes the figure exact — set membership, not a date comparison. A freeze taken mid-sprint is exact from that day and **blind to everything before it**, and calling that "exact" would be the same overclaim in a new coat. `scopeBasis` (`js/freeze.js`) writes one sentence for the dashboard tile, the hover note and the recap PDF, so the three cannot end up disagreeing, and the tile carries `exact` / `approx.` on the visible line rather than only in a tooltip.
-- **"Where did it go" is one request, not one per issue** — and it is the only thing in the whole feature that asks Jira anything new. An issue that left the sprint is by definition in no list the app already holds, so `getIssuesByKeys` (`js/api.js`) batches up to fifty keys into a single JQL. It runs *after* the first paint and not at all when nothing left, and until it answers the rows say so: rendering "deleted" for an issue nobody has looked for yet would be a confident wrong answer to the one question local state cannot settle. **The backlog is deliberately not frozen** — the decision taken with the scope — because this answers "where did it go" without the storage a second per-issue record would cost.
-- **The blind spot is printed, not buried.** An issue that left the sprint and came back reads as unchanged; a freeze compares two points in time, not the route between them. Catching it needs the changelogs this design exists to avoid, so the panel and the PDF both say so. Same discipline as the burndown's "collecting history" note and the scope tile's qualifier: the app says what its numbers cannot see.
-
-**Two fields the scope list did not name, both with precedent.** A frozen row
-keeps the **status category** rather than re-deriving done-ness from a status
-name months later — `isDone` reads the category, and matching on "Klaar" in a
-year's time is the kind of assumption M1 spent a milestone removing. And it keeps
-the assignee's **display name** beside the account id, which is exactly the
-argument `snapshotFrom` already makes for its `byPerson` labels: the roster is
-current, history is not, and the re-assigned bucket would otherwise read
-"5f3a…c1 → Bo".
-
-**One simplification fell out of it.** Jira answers the sprint field two ways —
-an array of objects, and a serialised blob on older instances — and three places
-were parsing it privately. `sprintEntries` (`js/dashboard.js`) is now the one
-that does; `wasCarriedIn` reads it, and the existing carry-in checks covered the
-refactor.
-
-**Storage, measured rather than assumed.** The risk register called this the
-largest thing the extension keeps, so `freezeBytes` exists and the suite prints
-the number: a 60-issue sprint is ~22 KB, eight of them ~170 KB. Pruning imports
-`MAX_SPRINTS_KEPT` from `js/snapshots.js` instead of copying the 8, so the two
-histories cannot end up different lengths — the failure the scope asked to
-prevent, prevented by construction rather than by both files happening to agree.
-
-**Where it shows:** the **Since the freeze** panel under the burndown on the
-Sprint Dashboard, and a *What changed underneath the plan* section in the recap
-PDF, built from the same `diffFreeze` so the document and the screen cannot
-disagree — the rule `js/recap.js` already followed for `summarize`. The recap
-**reads** a freeze and never takes one: a document generator has no business
-creating the record it reports on, and opening the recap on a sprint the
-dashboard had never seen would otherwise freeze it mid-sprint and then print
-"nothing has changed".
-
-**Checks:** 64 new in `scripts/test-dashboard.mjs` (226 there) and 12 in
-`scripts/test-recap.mjs` (117 there), 1755 across the suite — including the
-storage measurement, both departure answers, and the check that matters most,
-that a mid-sprint freeze is *not* allowed to call itself exact. Plus
-`?freeze=mid|none` on `preview-dashboard.html` and `preview-recap.html`, seeding a
-freeze that differs from the fixture's sprint so all six buckets draw, and
-`scripts/SMOKE-CHECKLIST.md` 3a-i for the parts only a real sprint can show.
-
-**Open questions, answered:**
-
-1. **Diff against now, or against the last day only?** The general one, defaulted to end-of-sprint framing — it works on any day and cost nothing extra, as the question predicted.
-2. **An issue that left and came back.** Accepted *and named in the panel*, rather than accepted silently. It matches how the app already labels the approximate scope figure and the burndown's missing history.
-3. **Does the freeze cover the backlog?** No. Sprint only; "where did it go" is answered by one batched lookup at diff time instead, which keeps the bulkiest store on the device as small as it can be.
-
-**Exit criteria, met:** on any day of a sprint the dashboard shows — with no new
-per-issue requests, and one batched request only when something actually left —
-which issues entered late and how, which left and where to, which were
-re-estimated or re-dated and by how much; and M7's scope-added figure is exact
-whenever a start-of-sprint freeze exists, and says which basis it used when it is
-not.
-
----
-
-## M18 — Linked issues, read and write ✔ *(2026-09-03)*
-
-**Size: S** · Done the day it was scoped, and taken out of order — it was the
-smallest thing in the file, its dependency (M8's write layer) had been finished
-since 2026-08-20, and nothing in the queue was waiting on it. Issue links —
-*blocks*, *is blocked by*, *duplicates*, *relates to* — readable and editable
-from the issue detail.
-
-**The read half already existed**, which is what made this an S:
-`renderLinkedIssues` had grouped `issuelinks` by relationship since M5, reading
-`type.outward` / `type.inward` per direction. What shipped is the write half plus
-type discovery — and a grouping that now hands back link ids, because a row you
-cannot identify is a row you cannot remove.
-
-**The thing this milestone is actually about is direction.** Everything else here
-is ordinary CRUD; the direction of a link is the one part that fails *silently*.
-A link built the wrong way round does not 400, does not warn, and reads correctly
-on the issue you created it from — it reads wrong on the other issue, which is
-the one you were not looking at. So the rule lives in a pure function with a test
-on each direction rather than inside a click handler:
-
-```
-inwardIssue  <type.outward>  outwardIssue
-```
-
-`linkPayloadFor` (`js/issue-link.js`) is that rule. Picking the outward phrase
-("blocks") from issue X puts **X on the inward side**; picking the inward phrase
-("is blocked by") swaps them. Which is also why the picker offers *phrases* and
-not a type plus a direction toggle: "blocks" and "is blocked by" are two entries
-over one type, because that is how someone says what they mean, and the direction
-falls out of what they said. A symmetric type — "Relates", the same word both
-ways — appears once; offering "relates to" twice is a picker that looks broken
-while being correct.
-
-**Five decisions worth keeping:**
-
-- **The types are read, never written into the app** — `GET /rest/api/3/issueLinkType`, cached like createmeta. Link types are instance configuration: a site can rename them, add its own, or delete the ones a hardcoded list would have offered. Same discipline as `customfield_*` discovery in M1 and the sub-task type read off `subtask: true` in M8, both of which exist because a hardcoded assumption broke on a real site. The fixture names one of its types in Dutch for that reason — a fixture using only the English defaults could not show that nothing matches by name.
-- **The app's first DELETE went through the helper that already existed.** `jiraWrite` (`js/api.js`) has been the single place that knows how Jira refuses a write since M8, so a refused unlink is attributed exactly like a refused field edit — including the 403 that explains itself and the 401 that raises the reauth event. What was new is that `jiraWrite` now sends *no body at all* when it is given none, rather than an empty object with a Content-Type on a DELETE.
-- **Removal asks first, and names what it is removing.** Jira has no undo, so this is the one single-item write in the app that confirms beforehand instead of offering to reverse afterwards — the trade the bulk field edit already makes. The confirm is the sentence, both keys and the relationship: "remove the link" alone does not say *which* of several links is about to go. A sub-task row carries no ✕ at all: a sub-task is a parent/child field, not a link, and there is no link id to DELETE — a button there could only ever fail.
-- **The picker reuses issue search.** A raw key field is a typo waiting to 400. `searchIssuesByJql` already backed the palette's issue lookup, so this is the same interaction with a different destination: two characters start a search, a key-shaped query is looked up as a key and anything else searches summaries with a trailing wildcard. The issue itself and everything already linked to it are filtered out — offering a duplicate link is offering a 400 the user had no way to predict.
-- **Both writes re-read the issue.** Jira answers a link create with an empty body and a delete with nothing, so there is no response to render from even if we wanted one — and a link involves a second issue whose state this view does not own. The same `refreshLinks` the sub-task path already used now covers all three writes the section can make.
-
-**Where the code went:** `js/issue-link.js` is the DOM-free half — choices,
-payload, grouping, and the picker's JQL with its escaping — mirroring the
-`issue-create.js` / `components/issue-create.js` split, and for the same reason:
-the parts that are silently wrong when wrong are the parts that get a unit test.
-`js/components/issue-link.js` is the panel, in the create form's own chrome.
-
-**Checks:** 43 new in `scripts/test-write.mjs` (136 total there, 1678 across the
-suite), plus `?link=open|search|refuse` on `preview-issue.html` — the second of
-which types a query, lists results and picks one through the real input handlers,
-so the debounce and the out-of-order guard are exercised rather than described.
-`scripts/SMOKE-CHECKLIST.md` gained 3c-iv, whose load-bearing line is *create with
-"blocks", then go and look at the other issue in Jira*: no unit test can catch a
-reversed link, because both directions are internally consistent.
-
-**Exit criteria, met:** a link can be created and removed from the issue detail
-against a site whose link types were never seen before, with a refusal reported
-as Jira worded it and nothing removed without a confirm that names it.
-
----
-
-## Per-person Jira activity ✔ *(ad-hoc, 2026-08-24)*
-
-**Size: S–M** · Done. Scoped on 2026-08-20, built four days later. The standup
-and the recap both answered "what is assigned to this person" and, with GitHub
-connected, "what did they push". Neither answered **what they did in Jira** — who
-moved which ticket, who picked work up, who created the things that appeared
-mid-sprint. That is what this reads.
-
-**It cost no requests, which was the argument for building it.**
-`expand=changelog` rides `getSprintIssues` (`js/api.js`), the call that already
-fetches these issues, so the whole feature is a reader over data that was
-already in flight.
-
-**Two corrections to the scoping note, both cheap.** It claimed the
-issues-created figure "needs nothing new whatsoever" because `fields.creator` and
-`fields.created` are fetched today. `created` was; `creator` was not — it is now
-in `BASE_ISSUE_FIELDS` (`js/config.js`), one person object on a request already
-being made, so the claim held in spirit but not in fact. And the expand was
-scoped to the sprint call *and its backlog twin*; only the sprint call took it.
-Every consumer of activity asks about a sprint, so an expand on the backlog would
-have put a compacted history for every unstarted issue into the 5-minute cache
-for nothing to read. `getBoardBacklog` says so in place, and turning it on is one
-line the day a screen wants it.
-
-**The three things the note said to get right, in the order they bite.**
-
-1. **Framing, settled before the first panel was drawn** — and written into the
-   head of `js/activity.js` rather than left to each consumer. `activityFrom`
-   returns people ordered **by name**, and no sort-by-count is offered anywhere;
-   the module exposes no total, no score and no composite, because a table
-   sorted by transition count is very hard to un-read once seen. Every tooltip
-   says what the figure counts and none implies it should be larger — the
-   standup's read "conversation fuel, not a score", and the document's says
-   plainly that "a high count is not a better one, and ten moves can be one
-   ticket going back and forth between review and rework". The Jira numbers on
-   the setup row are also the one cluster on that screen deliberately *not*
-   given the success colour the GitHub figures carry: marking a count green
-   reads as praise.
-2. **The changelog expand is bounded and does not paginate** — carried, the way
-   `js/github.js` carries its own page caps. `compactHistory` keeps `total` and
-   `returned` beside the events and sets `truncated` when they disagree;
-   `activityFrom` collects the affected issue keys, the standup says "at least
-   this many" in every tooltip, and the recap prints a sentence naming the
-   issues and calling the figure a floor.
-3. **Cache size** — reduced at the fetch boundary, before `cached()` stores
-   anything. Jira's history entry is a nested record per change with an author
-   object and an avatar URL set; `compactChangelogs` replaces it with five
-   fields per event, so nothing downstream and nothing in device-local storage
-   ever sees the wide shape.
-
-**Two design points worth keeping.**
-
-- **Done-ness has to be decided from a status *name*.** A changelog carries
-  `fromString`/`toString`, not the `statusCategory` that `isDone` reads. So
-  `doneResolver` takes three sources in order: the issues in hand (every current
-  status carries both its name and its category, which is the only source correct
-  on a site with a custom done status nobody configured), then the configured
-  status groups (which cover a status transitioned *through* and away from, where
-  no current issue sits), then the regex `isDone` itself falls back to.
-- **The two halves of the model have different availability, and one flag would
-  have hidden it.** Issues created come from `fields.creator` and are answerable
-  whenever the issues were fetched; everything else needs the changelog. So
-  `historyKnown` sits on each bucket and a site returning no history dashes the
-  transition counts while still printing creations — visible on both consumers
-  under `?history=off`.
-
-**Where it landed.** A cell on the standup setup row and a "THIS SPRINT" panel on
-the speaker's stage, defined once in `jiraStatSpecs` and rendered in both places
-for the same reason `statSpecs` is shared. The panel also lists the ticket keys
-behind the numbers, done ones outlined, opening in the drawer rather than
-navigating away mid-turn — a prompt for a sentence rather than a list to read
-out. In the recap document, two columns on the per-person table (**Moved** and
-**Created**, which fit A4 portrait at eleven columns) plus a caption carrying the
-window and the truncation caveat. Deliberately not on the per-person cards,
-which are capped at five statistics on purpose.
-
-**It is a substrate, not one feature.** `activityFrom(issues, { since, until })`
-takes its window as a parameter from the first commit, the way
-`statsFor(stats, login, { since })` already does — so M16's *Ping-Pong Award*
-("most status transitions") and M14's "what they did this week" are this reader
-with a different window, and neither pays for it again. A week-long window is
-asserted in the suite so it is exercised rather than assumed.
-
-**Out of scope, as scoped:** comments and worklogs, which are per-issue endpoints
-and would mean one request per issue against a sprint of a hundred. If comment
-counts turn out to be what people wanted, that is a second decision with a real
-cost attached.
-
-**Still owed: the spike.** `scripts/jira-smoke.js` grew a Test 5 that answers
-both questions against a real site — whether the agile sprint-issue endpoint
-honours `expand=changelog` (if it does not, the fallback is the JQL search path,
-one query per board) and what the per-issue entry cap actually is here. It has
-not been run against the live site yet; the code works either way, but the cap is
-worth knowing.
-
-**Tests:** `scripts/test-activity.mjs`, 75 checks, plus 22 in
-`scripts/test-recap.mjs` and 2 in `scripts/test-config.mjs`. Seventeen suites,
-1633 checks.
-
----
-
-## M8 — Write layer + issue creation ✔ *(feature 8)*
-
-**Size: M** · Done 2026-08-20. The first milestone to mutate Jira beyond the
-single comment endpoint M5 pulled forward. Deferred once, on 2026-08-07, in
-favour of M11 — a sequencing call, not a rethink — and split from the planner on
-2026-08-12, which is what took it from XL to M.
-
-**8a — Write layer.** `jiraWrite` in `js/api.js` is the single place that knows
-how Jira refuses a write, and `JiraWriteError` keeps the structure of the refusal
-instead of flattening it: `errors` is a map of field id → what is wrong with that
-field, so the message a user sees names the field in the site's own words
-(`customfield_10016` reads back as "Story points" through the discovered role
-mapping). A 403 with the empty body Jira actually sends explains itself, and says
-which token scope a scoped setup is missing.
-
-Three decisions worth keeping:
-
-- **One request per edit, carrying every changed field.** Jira validates the
-  whole `fields` object before applying any of it, so a rejected edit leaves the
-  issue exactly as it was and the optimistic paint has one outcome to roll back
-  rather than a half-applied set. Worth more than saving a round trip.
-- **Sprint does not go through the issue PUT**, which is where the original scope
-  put it. The Sprint custom field is read-only that way on team-managed projects
-  and needs to be on the Edit screen on company-managed ones — so it would work
-  on some sites and fail on others, which is the class of difference M1 spent a
-  milestone removing. `moveIssuesToSprint` uses the documented agile endpoint,
-  which works on both and takes 50 issues a call. That batching is also what
-  M15's reviewed push wants, so the planner inherits it.
-- **A field this site has no id for is refused before the request**, naming the
-  field and pointing at Settings. The alternative — sending the rest of the edit
-  and dropping the estimate — is the exact silent failure the milestone existed
-  to prevent.
-
-`js/issue-edit.js` is the UI half, deliberately shaped like `issue-move.js` so a
-view wires both writers up the same way: optimistic paint, rollback to the value
-already in hand rather than a re-fetch, an undo on the success toast (a second
-write of the previous values, not a local revert — the first one succeeded), and a
-confirmation before a bulk edit rather than an undo after it. Bulk writes issue
-by issue so a refusal can name the issue that caused it and the rest still stand.
-`showToast` grew an action button and, with it, a cleared timer — a second toast
-used to cut the first one short, which for an undo window is a bug.
-
-The editable surface is the issue detail's meta grid: assignee, due date and
-story points, click-to-edit. Reporter, start date and sprint stay plain text
-rather than pretending to be editable — a permission most accounts lack, a field
-only meaningful once the roadmap edits dates, and a move that needs the board's
-sprint list respectively. `writeMany` has no multi-select UI to call it yet; it is
-built and tested for M15's batch push and for whichever screen grows selection
-first.
-
-**8b — Create issue.** The form is generated, and `js/issue-create.js` is where
-that happens: field descriptors from
-`/rest/api/3/issue/createmeta/{project}/issuetypes/{type}` become form rows, and
-filled rows become a create payload. Kept DOM-free, because the two ways this
-goes wrong quietly are a field sent in the wrong shape (Jira takes an option as
-`{id}` and refuses its label) and a required field dropped from the form — the
-first is a 400 on every site, the second a 400 only on somebody else's.
-
-What it will not do is guess. A required field whose type has no control stops
-the form with the field named; an optional one is listed as left unset, so the
-form never pretends to be all of Jira's. Both createmeta response shapes are
-normalised at the API boundary — current Cloud answers with an array of
-descriptors, older Cloud and Data Center with a map keyed by field id — so the
-form builder sees one shape and the difference never reaches it. Sprint and epic
-options come from the board, since createmeta does not carry them.
-
-Launches from the palette and from a Backlog toolbar button, as the open question
-assumed; one panel, in the drawer idiom, which was extracted to
-`js/components/drawer.js` when the second thing needed to open in it.
-
-**8c — Sub-task.** The same panel with the parent fixed, launched from the issue
-detail's Linked issues heading — one launch point, because `renderIssueInto()`
-already serves both the drawer and the full page. The sub-task type is found by
-`subtask: true` in createmeta and never by name: the fixture calls it "Deeltaak"
-precisely so a name match would fail the suite. A project with sub-tasks switched
-off says so rather than offering a form that cannot be submitted, a sub-task
-offers no button of its own since Jira does not nest them, and after creation the
-parent's list is re-read from Jira rather than patched from the form — the create
-response carries an id and a key and nothing a row needs to print.
-
-**Exit criteria, met:** an issue and a sub-task can both be created against a
-site whose required fields differ from ours with no field list hardcoded
-(`?createmeta=blocked` and `?createmeta=minimal` on `preview-create.html` are the
-two ends of that), and every failed write is attributed to the field or the
-permission that caused it — asserted in `scripts/test-write.mjs` and
-`scripts/test-create.mjs`, 164 checks between them.
-
-**What this unblocks, and what it did not do.** M9's triage mode and M4's in-app
-fixing were both waiting on nothing but this. M15 gets the sprint move, the
-batching and the bulk path. Not done here: a multi-select on any board, editing
-from the Kanban card or the Backlog row, and the sprint picker on the issue
-detail — each a screen-level addition on top of a write layer that already
-supports it.
-
----
-
-## Per-person block in the daily snapshot ✔ *(ad-hoc, 2026-08-20)*
-
-The one dependency on this roadmap with a lead time rather than a cost: M15's
-per-person velocity and M14's load-over-time both read snapshot history, and
-history built forward only exists from the day the field starts being written.
-So the field was added on its own, ahead of either milestone — `snapshotFrom`
-(`js/snapshots.js`) now writes a `byPerson` map beside the team totals, keyed by
-account id, one row per person per day with `points`, `issues`, `donePoints`,
-`doneIssues` and the display name as it read that day.
-
-Three choices in it, each written into the module so neither milestone has to
-re-derive them: keyed by id rather than an array, because every reader asks
-"this person, across days"; the unassigned bucket kept under `__unassigned__`,
-so the rows keep summing to the day's totals; and the name stored rather than
-resolved on read, so somebody who leaves the team is still named in the weeks
-they were on it. No `onTeam` flag — that is a question about now, and the roster
-answers it without going stale.
-
-Both consumers inherit one caveat: rows written before 2026-08-20 have no
-`byPerson` at all, so the field is absent rather than empty on older days.
-
-## Kanban as the home view ✔ *(ad-hoc, 2026-08-20)*
-
-One line of intent: the app opened on the Backlog, and the question people
-actually arrive with is where the current sprint stands. `HOME_HASH`
-(`js/components/nav.js`) now names the landing view, the router and the nav tab
-highlight both read it, and the Kanban already defaulted to current-sprint-only
-so no filtering work was needed. An unrecognised hash still falls back to the
-Backlog — a stale bookmark should land on the view that lists everything rather
-than on one that hides most of it.
-
-## Sprint recap PDF ✔ *(ad-hoc, 2026-08-18)*
-
-**Size: M** · Done. Shipped on request, and it was **not** M16 — a warning that
-mattered while M16 was also a per-sprint recap. It stopped mattering on
-2026-09-03, when M16 was re-aimed at the quarter precisely because this document
-had already taken the sprint.
-
-**Generate recap** on the Sprint Dashboard opens `recap.html`, a print-styled
-document over the M7 aggregates plus the M11 GitHub window: combined figures for
-every active sprint, a per-person contribution card with photo, a per-board block
-and the full ticket list with scope-creep and carry-in flags. Saved as a PDF
-through the browser's own print dialog.
-
-**Four decisions worth keeping:**
-
-- **Print-to-PDF, not a PDF library.** No dependency in a repo with no build step, and the output is real vector text rather than the rasterised page a jsPDF-plus-canvas route would produce. Costs one click in the print dialog.
-- **A page of its own, recomputed rather than handed a payload.** `css/app.css` is deliberately not loaded: its `html, body { overflow: hidden }` app-shell rule clips a print job to exactly one page, which is how the first draft lost two thirds of the document. Fonts are re-declared in `css/recap.css` instead.
-- **It recaps the sprints the dashboard is showing** — the active ones, which on retro day are the ones ending. Recapping *closed* sprints needs new fetches and was deliberately not built; noted below as the follow-up if the team starts closing sprints before running the retro.
-- **Ordered by name, headed "contribution", footed with a line saying it is not an assessment.** M16 and M14 both set the rule that per-colleague numbers are conversation fuel, not a score. This document carries named people, photographs and pull-request counts, so it states its own framing rather than relying on whoever opens it to supply one.
-
-**One bug worth remembering.** The first version offered its print button over an
-empty page while it was still fetching, so printing in that window produced a
-blank A4 sheet — one page whose only content was Chrome's own header and footer.
-Every check had used `?print=0` and printed through DevTools *after* the render,
-so the window in which the page is printable but not yet built was never
-exercised. The fix is a readiness gate on both routes to the dialog plus a visible
-build state; the harness gained `?jira=slow` so that window can be held open and
-looked at.
-
-**A second print bug, same root cause — a print job is not a scrolling page.**
-The running header was `position: fixed`, which Blink repeats on every page but
-reserves no space for, so every page after the first had its top card sliced in
-half behind it. Fixed by laying the document out as a one-column table and putting
-the header in a `thead`, which repeats *and* reserves. Verified by printing each
-page separately (`printToPDF` takes a `pageRanges`, and a one-page PDF is
-something `sips` can rasterise) rather than by looking at page one and assuming.
-
-**A third print bug, and the lesson behind all three.** The 30-second deadline put
-on the GitHub window fired on real repositories: adding the default-branch commit
-query had roughly doubled the requests per repo, and the recap was the only caller
-with a deadline at all. Raised to 180s, and — more to the point — the document now
-renders the Jira half immediately and fills the GitHub figures in, so the wait is
-visible rather than blank. Per-repo failures and truncation, which `fetchTeamStats`
-had been reporting all along, are now printed too: without them a repo whose token
-cannot read commit history produced a confident zero.
-
-Each of the three was the same mistake in a different costume — verifying the
-artefact while skipping the conditions under which it is produced: printing after
-the render rather than during it, looking at page one rather than every page, and
-setting a deadline without measuring what the work actually costs.
-
-**Follow-up:** the *recapping closed sprints* follow-up recorded here was dropped
-on 2026-09-03 in favour of M17, which keeps a per-sprint rollup written forward
-at rollover rather than re-fetching a closed sprint out of Jira. M13's freeze
-replaces the scope-creep approximation this document inherits, and M16's quarter
-document reuses this page's print route and all four of its lessons.
-
-**That drop was partly reversed on 2026-09-23** — see below.
-
-### Recapping a closed sprint, after all *(ad-hoc, 2026-09-23)*
-
-**Size: S** · Done. `recap.html?sprint=previous` builds the document for the last
-sprint each board closed; `?sprint=<id>[,<id>]` names sprints outright; the
-default is unchanged. The Sprint Dashboard carries a second button for it,
-deliberately **not** gated on there being an active sprint, because a board
-between sprints is exactly the state in which this is the only thing worth
-printing.
-
-**Why this does not undo the 2026-09-03 decision.** That decision was about where
-per-sprint *history* should come from, and it still stands: M17 writes a rollup
-forward at rollover because a trend chart wants a cheap row per sprint going back
-years, and re-fetching each of them from Jira to draw one is the wrong shape.
-What was wrong was reading it as also settling whether the *document* could be
-pointed at a sprint that had ended. One recap of one closed sprint is two extra
-paged reads and no new storage — the agile API answers "what was in sprint N"
-whatever state N is in — and the case for it turned out to be the ordinary one:
-the fortnight you most want a recap of is the one that rolled over while you were
-away, which is precisely the week nobody was there to press the button.
-
-**Three things the closed document had to get right**, none of which was about
-fetching:
-
-1. **It is computed as at the moment the sprint closed, not as at now.**
-   `summarize` measures days remaining and overdue-ness against a clock, and
-   against today's clock a sprint that ended last Tuesday has nothing left to run
-   and is a week overdue — true of the calendar, false of the sprint. The page
-   picks the close instant, winds the freeze diff and the GitHub window back with
-   it, and prints the date it used. One document, one clock.
-2. **The GitHub window grew an upper bound.** `statsFor` only ever took a
-   `since`, which is right for every live screen — they all mean "up to now". A
-   pull request merged the Tuesday after the sprint closed was counting towards
-   it, inflating a finished number somebody is about to read out in a retro.
-   `until` is set by this page and nothing else, and the document prints the
-   window it actually counted.
-3. **The tense.** "Past its end date" is a warning about a sprint running now and
-   a statement of fact about one that is over; the closed document says "closed
-   after its planned end date" instead. Small, and the difference between a retro
-   note and an alarm about nothing.
-
-**The preview fixture got the same treatment, and got it wrong first.** The first
-version bolted an older sprint onto each board and left the synthetic issues where
-they were — which rendered a document claiming every issue in the sprint had crept
-in after it started. It rendered, which is the failure that looks most like
-success, and it is the same mistake this entry's own lessons are about: checking
-the artefact without checking the conditions it was produced under. Replaced by a
-uniform clock shift (`?sprint=previous` winds the whole fixture back sixteen days),
-so the issues stay inside the sprint they belong to and the preview exercises the
-model instead of libelling it.
-
----
-
-## Standup setup UX refresh ✔ *(ad-hoc, 2026-08-07)*
-
-**Size: M** · Done. Same treatment as the Backlog, against a mockup, reusing
-that screen's vocabulary rather than inventing a second one.
-
-The setup card — a 620px box with a monospaced `DAILY STANDUP` heading, a
-checkbox list and a number input per person — became a full-width screen:
-header with an inline SVG mark, a date / team / sprint / availability meta
-line, four live stat tiles (attendees, speaking time, total estimated, open
-PRs), and three numbered panels (participants, quick info, keyboard shortcuts)
-over a full-width start button. *(The last two panels were folded away on
-2026-09-06 to get the start button onto a 14" screen — see
-[Screen space](#screen-space-board-header-backlog-density-standup-setup-nav-tabs--ad-hoc-2026-09-06).)*
-
-Each participant row now answers, at a glance, what the facilitator would
-otherwise have to ask: sprint items with a relative workload bar, four GitHub
-numbers (open PRs, PRs opened, reviews and comments, lines merged — added in
-11c), a blocked/overdue flag, and a per-person speaking time.
-
-**Four decisions worth keeping:**
-
-- **The blocked column is decided once, for the whole table.** Jira gives no universal "blocked" field, so it is read off the status name (`block|impediment|on hold`) — but only when this sprint actually *has* such a status. Otherwise the same slot shows overdue, which every site can answer. Per-row fallback would have made one column mean two things.
-- **The pip bar is relative to the busiest person on the roster,** not to a fixed ceiling nobody agreed on. It reads as "who is carrying the most", which is the question a standup asks.
-- **An absent PR count and a zero are different facts.** GitHub off, still loading, or no login on the roster renders `—` with a title explaining which; only a real answer renders a number.
-- **The GitHub status line was promoted, not dropped.** It used to be one chip under the button; GitHub now appears in four places (tile, the per-person stat cluster, Quick info card and its note), so a fetch landing repaints the setup screen wholesale instead of patching one node. *(Three places since 2026-09-06: the card became an item in the header meta line. The wholesale repaint stayed.)*
-
-Enter now starts the standup, matching the hint under the button. The running
-stage and the summary screen are untouched.
-
-Verified by rendering the real view — `preview-standup.html`, which mounts
-`js/views/standup.js` against stubbed extension storage and a stubbed
-Jira/GitHub network — in seven states: default, light, GitHub off, nobody
-selected, empty roster, resumable session, and narrow (980px). That caught the
-one real layout question, which is what a nine-column row does when the window
-is not wide enough for it: below 1080px the item count and the pip bar are the
-first things dropped, because the name, the flag and the clock are what the
-meeting needs. 11c widened that row again, so the drop order now continues into
-the GitHub cluster — lines merged goes below 1400px, PRs opened below 1080px,
-both still one hover away in the tooltip.
-
----
-
-## Backlog UX refresh ✔ *(ad-hoc, 2026-08-07)*
-
-**Size: L** · Done. A brief and a mockup, delivered against after four
-clarifying questions.
-
-The Backlog went from a bare table under the nav to a proper screen: page
-header with an inline SVG mark, live summary tiles, a density selector, a
-promoted search, a filter sidebar, grouping, pagination, row selection, column
-visibility, saved views, skeleton loading and an empty state.
-
-**The logic moved out of the view.** `js/backlog.js` now owns grouping,
-sorting, pagination, density, columns, saved views, status tones and relative
-time — DOM-free, the same split as `monitor.js` and `dashboard.js`, and
-covered by `scripts/test-backlog.mjs` (103 checks). This view's failures are
-arithmetic ones that a screenshot will not catch: landing on page 9 when a
-filter cuts the list to 12 issues, an ellipsis window that repeats a page,
-"no due date" sorting as though it were a date.
-
-**Four decisions worth keeping:**
-
-- **No PR column.** The brief assumed GitHub sync could supply per-issue pull requests. It cannot: M11 fetches PRs per *person* from the repo allowlist and deliberately does not correlate them to Jira keys. That correlation is the deferred *development links* item, with an open accuracy risk on short keys. Raised, and the user chose to omit the column rather than smuggle the spike into a UI pass.
-- **Pagination only when ungrouped.** A group split across a page boundary reads as missing data. Grouped views show everything and say so in the pager.
-- **The sidebar is Backlog-only.** `js/components/filters.js` is shared with Kanban, Gantt and Monitor; the sidebar reuses its `applyFilters` so the two can never disagree about what a filter means, but the other three views keep their bar and take no regression risk.
-- **Tiles and status tones follow `CONFIG.statusGroups`,** not the five names in the mockup. Hardcoding "On Hold" would have read zero for any site whose workflow differs — this app is whitelabel, and the tiles had to be too.
-
-**A regression caught before it shipped:** the command palette's "jump to this
-person" hands the Backlog a one-shot assignee filter that only the old
-`renderFilters` consumed. With the sidebar in place it would have silently done
-nothing. `takePendingAssignees` is now exported and consumed by the new view.
-
-Verified by rendering the real view against 277 synthetic issues in four modes
-— default, grouped, empty and light — with page errors surfaced on screen: zero
-in all four. That also caught a live layout bug, a grid item defaulting to
-`min-height: auto` and pushing the pager off the bottom of the viewport.
-
-**Not built, per the brief's own out-of-scope list:** inline editing, bulk
-operations (row selection is UI only, ready for them), drag-to-prioritise,
-timeline and analytics views.
-
----
-
-## M12 — Firefox and Edge ✔
-
-**Size: M** · Done 2026-08-07. Promoted out of the icebox at the user's request.
-Depends on nothing; touches almost everything.
-
-The icebox entry read: *"MV3 is mostly portable; `chrome.*` namespace and the
-manifest `key` are the friction points."* Half right. The namespace and the key
-were both real, but the blocker nobody had written down was the **background**:
-Firefox MV3 has no service-worker background at all, and no amount of namespace
-aliasing papers over a manifest key that does not exist on the target.
-
-**The namespace: one module, not a polyfill**
-
-`js/browser.js` resolves `browser` (Firefox, promise-native) or `chrome`
-(Chromium) once and exposes a single promise-shaped surface. Every one of the 19
-modules that touched `chrome.*` now imports from it; the only remaining mentions
-of `chrome.` in the tree are in prose comments.
-
-Deliberately **not** `webextension-polyfill`: it would have been this project's
-first dependency, for a shim that is 140 lines and that we want to be able to
-read. And deliberately **no callback fallback** — every API used here returns a
-promise on every supported target, so a "retry with a callback" path would be
-machinery for a browser we do not support, and after a failed promise call it
-would issue side-effecting writes twice.
-
-A side effect worth having: the `localGet`/`localSet`/`localRemove` trio had
-been copy-pasted into seven modules, each hand-wrapping the callback form. They
-are now defined once.
-
-**Three manifests, generated**
-
-`manifest.base.json` plus `manifest.{chrome,firefox,edge}.json` overlays, merged
-by `scripts/build.mjs` into `dist/<target>/`. The differences are not cosmetic:
-
-| | Chrome | Firefox | Edge |
-|---|---|---|---|
-| Background | `service_worker` | `scripts` (event page) | `service_worker` |
-| Extension ID | pinned via `key` | `gecko.id` | assigned by the store |
-
-- **No service worker on Gecko.** Firefox MV3 runs a non-persistent event page.
-- **`key` is Chrome-only**, and both Firefox and the Edge store reject a package
-  carrying one. The build strips it from both.
-- **`gecko.id` is required for `storage.sync` to function.** Without a stable
-  add-on ID there is nothing to sync against and every config write goes quietly
-  nowhere — the worst kind of failure, because nothing errors.
-
-`scripts/build.mjs` is a copy step, not a bundler: same source files, one
-generated manifest. It uses an **allowlist** of what ships rather than an ignore
-list, because a deny list silently starts shipping whatever is added next — and
-this package is otherwise one careless commit from containing `assets/avatars/`,
-which is photographs of colleagues. The repo-root `manifest.json` is the Chrome
-output, regenerated by the build, so loading the repo unpacked still needs no
-build step and cannot drift from the base.
-
-**A bug this shipped anyway.** The migration swapped `chrome.storage.*` calls
-for shim calls across twenty files and missed the import in two of them —
-Kanban and Monitor both threw `syncGet is not defined` on mount. Nothing caught
-it: `node --check` parses without resolving identifiers, the unit suites never
-import the DOM-heavy view modules, and the one browser render exercised the
-Backlog. `scripts/test-imports.mjs` closes that hole — for every module, any
-identifier another local module exports and this one calls without importing is
-a failure. It reproduces all four missing imports when the bug is reintroduced.
-
-**Verification, because "it compiles" is not a port**
-
-- `scripts/test-browser.mjs` (30 checks) runs the real modules against a Firefox-shaped `browser` global with **no `chrome` global present at all** — including a full `credentials.js` round-trip. A stray `chrome.` reference fails there instead of in front of a user. It also covers both-present (browser wins), aliased namespaces, no namespace (fails loudly), and the degradation paths.
-- `scripts/test-manifests.mjs` (49 checks) encodes the rules that otherwise only bite at submission: no `key` on Firefox or Edge, exactly one background form per target, gecko id present and well-formed, versions in lockstep, no `_comment` keys shipped, CSP still forbidding remote script.
-- **The built package was installed into a real Firefox 153** over WebDriver BiDi. It installed clean with zero warnings, and the profile's extension IndexedDB came back holding `schemaVersion` — which only `background.js` writes, via `runMigrations()`, through the shim. That is the event page loading as an ES module and the `browser.*` path working end to end, not an inference.
-- **Not** verified by loading: the Chromium packages. Headless Chrome and Edge refuse to navigate to a `chrome-extension://` page from the command line, and the CLI check originally run here used a `timeout` binary that does not exist on this machine — it produced no output, which was misread as success. What is actually known: the repo-root Chrome manifest is generated from the same base, its `key` is unchanged so the extension ID and storage namespace are preserved, and `dist/chrome` and `dist/edge` carry byte-identical source. Loading those two by hand is on the smoke checklist.
-
-**Follow-up, done 2026-08-07:** the pages used to pull IBM Plex from Google
-Fonts. They now ship **Ubuntu Sans** and **Ubuntu Sans Mono** locally —
-Canonical's own pre-built variable webfonts, unmodified, under the Ubuntu Font
-Licence 1.0, which expressly permits bundling and embedding. Two files, every
-weight, full character coverage including the accented and Cyrillic names a real
-roster contains. The CSP lost both remote origins and is now
-`style-src 'self' 'unsafe-inline'; font-src 'self'` — no third-party request on
-any page load, and the app renders correctly offline. Obligations and their
-handling are in `assets/fonts/README.md`.
-
-**Exit criteria met:** one codebase produces working Chrome, Firefox and Edge
-packages; no application module names a browser; and the differences between
-targets are three declared manifest keys rather than branching code.
-
----
-
-## M11 — GitHub sync ✔ *(feature 11)*
-
-**Size: M — split in two** · Done 2026-08-07. Depends on M3 (roster). Independent
-of M8: read-only against GitHub, so it landed before the Jira write layer.
-
-The standup board answers "what is assigned to you". It cannot answer "what have
-you got in review", which in practice is where half the day went and where the
-blocker usually is. This milestone adds a second, optional source, on the same
-screen as the tickets.
-
-Optional throughout. With GitHub sync off, every screen behaves exactly as it
-did before.
-
-**The scoping decision, which shaped everything else.** The original sketch was
-one org-wide query: `search(query: "org:X is:pr is:open")`. That was rejected
-during implementation, at the user's instruction, in favour of an **explicit repo
-allowlist**. The reasoning is worth keeping:
-
-- A token's access is not a team's scope. A fine-grained token with fifty repos on it would have pulled fifty repos into a nine-person standup, and nobody would have noticed until the panel was noise.
-- "Which repos are ours" is knowledge the team has and GitHub does not. Asking for it costs one textarea and removes an entire class of wrong answers.
-- It made the search API unnecessary, which removed the 30/minute budget, the 256-character query ceiling, and the GHES REST fallback the original plan needed. `repository(owner:, name:)` aliases ask for exactly the declared repos in one POST against the ordinary 5000-point/hour budget.
-- An empty list means off. The allowlist *is* the scope, so a config with `enabled: true` and no repos is treated as disabled rather than as "everything" — the failure mode points at nothing rather than at everything.
-
-**11a — Config, auth and mapping**
-
-- **Settings → GitHub sync**, a `<details>` section that stays shut until it is wanted and opens already-expanded once enabled: host, org, the repo list, token, and a Test connection button in the shape Settings already uses for Jira.
-- **Config** (synced, non-sensitive): `github: { enabled, host, org, repos }`. `host` defaults to `github.com`; anything else is GitHub Enterprise Server and shifts the REST base to `https://<host>/api/v3` and GraphQL to `https://<host>/api/graphql`. Both `config.local.json` and Settings write it. `repos` accepts a bare name (read as belonging to `org`), `owner/name`, a browser URL, or an SSH remote, and normalises all four to the same stored form.
-- **The repo strings are also the injection guard.** They are interpolated into a GraphQL document as string literals, so `parseRepoRef` validates against a strict character class and `buildActivityQuery` throws rather than escaping — an unsafe reference is rejected at the door, not sanitised. Covered by tests.
-- **Token** (device-local, never synced, exported only behind **its own** checkbox — added 2026-08-07 at the user's request; it was originally excluded unconditionally, which made a browser migration mean re-pasting it by hand): its own keys in `js/credentials.js`, since a dead GitHub token must never break the Jira views and forgetting one must not forget the other. A fine-grained PAT owned by the org, scoped to the listed repos, needs *Metadata: read*, *Pull requests: read* and *Issues: read*; *Checks: read* for check state, and org *Members: read* only for the roster matcher. Classic PATs work (`repo` + `read:org`) and are documented as the worse option, since `repo` also grants write everywhere.
-- **Real expiry, for once.** GitHub returns `github-authentication-token-expiration` on every authenticated call, so the date is recorded rather than guessed at creation + 365 days. The M2 banner is reused but kept separate and reworded: a lapsed GitHub token costs one optional panel, and saying otherwise would be a lie.
-- **Per-repo reachability.** Listing a repo in Settings does not grant the token access to it — that gap produces a `404`, not a `403`, which is genuinely confusing. Test connection checks each repo individually and names the ones that fail.
-- **Host permission.** `https://api.github.com/*` is in `host_permissions`. A GHES host cannot be known at build time, so its origin is requested at runtime from the Save button, which is the user gesture Chrome requires.
-- **Roster gains `githubLogin`**, normalised to GitHub's own rule (alphanumerics, single inner hyphens, ≤39), tolerating both `@handle` and a profile URL. Plus **"Match logins from GitHub org"**, which pulls `/orgs/{org}/members`, matches on name and email-local-part variants, fills in blanks only, and leaves an ambiguous match empty rather than guessing. Assisted, not automatic — the same shape as the Jira roster import.
-- **Personal data:** a GitHub login is one more identifier attached to a named colleague, so it rides in the roster record and inherits its treatment — local-only, excluded from config export unless the personal-data box is ticked. No new mechanism.
-
-**11b — GitHub in standup**
-
-- **One request for every declared repo.** Aliased `repository()` fields, each pulling open PRs, recently merged PRs and open issues. Aliases are positional (`r0`, `r1`, …) precisely so a partial failure maps back to the repo that caused it — GraphQL reports errors by path, not by content, and "one repo is unreadable" must not read as "GitHub is down".
-- **Pre-fetch on mount.** The query fires as the setup card paints. Nothing awaits it: the standup starts whether or not it has landed, a slow fetch fills in behind, and a person already on screen when it lands gets their panel without waiting for the next hand-off. A status line on the setup card says which of loading / ready / partial / failed happened. (It fired *after* the Jira awaits, not alongside them, which 11c fixed — see below.)
-- **Per-person panel** beside the speaker's board: open PRs with the state that decides what to say, then "waiting on you", then what they merged since the last working day, then assigned issues. Empty sections are omitted; an empty panel says so in one line.
-- **Sorted by how stuck, not by how recent** — changes requested, then failing checks, then approved-and-unmerged, then waiting on review, each tie-broken by age. (Drafts had a fifth rank until 11c dropped them from the model entirely.)
-- **"Waiting on you" without the search API.** `review-requested:` is a search qualifier, so it came out of `reviewRequests` on each PR node instead. Team review requests are kept separate from individual ones — a team request is not a name.
-- **Merged since the last *working* day**, not the last 24 hours. Anything shorter makes the panel lie every Monday.
-- ~~**Coverage gaps stated once, on the summary**~~ — built, then **removed on 2026-08-07 at the user's request**: the end screen is a celebration, not an audit. Repo read failures are still reported, on the setup card's status line; PRs by people off the roster and roster members with no GitHub login are now surfaced nowhere. `coverageGaps()` and its tests went with it rather than sitting unused. If the accounting is wanted back, Settings is the place for it, not the done screen.
-- **Cache** with the existing 5-minute TTL, keyed by **the repo list** rather than by the org — changing the allowlist must not serve the previous list's answer.
-
-**11c — Sprint statistics per person** *(2026-08-17)*
-
-Four numbers per person, on the setup row beside each name and again as tiles on
-the speaker's panel: open PRs they authored, PRs they opened this sprint, reviews
-and comments this sprint, and lines merged into a repo's default branch this
-sprint. Requested because the panel answered "what is in flight" but not "what
-has this sprint actually consisted of", which is the half a standup keeps asking
-about out loud.
-
-- **Drafts count for nothing, anywhere.** Dropped in `toActivity` and in the window fetch rather than filtered per call site, so no count can disagree with the list beside it, and a draft's reviews and comments go with it. `PR_STATES.DRAFT` and its CSS went with them: work explicitly marked not-ready is not work a standup chases.
-- **A second query, because it is a second question.** The aliased activity document answers "what is open right now" and cannot be stretched: the sprint numbers need closed pull requests, reviews, comments and diff sizes, over a whole sprint rather than the newest 50 of everything. So `fetchTeamStats` pages `pullRequests(orderBy: UPDATED_AT DESC)` per repo, stopping at the first node older than the window. A PR created, merged, reviewed or commented on inside the window has necessarily been *updated* inside it, which is what makes that a complete stop condition rather than a heuristic.
-- **The fetch window is a fixed 45-day lookback, not the sprint's own dates** — the point that makes the rest work. The network shape depends on nothing but the repo list, so the query can start before Jira has said when the sprint began; the sprint boundary is applied afterwards in `statsFor`, over data that already covers it. A sprint older than the window is *clamped* and says so in the tooltip rather than silently undercounting.
-- **Started from the header, not from the view.** `prewarmGithub()` fires on `pointerdown` on the STANDUP tab, and an in-flight map keyed the same way as the cache means the view's own call joins that request instead of issuing a second one. The view also starts it above its first `await`, so keyboard and palette navigation get the same parallelism. This is what the README already claimed and the code did not: the fetch used to fire *after* `getAllSprintIssues` resolved.
-- **Two definitions, both of which could have gone the other way.** Reviews and comments are counted on *other people's* pull requests only — replying to feedback on your own is authorship, not review, and counting it would reward the noisiest thread. "Lines merged" means lines that reached the **default branch**, attributed to the PR author; a merge into a release branch has not shipped.
-- **The sprint window is the earliest start among the active sprints.** Two boards on staggered sprints would otherwise put two meanings of "this sprint" in one table. A sprint with no start date falls back to 14 days and says which it used.
-- **Every way the numbers can be short is stated.** A repo too busy for the 6-page cap is reported as truncated, a repo the token cannot read is a per-repo failure, and the window query failing costs the four numbers but not the panel. Every repo failing throws instead: a dead token rendering as "everyone did nothing this sprint" is worse than an absent panel.
-- **Not measurement.** These are conversation prompts on a screen the team runs together, not a per-person scorecard, and nothing is ranked, scored, compared or stored. Lines merged is the number most easily misread as productivity; it is shown as `+added −removed` next to three others precisely so no single figure reads as a verdict.
-
-Verified by `scripts/test-github.mjs` and by mounting the real view against a
-fake DOM — the cases that would look plausible while being wrong: a PR opened
-before the sprint but merged during it, a merge into a non-default branch, a
-review on your own PR, an unsubmitted review, a draft's reviews, and a sprint
-older than the fetch window.
-
-**Not in this milestone:** correlating pull requests to individual Jira issue
-keys. That is the deferred *development links* item above, and it is a different
-problem sitting on top of the same auth and config this milestone built.
-
-**Exit criteria met:** with GitHub configured, a standup shows every open PR the
-team has in the declared repos, grouped by person, fetched in one request before
-the first person speaks; with GitHub not configured, its list empty, or its token
-dead, every existing screen behaves exactly as it did before. Verified by
-`scripts/test-github.mjs` (181 checks after 11c) covering login normalisation, repo-ref
-parsing including the injection cases, API base derivation for github.com vs
-GHES, the aliased query, response → view model, review-state and staleness
-derivation, per-person slicing, the roster
-matcher, and — against a stubbed transport — partial failure and expiry-header
-recording.
-
----
-
-## M9 — Command palette + quick triage ✔ *(suggested feature 9)*
-
-**Size: M** · Done. Depends on M4 (findings).
-
-The keyboard layer that makes this a power tool rather than another dashboard.
-
-- `Cmd/Ctrl+K`: fuzzy jump to any issue by key or summary, any person, any view, any sprint. Recent items first.
-- Raw JQL escape hatch, with results in the standard issue list.
-- Palette-driven actions everywhere: "start standup", "clear cache", "export config".
-- Card drag-and-drop between Kanban columns, shared with the standup board.
-
-**Triage mode** — walking the M4 queue and fixing each finding by keystroke —
-needed the M8a write layer, which landed on 2026-08-20. The split on 2026-08-12
-is what shortened that wait, and the queue-walking keystrokes are now the only
-part left to build: assignee, estimate and due date all have a tested write
-behind them, and `js/issue-edit.js` is the same contract the drag path uses.
-
-Verified by `scripts/test-palette.mjs` (47 checks).
-
----
-
-## M7 — Sprint overview dashboard ✔ *(feature 5)*
-
-**Size: L** · Done. Depends on M3.
-
-**What was built**
-
-- **Aggregation** (`js/dashboard.js`) — one pass over the sprint issues the other views already cached, producing points and issue counts by status group, by board and by person, completion by both points and issues, carry-in, scope change, projected carry-out, and working-day arithmetic. Zero extra requests in the normal case: `getAllSprintIssues` and `getActiveSprint` are both already cached by Kanban and Monitor.
-- **Sub-tasks excluded from totals** — their points duplicate the parent story's and would inflate the sprint total. The count of excluded sub-tasks is stated rather than hidden.
-- **Working days, not calendar days.** A burndown that counts weekends makes every team look behind on Monday morning.
-- **Carry-in is detected properly** from the issue's sprint field listing a closed (or non-active) sprint, including the older serialised `state=CLOSED` blob format. **Scope-added is honestly approximate** — it compares issue creation against sprint start, so an older issue dragged in mid-sprint isn't caught. The tile says so in a tooltip rather than implying precision.
-- **Hygiene score** wired to the M4 checks, as a share of issues with no finding, and the tile links through to the Monitor tab.
-
-**Burndown — the history problem, resolved**
-
-Neither documented route was acceptable: `expand=changelog` costs one request per
-issue (a 60-issue sprint = 60 requests every time the tab opens), and the chart
-Jira itself draws comes from `/rest/greenhopper/1.0/rapid/charts/sprintreport`,
-which is the same class of undocumented, unsupported endpoint the development-links
-feature was deferred over. Shipping against it would have contradicted that
-decision one milestone later.
-
-So the app **records its own daily snapshot** (`js/snapshots.js`): one small
-aggregate per day per sprint, from data already in hand, building history forward.
-Honest costs, stated in the UI rather than papered over: the burndown appears on
-the second day of use, and sprints that ran before install have no history. The
-empty state explains why instead of drawing a line the data can't support.
-Storage is bounded (8 sprints × 60 days) and same-day writes overwrite.
-
-**Charts** (`js/charts.js`) — inline SVG, no library (the CSP forbids remote
-script, and three chart forms don't justify vendoring one). Built to fixed mark
-specs rather than per-chart taste: bars ≤24px with a 4px rounded data-end, 2px
-lines with round caps, ≥8px markers carrying a 2px surface ring, hairline
-recessive gridlines, and a 2px surface gap between stacked segments instead of
-strokes. Form was chosen per data job:
-
-| Data | Form | Colour job |
-|---|---|---|
-| Headline numbers | KPI row of stat tiles; completion is the single hero figure | none |
-| Sprint progression | one horizontal stacked bar | **ordinal** — To Do → Done is a sequence, so one hue in monotone lightness steps |
-| By board | horizontal bars, uniform hue + board-colour dot beside the label | nominal — colouring bars by board would spend the identity channel on what the label already says |
-| By person | bar-in-table with meters | doubles as the table view, so every value is readable as text |
-
-Palettes were **validated, not eyeballed** — both ordinal ramps pass monotone
-lightness, adjacent ΔL ≥ 0.06, light-end contrast ≥ 2:1 and single-hue; every
-mark clears 3:1 against its own surface (4.42:1 light, 5.89:1 dark). Light and
-dark are each selected against their own surface rather than one being a flip of
-the other. The progression ramp is deliberately **not** the app's status badge
-colours — those are reserved status tokens, and reusing them would have a status
-colour impersonating a series. Status tiles always pair colour with an icon and a
-word.
-
-**Exit criteria met:** the dashboard answers "are we going to make it?" without
-opening Jira, and adds no requests at all when the other views have already run.
-Verified by `scripts/test-dashboard.mjs` (123 checks), which includes a DOM shim
-asserting chart geometry — no NaN coordinates, nothing drawn outside the viewBox,
-no inline label on a segment too narrow to hold it.
-
----
-
-## M6 — Daily standup mode ✔ *(feature 7)*
-
-**Size: L** · Done. Depends on M3 (roster) and reuses the Kanban renderer.
-
-Flow as specified: **Start** → who's in today → per-person duration (default
-2 min) → randomised order → 5-second countdown → that person's sprint board →
-countdown cue before time is up → "get ready" card with the next person's name
-and avatar → their board, timer running.
-
-**What was built**
-
-- **Session logic** (`js/standup.js`) — DOM-free and audio-free, so the awkward parts are unit-testable: phase machine (`countdown → speaking → handoff → speaking → … → done`), pause arithmetic, overrun, and resume.
-- **Timing from timestamps, never accumulated ticks.** A background tab throttles `setInterval` to once a second or worse; a counter built from ticks would silently fall behind the wall clock exactly when someone tabs away mid-standup. Every displayed value is derived from `Date.now()` deltas minus paused stretches.
-- **Seeded shuffle** (mulberry32 + Fisher–Yates). A reload offers "Resume — same order as before", and the order is reproducible from the stored seed alone.
-- **Attendance** prefilled from `activeMembers()`, remembering yesterday's selection, with "All in" / "None", per-person minutes, a bulk "set all", each person's sprint issue count (so an empty board is visible before the meeting), and both speaking and wall-clock totals — the latter including the lead-in and hand-offs.
-- **Audio** (`js/sfx.js`) — the two supplied cues, bundled under `assets/sfx/`. `dun-dun-dun` fires as the standup starts; the countdown cue is scheduled from its own measured duration so it *finishes* exactly as the clock hits zero, rather than starting at a hardcoded 3 seconds. `unlock()` runs inside the Start button's click handler to satisfy the autoplay policy and warm the buffers, so the first real cue isn't swallowed. Mute toggle, persisted.
-- **Board reuse, not a fork.** The card and column rendering moved out of `js/views/kanban.js` into `js/components/board.js` (Kanban dropped from 507 to ~300 lines) and standup renders the same cards, with drag-reorder opt-in so the stage gets a read-only board and assignee avatars suppressed (the whole board is one person's).
-- **Overrun** counts up in red with the progress bar turning red, rather than cutting anyone off. `+1 min` extends the current person without disturbing the elapsed clock.
-- **Presentation mode**: full-screen on start, nav and footer hidden, type scaled for reading across a room, and keyboard-only control — Space pauses, → advances, Esc ends. The router yields the keyboard while a session is live, so `b`/`r`/`k` can't navigate away and lose the standup.
-- **Parking lot** per session, saved as you type, shown in the summary with copy-to-clipboard and download-as-txt.
-- **Summary** after the last person: actual vs planned time each, overruns flagged, people never reached marked as such.
-
-**Exit criteria met:** the flow runs mouse-free, and a mid-session reload
-resumes the same order at the same person. Verified by
-`scripts/test-standup.mjs` covering pause arithmetic, overrun, transitions,
-resume, and the shared board grouping.
-
----
-
-## M5 — Issue detail ✔ *(feature 4)*
-
-**Size: L** · Done. Depends on M4 (whose rows are now deep links into it).
-
-**Two containers, one renderer.** A plain left-click on any issue key opens a
-slide-over **drawer**; ⌘/Ctrl-click, middle-click, or "open in new tab" opens the
-**full page** (`issue.html?key=ABC-123`). Both call the same
-`renderIssueInto()`, so the layout can't drift between them. Anchors carry the
-page URL as their `href` and only intercept unmodified left-clicks, which means
-the browser handles new-tab opening natively rather than through hand-rolled
-modifier detection.
-
-The drawer deliberately does **not** write the issue key into the URL: the
-router keys off the hash, so an issue key there would remount the underlying
-view. The full page is the linkable, reloadable form.
-
-**What renders**
-
-- **Header** — key (links to Jira), status badge coloured by `statusCategory`, issue type with icon, summary, parent row (type chip + key + truncated summary, opening in the drawer), project key + name linking to Jira, and explicit "Open in Jira" / "Full page" links.
-- **Content** — assignee, reporter, start date, due date (overdue in red, with a relative hint), story points, sprint (handles both the object array and the older serialised `name=…` blob, marking closed sprints), then the description.
-- **Linked issues** — grouped by relationship using Jira's own `inward`/`outward` wording so "blocks" and "is blocked by" read correctly, with sub-tasks as their own group. Every key opens in the drawer.
-- **Comments** — paginated, oldest-first, author avatars and roster display names, relative timestamps with exact time on hover, an "edited" marker, and a reply box.
-
-**Reply is the app's first write** (`POST /rest/api/3/issue/{key}/comment`),
-pulled forward from M8 by request. Jira's v3 API takes Atlassian Document
-Format, so `js/adf.js` converts textarea text — blank lines become paragraphs,
-single newlines become hard breaks, and markup is left literal rather than
-half-interpreted. ⌘/Ctrl+Enter posts. The posted comment is re-rendered from
-Jira's response rather than from the local draft, so what's on screen is what
-exists. Scoped-token setups need `write:comment:jira` for this.
-
-- **Sanitiser** (`js/sanitize.js`). Descriptions and comment bodies arrive as Jira-rendered HTML authored by anyone who can comment, so they go through an allowlist before touching the DOM: unknown elements unwrap (keeping their text), `script`/`style`/`iframe`/`form`/`svg` and friends are dropped with their contents, every `on*`/`style`/`srcset`/`data-*` attribute is stripped, and `href`/`src` must parse as http(s)/mailto after control characters are removed (`java\tscript:` is a real bypass). Site-relative Jira URLs resolve against the configured base; surviving links get `target=_blank` + `rel="noopener noreferrer"`. The element walk runs against a minimal DOM stub in the tests, so the dangerous path is covered without a browser.
-- Both rich-text paths degrade: no `renderedFields`/`renderedBody` falls back to text extracted from the ADF rather than showing nothing.
-
-**Exit criteria met:** every field in the feature list renders or is explicitly
-marked unavailable, and no HTML reaches the DOM unsanitised. Verified by
-`scripts/test-issue.mjs` (86 checks, half of them sanitiser attack cases).
-Development links moved to the deferred backlog at the user's request — to be
-homebrewed against the GitHub API later.
-
----
-
-## M4 — Monitoring tab ✔ *(feature 6)*
-
-**Size: S–M** · Done. Depends on M3. Cheapest real feature here — no new endpoints.
-
-**What was built**
-
-- **Four hygiene checks** (`js/monitor.js`), pure derivation over issues the views already fetch: unassigned, no epic parent, no due date, no story points. Exit criteria met with no extra requests.
-- **Type exclusions, stated in the UI rather than hidden.** Every check skips epics and anything already done; all but "unassigned" also skip sub-tasks, because a sub-task hangs off a story — it has no epic of its own and inherits its parent's dates and estimate. Flagging all of them would have made the tab noise. Sub-tasks *do* count as unassigned, since nobody picking one up is a real gap.
-- **Done detection prefers `statusCategory`** over status names, so a workflow with a custom done status ("Shipped") is handled, and a status literally named "Done" that isn't in the done category is not.
-- **Epic detection works on both project styles**: `getEpicKey` reads the configured Epic Link field and falls back to `parent`, so company-managed and team-managed projects both resolve.
-- **Checks that cannot run say so** instead of flagging everything. With no story-points field mapped, "no story points" would otherwise report every issue on the board; it now renders as unavailable with a pointer to Settings, and contributes nothing to the totals. "No epic parent" carries a softer caveat when the Epic Link field is unmapped, since the parent fallback still works.
-- **Cross-check "fix these first"**: issues tripping more than one check are ranked at the top of the summary, because one edit clears several findings.
-- Scope toggle (current sprint / all issues, backlog fetched only when asked for), Team Only toggle shared with the other views, per-section counts, collapsible sections that start collapsed when clean, and a nav badge with the total.
-- Per-check muting in Settings, stored as mutes only — so a check added later defaults to on rather than silently off.
-
-**Exit criteria met:** the four checks are correct against synthetic fixtures
-covering both Jira project styles (`scripts/test-monitor.mjs`, 54 checks), and
-every finding is one click from Jira. In-app fixing arrives with the write layer
-in M8.
-
----
-
-## M3 — People layer: team mapping ✔ *(feature 3)*
-
-**Size: M** · Done. Depends on M2. Hard dependency for M6, M8, M9, M11, M14, M15, M16.
-
-**What was built**
-
-- **Roster data layer** (`js/team.js`) — device-local, since a roster holds colleagues' names, emails and avatars. Shape carries a team list plus an active id from day one, so a team switcher is additive later rather than a migration. Members dedupe on accountId, then email, merging blanks instead of duplicating a person.
-- **Three ways onto the roster** (`js/roster-ui.js`), in order of how widely they work:
-  1. **Harvest from boards** — `getAllSprintIssues` + `getAllBacklogIssues`, no extra Jira permission, ranked by issue count. Only finds people with an assigned issue right now, which is why it is not the only path.
-  2. **Directory search** — `GET /rest/api/3/user/search`, filtered to human accounts. Needs "Browse users and groups", which many sites restrict to admins, so a 403 degrades to an explanatory note rather than an error.
-  3. **Manual entry** — account ID (reliable) or email. An email-only member is stored **unlinked**, flagged in the UI, and gets its accountId filled in automatically the next time that person appears in a harvest.
-- **Per-member**: display-name override, emoji, avatar override, Slack handle, GitHub login (added in M11), active flag, and a `capacity` object carried through untouched for the planner (M15).
-- **Team Only filter** in the filter bar, persisted, honoured by all three views. It hides work assigned *outside* the roster but keeps unassigned issues — hiding those would make the M4 hygiene checks lie.
-- **Outsiders are marked, not hidden**: the assignee dropdown labels them `· outside team`, and `extractAssignees` sorts roster members first.
-- Display names resolve through the roster everywhere (`assigneeLabel`), falling back to the Jira name shortened to first + last.
-- Roster is **excluded from config export** unless explicitly ticked, behind a confirm — same pattern as the token. Import warns before storing colleagues' details.
-
-**Exit criteria met:** one roster, defined once, respected by every view and
-reused by later milestones. Verified by `scripts/test-team.mjs`.
-
----
-
-## M2 — Durable identity and config ✔ *(feature 2)*
-
-**Size: M** · Done. Depends on M1.
-
-**Root cause of the re-login pain:** removing and re-adding an unpacked
-extension mints a **new extension ID**, and `chrome.storage` is namespaced per
-ID — so the old settings are still on disk but unreachable. Plain reloads (the
-↻ button, or a code change) keep the same ID and *do* preserve storage. So this
-is an identity problem, not a storage problem.
-
-**What was built**
-
-- **Pinned the extension ID** — `manifest.json` carries a `key` (public half of a generated keypair), so the ID is `bcbejonnfmamlddbojnjjgdabndpicff` on every machine and survives remove/re-add. The private half was never written to disk: unpacked loading only needs the public key. Must be removed before a Chrome Web Store upload, which assigns its own identity — noted in the README.
-- **Config export/import** (`js/portable.js`) — JSON file with site, brand, boards, status groups, field mapping, additional fields and (from M11) the GitHub host, org and repo list. Both tokens are excluded by default and each needs its own checkbox plus its own confirm — one prompt per secret, naming what that secret exposes, because a single "this file has secrets in it" dialog teaches people to click past it. The file is browser-neutral, which is what makes the M12 migration path work. Import validates and sanitises every field, drops junk with a warning rather than throwing, and refuses files that are not ButterJira exports.
-- **Token moved to `chrome.storage.local`** (`js/credentials.js`) — off `sync`, which replicated it in plaintext through the user's Google account to every signed-in device. Non-secret config stays on `sync`. Cross-machine transfer is now the export/import flow. Also added a "forget token on this device" action that keeps everything else.
-- **Numbered storage migrations** (`js/migrations.js`) — `schemaVersion` in local storage, migrations run before any config or credential read (memoised, idempotent) and on `chrome.runtime.onInstalled`. v1→v2 moves legacy synced credentials to local. Storage written by a newer build is left untouched rather than mangled. This is what makes a codebase change a non-event.
-- **Token lifecycle UX** — creation and expiry dates recorded at setup (default one year, since Atlassian does not expose real expiry over the API), correctable in Settings, with a once-a-day banner from T-14 onwards. A 401 now opens a re-auth prompt asking for the token alone, with site, email, boards and field mapping preserved; parallel 401s produce one prompt, not a pile-up.
-
-**Exit criteria met:** remove the extension, re-add it, and land straight in the
-app with all settings intact. An expired token asks for a token and nothing else.
-Verified by `scripts/test-credentials.mjs` for everything except the browser-level
-ID pinning, which is on the manual checklist.
-
----
-
-## M1 — Whitelabel: make it configurable ✔ *(feature 1)*
-
-**Size: M** · Done. Depends on M0.
-
-The tool assumed one Jira site, one fixed set of boards, and one org's
-branding. All of that is now data rather than code.
-
-**What moved into config**
-
-| What | Becomes |
-|---|---|
-| Hardcoded site URL (9 call sites) | `CONFIG.site.baseUrl`, set at setup, editable in Settings |
-| Hardcoded board list (IDs, labels, project keys) | user-configured `CONFIG.boards`; no built-in defaults |
-| Project-named CSS accents | `--accent-primary` / `-success` / `-warning` / `-danger` |
-| Per-board Gantt bar colours in `css/gantt.css` | generated at mount from configured board colours |
-| Org wordmark asset in the nav bar | optional `CONFIG.brand.orgLogo`, product logo when unset |
-| Org email placeholders, org-specific titles | neutral product strings |
-| Hardcoded `customfield_*` IDs | discovered field roles (below) |
-
-**What was built**
-
-- `js/config.js` — single module owning site URL, brand, boards, status groups, field mapping, and additional fields. Resolution order: built-in defaults → `config.local.json` (untracked) → browser storage. `additionalFields` merges rather than overrides, so a local file always contributes.
-- **Custom field discovery.** `GET /rest/api/3/field` matched by field name resolves the four roles the app needed at the time (story points, start date, epic link, sprint — `epicName` was added later for the Backlog's Epic column) into ordered candidate ID lists; `fieldValue(issue, role)` takes the first that carries a value. Runs automatically at setup, re-runnable from Settings, with manual override per role. Unresolved roles degrade to empty values instead of breaking a view.
-- **Extensible extra fields.** `additionalFields` is appended to every issue query, editable in Settings and in `config.local.json` — the gitignored escape hatch for site-specific fields.
-- `.gitignore` covers `config.local.json`, `assets/brand/*` (bar `.gitkeep`), secrets patterns, packaging output, OS/editor noise, and local agent state.
-- First-run flow: site URL → credentials → verify → field discovery → board picker populated from `GET /rest/agile/1.0/board`, so nobody types a numeric board ID.
-- `optional_host_permissions` so a non-Atlassian host (Jira Data Center on a custom domain) can be granted at setup for that origin only.
-
-**Cross-cutting note:** `baseUrl` is swappable in one place. If an org ever
-mandates scoped API tokens, the base becomes
-`https://api.atlassian.com/ex/jira/{cloudId}` and every path gains a prefix —
-now a small change in `js/config.js` rather than a nine-file search-and-replace.
-
-**Exit criteria met:** a fresh clone pointed at an unrelated Jira Cloud site
-with different boards and different custom field IDs renders all three views
-with no code edits. No org string or asset in the tracked tree.
-
----
-
-## M0 — Hygiene and foundations ✔
-
-**Size: S** · Done. No user-visible change; bought back time on everything after it.
-
-- `.gitignore` authored.
-- `.DS_Store` files removed from the tree.
-- Duplicated board defaults collapsed — `settings.js` no longer re-declares what config owns.
-- Jira base URL single-sourced. It had been hardcoded in nine places across `js/api.js`, `js/router.js`, `js/components/nav.js`, `js/views/*.js`, and the old test script; all of them now go through `jiraUrl()` / `browseUrl()` / `wikiUrl()`.
-- Ad-hoc test script rewritten as `scripts/jira-smoke.js`, reading everything from the environment.
-- `README.md`: what it is, how to load unpacked, how to get an API token.
-- `scripts/SMOKE-CHECKLIST.md`: manual pass covering install → auth → views → config round-trip. Cheap substitute for a test suite until there is a build step.
-
-**Exit criteria met:** `js/config.js` is the only module that knows the site
-URL; no duplicated defaults; README lets a stranger run it.
+| M0 | Hygiene and foundations |
+| M1 | Whitelabel: configurable site, brand, fields |
+| M2 | Durable identity and config, storage migrations |
+| M3 | Team roster |
+| M4 | Monitor tab (hygiene checks) |
+| M5 | Issue detail |
+| M6 | Standup mode |
+| M7 | Sprint dashboard and daily snapshots |
+| M8 | Write layer and issue creation |
+| M9 | Command palette |
+| M10 | Retired unbuilt — its idea became M16 |
+| M11 | GitHub sync |
+| M12 | Firefox and Edge |
+| M13 | Sprint freeze and diff |
+| M14 | Weekly 1:1 sheet and My todos |
+| M16 | Quarterly overview (was "Quarter Wrapped") |
+| M18 | Linked issues |
+| M19 | Tagged releases built by CI |

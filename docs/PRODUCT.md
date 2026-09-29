@@ -91,9 +91,12 @@ panel, breakdowns by status, board and person, delivery-per-person including
 optional GitHub columns), Gantt/roadmap, Backlog, Kanban, Monitor (four hygiene
 checks), Standup mode, the weekly 1:1 sheet (per-person window, device-local
 notes and archive, Slack copy, mini-Gantt) with a personal todo list beside it,
-issue detail as drawer and full page, command palette, sprint freeze and diff,
-linked issues, sprint recap PDF, team roster, GitHub sync, config
-export/import, numbered storage migrations, Settings for everything above.
+issue detail as drawer and full page with a GitHub development section, command
+palette, sprint freeze and diff, linked issues, sprint recap PDF for the active,
+the last closed or any chosen set of sprints (Recap config), quarterly overview
+PDF, team roster, GitHub sync, config export/import, device backup with
+merge-on-restore, optional redirect of Jira links into the app, numbered storage
+migrations, Settings for everything above.
 
 **Writes.** The app writes to Jira in a bounded set of places and nowhere else:
 workflow transition by dragging a card, field edits (assignee, due date, story
@@ -111,7 +114,8 @@ refused.
    the local histories live in device-local extension storage, never synced
    storage, and are excluded from a config export unless explicitly ticked.
    Nothing is sent anywhere except the user's own Jira site and, when GitHub
-   sync is on, their GitHub host.
+   sync is on, their GitHub host. A device backup is a file the user saves
+   themselves, and never carries a token, the account email or a 1:1 note.
 3. **Nothing instance-specific hardcoded.** Board IDs, project keys, custom
    field IDs, status grouping and branding all come from configuration or are
    discovered from the site at runtime. `customfield_10016` means different
@@ -130,28 +134,23 @@ sight of it. *Since the freeze* = the diff over it. *Crept in* / *pulled out* /
 share of issues with no Monitor finding, explicitly a nudge and not a KPI.
 *Status group* = the user's mapping from real Jira statuses onto columns.
 *Roster* = the local team list with display-name overrides, emoji and optional
-GitHub login. *Complete 1:1* = the action that archives a 1:1's notes and stamps
+GitHub login. *Team scope* = the rule that the reporting screens (dashboard,
+recap, quarterly overview) count only issues held by active roster members plus
+unassigned ones. *Complete 1:1* = the action that archives a 1:1's notes and stamps
 the per-person clock the next sheet's window opens from. *Carried* = an action
 still open when a 1:1 was completed, moved into the next session under a dated
 rule.
 
-**Open product decisions.** *Settled and shipped 2026-09-06:* M14 (weekly 1:1
-screen) — a manager-operated per-person prep sheet with device-local notes, a
-per-person "Complete 1:1" clock, a LAUNCH menu that also takes Standup and the
-recap, and a local todo list. Three of its decisions move something recorded
-elsewhere and are flagged in the roadmap as reversals: per-person line counts on
-that screen only, note retention unbounded behind a Settings clear action, and
-Standup losing its top-level nav tab. It spun out **M20** —
-recording and transcribing a 1:1 locally — which is scoped, last in the queue,
-and gated on two unresolved questions: whether a local engine is possible under
-the no-dependency constraint, and an AI Enablement / DPIA review, since
+**Open product decisions.** The sprint planner (M15) is next, and its open
+questions are recorded in the roadmap for a scoping pass before any code: how
+capacity is measured, where days off come from, whether the planner creates or
+starts sprints in Jira (each would be a new kind of write), and whether
+unassigned work belongs in a plan. M20 (recording a 1:1 on the device) stays
+gated on a local-engine question and an AI Enablement / DPIA review, since
 recording a named colleague is worker-management-shaped under the EU AI Act's
-Annex III. M10 is retired unbuilt and its number stays vacant.
-*Settled 2026-09-06:* the licence, which was on the critical path for tagged
-releases — a public repo shipping downloadable builds with no licence grants
-nobody the right to use them — is PolyForm Noncommercial 1.0.0. Releases are
-built and published by GitHub Actions from a `v*` tag; nothing is built by hand
-and nothing is uploaded by hand.
+Annex III. Settled and in force: the licence (PolyForm Noncommercial 1.0.0),
+releases built and published by CI from a `v*` tag, per-person figures in the
+recap and the quarterly overview, and the team scope above.
 
 ## Brand Commitments
 
@@ -169,14 +168,14 @@ and nothing is uploaded by hand.
 
 ## Evidence on Hand
 
-- `README.md` (~69 KB, repo root) — install, configuration, every feature, data handling,
+- `README.md` (repo root) — install, configuration, every feature, data handling,
   permissions, keyboard shortcuts, file layout.
-- `docs/ROADMAP.md` (~121 KB) — the full milestone record, kept unsummarised because
-  it holds the reasoning; includes the 2026-09-03 renumbering reconciliation
-  table (M13 ↔ M15 swap, M10 retired).
-- Twenty-three `scripts/test-*.mjs` suites (2113 checks, no dependencies, no
-  network, no browser), eleven preview harnesses in `preview/` — one per view,
-  four of them sharing `preview/preview-fixture.js` — and
+- `docs/ROADMAP.md` — what is still open, and the product rules in force.
+  Completed milestones were removed on 2026-09-29; their record is
+  `docs/CHANGELOG.md` and the commit history.
+- Twenty-seven `scripts/test-*.mjs` suites (2295 checks, no dependencies, no
+  network, no browser), thirteen preview harnesses in `preview/`, most of them
+  sharing `preview/preview-fixture.js`, and
   `scripts/SMOKE-CHECKLIST.md`. Every suite runs in GitHub Actions on push and
   pull request, and again as the gate before a tag publishes a release.
 - Real running app against live Jira; `scripts/jira-smoke.js` for CLI checks.
@@ -210,8 +209,8 @@ Noncommercial 1.0.0, at the repo root since 2026-09-06.
 No product-specific standard has been established. What exists today is
 evidence, not a commitment: `lang="en"`, ARIA in use (`aria-label`,
 `aria-expanded`, `aria-sort`, `aria-checked`, `aria-haspopup`, `aria-hidden`,
-`aria-modal`, `role="alert"`), `prefers-reduced-motion` honoured across all
-eleven stylesheets and the confetti and nav modules, light and dark themes via
+`aria-modal`, `role="alert"`), `prefers-reduced-motion` honoured across the
+app's stylesheets and the confetti and nav modules, light and dark themes via
 `data-theme`, and keyboard shortcuts for every view with the standup deliberately
 taking the keyboard for its duration. English only; no i18n layer.
 
@@ -223,7 +222,7 @@ which had been shipping:
   computes the theme's own pairs against the 4.5:1 AA floor on every run rather
   than trusting a reviewer to hold two palettes in their head. Two dark chip tones
   remain marginally under AA and are a stated, recorded decision — see the
-  roadmap's icebox.
+  roadmap's design decisions.
 - **Focus.** The issue drawer said `role="dialog"` and did none of the rest of
   it: focus stayed on the trigger behind a dimmed backdrop and Tab walked into
   the live view underneath. It now takes focus, traps it, restores it, and sets

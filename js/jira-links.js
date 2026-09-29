@@ -1,4 +1,4 @@
-// Jira links open in the extension (ROADMAP, deferred backlog, built 2026-09-29).
+// Jira links open in the extension (built 2026-09-29).
 //
 // Every Jira link elsewhere — Slack, a PR description, a calendar invite — lands
 // on Jira Cloud, the product this app exists to avoid. With this switched on, the
