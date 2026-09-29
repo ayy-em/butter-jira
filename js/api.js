@@ -258,16 +258,59 @@ export async function getPreviousSprint(boardId, creds) {
 // chose the sprints is the caller that reads their issues — and `getSprintIssues`
 // underneath is the same cached, board-tagged call either way.
 export async function getIssuesForSprints(boardSprints, creds) {
-  const all = [];
-  await Promise.all(
+  const perBoard = await Promise.all(
     boardSprints.map(async ({ board, sprints = [] }) => {
       const results = await Promise.all(
         sprints.map((s) => getSprintIssues(board.id, s.id, creds))
       );
-      for (const issues of results) all.push(...issues);
+      return results.flat();
     })
   );
-  return all;
+  return dedupeAcrossBoards(perBoard);
+}
+
+// ── One issue, however many boards show it ──────────────────────────────────
+//
+// A board is a saved filter, and two boards can slice one project — by
+// component, team or label — so one issue can come back from both. Every
+// fan-out above used to concatenate, and an issue matching two filters was
+// counted twice: in dashboard points and completion, the hygiene findings,
+// backlog tiles, the standup's per-person counts, and permanently in that day's
+// snapshot. An inflated total looks entirely plausible, which is what made it
+// the worse half of the several-boards problem (ROADMAP, deferred backlog).
+//
+// `lists` is one array per board **in configured board order**. The first
+// occurrence is kept, so `issue.boardId` stays the lowest-indexed board — the
+// primary, which keeps card colours stable across reloads — and `boardIds`
+// carries every board the issue appeared on. The board filter and the
+// dashboard's per-board split read the set; everything else keeps reading the
+// primary. Issues seen once still get a one-element `boardIds`, so readers
+// never have to branch on its absence.
+//
+// No snapshot migration: snapshots recorded before this change could only hold
+// duplicates on a site with two boards over one project, and this deployment
+// has never had one. Dropping every snapshot to correct a duplication that
+// never happened would cost real burndown history.
+export function dedupeAcrossBoards(lists = []) {
+  const byKey = new Map();
+  const out = [];
+  for (const list of lists) {
+    for (const issue of list || []) {
+      if (!issue) continue;
+      const key = issue.key || issue.id;
+      const seen = key ? byKey.get(key) : null;
+      if (seen) {
+        if (issue.boardId !== undefined && !seen.boardIds.includes(issue.boardId)) {
+          seen.boardIds.push(issue.boardId);
+        }
+        continue;
+      }
+      issue.boardIds = issue.boardId === undefined ? [] : [issue.boardId];
+      if (key) byKey.set(key, issue);
+      out.push(issue);
+    }
+  }
+  return out;
 }
 
 export async function getEpicChildren(epicKey, creds) {
@@ -372,25 +415,25 @@ export async function getEpicNames(creds) {
   });
 }
 
+// Both fan out per board and join through `dedupeAcrossBoards`, in board order.
 export async function getAllSprintIssues(creds) {
-  const all = [];
-  await Promise.all(
+  const perBoard = await Promise.all(
     BOARDS.map(async (b) => {
       const sprints = await getActiveSprint(b.id, creds);
       const results = await Promise.all(
         sprints.map((s) => getSprintIssues(b.id, s.id, creds))
       );
-      for (const issues of results) all.push(...issues);
+      return results.flat();
     })
   );
-  return all;
+  return dedupeAcrossBoards(perBoard);
 }
 
 export async function getAllBacklogIssues(creds) {
   const results = await Promise.all(
     BOARDS.map((b) => getBoardBacklog(b.id, creds))
   );
-  return results.flat();
+  return dedupeAcrossBoards(results);
 }
 
 // Raw JQL, for the command palette's escape hatch. Capped rather than paged:

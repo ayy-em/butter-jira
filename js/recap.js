@@ -154,14 +154,17 @@ export function buildRecap({
     if (addedAfterStart) person.addedAfterStart++;
     if (carriedIn) person.carriedIn++;
 
-    const board = bump(perBoard, issue.boardId ?? "?");
-    if (addedAfterStart) board.addedAfterStart++;
-    if (carriedIn) board.carriedIn++;
-    board.issues++;
-    board.points += points ?? 0;
-    if (isDone(issue)) {
-      board.doneIssues++;
-      board.donePoints += points ?? 0;
+    // Every board it appears on, the same rule as the dashboard's split.
+    for (const boardId of issue.boardIds?.length ? issue.boardIds : [issue.boardId ?? "?"]) {
+      const board = bump(perBoard, boardId);
+      if (addedAfterStart) board.addedAfterStart++;
+      if (carriedIn) board.carriedIn++;
+      board.issues++;
+      board.points += points ?? 0;
+      if (isDone(issue)) {
+        board.doneIssues++;
+        board.donePoints += points ?? 0;
+      }
     }
   }
 

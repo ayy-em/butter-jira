@@ -573,6 +573,19 @@ Scoped, wanted, and deliberately not scheduled yet.
 
 ### Several boards over one project *(open question 2, resolved on paper)*
 
+**The dedupe half shipped 2026-09-29.** `dedupeAcrossBoards` in `js/api.js`
+joins every per-board fan-out (`getAllSprintIssues`, `getAllBacklogIssues`,
+`getIssuesForSprints`) in configured board order. It keeps the first occurrence,
+so `issue.boardId` is the lowest-indexed board, and gives every issue a
+`boardIds` set. The board filter and the per-board split on the dashboard and in
+the recap read the set; everything else reads the primary, as planned. **No
+snapshot migration**, a deliberate departure from the plan below: snapshots can
+only hold duplicates on a site that already had two boards over one project,
+and this deployment never has, so dropping them would lose real history to fix
+nothing. **What is still open is the misattribution half**, which is resolving
+epics through `/board/{id}/epic`. Epics still land on the first board that
+matches their project key.
+
 An issue's board is inferred from its **project key** — `getAllEpics`
 (`js/api.js:167-168`), `tagByProject` (`js/api.js:242-252`), `getEpicNames` —
 and `.find()` takes the first board that matches. That assumes one board per

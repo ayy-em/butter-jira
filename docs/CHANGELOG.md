@@ -8,6 +8,12 @@ it about what a user gets, and leave the reasoning to
 
 ## Unreleased
 
+**No more double counting across boards.** When two configured boards show
+the same issue (two boards over one project, split by team or component), it is
+now counted once everywhere: sprint totals, the burndown, hygiene findings, the
+backlog and the standup. Filtering by either board still shows it, and each
+board's own block on the dashboard and in the recap still counts it.
+
 **Recap config: build a recap from any sprints you like.** `LAUNCH → RECAP
 CONFIG`, or *Configure a recap…* in the Sprint Dashboard's recap menu. Tick the
 boards you want and, within each, the sprints — active or closed, one or

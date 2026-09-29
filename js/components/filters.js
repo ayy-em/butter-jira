@@ -24,8 +24,12 @@ export function applyFilters(issues, state) {
   return issues.filter((issue) => {
     // Roster filter: hides work assigned outside the team, keeps unassigned.
     if (state.teamOnly && isOutsideTeam(issue)) return false;
-    if (state.boards.length && !state.boards.includes(issue.boardId))
-      return false;
+    // Any board the issue appears on, not only its primary: an issue shared by
+    // two boards over one project belongs to both (see dedupeAcrossBoards).
+    if (state.boards.length) {
+      const on = issue.boardIds?.length ? issue.boardIds : [issue.boardId];
+      if (!on.some((id) => state.boards.includes(id))) return false;
+    }
     const typeName = issue.fields.issuetype?.name || "";
     if (state.types.length && !state.types.includes(typeName)) return false;
     if (state.assigneeIds.length) {

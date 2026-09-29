@@ -136,6 +136,23 @@ function issue(o = {}) {
 }
 const SPRINT = { id: 10, name: "Sprint 42", goal: "Ship the thing", startDate: "2026-08-03", endDate: "2026-08-14" };
 
+section("one issue on two boards");
+{
+  const api = await import(new URL("../js/api.js", import.meta.url));
+  const shared1 = issue({ key: "ABC-900", board: 1, points: 5 });
+  const shared2 = { ...structuredClone(shared1), boardId: 2 };
+  const only2 = issue({ key: "ABC-901", board: 2, points: 2 });
+  const merged = api.dedupeAcrossBoards([[shared1], [shared2, only2]]);
+  check("an issue on two boards is kept once", merged.length === 2);
+  check("primary board is the first configured one", merged[0].boardId === 1);
+  check("boardIds carries both boards", merged[0].boardIds.join(",") === "1,2");
+  check("a single-board issue gets a one-element set", merged[1].boardIds.join(",") === "2");
+  const s2 = dash.summarize({ issues: merged, sprints: [SPRINT], statusGroups: GROUPS, boards: BOARDS });
+  check("totals count the shared issue once", s2.issueCount === 2 && s2.totalPoints === 7);
+  const b2 = s2.byBoard.find((b) => b.label === "DEF");
+  check("each board's block counts it", b2.issues === 2 && s2.byBoard.find((b) => b.label === "ABC").issues === 1);
+}
+
 section("working days");
 check("Mon to Fri is 5", dash.workingDaysBetween("2026-08-03", "2026-08-07") === 5);
 check("weekend excluded", dash.workingDaysBetween("2026-08-08", "2026-08-09") === 0);

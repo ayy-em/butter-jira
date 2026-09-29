@@ -251,7 +251,11 @@ export function summarize({
     // still shows up rather than vanishing.
     const groupName = resolveGroup(issue, statusGroups);
     bucketAdd(byStatus, groupName, issue, { done, review });
-    bucketAdd(byBoard, issue.boardId ?? "?", issue, { done, review });
+    // Every board it appears on: each board's block describes that board's
+    // sprint, so a shared issue counts in both blocks (and once in the totals).
+    for (const boardId of issue.boardIds?.length ? issue.boardIds : [issue.boardId ?? "?"]) {
+      bucketAdd(byBoard, boardId, issue, { done, review });
+    }
 
     const assignee = issue.fields?.assignee;
     const personKey = assignee?.accountId || "__unassigned__";

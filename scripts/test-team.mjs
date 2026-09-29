@@ -332,6 +332,16 @@ check("identifierless entries dropped", parsed.members.length === 1);
 check("drop warning raised", parsed.warnings.some((w) => w.includes("roster entr")));
 check("roster-only file is importable", parsed.ok === true);
 
+section("board filter reads every board an issue is on");
+{
+  const state = { teamOnly: false, boards: [2], types: [], assigneeIds: [], statuses: [], search: "" };
+  const shared = { key: "S-1", boardId: 1, boardIds: [1, 2], fields: { issuetype: { name: "Story" }, status: { name: "To Do" } } };
+  const elsewhere = { key: "S-2", boardId: 1, boardIds: [1], fields: { issuetype: { name: "Story" }, status: { name: "To Do" } } };
+  const legacy = { key: "S-3", boardId: 2, fields: { issuetype: { name: "Story" }, status: { name: "To Do" } } };
+  const kept = filters.applyFilters([shared, elsewhere, legacy], state).map((i) => i.key).join(",");
+  check("shared issue shows on its second board; others by primary", kept === "S-1,S-3");
+}
+
 section("team scope for the reporting screens");
 {
   const frz = await import(new URL("../js/freeze.js", import.meta.url));
