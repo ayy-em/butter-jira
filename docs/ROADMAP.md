@@ -669,7 +669,24 @@ somebody is, this stops being a nicety. The third option M19 considered — drop
 the Firefox asset and document a source install — stays available and gives up a
 browser the codebase already fully supports, which is why it was not taken.
 
-### A backup for the device-local stores *(moved out of M14, 2026-09-06)*
+### A backup for the device-local stores *(moved out of M14, 2026-09-06)* — **built 2026-09-29**
+
+Shipped as Settings → Backup & transfer → *Back up this device* / *Restore a
+backup* (`js/backup.js`). The open questions below were answered like this:
+
+- **A button**, not automatic. There is no background schedule to hang one on.
+- **One file for every store.** `STORES` in `js/backup.js` is the list, and a new
+  store gets added there.
+- **Restore merges, device first.** Where both sides have an entry, the device
+  keeps its own; the backup only fills gaps (missing snapshot days, freezes,
+  todos, roster members, preferences), within the same 8-sprint and 60-day
+  bounds. Config is restored only onto an unconfigured install.
+- **1:1 notes are not in it, which departs from this entry.** The entry listed
+  them, but the M14 rule that they have no path off the device (restated in
+  Settings) is the stronger commitment. Tokens, the account email and the caches
+  are never in it either. The roster is opt-in, as in the config export.
+  Re-open with the author if 1:1 notes should be backed up after all.
+
 
 **Size: S.** Everything this app records lives in device-local extension
 storage and nothing replicates: the roster, the daily snapshots, the per-sprint

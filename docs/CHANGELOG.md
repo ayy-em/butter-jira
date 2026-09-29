@@ -8,6 +8,13 @@ it about what a user gets, and leave the reasoning to
 
 ## Unreleased
 
+**Back up this device.** Settings → Backup & transfer can now save everything the
+app has recorded and could not fetch again: the snapshots behind every burndown,
+sprint freezes, your todos, preferences and the config, plus the roster if you
+tick it. Restoring merges the backup in without changing anything already on the
+device, so an old backup is safe to restore. Tokens and 1:1 notes are never in
+the file.
+
 **No more double counting across boards.** When two configured boards show
 the same issue (two boards over one project, split by team or component), it is
 now counted once everywhere: sprint totals, the burndown, hygiene findings, the

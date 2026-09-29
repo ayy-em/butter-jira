@@ -1350,6 +1350,7 @@ node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (226 check
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (117 checks)
 node scripts/test-quarter.mjs      # quarter weeks, score, ranking     (54 checks)
 node scripts/test-recap-selection.mjs # recap URL selection, gaps       (17 checks)
+node scripts/test-backup.mjs       # device backup, merge-on-restore   (27 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
 node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (216 checks)
 node scripts/test-write.mjs        # field writes, undo, bulk, links  (152 checks)

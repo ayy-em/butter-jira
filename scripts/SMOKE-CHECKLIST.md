@@ -476,3 +476,12 @@ that loses them loses them.
 - [ ] `grep -ri` for your org name, site host, and internal project keys → no hits in tracked files
 - [ ] `git status --ignored` → `config.local.json` and `assets/brand/*` are ignored
 - [ ] `node scripts/jira-smoke.js` passes with env vars set
+
+## Device backup
+
+- [ ] Settings → **Back up this device** downloads `butterjira-backup-<date>.json`; the note under the buttons counts snapshot days, freezes and todos
+- [ ] The file holds no token, no account email and no `oneOnes` (search it)
+- [ ] With the roster box ticked, a confirm names the roster before the download
+- [ ] **Restore a backup** on the same device reports nothing to add; after deleting all todos, it brings them back
+- [ ] Restoring onto a configured install says the config here is kept
+- [ ] A config export picked for restore is refused with "use Import config"

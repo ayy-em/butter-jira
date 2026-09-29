@@ -18,6 +18,15 @@ import {
 } from "./js/config.js";
 import { discoverFieldMappings, listBoards } from "./js/api.js";
 import { clearAllOneOnes, loadOneOnes, storeSize } from "./js/oneone.js";
+import {
+  applyRestore,
+  backupFilename,
+  createBackup,
+  describeBackup,
+  parseBackup,
+  planRestore,
+  readDeviceState,
+} from "./js/backup.js";
 import { clearAllTodos, loadTodos } from "./js/todos.js";
 import { mountThemeToggle } from "./js/components/theme-toggle.js";
 import { validateStatusGroups } from "./js/utils.js";
@@ -549,6 +558,79 @@ exportBtn.addEventListener("click", async () => {
     caveats.length ? `Exported — file contains ${caveats.join(" and ")}, store it carefully` : "Exported",
     caveats.length ? "warning" : "success"
   );
+});
+
+// ── Device backup ────────────────────────────────────────────────────────────
+// See js/backup.js for what is in the file, what is never in it, and why a
+// restore merges rather than replaces.
+const backupBtn = document.getElementById("backupBtn");
+const restoreBtn = document.getElementById("restoreBtn");
+const restoreFile = document.getElementById("restoreFile");
+const backupRosterBox = document.getElementById("backupRoster");
+const backupNote = document.getElementById("backupNote");
+
+backupBtn.addEventListener("click", async () => {
+  const includeRoster = backupRosterBox.checked;
+  if (
+    includeRoster &&
+    !confirm(
+      "The backup will contain your team roster: colleagues' names, emails and " +
+        "Jira account IDs.\n\nContinue?"
+    )
+  ) {
+    return;
+  }
+  const backup = await createBackup({ includeRoster });
+  downloadJson(backupFilename(), backup);
+  const d = describeBackup(backup);
+  backupNote.textContent =
+    `Backed up ${d.days} snapshot day${d.days === 1 ? "" : "s"} across ${d.sprints} sprint${d.sprints === 1 ? "" : "s"}, ` +
+    `${d.freezes} freeze${d.freezes === 1 ? "" : "s"}, ${d.todos} todo${d.todos === 1 ? "" : "s"}` +
+    (d.roster ? `, ${d.members} roster member${d.members === 1 ? "" : "s"}` : "") +
+    (d.config ? " and the config." : ".");
+  flash(includeRoster || d.todos ? "Backed up — the file holds personal data, store it carefully" : "Backed up",
+    includeRoster || d.todos ? "warning" : "success");
+});
+
+restoreBtn.addEventListener("click", () => restoreFile.click());
+
+restoreFile.addEventListener("change", async () => {
+  const file = restoreFile.files?.[0];
+  if (!file) return;
+  restoreFile.value = "";
+  let text;
+  try {
+    text = await file.text();
+  } catch (err) {
+    return flash(`Could not read file: ${err.message}`, "error");
+  }
+  const parsed = parseBackup(text);
+  if (!parsed.ok) return flash(`Restore failed: ${parsed.error}`, "error");
+
+  const plan = planRestore(parsed.backup, await readDeviceState());
+  const a = plan.added;
+  const lines = [
+    `${a.snapshotDays} snapshot day${a.snapshotDays === 1 ? "" : "s"}`,
+    `${a.freezes} sprint freeze${a.freezes === 1 ? "" : "s"}`,
+    `${a.todos} todo${a.todos === 1 ? "" : "s"}`,
+    a.members ? `${a.members} roster member${a.members === 1 ? "" : "s"}` : null,
+    a.preferences ? `${a.preferences} preference${a.preferences === 1 ? "" : "s"}` : null,
+    plan.config === "restored" ? "the config (this install is not set up yet)" : null,
+  ].filter(Boolean);
+  const kept = plan.config === "kept" ? "\n\nThe config here is kept — use Import config to replace it." : "";
+  const made = parsed.backup.createdAt ? ` made ${parsed.backup.createdAt.slice(0, 10)}` : "";
+  if (
+    !confirm(
+      `Restore the backup${made}?\n\nIt adds what this device is missing:\n${lines.join("\n")}\n\n` +
+        `Nothing already here is changed.${kept}`
+    )
+  ) {
+    return;
+  }
+  await applyRestore(plan);
+  await init();
+  backupNote.textContent = `Restored: ${lines.join(", ")}.`;
+  flash("Backup restored", "success");
 });
 
 importBtn.addEventListener("click", () => importFile.click());
