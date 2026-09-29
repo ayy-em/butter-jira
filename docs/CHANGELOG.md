@@ -8,6 +8,12 @@ it about what a user gets, and leave the reasoning to
 
 ## Unreleased
 
+**Development on every issue.** With GitHub connected, an issue's page and
+drawer now list the pull requests, branches and commits that mention its key in
+your configured repositories: each pull request's state and review status, its
+branch, who opened it and when it last moved. Matching is exact, so ABC-1 does
+not pick up ABC-12.
+
 **Jira links can open here.** Switch on Settings → Jira links, and clicking a
 Jira issue, board or backlog link anywhere in the browser opens the issue page,
 the Kanban or the Backlog in butter_jira instead. Everything else still opens in

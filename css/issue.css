@@ -361,6 +361,24 @@ body.issue-page-body {
 .issue-link-remove:hover { color: var(--accent-danger); border-color: var(--accent-danger); }
 .issue-link-remove:disabled { cursor: default; opacity: 0.4; }
 
+/* ── Development ──────────────────────────────────────────────────────────── */
+
+.issue-dev-row .issue-status-badge { flex: none; text-transform: lowercase; }
+.issue-dev-row .issue-link-summary { flex: 1 1 auto; min-width: 0; }
+.issue-dev-ref { flex: none; color: var(--accent-primary); text-decoration: none; }
+.issue-dev-ref:hover { text-decoration: underline; }
+.issue-dev-meta {
+  flex: none;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: calc(11px * var(--font-scale));
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .issue-dev-row { flex-wrap: wrap; }
+  .issue-dev-meta { margin-left: 0; white-space: normal; }
+}
+
 /* ── Comments ─────────────────────────────────────────────────────────────── */
 
 .issue-comment-list { display: flex; flex-direction: column; gap: 14px; }

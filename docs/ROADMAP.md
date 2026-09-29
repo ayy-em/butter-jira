@@ -624,7 +624,26 @@ numbered migration (`js/migrations.js`) dropping pre-change snapshots is the
 cheap answer, and is better decided with the fix than discovered later as a kink
 in the burndown.
 
-### Development links on the issue detail *(was part of M5)*
+### Development links on the issue detail *(was part of M5)* — **built 2026-09-29**
+
+Shipped as a *Development* section on the issue page and drawer
+(`getIssueDevelopment` in `js/github.js`), shown when GitHub sync is on.
+
+- **Pull requests:** a GraphQL search for the key, plus pull requests whose head
+  branch names it. Each shows state (open, draft, merged, closed), review
+  decision, branch → base, author and last update.
+- **Branches without a pull request:** each repo's `refs(query:)`.
+- **Commits:** the REST commit search.
+- **Key matching**, the spike this entry called for, is `mentionsKey`: exact,
+  case-insensitive, and not glued to a letter or digit on the left or a digit on
+  the right. `AB-1` does not match `AB-12` or `XAB-1`. Every search hit is
+  re-checked with it, because GitHub's search is fuzzy.
+- **Rate limits:** it fetches only when an issue opens, batches repos under the
+  256-character search ceiling (`searchBatches`), and caches per key for 10
+  minutes, with a Refresh button.
+- **Not verified against live GitHub** on the day it was built (no token in the
+  build environment): the reduction is unit-tested, and the section is checked
+  in the preview harness from a seeded answer.
 
 Show pull requests, branches and commits **for an issue**.
 

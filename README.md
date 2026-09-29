@@ -1353,7 +1353,7 @@ node scripts/test-recap-selection.mjs # recap URL selection, gaps       (17 chec
 node scripts/test-backup.mjs       # device backup, merge-on-restore   (27 checks)
 node scripts/test-jira-links.mjs   # Jira link redirect rules          (23 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
-node scripts/test-github.mjs       # GitHub sync: scope, model, auth  (216 checks)
+node scripts/test-github.mjs       # GitHub sync, issue development   (239 checks)
 node scripts/test-write.mjs        # field writes, undo, bulk, links  (152 checks)
 node scripts/test-create.mjs       # createmeta -> form -> payload      (71 checks)
 node scripts/test-activity.mjs     # issue history -> per-person activity (75 checks)

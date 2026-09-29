@@ -1293,6 +1293,213 @@ export async function fetchTeamStats({
   };
 }
 
+// ── Development on an issue ─────────────────────────────────────────────────
+//
+// Pull requests, branches and commits for one Jira issue, found by its key in
+// the declared repos (ROADMAP, deferred backlog: "Development links on the issue
+// detail", built 2026-09-29). Jira's own development panel is backed by an
+// undocumented endpoint, so this asks GitHub instead:
+//
+//   * **Pull requests** — a search for the key in titles and bodies, plus any
+//     pull request whose head branch names it (found through the branch query).
+//   * **Branches** — each repo's branches whose name contains the key.
+//   * **Commits** — the REST commit search for the key in messages.
+//
+// **Matching is exact.** GitHub's search is fuzzy — "ABC-1" finds "ABC-12" and
+// "XABC-1" — so every hit is re-checked with `mentionsKey`: the key, case-
+// insensitive, not glued to a letter or digit on the left or a digit on the
+// right. A short key in a busy repo is the false-positive case the roadmap
+// flagged, and this is the answer to it.
+//
+// **Rate limits.** Search is capped at 30 requests a minute, so this runs only
+// when an issue is opened, batches repos into as few searches as the 256-
+// character query ceiling allows, and caches per key for ten minutes.
+
+const DEV_TTL_MS = 10 * 60 * 1000;
+const SEARCH_QUERY_MAX = 256;
+const DEV_PR_LIMIT = 20;
+const DEV_BRANCH_LIMIT = 10;
+const DEV_COMMIT_LIMIT = 20;
+
+export function mentionsKey(text, issueKey) {
+  const key = String(issueKey || "").trim();
+  if (!key) return false;
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^A-Za-z0-9])${escaped}(?![0-9])`, "i").test(String(text || ""));
+}
+
+// Repos grouped so each search query stays under GitHub's ceiling.
+export function searchBatches(prefix, repos, max = SEARCH_QUERY_MAX) {
+  const batches = [];
+  let current = [];
+  let length = prefix.length;
+  for (const slug of repos) {
+    const term = ` repo:${slug}`;
+    if (current.length && length + term.length > max) {
+      batches.push(current);
+      current = [];
+      length = prefix.length;
+    }
+    current.push(slug);
+    length += term.length;
+  }
+  if (current.length) batches.push(current);
+  return batches.map((group) => `${prefix}${group.map((slug) => ` repo:${slug}`).join("")}`);
+}
+
+const DEV_PR_FIELDS = `
+  number title body url state isDraft merged mergedAt createdAt updatedAt
+  headRefName baseRefName reviewDecision
+  author { login }
+  repository { nameWithOwner }
+`;
+
+export function buildDevelopmentQuery(issueKey, repos, searches) {
+  const key = JSON.stringify(String(issueKey));
+  const searchParts = searches.map(
+    (q, i) => `s${i}: search(query: ${JSON.stringify(q)}, type: ISSUE, first: ${DEV_PR_LIMIT}) {
+      nodes { ... on PullRequest { ${DEV_PR_FIELDS} } }
+    }`
+  );
+  const repoParts = repos.map(
+    (repo, i) => `r${i}: repository(owner: ${JSON.stringify(repo.owner)}, name: ${JSON.stringify(repo.name)}) {
+      nameWithOwner
+      refs(refPrefix: "refs/heads/", query: ${key}, first: ${DEV_BRANCH_LIMIT}) {
+        nodes {
+          name
+          target { ... on Commit { committedDate url } }
+          associatedPullRequests(first: 3) { nodes { ${DEV_PR_FIELDS} } }
+        }
+      }
+    }`
+  );
+  return `query ButterJiraIssueDevelopment {\n${[...searchParts, ...repoParts].join("\n")}\n}`;
+}
+
+function devPr(node) {
+  if (!node?.number || !node.repository?.nameWithOwner) return null;
+  return {
+    repo: node.repository.nameWithOwner,
+    number: node.number,
+    title: node.title || "",
+    url: node.url || "",
+    // One state a reader can act on: draft beats open, merged beats closed.
+    state: node.merged ? "merged" : node.state === "CLOSED" ? "closed" : node.isDraft ? "draft" : "open",
+    review: node.reviewDecision || "",
+    branch: node.headRefName || "",
+    base: node.baseRefName || "",
+    author: loginOf(node),
+    updatedAt: node.updatedAt || node.createdAt || "",
+  };
+}
+
+// Pure: the GraphQL payload and the commit search results, reduced to what the
+// panel draws, with every hit re-checked against the key.
+export function toDevelopment(issueKey, payload, commitItems = [], { failures = [] } = {}) {
+  const data = payload?.data || {};
+  const prs = new Map();
+  // A search hit counts only if its title, description or branch names the key
+  // exactly; one found through a matching branch already does.
+  const addPr = (node, viaBranch = false) => {
+    const pr = devPr(node);
+    if (!pr) return;
+    if (!viaBranch && !mentionsKey(`${pr.title}\n${node.body || ""}\n${pr.branch}`, issueKey)) return;
+    prs.set(`${pr.repo}#${pr.number}`, pr);
+  };
+
+  const branches = [];
+  for (const [alias, value] of Object.entries(data)) {
+    if (alias.startsWith("s")) {
+      for (const node of value?.nodes || []) addPr(node);
+    } else if (alias.startsWith("r") && value) {
+      for (const ref of value.refs?.nodes || []) {
+        if (!mentionsKey(ref?.name, issueKey)) continue;
+        const linked = (ref.associatedPullRequests?.nodes || []).map(devPr).filter(Boolean);
+        for (const node of ref.associatedPullRequests?.nodes || []) addPr(node, true);
+        branches.push({
+          repo: value.nameWithOwner,
+          name: ref.name,
+          url: `${(ref.target?.url || "").replace(/\/commit\/[0-9a-f]+$/, "")}/tree/${encodeURIComponent(ref.name)}`,
+          lastCommitAt: ref.target?.committedDate || "",
+          pullRequests: linked.map((pr) => `${pr.repo}#${pr.number}`),
+        });
+      }
+    }
+  }
+
+  const commits = [];
+  const seen = new Set();
+  for (const item of commitItems || []) {
+    const message = item?.commit?.message || "";
+    if (!item?.sha || seen.has(item.sha) || !mentionsKey(message, issueKey)) continue;
+    seen.add(item.sha);
+    commits.push({
+      repo: item.repository?.full_name || "",
+      sha: item.sha,
+      short: item.sha.slice(0, 7),
+      message: message.split("\n")[0],
+      url: item.html_url || "",
+      author: normalizeGithubLogin(item.author?.login) || item.commit?.author?.name || "",
+      at: item.commit?.author?.date || item.commit?.committer?.date || "",
+    });
+  }
+
+  const byRecent = (a, b) => String(b).localeCompare(String(a));
+  return {
+    key: issueKey,
+    pullRequests: [...prs.values()].sort((a, b) => byRecent(a.updatedAt, b.updatedAt)),
+    // A branch with a pull request is shown through the pull request.
+    branches: branches.filter((b) => !b.pullRequests.length).sort((a, b) => byRecent(a.lastCommitAt, b.lastCommitAt)),
+    commits: commits.sort((a, b) => byRecent(a.at, b.at)).slice(0, DEV_COMMIT_LIMIT),
+    failures,
+  };
+}
+
+export function devCacheKey(issueKey, config = CONFIG) {
+  const gh = githubConfig(config);
+  return `cache_github_dev_${gh.host}_${issueKey}_${gh.repos.map(repoSlug).join(",")}`;
+}
+
+export async function getIssueDevelopment(issueKey, { config = CONFIG, force = false } = {}) {
+  const gh = githubConfig(config);
+  if (!gh.enabled || !gh.repos.length) throw new GithubError("GitHub sync is off", { kind: "config" });
+  const key = devCacheKey(issueKey, config);
+  return shared(key, force, async () => {
+    const cached = force ? null : await readCached(key, DEV_TTL_MS);
+    if (cached) return cached;
+    const token = await getGithubToken();
+    if (!token) throw new GithubError("No GitHub token stored", { kind: "auth" });
+
+    const slugs = gh.repos.map(repoSlug);
+    const failures = [];
+    const prSearches = searchBatches(`${issueKey} type:pr`, slugs);
+    const payload = await githubGraphql(buildDevelopmentQuery(issueKey, gh.repos, prSearches), token, gh.host);
+    // A repo the token cannot read comes back as a null alias with an error;
+    // the rest of the answer stands.
+    for (const err of payload?.errors || []) {
+      failures.push({ repo: String(err.path?.[0] || ""), message: err.message || "Request failed" });
+    }
+
+    const commitItems = [];
+    for (const q of searchBatches(`${issueKey}`, slugs)) {
+      try {
+        const result = await githubRest(
+          `/search/commits?q=${encodeURIComponent(q)}&sort=committer-date&order=desc&per_page=${DEV_COMMIT_LIMIT}`,
+          token,
+          gh.host
+        );
+        commitItems.push(...(result?.items || []));
+      } catch (err) {
+        failures.push({ repo: "commit search", message: err?.message || "Request failed" });
+      }
+    }
+
+    const dev = toDevelopment(issueKey, payload, commitItems, { failures });
+    await writeCached(key, dev);
+    return dev;
+  });
+}
+
 // ── Progress ─────────────────────────────────────────────────────────────────
 
 // What the two fetches are doing right now, for a caller that has to explain a

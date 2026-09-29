@@ -13,7 +13,33 @@
 // cell shows an em dash) · ?roster=empty (an assignee picker with only the
 // current assignee in it) · ?link=refuse (a refused link create and a refused
 // unlink). This harness adds ?edit=<field> and ?link=open.
-import { params } from "./preview-fixture.js";
+import { params, CONFIG } from "./preview-fixture.js";
+
+// The Development section's answer, seeded where `getIssueDevelopment` reads it,
+// so the section draws without a GitHub token. ?dev=empty seeds an empty answer;
+// ?github=off hides the section, as it is hidden with GitHub switched off.
+{
+  const { devCacheKey } = await import("../js/github.js");
+  const day = (n) => new Date(Date.now() - n * 86400000).toISOString();
+  const pr = (number, state, title, extra = {}) => ({
+    repo: "example/alpha", number, title, url: "#", state, review: "", branch: "acme-101-importer",
+    base: "main", author: "averyq", updatedAt: day(number % 5), ...extra,
+  });
+  const value = params.get("dev") === "empty"
+    ? { key: "ACME-101", pullRequests: [], branches: [], commits: [], failures: [] }
+    : {
+        key: "ACME-101",
+        pullRequests: [
+          pr(512, "open", "ACME-101: retry the importer job on a timeout", { review: "CHANGES_REQUESTED" }),
+          pr(498, "merged", "ACME-101 importer: first cut", { branch: "acme-101-first-cut" }),
+          pr(530, "draft", "Importer metrics (ACME-101)", { repo: "example/beta", branch: "acme-101-metrics", author: "boferreira" }),
+        ],
+        branches: [{ repo: "example/beta", name: "acme-101-spike", url: "#", lastCommitAt: day(9), pullRequests: [] }],
+        commits: [{ repo: "example/alpha", sha: "4f1c2aa9", short: "4f1c2aa", message: "ACME-101 hotfix: widen the retry window", url: "#", author: "cynakamura", at: day(2) }],
+        failures: [],
+      };
+  await chrome.storage.local.set({ [devCacheKey("ACME-101", CONFIG)]: { ts: Date.now(), value } });
+}
 
 const { renderIssueInto } = await import("../js/components/issue-detail.js");
 await renderIssueInto(

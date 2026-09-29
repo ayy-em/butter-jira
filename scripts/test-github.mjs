@@ -855,5 +855,56 @@ const denied = await gh.checkRepoAccess([repos[0]], { host: "github.com" }, "gh-
 check("an unreachable repo is a per-repo verdict, not an exception", denied[0].ok === false);
 check("verdict carries a reason", /404/.test(denied[0].error));
 
+section("development on an issue");
+{
+  check("exact key matches", gh.mentionsKey("Fix ABC-1: null check", "ABC-1"));
+  check("a longer number is not a match", !gh.mentionsKey("Fix ABC-12", "ABC-1"));
+  check("a prefix glued on is not a match", !gh.mentionsKey("XABC-1 thing", "ABC-1"));
+  check("branch names match case-insensitively", gh.mentionsKey("feature/abc-1-null-check", "ABC-1"));
+  check("start and end of string", gh.mentionsKey("ABC-1", "ABC-1"));
+
+  const repos = Array.from({ length: 12 }, (_, i) => `a-very-long-organisation/repository-${i}`);
+  const batches = gh.searchBatches("ABC-1 type:pr", repos);
+  check("searches stay under 256 characters", batches.every((q) => q.length <= 256));
+  check("every repo lands in exactly one search", batches.join(" ").match(/repo:/g).length === 12);
+  check("one repo, one search", gh.searchBatches("ABC-1", ["o/r"]).join() === "ABC-1 repo:o/r");
+
+  const q = gh.buildDevelopmentQuery("ABC-1", [{ owner: "o", name: "r" }], ["ABC-1 type:pr repo:o/r"]);
+  check("query aliases a search and a repo", /s0: search\(/.test(q) && /r0: repository\(owner: "o", name: "r"\)/.test(q));
+
+  const pr = (n, o = {}) => ({
+    number: n, title: `PR ${n}`, body: "", url: `u${n}`, state: "OPEN", isDraft: false, merged: false,
+    updatedAt: `2026-09-${String(n).padStart(2, "0")}T00:00:00Z`, headRefName: "main-work", baseRefName: "main",
+    reviewDecision: "APPROVED", author: { login: "Ada" }, repository: { nameWithOwner: "o/r" }, ...o,
+  });
+  const payload = {
+    data: {
+      s0: { nodes: [
+        pr(1, { title: "ABC-1: fix" }),
+        pr(2, { title: "ABC-12: other", body: "" }),
+        pr(3, { body: "Fixes ABC-1" }),
+        pr(4, { merged: true, state: "MERGED", headRefName: "abc-1-more" }),
+      ] },
+      r0: { nameWithOwner: "o/r", refs: { nodes: [
+        { name: "abc-1-spike", target: { committedDate: "2026-09-20T00:00:00Z", url: "https://github.com/o/r/commit/abc123" }, associatedPullRequests: { nodes: [] } },
+        { name: "abc-1-with-pr", target: {}, associatedPullRequests: { nodes: [pr(5, { isDraft: true, headRefName: "abc-1-with-pr" })] } },
+        { name: "abc-12-nope", target: {}, associatedPullRequests: { nodes: [] } },
+      ] } },
+    },
+  };
+  const commits = [
+    { sha: "aaaaaaa1", html_url: "c1", commit: { message: "ABC-1 hotfix\n\nbody", author: { date: "2026-09-21T00:00:00Z" } }, repository: { full_name: "o/r" }, author: { login: "Bo" } },
+    { sha: "bbbbbbb2", html_url: "c2", commit: { message: "ABC-10 unrelated" }, repository: { full_name: "o/r" } },
+  ];
+  const dev = gh.toDevelopment("ABC-1", payload, commits);
+  const nums = dev.pullRequests.map((p) => p.number).sort().join(",");
+  check("PRs by title, body and branch; fuzzy hits dropped", nums === "1,3,4,5");
+  check("state resolves merged and draft", dev.pullRequests.find((p) => p.number === 4).state === "merged" && dev.pullRequests.find((p) => p.number === 5).state === "draft");
+  check("newest PR first", dev.pullRequests[0].number === 5);
+  check("a branch with a PR is shown through the PR", dev.branches.map((b) => b.name).join() === "abc-1-spike");
+  check("branch links to its tree", dev.branches[0].url === "https://github.com/o/r/tree/abc-1-spike");
+  check("commits matched exactly, first line kept", dev.commits.length === 1 && dev.commits[0].message === "ABC-1 hotfix" && dev.commits[0].short === "aaaaaaa");
+}
+
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

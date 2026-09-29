@@ -494,3 +494,11 @@ that loses them loses them.
 - [ ] The issue page's "Open in Jira" link still opens Jira
 - [ ] Filters, dashboards and Confluence pages still open in Jira
 - [ ] Turning it off, then clicking the same link, opens Jira
+
+## Development on an issue
+
+- [ ] With GitHub on, an issue with a PR titled or branched after its key shows it under Development, with the right state and review status
+- [ ] A PR mentioning only a longer key (ABC-12 on ABC-1) is not listed
+- [ ] A branch with no PR is listed on its own; a commit whose message names the key appears under Commits
+- [ ] Reopening the issue within 10 minutes makes no GitHub request (Network tab); Refresh does
+- [ ] With GitHub off, the section is absent

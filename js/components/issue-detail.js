@@ -21,6 +21,7 @@ import { sanitizeToFragment } from "../sanitize.js";
 import { adfToPlainText, isEmptyAdf, textToAdf } from "../adf.js";
 import { statusTone } from "../backlog.js";
 import { icon } from "./icons.js";
+import { getIssueDevelopment, isGithubConfigured } from "../github.js";
 
 export function issuePageUrl(issueKey) {
   return runtimeUrl(`issue.html?key=${encodeURIComponent(issueKey)}`);
@@ -95,8 +96,154 @@ export async function renderIssueInto(container, issueKey, creds, { mode = "page
     links = fresh;
   }
 
+  // GitHub is asked only once the issue itself is on screen, and never holds
+  // it up: the section says it is looking and fills in when the answer lands.
+  if (isGithubConfigured()) root.appendChild(renderDevelopment(issue.key));
+
   root.appendChild(renderComments(issue, comments, creds));
   container.appendChild(root);
+}
+
+// ── Development ──────────────────────────────────────────────────────────────
+//
+// Pull requests, branches and commits that name this issue's key in the
+// configured repos (`getIssueDevelopment` in js/github.js, which explains the
+// matching and the rate limits). Read-only, and a GitHub failure costs this
+// section only.
+const PR_TONES = { open: "green", draft: "gray", merged: "purple", closed: "red" };
+const REVIEW_LABELS = {
+  APPROVED: "approved",
+  CHANGES_REQUESTED: "changes requested",
+  REVIEW_REQUIRED: "review required",
+};
+
+function renderDevelopment(issueKey) {
+  const section = document.createElement("section");
+  section.className = "issue-dev";
+
+  const heading = document.createElement("h2");
+  heading.className = "issue-section-title mono issue-links-heading";
+  heading.textContent = "Development";
+  const actions = document.createElement("span");
+  actions.className = "issue-links-actions";
+  const refresh = headingButton("Ask GitHub again", "↻ Refresh", () => load(true));
+  actions.appendChild(refresh);
+  heading.appendChild(actions);
+  section.appendChild(heading);
+
+  const body = document.createElement("div");
+  section.appendChild(body);
+
+  async function load(force = false) {
+    refresh.disabled = true;
+    body.replaceChildren(emptyNote("Looking for pull requests, branches and commits on GitHub…"));
+    try {
+      const dev = await getIssueDevelopment(issueKey, { force });
+      body.replaceChildren(...developmentRows(dev));
+    } catch (err) {
+      body.replaceChildren(emptyNote(`Could not ask GitHub — ${err?.message || err}`));
+    } finally {
+      refresh.disabled = false;
+    }
+  }
+  load();
+  return section;
+}
+
+function developmentRows(dev) {
+  const out = [];
+  if (!dev.pullRequests.length && !dev.branches.length && !dev.commits.length) {
+    out.push(emptyNote(`Nothing in the configured repositories mentions ${dev.key}.`));
+  }
+
+  const group = (label, rows) => {
+    if (!rows.length) return;
+    const el = document.createElement("div");
+    el.className = "issue-link-group";
+    const title = document.createElement("div");
+    title.className = "issue-link-label mono";
+    title.textContent = label;
+    el.appendChild(title);
+    for (const row of rows) el.appendChild(row);
+    out.push(el);
+  };
+
+  group(
+    `Pull requests (${dev.pullRequests.length})`,
+    dev.pullRequests.map((pr) => {
+      const row = devRow();
+      const badge = document.createElement("span");
+      badge.className = "issue-status-badge";
+      const tone = `var(--tone-${PR_TONES[pr.state] || "gray"})`;
+      badge.style.color = tone;
+      badge.style.borderColor = tone;
+      badge.textContent = pr.state;
+      row.appendChild(badge);
+      row.appendChild(devLink(`${pr.repo.split("/").pop()}#${pr.number}`, pr.url, "mono issue-dev-ref"));
+      row.appendChild(devText(pr.title, "issue-link-summary"));
+      const bits = [
+        pr.state === "open" || pr.state === "draft" ? REVIEW_LABELS[pr.review] : "",
+        pr.branch ? `${pr.branch} → ${pr.base}` : "",
+        pr.author ? `@${pr.author}` : "",
+        pr.updatedAt ? relDate(pr.updatedAt) : "",
+      ].filter(Boolean);
+      row.appendChild(devText(bits.join(" · "), "issue-dev-meta mono"));
+      return row;
+    })
+  );
+
+  group(
+    `Branches without a pull request (${dev.branches.length})`,
+    dev.branches.map((branch) => {
+      const row = devRow();
+      row.appendChild(devLink(branch.name, branch.url, "mono issue-dev-ref"));
+      row.appendChild(devText(branch.repo, "issue-link-summary"));
+      if (branch.lastCommitAt) row.appendChild(devText(`last commit ${relDate(branch.lastCommitAt)}`, "issue-dev-meta mono"));
+      return row;
+    })
+  );
+
+  group(
+    `Commits (${dev.commits.length})`,
+    dev.commits.map((commit) => {
+      const row = devRow();
+      row.appendChild(devLink(commit.short, commit.url, "mono issue-dev-ref"));
+      row.appendChild(devText(commit.message, "issue-link-summary"));
+      const bits = [commit.repo.split("/").pop(), commit.author && `@${commit.author}`, commit.at && relDate(commit.at)].filter(Boolean);
+      row.appendChild(devText(bits.join(" · "), "issue-dev-meta mono"));
+      return row;
+    })
+  );
+
+  if (dev.failures?.length) {
+    out.push(emptyNote(`Partial answer — ${dev.failures.map((f) => `${f.repo || "GitHub"}: ${f.message}`).join("; ")}`));
+  }
+  return out;
+}
+
+function devRow() {
+  const row = document.createElement("div");
+  row.className = "issue-link-row issue-dev-row";
+  return row;
+}
+
+function devLink(text, href, className) {
+  const a = document.createElement("a");
+  a.className = className;
+  a.textContent = text;
+  if (href) {
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+  }
+  return a;
+}
+
+function devText(text, className) {
+  const span = document.createElement("span");
+  span.className = className;
+  span.textContent = text;
+  return span;
 }
 
 // ── Header ───────────────────────────────────────────────────────────────────
