@@ -339,3 +339,57 @@ export function isOutsideTeam(issue) {
   if (!accountId) return false;
   return !isOnTeam(accountId);
 }
+
+// ── The reporting screens' scope ─────────────────────────────────────────────
+//
+// The sprint dashboard, the sprint recap and the quarterly overview describe the
+// team's work and nobody else's. Other people post, open and close tickets on
+// the same boards, and counted in they are noise in every figure — completion,
+// points, the burndown, the per-person rows. Settled 2026-09-29: with a roster,
+// those screens count only issues assigned to an active roster member, plus
+// unassigned issues (usually the team's problem too, the same reason
+// `isOutsideTeam` keeps them). With no roster there is nothing to scope by and
+// everything counts, as before.
+//
+// The board views are not scoped: they keep their Team only / Everyone toggle,
+// because a board is where somebody else's ticket gets reassigned.
+//
+// The freeze is scoped here too, on read, by who held each row *when it was
+// frozen*. The stored freeze keeps every issue, so a roster change never
+// rewrites a record that cannot be re-taken. A team issue since handed to an
+// outsider is in the frozen set and not the current one, which would read as
+// "pulled out" to somewhere unknown — so those keys come back as `handedOff`,
+// and the diff names where they went without a lookup.
+export function teamScope({ issues = [], freeze = null } = {}) {
+  if (!hasRoster()) {
+    return { issues, freeze, handedOff: [], excluded: { issues: 0, keys: [] }, scoped: false };
+  }
+  const inTeam = (accountId) => !accountId || isOnTeam(String(accountId));
+  const kept = [];
+  const dropped = [];
+  for (const issue of issues) {
+    (inTeam(issue?.fields?.assignee?.accountId) ? kept : dropped).push(issue);
+  }
+
+  let scopedFreeze = freeze;
+  let handedOff = [];
+  if (freeze?.rows) {
+    const rows = freeze.rows.filter((row) => inTeam(row.assignee));
+    const droppedKeys = new Set(dropped.map((i) => i.key));
+    handedOff = rows.map((row) => row.key).filter((key) => droppedKeys.has(key));
+    scopedFreeze = {
+      ...freeze,
+      rows,
+      issueCount: rows.length,
+      totalPoints: Math.round(rows.reduce((sum, row) => sum + (row.points ?? 0), 0) * 10) / 10,
+    };
+  }
+
+  return {
+    issues: kept,
+    freeze: scopedFreeze,
+    handedOff,
+    excluded: { issues: dropped.length, keys: dropped.map((i) => i.key) },
+    scoped: true,
+  };
+}

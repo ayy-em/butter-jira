@@ -48,7 +48,10 @@ const TABS = [
       { hash: "#todos", label: "MY TODOS", key: "T" },
       // Opens its own tab rather than a view: it is a print-styled document,
       // and `recap.html` deliberately does not load the app stylesheet.
-      { url: "recap.html", label: "SPRINT RECAP" },
+      // The screen that builds any recap — active, closed, several sprints,
+      // several boards — rather than a link that could only recap the
+      // active sprint.
+      { hash: "#recap-config", label: "RECAP CONFIG" },
     ],
   },
 ];

@@ -1,0 +1,135 @@
+/* Launch → Recap config. A column of board cards, each listing its sprints as
+ * checkboxes, and a sticky bar at the foot with what is selected and the two
+ * documents it can open. Theme tokens only, so both themes are selected by
+ * app.css rather than re-declared here.
+ */
+.rc-wrap {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px 24px 0;
+}
+
+.rc-boards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.rc-board {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+}
+.rc-board-off { opacity: 0.6; }
+
+.rc-board-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.rc-board-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+/* The board's own colour, as a dot before its name — the same mark the recap's
+   sprint list uses, so a board reads the same on both. */
+.rc-board-name::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: 1px;
+  background: var(--rc-board, var(--muted));
+}
+.rc-board-name {
+  font-size: calc(15px * var(--font-scale));
+  font-weight: 600;
+  color: var(--text);
+}
+.rc-quick {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.rc-sprints {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+}
+.rc-sprint {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text);
+  font-size: calc(13px * var(--font-scale));
+}
+.rc-sprint:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.rc-sprint-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-sprint-dates {
+  color: var(--muted);
+  font-size: calc(11.5px * var(--font-scale));
+  white-space: nowrap;
+}
+.rc-tag {
+  font-size: calc(10px * var(--font-scale));
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 45%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+}
+.rc-more { margin-top: 6px; }
+
+.rc-board input[type="checkbox"] {
+  accent-color: var(--accent-primary);
+  width: 15px;
+  height: 15px;
+  margin: 0;
+}
+
+.rc-note {
+  color: var(--muted);
+  font-size: calc(12px * var(--font-scale));
+  margin: 8px 0 0;
+}
+
+.rc-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 12px 0 16px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.rc-summary { flex: 1 1 280px; min-width: 0; }
+.rc-summary-line {
+  color: var(--text);
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 600;
+}
+.rc-summary .rc-note { margin-top: 2px; }
+.rc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 640px) {
+  .rc-wrap { padding: 16px 16px 0; }
+  .rc-sprint { grid-template-columns: auto minmax(0, 1fr); }
+  .rc-sprint-dates, .rc-tag { grid-column: 2; }
+}

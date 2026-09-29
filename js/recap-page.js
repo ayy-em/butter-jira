@@ -30,13 +30,20 @@ import {
 } from "./api.js";
 import { getCredentials } from "./credentials.js";
 import { CONFIG, isConfigured } from "./config.js";
-import { loadTeam } from "./team.js";
+import { loadTeam, teamScope } from "./team.js";
 import { BOARDS, compactNum, fmtDate, loadBoards, loadStatusGroups } from "./utils.js";
 import { summarize } from "./dashboard.js";
 import { buildRecap } from "./recap.js";
 import { departedKeys, loadFreeze } from "./freeze.js";
 import { sprintKey } from "./snapshots.js";
-import { FALLBACK_SPRINT_DAYS, getTeamStats, isGithubConfigured } from "./github.js";
+import {
+  FALLBACK_SPRINT_DAYS,
+  getTeamStats,
+  getWindowStats,
+  isGithubConfigured,
+  needsWindowFetch,
+} from "./github.js";
+import { isExplicitSelection, parseSprintSelection, selectionHasGaps, wantedFor } from "./recap-selection.js";
 
 // How long each source gets before the document gives up on it. Generous on
 // purpose: this is a document, generated once and kept, and the GitHub window
@@ -61,16 +68,23 @@ const params = new URLSearchParams(location.search);
 //
 // Per board, not per document: boards roll over on their own schedules, and
 // "the previous sprint" is a question each board answers for itself.
+//
+//   ?sprint=12:7938,14:801   those sprints on those boards — what the recap
+//                            config screen builds; see js/recap-selection.js
+//
+// An explicit selection leaves out every board it does not name, so the
+// document's board-by-board section lists only what was chosen.
 const SELECTION = (params.get("sprint") || "active").trim().toLowerCase();
-const WANTED_IDS = new Set(
-  SELECTION.split(",")
-    .map((part) => part.trim())
-    .filter((part) => /^\d+$/.test(part))
-);
+const CHOSEN = parseSprintSelection(SELECTION);
+const EXPLICIT = isExplicitSelection(CHOSEN);
+// Kept under its old name for the messages below, which only need a count.
+const WANTED_IDS = { size: CHOSEN.pairs.size + CHOSEN.bare.size };
 
 async function sprintsFor(board, creds) {
   if (SELECTION === "previous") return getPreviousSprint(board.id, creds);
-  if (WANTED_IDS.size) {
+  if (EXPLICIT) {
+    const wanted = wantedFor(CHOSEN, board.id);
+    if (!wanted.size) return [];
     // Both lists, because an id given by hand may name either, and a document
     // asked for by id should not refuse to find a sprint that happens to still
     // be running.
@@ -84,7 +98,7 @@ async function sprintsFor(board, creds) {
     // assumption about someone else's API.
     const byId = new Map();
     for (const sprint of [...active, ...closed]) {
-      if (WANTED_IDS.has(String(sprint?.id)) && !byId.has(sprint.id)) byId.set(sprint.id, sprint);
+      if (wanted.has(String(sprint?.id)) && !byId.has(sprint.id)) byId.set(sprint.id, sprint);
     }
     return [...byId.values()];
   }
@@ -170,7 +184,7 @@ async function init() {
   //
   // Kept paired with their board, unlike on the dashboard, because the recap
   // prints a block per board and needs to know whose sprint is whose.
-  const boardSprints = await withTimeout(
+  const fetched = await withTimeout(
     Promise.all(
       BOARDS.map(async (board) => ({
         board,
@@ -180,9 +194,11 @@ async function init() {
     JIRA_TIMEOUT_MS,
     "Jira"
   );
+  const boardSprints = EXPLICIT ? fetched.filter(({ sprints: list }) => list.length) : fetched;
   const sprints = boardSprints.flatMap(({ sprints: list }) => list);
+  const gaps = selectionHasGaps(sprints);
 
-  const [issues, statusGroups] = await withTimeout(
+  const [allIssues, statusGroups] = await withTimeout(
     Promise.all([getIssuesForSprints(boardSprints, creds), loadStatusGroups()]),
     JIRA_TIMEOUT_MS,
     "Jira"
@@ -214,13 +230,19 @@ async function init() {
   // opening the recap on a sprint the dashboard has never seen would otherwise
   // freeze it mid-sprint and then print "nothing has changed". The dashboard
   // takes it; this reads whatever is there, and says so when there is nothing.
-  const freeze = sprints.length ? await loadFreeze(sprintKey(sprints)).catch(() => null) : null;
+  const storedFreeze = sprints.length ? await loadFreeze(sprintKey(sprints)).catch(() => null) : null;
+
+  // The team's sprint only — issues held by roster members, plus unassigned —
+  // and the freeze scoped the same way. See `teamScope` in js/team.js.
+  const team = teamScope({ issues: allIssues, freeze: storedFreeze });
+  const issues = team.issues;
+  const freeze = team.freeze;
 
   // Where the issues that left the sprint went — one batched lookup, and never
   // fatal: without it those rows print as "deleted, or no longer visible", which
   // is wrong, so the document would rather print nothing about them than a
   // confident wrong answer. Hence the empty diff on failure.
-  const missing = departedKeys(freeze, issues);
+  const missing = departedKeys(freeze, issues, team.handedOff);
   const departed = missing.length
     ? await withTimeout(getIssuesByKeys(missing, creds), JIRA_TIMEOUT_MS, "Jira").catch(() => [])
     : [];
@@ -245,9 +267,14 @@ async function init() {
   const until = closedAt ? closedAt.toISOString() : "";
 
   const dated = Boolean(summary.window.start);
+  // Sprints that start further back than the shared 45-day GitHub window get a
+  // window of their own, over their own dates — the same fetch the quarterly
+  // overview uses — rather than figures clamped to the last 45 days.
+  const ownWindow = needsWindowFetch(since, now);
   const build = (stats) =>
     buildRecap({
       summary, issues, boardSprints, statusGroups, stats, since, until, freeze, departed,
+      handedOff: team.handedOff, excluded: team.excluded,
       now: asAt,
     });
 
@@ -283,7 +310,7 @@ async function init() {
   // indistinguishable from the page being broken. Printing stays disabled while
   // the GitHub figures are still dashes, so what goes to paper is never a
   // half-document.
-  render(firstPass, { statsError: "", dated, statsPending: githubPending });
+  render(firstPass, { statsError: "", dated, statsPending: githubPending, gaps });
   if (!githubPending) {
     markReady();
   } else if (toolbarNote) {
@@ -297,11 +324,15 @@ async function init() {
     try {
       // Bounded, and never fatal: a recap without the GitHub figures is still a
       // recap, and it says which are missing and why.
-      stats = await withTimeout(getTeamStats({ now }), GITHUB_TIMEOUT_MS, "GitHub");
+      stats = await withTimeout(
+        ownWindow ? getWindowStats({ since, until, now }) : getTeamStats({ now }),
+        GITHUB_TIMEOUT_MS,
+        "GitHub"
+      );
     } catch (err) {
       statsError = String(err?.message || err);
     }
-    render(build(stats), { statsError, dated, statsPending: false });
+    render(build(stats), { statsError, dated, statsPending: false, gaps });
     markReady();
   }
 
@@ -376,7 +407,7 @@ function pct(value) {
 // version used `position: fixed`, which repeats but reserves nothing — so from
 // page two onwards the header painted straight over the top of whatever card had
 // started there, slicing off its photo and name.
-function render(recap, { statsError, dated, statsPending = false }) {
+function render(recap, { statsError, dated, statsPending = false, gaps = false }) {
   root.innerHTML = "";
 
   const layout = el("table", "recap-layout");
@@ -395,7 +426,7 @@ function render(recap, { statsError, dated, statsPending = false }) {
   body.appendChild(renderPeopleSummary(recap, { statsPending }));
   body.appendChild(renderStatusSplit(recap));
   body.appendChild(renderChanges(recap));
-  body.appendChild(renderPeople(recap, { statsError, dated, statsPending }));
+  body.appendChild(renderPeople(recap, { statsError, dated, statsPending, gaps }));
   body.appendChild(renderBoards(recap));
   body.appendChild(renderTickets(recap));
   body.appendChild(renderFooter(recap));
@@ -631,6 +662,14 @@ function renderGlance(recap, { statsPending = false } = {}) {
   if (c.subtasksExcluded) {
     notes.push(
       `${c.subtasksExcluded} sub-${c.subtasksExcluded === 1 ? "task" : "tasks"} excluded — their points duplicate the parent story's.`
+    );
+  }
+  // The scope, stated where the totals are, so a sprint that looks light has
+  // its reason on the page. See `teamScope` in js/team.js.
+  if (recap.excluded?.issues) {
+    notes.push(
+      `Team only: ${recap.excluded.issues} ${recap.excluded.issues === 1 ? "issue" : "issues"} in these sprints` +
+        ` ${recap.excluded.issues === 1 ? "is" : "are"} held by people outside the roster and ${recap.excluded.issues === 1 ? "is" : "are"} left out of every figure.`
     );
   }
   notes.push(
@@ -933,7 +972,7 @@ function stat(label, value, of) {
   return node;
 }
 
-function renderPeople(recap, { statsError, dated, statsPending = false }) {
+function renderPeople(recap, { statsError, dated, statsPending = false, gaps = false }) {
   const section = el("section", "recap-section recap-section-break");
   section.appendChild(el("h2", "recap-section-title", "Contribution by person"));
 
@@ -1002,7 +1041,7 @@ function renderPeople(recap, { statsError, dated, statsPending = false }) {
   }
   section.appendChild(grid);
 
-  section.appendChild(el("p", "recap-note", peopleNote(recap, { statsError, dated, statsPending })));
+  section.appendChild(el("p", "recap-note", peopleNote(recap, { statsError, dated, statsPending, gaps })));
   return section;
 }
 
@@ -1040,7 +1079,7 @@ function activityNote(recap) {
   return parts.join(" ");
 }
 
-function peopleNote(recap, { statsError, dated, statsPending = false }) {
+function peopleNote(recap, { statsError, dated, statsPending = false, gaps = false }) {
   const parts = [
     "Ordered by name. Points wrapped counts points on issues in a review column or" +
       " already done, and the figure beside it is that as a share of points planned." +
@@ -1076,6 +1115,13 @@ function peopleNote(recap, { statsError, dated, statsPending = false }) {
     // stop being true.
     const to = recap.github.to ? ` up to ${fmtDate(recap.github.to)}, when the sprint closed` : "";
     parts.push(`GitHub figures are counted ${window}${to}.`);
+    // Jira counts the chosen sprints' issues; GitHub counts a date window. With
+    // gaps between the sprints the two cover different stretches of time.
+    if (gaps) {
+      parts.push(
+        "The selected sprints are not back to back, so the GitHub figures also cover the time between them."
+      );
+    }
 
     // A partial answer must not print as a whole one.
     if (recap.github.failures.length) {

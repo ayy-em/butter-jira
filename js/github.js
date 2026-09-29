@@ -577,15 +577,18 @@ export function buildWindowQuery({
 // that arrived through a pull request is dropped here, because that pull
 // request's own diff already accounts for it. Asking for one is enough: the
 // question is whether there are any, not which.
+//
+// `$until` is null for every live screen, which leaves the window open to now.
+// Only the quarterly overview of a quarter that has ended sets it.
 export function buildCommitQuery({ pageSize = COMMITS_PAGE_SIZE } = {}) {
-  return `query ButterJiraRepoCommits($owner: String!, $name: String!, $since: GitTimestamp!, $cursor: String) {
+  return `query ButterJiraRepoCommits($owner: String!, $name: String!, $since: GitTimestamp!, $until: GitTimestamp, $cursor: String) {
   repository(owner: $owner, name: $name) {
     nameWithOwner
     defaultBranchRef {
       name
       target {
         ... on Commit {
-          history(first: ${pageSize}, after: $cursor, since: $since) {
+          history(first: ${pageSize}, after: $cursor, since: $since, until: $until) {
             pageInfo { hasNextPage endCursor }
             nodes {
               oid
@@ -730,9 +733,17 @@ async function fetchRepoWindow(repo, { token, host, since, maxPages, query }) {
 // One repo's default-branch commits inside the window, keeping only what no pull
 // request accounts for. `history(since:)` does the windowing server-side, so
 // this pages until GitHub says there is no more rather than testing a cutoff.
-async function fetchRepoCommits(repo, { token, host, since, maxPages, query }) {
+//
+// `keepHistory` also keeps *every* attributable commit, pull request or not, in
+// a separate list. That is the quarterly overview's "commits to main" — every
+// commit in the default branch's history — and it is kept apart from `commits`
+// so `statsFor`, which reads `commits` as direct pushes only, cannot start
+// double counting.
+async function fetchRepoCommits(repo, { token, host, since, until = 0, maxPages, query, keepHistory = false }) {
   const slug = repoSlug(repo);
   const commits = [];
+  const history = [];
+  let unattributed = 0;
   let cursor = null;
   let pages = 0;
   let done = false;
@@ -742,6 +753,7 @@ async function fetchRepoCommits(repo, { token, host, since, maxPages, query }) {
       owner: repo.owner,
       name: repo.name,
       since: new Date(since).toISOString(),
+      until: until ? new Date(until).toISOString() : null,
       cursor,
     });
     const node = payload?.data?.repository;
@@ -754,16 +766,24 @@ async function fetchRepoCommits(repo, { token, host, since, maxPages, query }) {
     }
 
     // An empty repo has no default branch and so no history — not an error.
-    const history = node.defaultBranchRef?.target?.history;
-    if (!history) return { commits, truncated: false };
+    const log = node.defaultBranchRef?.target?.history;
+    if (!log) return { commits, history, unattributed, truncated: false };
 
-    for (const commit of history.nodes || []) {
+    for (const commit of log.nodes || []) {
       if (!commit) continue;
-      // Arrived through a pull request: already counted as that PR's diff.
-      if (commit.associatedPullRequests?.nodes?.length) continue;
       // A commit whose email is not linked to any GitHub account cannot be
       // attributed to a person, and guessing from the email would be worse.
       const login = normalizeGithubLogin(commit.author?.user?.login);
+      const viaPr = Boolean(commit.associatedPullRequests?.nodes?.length);
+      if (keepHistory) {
+        if (login) {
+          history.push({ repo: slug, oid: commit.oid || "", author: login, committedDate: commit.committedDate || "", viaPr });
+        } else {
+          unattributed++;
+        }
+      }
+      // Arrived through a pull request: already counted as that PR's diff.
+      if (viaPr) continue;
       if (!login) continue;
       commits.push({
         repo: slug,
@@ -776,13 +796,13 @@ async function fetchRepoCommits(repo, { token, host, since, maxPages, query }) {
     }
 
     pages++;
-    done = !history.pageInfo?.hasNextPage;
-    cursor = history.pageInfo?.endCursor || null;
+    done = !log.pageInfo?.hasNextPage;
+    cursor = log.pageInfo?.endCursor || null;
   }
 
   // Same meaning as the pull-request loop's: the page cap bit before the window
   // ran out, so this repo's older half is missing and the UI says so.
-  return { commits, truncated: !done };
+  return { commits, history, unattributed, truncated: !done };
 }
 
 // Everything one person did with pull requests inside a window, given their
@@ -1157,6 +1177,13 @@ export async function fetchTeamStats({
   lookbackDays = STATS_LOOKBACK_DAYS,
   maxPages = STATS_MAX_PAGES,
   commitMaxPages = COMMITS_MAX_PAGES,
+  // An explicit window, for the quarterly overview. `since` replaces the
+  // lookback; `until` bounds the commit history server-side (pull requests are
+  // bounded by the caller, since they are paged by last update). `keepHistory`
+  // is passed through to `fetchRepoCommits`.
+  since = "",
+  until = "",
+  keepHistory = false,
 } = {}) {
   const gh = githubConfig(config);
   if (!gh.enabled) throw new GithubError("GitHub sync is off", { kind: "config" });
@@ -1166,7 +1193,8 @@ export async function fetchTeamStats({
   const authToken = token || (await getGithubToken());
   if (!authToken) throw new GithubError("No GitHub token stored", { kind: "auth" });
 
-  const sinceDate = new Date(now.getTime() - lookbackDays * 86400000);
+  const sinceDate = since ? new Date(since) : new Date(now.getTime() - lookbackDays * 86400000);
+  const untilMs = until ? new Date(until).getTime() : 0;
   const query = buildWindowQuery();
   const commitQuery = buildCommitQuery();
 
@@ -1186,9 +1214,11 @@ export async function fetchTeamStats({
           fetchRepoWindow(repo, { ...shared, maxPages, query }),
           fetchRepoCommits(repo, {
             ...shared,
+            until: untilMs,
             maxPages: commitMaxPages,
             query: commitQuery,
-          }).catch((err) => ({ commits: [], truncated: false, error: err })),
+            keepHistory,
+          }).catch((err) => ({ commits: [], history: [], unattributed: 0, truncated: false, error: err })),
         ]);
         noteRepoDone("stats", repoSlug(repo), {
           capped: Boolean(data.truncated || commits?.truncated),
@@ -1208,6 +1238,8 @@ export async function fetchTeamStats({
   const reviews = [];
   const comments = [];
   const commits = [];
+  const mainHistory = [];
+  let unattributedCommits = 0;
   for (const { repo, data, commits: history, error } of results) {
     const slug = repoSlug(repo);
     if (error) {
@@ -1224,6 +1256,8 @@ export async function fetchTeamStats({
     reviews.push(...data.reviews);
     comments.push(...data.comments);
     commits.push(...(history?.commits || []));
+    mainHistory.push(...(history?.history || []));
+    unattributedCommits += history?.unattributed || 0;
     // The repo was read; its direct pushes were not. Named separately from a
     // repo that could not be reached at all, because the fix differs.
     if (history?.error) {
@@ -1253,6 +1287,9 @@ export async function fetchTeamStats({
     reviews,
     comments,
     commits,
+    // Only with `keepHistory`: every attributable default-branch commit in the
+    // window, and a count of the ones no GitHub account could be matched to.
+    ...(keepHistory ? { mainHistory, unattributedCommits, until: until ? new Date(until).toISOString() : "" } : {}),
   };
 }
 
@@ -1457,6 +1494,49 @@ export function getTeamStats({ config = CONFIG, now = new Date(), force = false 
     }
   });
 }
+
+// A GitHub window over explicit dates rather than the 45-day lookback every
+// live screen shares, with page caps sized for about ninety days of a busy repo.
+// The quarterly overview always uses it; a sprint recap uses it when the
+// sprints it covers start further back than the shared window reaches. Cached
+// for longer than the live window, because a document is regenerated
+// deliberately and a closed period does not change.
+export const QUARTER_MAX_PAGES = 20;
+export const QUARTER_COMMIT_MAX_PAGES = 20;
+const WINDOW_TTL_MS = 30 * 60 * 1000;
+
+export function windowStatsCacheKey(config = CONFIG, since = "", until = "") {
+  return `${statsCacheKey(config)}_q_${since}_${until}`;
+}
+// The name the quarterly overview and its preview use.
+export const quarterStatsCacheKey = windowStatsCacheKey;
+
+// True when a window starting at `since` reaches further back than the shared
+// lookback covers, i.e. `getTeamStats` would clamp it.
+export function needsWindowFetch(since, now = new Date()) {
+  const start = new Date(since || 0).getTime();
+  return Number.isFinite(start) && start > 0 && start < now.getTime() - STATS_LOOKBACK_DAYS * 86400000;
+}
+
+export function getWindowStats({ config = CONFIG, since, until = "", now = new Date(), force = false } = {}) {
+  const key = windowStatsCacheKey(config, since, until);
+  return shared(key, force, async () => {
+    const cached = force ? null : await readCached(key, WINDOW_TTL_MS);
+    if (cached) return cached;
+    const stats = await fetchTeamStats({
+      config,
+      now,
+      since,
+      until,
+      keepHistory: true,
+      maxPages: QUARTER_MAX_PAGES,
+      commitMaxPages: QUARTER_COMMIT_MAX_PAGES,
+    });
+    await writeCached(key, stats);
+    return stats;
+  });
+}
+export const getQuarterStats = getWindowStats;
 
 // Called from the header the instant STANDUP is clicked, so the pull-request
 // window — the slowest thing the standup asks for, and the only paged one — is

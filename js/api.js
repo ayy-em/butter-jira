@@ -484,6 +484,75 @@ export async function getIssuesInWindow(creds, { since = "", until = "", extra =
   });
 }
 
+// ── The quarterly overview's readers ────────────────────────────────────────
+//
+// The window reader above, plus the two things a quarter asks of Jira that no
+// other screen does: who commented, and when an issue was resolved. Comments are
+// not in the changelog, so they ride the same search as a field and are
+// compacted to author and date before anything is cached — a quarter of comment
+// bodies would be most of the payload and none of the answer.
+//
+// Jira's search returns a bounded page of comments per issue. An issue with more
+// than came back is re-read through the comment endpoint, which pages, so the
+// count is whole rather than a floor.
+const QUARTER_COMMENT_CONCURRENCY = 4;
+
+export function compactComments(issue) {
+  const field = issue?.fields?.comment;
+  if (!field) return null;
+  const list = Array.isArray(field.comments) ? field.comments : [];
+  const events = list
+    .map((c) => ({
+      by: String(c?.author?.accountId || ""),
+      name: String(c?.author?.displayName || ""),
+      at: String(c?.created || ""),
+    }))
+    .filter((c) => c.at);
+  const total = Number.isFinite(field.total) ? field.total : list.length;
+  return { events, total, returned: list.length, truncated: total > list.length };
+}
+
+export async function getQuarterIssues(creds, { since = "", until = "", boards = BOARDS } = {}) {
+  const jql = windowJql({ since, until, boards });
+  return cached(`cache_quarter_${jql}`, async () => {
+    const fields = [...new Set([...issueFields(), "comment", "resolutiondate"])];
+    const issues = compactChangelogs(await searchAllPages(creds, jql, fields, HISTORY_EXPAND));
+    for (const issue of issues) {
+      const comments = compactComments(issue);
+      if (issue.fields) delete issue.fields.comment;
+      if (comments) issue.comments = comments;
+    }
+
+    const short = issues.filter((i) => i.comments?.truncated);
+    for (let i = 0; i < short.length; i += QUARTER_COMMENT_CONCURRENCY) {
+      await Promise.all(
+        short.slice(i, i + QUARTER_COMMENT_CONCURRENCY).map(async (issue) => {
+          try {
+            const all = await getIssueComments(issue.key, creds);
+            issue.comments = compactComments({ fields: { comment: { comments: all, total: all.length } } });
+          } catch {
+            // Left marked truncated, so the document says the count is a floor.
+          }
+        })
+      );
+    }
+    return tagByProject(issues);
+  });
+}
+
+// Epics still being worked on — current state, whatever quarter is asked about,
+// because Jira cannot say what was in progress on a past date without a
+// changelog per epic. The document says so.
+export async function getEpicsInProgress(creds, boards = BOARDS) {
+  const scope = projectScopeJql(boards);
+  const jql = [scope, "issuetype = Epic", 'statusCategory = "In Progress"']
+    .filter(Boolean)
+    .join(" AND ") + " ORDER BY key ASC";
+  return cached(`cache_epicsInProgress_${jql}`, async () =>
+    tagByProject(await searchAllPages(creds, jql, issueFields()))
+  );
+}
+
 // One person's open work, whatever sprint it is in or is not in.
 //
 // The window reader above cannot answer this: an issue assigned to somebody and

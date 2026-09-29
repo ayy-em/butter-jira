@@ -8,6 +8,40 @@ it about what a user gets, and leave the reasoning to
 
 ## Unreleased
 
+**Recap config: build a recap from any sprints you like.** `LAUNCH → RECAP
+CONFIG`, or *Configure a recap…* in the Sprint Dashboard's recap menu. Tick the
+boards you want and, within each, the sprints — active or closed, one or
+several, with quick picks for *Active*, *Last closed* and *Last 3 closed* — then
+**Generate recap** for one combined document across all of them. The same board
+choice opens the quarterly overview for just those boards. The selection lives in
+the recap's link, so a recap can be reloaded or bookmarked, and the screen
+remembers your last choice. Recaps of sprints older than six weeks now read
+GitHub over those sprints' own dates rather than stopping at the last 45 days.
+
+**The dashboard and recaps only count your team.** With a roster set up under
+Settings → Team, the Sprint Dashboard, the sprint recap and the quarterly
+overview count only tickets held by people on it, plus unassigned tickets.
+Anyone else working on the same boards — opening, closing or picking up
+tickets — no longer appears in a row, a total, the burndown or the freeze diff,
+and outside contributors to your repositories never did. The dashboard header
+and the recap both say how many issues were left out. A team ticket handed to
+somebody outside the team mid-sprint shows as pulled out, "reassigned outside
+the team". Kanban, Backlog and Monitor keep their Team only / Everyone toggle.
+
+**A quarterly overview.** The Sprint Dashboard's second button is now a menu,
+**Recap past sprint**, with two entries: the past-sprint recap, and **Prepare a
+quarterly overview** — a printable document for a calendar quarter. It has the
+team's week-by-week velocity as two charts (a Jira activity score and GitHub
+commits to main), a table of the quarter's key figures, a small chart and a row
+of whole-quarter figures per person, and the epics closed and still in progress.
+Pick the quarter on the page: this one so far, or any of the three before it.
+The Jira score's formula is printed on the document, and GitHub is read over the
+whole quarter rather than the last 45 days. Each person's chart has its own
+scale, weeks with fewer than three days in the quarter are left off the charts
+(still counted in the figures), the per-person table is ordered by a combined
+ranking of Jira activity, commits and lines to main, and the PDF prints edge to
+edge.
+
 **Recap a sprint after it has closed.** The Sprint Dashboard has a second button,
 **Recap previous sprint**, which builds the same printable document for the last
 sprint each board closed rather than the one running now. It is there whether or

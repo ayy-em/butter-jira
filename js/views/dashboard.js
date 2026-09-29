@@ -21,7 +21,7 @@ import {
 } from "../freeze.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
 import { icon } from "../components/icons.js";
-import { memberFor } from "../team.js";
+import { memberFor, teamScope } from "../team.js";
 import {
   FALLBACK_SPRINT_DAYS,
   getTeamStats,
@@ -98,7 +98,7 @@ export async function mount(container, creds) {
 
   // Both of these are already cached by the other views, so opening this tab
   // normally costs nothing in requests.
-  const [issues, statusGroups] = await Promise.all([
+  const [allIssues, statusGroups] = await Promise.all([
     getAllSprintIssues(creds),
     loadStatusGroups(),
   ]);
@@ -117,11 +117,22 @@ export async function mount(container, creds) {
   // from here: no freeze exists. Which of the two it was is recorded rather
   // than assumed (`atStart`), so the panel and the scope figure can say what
   // they are actually measuring against.
-  let freeze = sprints.length ? await loadFreeze(key) : null;
-  if (sprints.length && !freeze) {
-    freeze = freezeFrom({ issues, sprints, statusGroups });
-    await recordFreeze(key, freeze);
+  //
+  // Taken and stored over *every* issue in the sprint, whoever holds it, and
+  // scoped to the team only on read (below) — so a roster change later never
+  // rewrites a record that cannot be re-taken.
+  let storedFreeze = sprints.length ? await loadFreeze(key) : null;
+  if (sprints.length && !storedFreeze) {
+    storedFreeze = freezeFrom({ issues: allIssues, sprints, statusGroups });
+    await recordFreeze(key, storedFreeze);
   }
+
+  // The team's sprint: issues held by roster members, plus unassigned ones.
+  // Everything below — tiles, burndown, diff, breakdowns, the per-person
+  // table — reads this, so nobody outside the roster appears in any figure.
+  const team = teamScope({ issues: allIssues, freeze: storedFreeze });
+  const issues = team.issues;
+  const freeze = team.freeze;
 
   const summary = summarize({
     issues,
@@ -154,7 +165,7 @@ export async function mount(container, creds) {
   container.innerHTML = "";
   const wrap = document.createElement("div");
   wrap.className = "dash-wrap";
-  wrap.appendChild(renderHeader(summary));
+  wrap.appendChild(renderHeader(summary, team.excluded));
   wrap.appendChild(renderKpis(summary, freeze));
   wrap.appendChild(renderBurndown(summary, burndown, snapshots));
 
@@ -162,7 +173,7 @@ export async function mount(container, creds) {
   // and this one answers the question the chart raises — a line that flattens or
   // jumps is scope moving, and this says which issues moved it.
   const diff = freeze
-    ? renderFreezeDiff({ freeze, issues, sprints, statusGroups, creds, refreeze })
+    ? renderFreezeDiff({ freeze, issues, sprints, statusGroups, creds, refreeze, handedOff: team.handedOff })
     : null;
   if (diff) wrap.appendChild(diff.el);
 
@@ -181,7 +192,7 @@ export async function mount(container, creds) {
   // one is a single batched lookup the view should not be held up by. The panel
   // says it is still looking rather than pretending they are all deleted.
   if (diff) {
-    const missing = departedKeys(freeze, issues);
+    const missing = departedKeys(freeze, issues, team.handedOff);
     if (!missing.length) diff.setDeparted([]);
     else {
       getIssuesByKeys(missing, creds)
@@ -194,8 +205,8 @@ export async function mount(container, creds) {
   // what it is about to throw away — not "are you sure".
   async function refreeze() {
     const held =
-      `Taken ${freeze.takenOn}, holding ${freeze.issueCount} ` +
-      `issue${freeze.issueCount === 1 ? "" : "s"} and ${trimNum(freeze.totalPoints)} points.`;
+      `Taken ${storedFreeze.takenOn}, holding ${storedFreeze.issueCount} ` +
+      `issue${storedFreeze.issueCount === 1 ? "" : "s"} and ${trimNum(storedFreeze.totalPoints)} points.`;
     if (
       !confirm(
         `Re-freeze ${summary.sprintNames.join(" · ") || "this sprint"}?\n\n${held}\n\n` +
@@ -205,12 +216,12 @@ export async function mount(container, creds) {
     ) {
       return;
     }
-    await recordFreeze(key, freezeFrom({ issues, sprints, statusGroups }));
+    await recordFreeze(key, freezeFrom({ issues: allIssues, sprints, statusGroups }));
     await mount(container, creds);
   }
 }
 
-function renderHeader(summary) {
+function renderHeader(summary, excluded = { issues: 0 }) {
   const header = document.createElement("header");
   header.className = "dash-header";
 
@@ -252,10 +263,29 @@ function renderHeader(summary) {
   // over, nothing started yet — is exactly the state in which this screen has no
   // active sprint to offer and the previous one is the only thing worth
   // printing. Hiding it there would hide it precisely when it is the answer.
-  recapLink(
-    "Recap previous sprint",
-    "recap.html?sprint=previous",
-    "Recaps the last sprint each board closed, as it stood when it closed"
+  //
+  // A menu rather than a second button because it holds both backward-looking
+  // documents: the sprint that just closed, and the quarter. Two print buttons
+  // side by side already needed wording to tell apart; a third would not fit.
+  top.appendChild(
+    recapMenu("Recap past sprint", [
+      {
+        label: "Recap past sprint",
+        href: "recap.html?sprint=previous",
+        tooltip: "Recaps the last sprint each board closed, as it stood when it closed",
+      },
+      {
+        label: "Prepare a quarterly overview",
+        href: "quarter.html",
+        tooltip: "Opens a printable overview of the quarter so far — pick another quarter on the page",
+      },
+      {
+        label: "Configure a recap…",
+        href: "#recap-config",
+        tooltip: "Choose boards and sprints — active or closed, one or several — for a recap",
+        sameTab: true,
+      },
+    ])
   );
   header.appendChild(top);
 
@@ -277,6 +307,14 @@ function renderHeader(summary) {
     none.textContent = "No sprint dates — start a sprint in Jira to see a timeline.";
     meta.appendChild(none);
   }
+  // Said once, quietly, so a total that looks short has its reason beside it.
+  if (excluded.issues) {
+    const scope = document.createElement("span");
+    scope.title = excluded.keys.join(", ");
+    scope.textContent =
+      `team only — ${excluded.issues} issue${excluded.issues === 1 ? "" : "s"} held outside the roster left out`;
+    meta.appendChild(scope);
+  }
   header.appendChild(meta);
 
   for (const goal of summary.goals) {
@@ -286,6 +324,67 @@ function renderHeader(summary) {
     header.appendChild(goalEl);
   }
   return header;
+}
+
+// A trigger and a panel of links, each opening a document in a new tab. Closes
+// on a pick, an outside click and Escape; the listeners go with the menu, since
+// the dashboard re-renders its header on every refresh.
+function recapMenu(label, items) {
+  const wrap = document.createElement("div");
+  wrap.className = "dash-recap-menu";
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "dash-recap-btn dash-recap-trigger";
+  trigger.setAttribute("aria-haspopup", "true");
+  trigger.setAttribute("aria-expanded", "false");
+  trigger.append(label);
+  const caret = icon("chevron", 11);
+  caret.classList.add("dash-recap-caret");
+  trigger.appendChild(caret);
+
+  const panel = document.createElement("div");
+  panel.className = "dash-recap-panel";
+  panel.setAttribute("role", "menu");
+  for (const item of items) {
+    const link = document.createElement("a");
+    link.className = "dash-recap-item";
+    link.setAttribute("role", "menuitem");
+    // An in-app screen opens here; a document opens in a tab of its own.
+    if (item.sameTab) {
+      link.href = item.href;
+    } else {
+      link.href = runtimeUrl(item.href);
+      link.target = "_blank";
+      link.rel = "noopener";
+    }
+    link.textContent = item.label;
+    link.title = item.tooltip;
+    panel.appendChild(link);
+  }
+
+  const setOpen = (open) => {
+    wrap.classList.toggle("open", open);
+    trigger.setAttribute("aria-expanded", String(open));
+  };
+  const onOutside = (e) => {
+    if (!wrap.isConnected) {
+      document.removeEventListener("click", onOutside, true);
+      document.removeEventListener("keydown", onOutside, true);
+      return;
+    }
+    if (e.type === "keydown" ? e.key === "Escape" : !wrap.contains(e.target)) setOpen(false);
+  };
+  document.addEventListener("click", onOutside, true);
+  document.addEventListener("keydown", onOutside, true);
+
+  trigger.addEventListener("click", () => setOpen(!wrap.classList.contains("open")));
+  panel.addEventListener("click", (e) => {
+    if (e.target.closest(".dash-recap-item")) setOpen(false);
+  });
+
+  wrap.append(trigger, panel);
+  return wrap;
 }
 
 // KPI row of stat tiles — headline numbers are figures, not a bar chart. The
@@ -520,7 +619,7 @@ function renderBurndown(summary, burndown, snapshots) {
 // then whatever came back. Rendering "deleted" for an issue nobody has looked
 // for yet would be a confident wrong answer to the one question this panel
 // cannot answer from local state.
-function renderFreezeDiff({ freeze, issues, sprints, statusGroups, creds, refreeze }) {
+function renderFreezeDiff({ freeze, issues, sprints, statusGroups, creds, refreeze, handedOff = [] }) {
   const card = document.createElement("section");
   card.className = "dash-card dash-freeze";
   let departed = null;
@@ -570,6 +669,7 @@ function renderFreezeDiff({ freeze, issues, sprints, statusGroups, creds, refree
       sprints,
       statusGroups,
       departed: departed || [],
+      handedOff,
     });
     const c = diff.counts;
 

@@ -332,5 +332,51 @@ check("identifierless entries dropped", parsed.members.length === 1);
 check("drop warning raised", parsed.warnings.some((w) => w.includes("roster entr")));
 check("roster-only file is importable", parsed.ok === true);
 
+section("team scope for the reporting screens");
+{
+  const frz = await import(new URL("../js/freeze.js", import.meta.url));
+  await team.saveMembers([]);
+  const issue = (key, accountId, points = 1) => ({
+    key,
+    fields: {
+      summary: key,
+      issuetype: { name: "Story" },
+      status: { name: "To Do", statusCategory: { key: "new" } },
+      assignee: accountId ? { accountId, displayName: accountId } : null,
+      cf_sp: points,
+    },
+  });
+  const all = [issue("T-1", "acc-1"), issue("T-2", "acc-out"), issue("T-3", null), issue("T-4", "acc-out")];
+  const freeze = {
+    takenAt: new Date(0).toISOString(),
+    rows: [
+      { key: "T-1", assignee: "acc-1", points: 2 },
+      { key: "T-2", assignee: "acc-out", points: 3 },
+      { key: "T-4", assignee: "acc-1", points: 5 },
+      { key: "T-9", assignee: "acc-1", points: 1 },
+    ],
+    issueCount: 4,
+    totalPoints: 11,
+  };
+
+  let scoped = team.teamScope({ issues: all, freeze });
+  check("no roster: nothing is scoped", !scoped.scoped && scoped.issues.length === 4 && scoped.freeze === freeze);
+
+  await team.saveMembers([person("acc-1", "Ada")]);
+  scoped = team.teamScope({ issues: all, freeze });
+  check("roster: outsiders' issues dropped, unassigned kept", scoped.issues.map((i) => i.key).join(",") === "T-1,T-3");
+  check("excluded count and keys reported", scoped.excluded.issues === 2 && scoped.excluded.keys.includes("T-2"));
+  check("freeze rows scoped by who held them when frozen", scoped.freeze.rows.map((r) => r.key).join(",") === "T-1,T-4,T-9");
+  check("freeze totals recomputed", scoped.freeze.issueCount === 3 && scoped.freeze.totalPoints === 8);
+  check("stored freeze untouched", freeze.rows.length === 4);
+  check("team issue now held outside is handed off", scoped.handedOff.join(",") === "T-4");
+  check("handed-off keys are not looked up", frz.departedKeys(scoped.freeze, scoped.issues, scoped.handedOff).join(",") === "T-9");
+  const diff = frz.diffFreeze({ freeze: scoped.freeze, issues: scoped.issues, handedOff: scoped.handedOff });
+  const t4 = diff.pulledOut.find((r) => r.key === "T-4");
+  check("diff names the hand-off", t4?.where === "handed-off" && /outside the team/.test(t4.whereLabel));
+  check("diff still reconciles", diff.counts.frozen - diff.counts.pulledOut + diff.counts.creptIn === diff.counts.now);
+  await team.saveMembers([]);
+}
+
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

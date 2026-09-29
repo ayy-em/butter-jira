@@ -44,6 +44,7 @@ const INCLUDE_FILES = [
   "app.html",
   "issue.html",
   "recap.html",
+  "quarter.html",
   "settings.html",
   "settings.js",
   "background.js",

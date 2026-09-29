@@ -1,0 +1,141 @@
+/* Quarterly overview — what the recap stylesheet does not already cover: the
+ * weekly line charts and the per-person small multiples. Loaded after
+ * recap.css, and light-only for the same reason that one is: it is paper.
+ *
+ * Two series, two hues: Jira activity is the ramp's step 3 blue, GitHub commits
+ * an orange (validated as a pair: CVD ΔE 24, normal-vision ΔE 35, both ≥ 3:1 on
+ * white). GitHub is also dashed, so the pair survives a mono printer.
+ */
+:root {
+  --chart-surface: #ffffff;
+  --chart-grid: var(--rule-soft);
+  --series-jira: var(--step-3);
+  --series-github: #eb6834;
+}
+
+.quarter-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-soft);
+}
+.quarter-picker select {
+  font: inherit;
+  padding: 3px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.chart { display: block; overflow: visible; }
+.chart-grid { stroke: var(--chart-grid); stroke-width: 1; }
+.chart-tick {
+  fill: var(--ink-muted);
+  font-size: 7pt;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.chart-end-label {
+  fill: var(--ink-soft);
+  font-size: 7.5pt;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 4px 0 8px;
+}
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 8pt;
+  color: var(--ink-soft);
+}
+.chart-swatch {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  flex: 0 0 14px;
+}
+.chart-swatch.dashed {
+  height: 0;
+  border-top: 2px dashed;
+  background: none;
+}
+
+.quarter-chart { break-inside: avoid; margin: 6px 0 14px; }
+.quarter-chart-title {
+  font-size: 9pt;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 2px;
+}
+.quarter-chart-sub { font-size: 8pt; color: var(--ink-muted); margin: 0 0 4px; }
+
+.quarter-multiples {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+.quarter-multiple {
+  break-inside: avoid;
+  border: 1px solid var(--rule-soft);
+  border-radius: 6px;
+  padding: 6px 8px 4px;
+}
+.quarter-multiple-name {
+  font-size: 8.5pt;
+  font-weight: 600;
+  color: var(--ink);
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.quarter-multiple-figures {
+  font-weight: 400;
+  color: var(--ink-muted);
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 7.5pt;
+}
+
+.quarter-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 20px;
+  align-items: start;
+}
+.quarter-summary-table { break-inside: avoid; }
+.quarter-group-head th { text-align: center; border-bottom: 1px solid var(--rule); }
+
+.quarter-total td { font-weight: 700; color: var(--ink); }
+
+@media (max-width: 700px) {
+  .quarter-summary { grid-template-columns: 1fr; }
+  .quarter-multiples { grid-template-columns: 1fr; }
+}
+
+/* ── Zero page margins ───────────────────────────────────────────────────────
+ * The overview prints edge to edge: the background runs to the paper's edge
+ * and there is no white band round it. The inset the page margins used to give
+ * is re-created inside the document instead — top and bottom by the layout
+ * table's `thead` and `tfoot` (the only boxes Blink reserves on every page),
+ * sides by `.recap`'s padding — so text still sits well clear of the edge a
+ * printer may clip. The background tile follows the page, now the whole A4
+ * height. The screen sheet drops its margin-mirroring padding to match.
+ * Only this document: the sprint recap keeps its margins.
+ */
+@page {
+  size: A4;
+  margin: 0;
+}
+:root {
+  --page-content-height: 297mm;
+  --page-gutter: 14mm;
+}
+.recap-sheet { padding: 0; }
+.recap-layout > thead > tr > td { padding-top: 12mm; }
+.recap-layout > tfoot > tr > td { height: 12mm; }

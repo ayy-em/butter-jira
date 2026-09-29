@@ -118,8 +118,21 @@ is the fastest way to see all six buckets.
 - [ ] With a start-of-sprint freeze the "Added after start" tile reads **exact**; with one taken mid-sprint it reads **approx.** and names the day
 - [ ] The recap PDF's "What changed underneath the plan" section matches the panel, and its scope note matches the tile
 - [ ] A recap opened for a sprint the dashboard has never seen says there is no frozen state — and writes no freeze (Storage unchanged)
-- [ ] **Recap previous sprint** builds the last closed sprint on each board, names the closing date on the page, and shows no "days remaining"
-- [ ] That button is present with no active sprint on any board, and the document it opens is still the previous sprint's
+- [ ] **Recap past sprint → Recap past sprint** builds the last closed sprint on each board, names the closing date on the page, and shows no "days remaining"
+- [ ] That menu is present with no active sprint on any board, and the document it opens is still the previous sprint's
+- [ ] The menu closes on a pick, on an outside click and on Escape
+- [ ] With a roster, nobody outside it appears on the dashboard or in the recap — not in the per-person table, the cards, or any total — and the header says how many issues were left out
+- [ ] A team ticket reassigned to someone outside the roster after the freeze shows as pulled out, "reassigned outside the team"
+- [ ] With no roster at all, every assignee still appears, as before
+- [ ] **LAUNCH → RECAP CONFIG** lists every board with its active sprint and closed sprints newest first; a first visit has the active sprints ticked
+- [ ] Unticking a board greys it out and drops it from the summary and both buttons; the choice survives a reload of the app
+- [ ] **Generate recap** opens `recap.html?sprint=<board>:<sprint>,…`; the document lists only the chosen boards and sprints, with dates from the first start to the last end
+- [ ] Choosing sprints with a gap between them warns on the screen and in the recap's GitHub note
+- [ ] A recap of sprints older than 45 days has GitHub figures for their own dates, not the "as far back as GitHub was queried" note
+- [ ] **Quarterly overview for N boards** opens `quarter.html?boards=…`, names the boards under the title, and counts only their projects' issues
+- [ ] **Recap past sprint → Prepare a quarterly overview** opens `quarter.html` on the current quarter; the picker switches to the previous one and the URL follows (`?q=2026-Q2`)
+- [ ] The overview prints no GitHub figure until the quarter window lands, and the print button stays disabled until then
+- [ ] Its team Jira and GitHub totals equal the sum of the per-person rows, and the Jira formula is printed under the first chart
 - [ ] The GitHub line on a closed recap states both ends of the window ("from … up to …, when the sprint closed")
 - [ ] A sprint that was completed after its end date reads "closed after its planned end date", not "past its end date"
 - [ ] `recap.html?sprint=999` fails with the board-scoped-ids message rather than an empty document

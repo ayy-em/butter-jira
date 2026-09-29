@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quarterly overview — preview</title>
+  <link rel="stylesheet" href="../css/recap.css">
+  <link rel="stylesheet" href="../css/quarter.css">
+</head>
+<body class="recap-page">
+  <div class="recap-toolbar" id="recap-toolbar">
+    <button class="recap-print-btn" id="recap-print" disabled>Preparing…</button>
+    <label class="quarter-picker">
+      <span>Quarter</span>
+      <select id="quarter-select"></select>
+    </label>
+    <span class="recap-toolbar-note" id="recap-toolbar-note">Building the overview…</span>
+  </div>
+  <div class="recap-sheet">
+    <div class="recap" id="recap-root"></div>
+  </div>
+  <script type="module" src="preview-quarter.js"></script>
+</body>
+</html>

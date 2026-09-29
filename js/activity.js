@@ -211,7 +211,7 @@ function bucketFor(map, key, label) {
 //      and away from, which no current issue will be sitting in.
 //   3. **The same regex `isDone` falls back to**, for a name neither source
 //      knows.
-function doneResolver(issues, statusGroups) {
+export function doneResolver(issues, statusGroups) {
   const byName = new Map();
   for (const issue of issues || []) {
     const status = issue?.fields?.status;

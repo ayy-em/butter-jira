@@ -66,6 +66,10 @@ export function buildRecap({
   until = "",
   freeze = null,
   departed = [],
+  // From `teamScope`: frozen keys handed to someone outside the team, and what
+  // the scope left out, so the document can say so.
+  handedOff = [],
+  excluded = { issues: 0, keys: [] },
   now = new Date(),
 } = {}) {
   // Sub-tasks are excluded here for the same reason `summarize` excludes them:
@@ -295,7 +299,8 @@ export function buildRecap({
     // same six buckets from the same function — a recap that disagreed with the
     // screen it was generated from would be worse than no recap, which is the
     // rule this whole module already follows for `summarize`.
-    diff: diffFreeze({ freeze, issues, sprints: allSprints, statusGroups, departed, now }),
+    diff: diffFreeze({ freeze, issues, sprints: allSprints, statusGroups, departed, handedOff, now }),
+    excluded,
     window: { start: summary.window?.start || null, end: summary.window?.end || null },
     days: {
       working: summary.daysTotal,

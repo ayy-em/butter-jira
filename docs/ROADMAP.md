@@ -231,7 +231,7 @@ open question 3, applied a third time. M18 was added new.
 
 6. **How much history should the app keep?** Open, raised 2026-09-03 by M17. Daily snapshots are capped at eight sprints (`MAX_SPRINTS_KEPT`), which is right for sixty rows per sprint and wrong for one rollup row per sprint — a trend chart wants years of those. M13's per-issue freezes pull the other way, being the bulkiest thing stored. Three stores with three different right answers, so the cap stops being one constant and becomes a decision about what the extension keeps on the device.
 7. ~~**Lines of code as a metric**~~ — answered 2026-09-03, when it was asked for in M17: **team-level per sprint, never per person.** It sits next to issue counts as a volume signal, and `fetchTeamStats` measures lines reaching the default branch, so that is what it is labelled — the reason the recap PDF prints its own framing. **Amended 2026-09-06 when M14's scope was agreed: the rule holds everywhere except the 1:1 sheet**, which shows lines added and removed **per person** for the selected window, because that is what the manager sits down with. The distinction is the audience, not the number: M16's quarter document and M17's per-sprint chart are read by the team and stay team-level; a 1:1 sheet is read by two people about one of them. What M14 keeps of the rule is one person at a time, no comparison between colleagues, and no line-count trend line. See M14, *Per-person lines shipped — a stated reversal*.
-8. **Where does a quarter start?** Open, raised 2026-09-03 by M16. Sprints straddle quarter boundaries, so a quarter-to-date document either cuts a sprint in half or counts a sprint that started in the previous quarter. Calendar quarters with whole sprints assigned to the quarter they end in is the likely answer, but it needs stating on the document rather than implying.
+8. ~~**Where does a quarter start?**~~ — answered 2026-09-29 when M16 was built: calendar quarters, ISO weeks clipped at the edges, and no sprint assignment at all — the overview counts events by date, not sprints. Raised 2026-09-03 by M16. Sprints straddle quarter boundaries, so a quarter-to-date document either cuts a sprint in half or counts a sprint that started in the previous quarter. Calendar quarters with whole sprints assigned to the quarter they end in is the likely answer, but it needs stating on the document rather than implying.
 
 ---
 
@@ -322,7 +322,94 @@ write clearly attributed rather than silently dropped.
 
 ---
 
+## Recap config *(built 2026-09-29)*
+
+`LAUNCH → RECAP CONFIG` (`js/views/recap-config.js`), also reachable from the
+dashboard's recap menu, replaces the LAUNCH menu's *Sprint recap* link, which
+could only recap the active sprint. It picks boards and, within each, any mix of
+active and closed sprints. Decisions taken that day:
+
+- **One combined recap** for several sprints, which is what the recap already did
+  for several active ones.
+- **One-off, as a link, not saved presets.** The selection is the URL:
+  `recap.html?sprint=<board>:<sprint>,…` (`js/recap-selection.js`),
+  board-qualified so a sprint shared by two boards is read once. Bare
+  `?sprint=<id>` links still work. The screen remembers the last choice on the
+  device (`recapConfig` in local storage) and nothing more.
+- **The quarterly overview takes the board choice** (`quarter.html?boards=…`) for
+  its Jira half only. GitHub is per repository, and the document says so.
+- **GitHub over the sprints' own dates** when they start before the 45-day shared
+  window (`getWindowStats`, the quarterly overview's fetch). Sprints with gaps
+  between them are flagged, on the screen and in the recap, because GitHub
+  counts a date span while Jira counts the chosen sprints' issues.
+
+## Reporting screens count the roster only *(settled 2026-09-29)*
+
+The Sprint Dashboard, the sprint recap and the quarterly overview describe the
+team and nobody else: with a roster, only issues held by active roster members
+and unassigned issues count, in every figure. Other people on the same boards
+were noise in completion, points, the burndown and the per-person rows. One
+helper, `teamScope` in `js/team.js`, applies the rule for all three screens, and
+it applies it to the freeze on read, by who held each row when it was frozen.
+The stored freeze keeps every issue, so a roster change never rewrites it. A team
+issue handed to an outsider is pulled out, "reassigned outside the team", and
+needs no lookup. Snapshots recorded before this change still include outsiders,
+so a burndown may step once. The board views are not scoped and keep their Team
+only / Everyone toggle, because a board is where someone else's ticket gets
+reassigned. GitHub figures were already roster-only, since they are looked up by
+roster login.
+
 ## M16 — Quarter Wrapped *(was "Sprint Wrapped", suggested feature 10)*
+
+**Re-scoped and built 2026-09-29 as the Quarterly Overview** (`quarter.html`,
+`js/quarter.js`, `js/quarter-page.js`), opened from the Sprint Dashboard's
+**Recap past sprint** menu → *Prepare a quarterly overview*. The scope below this
+block is the 2026-09-03 one and is kept as the record; where the two disagree,
+this block wins. What the document is now, in order:
+
+1. Two team charts, per ISO week: **Jira activity** — comments + 3 × tickets
+   closed + tickets opened + 3 × epics closed, weights in `JIRA_WEIGHTS` and
+   printed on the page — and **GitHub commits to main**.
+2. A summary table of the quarter's key figures.
+3. Small multiples per person (Jira and GitHub on one shared axis and one shared
+   scale), then a whole-quarter table per person: tickets opened, tickets
+   closed, comments, PRs opened, commits to main, PR reviews, lines to main.
+4. Epics closed in the quarter, then epics in progress.
+
+Decisions taken with the author that day:
+
+- **Per person, including lines and pull requests — a stated reversal** of the
+  2026-09-03 team-level rule for this document. M17 is unaffected. **Amended the
+  same day, a second reversal:** the per-person table is ordered by a combined
+  ranking — each person's rank on Jira activity score, commits to main and lines
+  to main, summed with equal weights (`RANK_WEIGHTS`), lowest first — and prints
+  its position. The small multiples stay in name order; the not-an-assessment
+  footer stays.
+- **Charts:** each per-person panel has its own y-scale, labelled at every step
+  (`niceScale`), and weeks with fewer than three whole days inside the quarter so
+  far are left off every chart, though counted in every figure.
+- **Printed edge to edge:** `@page { margin: 0 }` for this document only, with the
+  inset re-created inside the layout table. The sprint recap keeps its margins.
+- **A composite Jira score, a stated reversal** of `js/activity.js`'s "no total,
+  no score, no composite". It lives in `js/quarter.js`, not in the activity
+  reader, and the formula is printed wherever the number is.
+- **Commits to main = every commit in the default branch's history**, pull
+  request commits included (`fetchTeamStats({ keepHistory })` → `mainHistory`).
+  Lines to main keep `statsFor`'s definition, because a merge commit's diff
+  restates its pull request's.
+- **A close is credited to the assignee at the moment it closed**, walked back
+  through assignee changes in the changelog.
+- **Calendar quarters, ISO weeks** — answers open question 8. A picker on the
+  page offers this quarter (to date) and the three before it; `?q=2026-Q2` names
+  any. Part weeks at the edges are drawn hollow.
+- **The 45-day GitHub window is not a limit here.** `getQuarterStats` runs a
+  dedicated fetch over the quarter's own dates with page caps sized for ninety
+  days, cached for 30 minutes. M17's rollups are therefore no longer a
+  prerequisite.
+- **Dropped:** the superlatives and the per-sprint strip. Not ruled out — just
+  not in what was asked for.
+- **Epics in progress are as they stand today**, and the document says so for a
+  past quarter.
 
 **Size: M** · Depends on M7 aggregates. Reads M17's per-sprint rollups for its
 GitHub half — see the window problem below.

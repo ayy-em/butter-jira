@@ -338,6 +338,151 @@ export function burndownChart(series, options = {}) {
   return svg;
 }
 
+// ── Weekly lines ────────────────────────────────────────────────────────────
+// One or more series over an ordinal axis of weeks, on one shared y-axis from
+// zero — never two scales. A null value is a gap, not a zero: a week with no
+// figure for a source is drawn as missing rather than as a dip. Partial weeks
+// (clipped by the quarter's edges) get a hollow marker, so a three-day week
+// reads as short rather than slow. `compact` is the per-person size: fewer
+// ticks, thinned week labels, smaller markers.
+//
+// A dashed series is the secondary encoding for a black-and-white printer; the
+// legend and direct end labels are the caller's and this function's jobs
+// respectively.
+
+// A y-scale that ends just above the data, in steps a reader can count:
+// 1, 2, 2.5 or 5 × 10ⁿ, about `ticks` of them. The first version rounded the
+// maximum itself to 1/2/5 × 10ⁿ, so a peak of 110 got an axis to 200 and the
+// line lived in the bottom half of its own chart.
+export function niceScale(value, ticks = 4) {
+  const top = Math.max(0, Number(value) || 0);
+  if (top === 0) return { max: ticks, step: 1 };
+  // Up to a quarter more steps than asked for, when that fits the data more
+  // tightly: 110 reads better on 0–125 by 25 than on 0–150 by 50.
+  const raw = top / ticks / 1.25;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  let step = 10 * pow;
+  for (const m of [1, 2, 2.5, 5]) {
+    if (m * pow >= raw) { step = m * pow; break; }
+  }
+  // Counts are whole numbers; a step of 0.5 would label half a commit.
+  step = Math.max(1, step);
+  return { max: Math.ceil(top / step) * step, step };
+}
+
+export function weeklyLines({ labels = [], partial = [], series = [] }, options = {}) {
+  const {
+    width = 640,
+    height = 200,
+    compact = false,
+    padding = compact
+      ? { top: 10, right: 34, bottom: 20, left: 30 }
+      : { top: 14, right: 40, bottom: 26, left: 40 },
+    format = (v) => String(Math.round(v)),
+    ticks = compact ? 3 : 4,
+  } = options;
+
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const all = series.flatMap((s) => s.values.filter((v) => v !== null && v !== undefined));
+  const scale = niceScale(Math.max(0, ...all), ticks);
+  const maxY = scale.max;
+  const span = Math.max(1, labels.length - 1);
+  const xFor = (i) => padding.left + (labels.length === 1 ? plotWidth / 2 : (i / span) * plotWidth);
+  const yFor = (v) => padding.top + plotHeight - (v / maxY) * plotHeight;
+
+  const svg = svgRoot(width, height, `chart-weekly${compact ? " chart-weekly-compact" : ""}`);
+
+  // A gridline and a label at every step, so any point can be read off the axis.
+  for (let v = 0; v <= maxY + 1e-9; v += scale.step) {
+    const y = yFor(v);
+    svg.appendChild(
+      el("line", { x1: padding.left, y1: y, x2: padding.left + plotWidth, y2: y, class: "chart-grid" })
+    );
+    const tick = el("text", { x: padding.left - 6, y: y + 3.5, "text-anchor": "end", class: "chart-tick" });
+    tick.textContent = format(v);
+    svg.appendChild(tick);
+  }
+
+  // Every week at full size; at small size as many as fit without touching,
+  // always including the last.
+  const every = compact ? Math.max(1, Math.ceil(labels.length / Math.max(1, Math.floor(plotWidth / 34)))) : 1;
+  const shown = labels.map((_, i) => i).filter((i) => i % every === 0 || i === labels.length - 1);
+  if (shown.length > 1 && shown[shown.length - 1] - shown[shown.length - 2] < every) {
+    shown.splice(shown.length - 2, 1);
+  }
+  for (const i of shown) {
+    const label = el("text", {
+      x: xFor(i),
+      y: height - (compact ? 5 : 8),
+      "text-anchor": "middle",
+      class: "chart-tick",
+    });
+    label.textContent = labels[i];
+    svg.appendChild(label);
+  }
+
+  for (const s of series) {
+    // Runs of non-null values, so a gap breaks the line instead of bridging it.
+    const runs = [];
+    let run = [];
+    s.values.forEach((v, i) => {
+      if (v === null || v === undefined) {
+        if (run.length) runs.push(run);
+        run = [];
+      } else run.push(i);
+    });
+    if (run.length) runs.push(run);
+
+    for (const r of runs) {
+      svg.appendChild(
+        el("path", {
+          d: r.map((i, n) => `${n ? "L" : "M"}${xFor(i).toFixed(1)},${yFor(s.values[i]).toFixed(1)}`).join(""),
+          fill: "none",
+          stroke: s.stroke,
+          "stroke-width": 2,
+          "stroke-linejoin": "round",
+          "stroke-linecap": "round",
+          "stroke-dasharray": s.dashed ? "5 4" : null,
+        })
+      );
+    }
+    s.values.forEach((v, i) => {
+      if (v === null || v === undefined) return;
+      const hollow = Boolean(partial[i]);
+      const dot = el("circle", {
+        cx: xFor(i), cy: yFor(v), r: compact ? 2.5 : 4,
+        fill: hollow ? "var(--chart-surface)" : s.stroke,
+        stroke: hollow ? s.stroke : "var(--chart-surface)",
+        "stroke-width": compact ? 1.5 : 2,
+        class: "chart-dot",
+      });
+      title(dot, `${labels[i]}${hollow ? " (part week)" : ""} · ${s.name}: ${format(v)}`);
+      svg.appendChild(dot);
+    });
+  }
+
+  // Direct labels at each series' last value, nudged apart when two land on
+  // top of each other.
+  const ends = series
+    .map((s) => {
+      const i = s.values.map((v, n) => (v === null || v === undefined ? -1 : n)).filter((n) => n >= 0).pop();
+      return i === undefined ? null : { s, i, y: yFor(s.values[i]) + 3.5 };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.y - b.y);
+  const gap = compact ? 10 : 12;
+  for (let n = 1; n < ends.length; n++) {
+    if (ends[n].y - ends[n - 1].y < gap) ends[n].y = ends[n - 1].y + gap;
+  }
+  for (const end of ends) {
+    const text = el("text", { x: xFor(end.i) + 6, y: end.y, class: "chart-end-label" });
+    text.textContent = format(end.s.values[end.i]);
+    svg.appendChild(text);
+  }
+  return svg;
+}
+
 export function emptyState(text) {
   const el2 = document.createElement("div");
   el2.className = "chart-empty";

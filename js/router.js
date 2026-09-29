@@ -178,6 +178,9 @@ async function mountView(creds) {
       case "#todos":
         viewModule = await import("./views/todos.js");
         break;
+      case "#recap-config":
+        viewModule = await import("./views/recap-config.js");
+        break;
       default:
         viewModule = await import("./views/backlog.js");
         break;

@@ -183,9 +183,13 @@ export function diffFreeze({
   sprints = [],
   statusGroups = [],
   departed = [],
+  // Keys still in the sprint but reassigned to somebody outside the team — see
+  // `teamScope` in js/team.js. Named as such rather than looked up.
+  handedOff = [],
   now = new Date(),
 } = {}) {
   if (!freeze?.rows) return null;
+  const handedOffKeys = new Set(handedOff);
 
   const counted = issues.filter((issue) => !isSubtask(issue));
   const activeSprintIds = sprints.map((s) => s?.id).filter((id) => id !== undefined);
@@ -275,7 +279,9 @@ export function diffFreeze({
     .filter((row) => !present.has(row.key))
     .map((row) => ({
       ...row,
-      ...departureOf(departedBy.get(row.key), activeSprintIds),
+      ...(handedOffKeys.has(row.key)
+        ? { where: "handed-off", whereLabel: "reassigned outside the team" }
+        : departureOf(departedBy.get(row.key), activeSprintIds)),
     }));
 
   const carriedThrough = freeze.rows.length - pulledOut.length;
@@ -322,9 +328,11 @@ export function diffFreeze({
 }
 
 // Which issues to go and look up: in the freeze, not in the sprint now.
-export function departedKeys(freeze, issues = []) {
+// `handedOff` keys are already accounted for and need no lookup.
+export function departedKeys(freeze, issues = [], handedOff = []) {
   if (!freeze?.rows) return [];
   const present = new Set(issues.filter((i) => !isSubtask(i)).map((i) => i.key));
+  for (const key of handedOff) present.add(key);
   return freeze.rows.map((row) => row.key).filter((key) => !present.has(key));
 }
 
