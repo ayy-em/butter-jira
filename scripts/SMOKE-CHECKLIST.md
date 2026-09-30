@@ -347,6 +347,29 @@ that loses them loses them.
 - [ ] Export a config with every box ticked → the file contains **no** 1:1 notes and **no** todos (search it for a person's name and an action's text)
 - [ ] `chrome.storage.sync` in DevTools holds neither `oneOnes` nor `myTodos`
 
+## 3h. Sprint planner (M15)
+
+Needs an upcoming sprint created in Jira on at least one board.
+
+- [ ] `LAUNCH → Sprint planner`, and the `p` key, both open the setup screen
+- [ ] A first visit ticks every board with an upcoming sprint and everyone on the roster; dates come from the target sprint, and a Monday-to-Monday sprint suggests 10 working days, not 11
+- [ ] A 20% buffer on 10 days shows 8 pt per person; lowering one person's days to 7 shows 5.6 for them only
+- [ ] **Go to planning screen** stays disabled until a sprint and a person are chosen
+- [ ] The plan screen shows the target sprint's existing issues in the plan, leftovers in their own container above the backlog, and the backlog ordered under way → to do → on hold
+- [ ] Cards with no estimate are outlined in red; typing an estimate removes it
+- [ ] Add → on an unassigned or unestimated card opens the popup; **Add to plan** stays disabled until both are set
+- [ ] Dragging a card onto a person assigns it to them; their bar and figures move, amber past 100%, red past 120%
+- [ ] Epic, label, priority and text filters narrow both lists; the Epics panel lists open work per epic
+- [ ] Add by key and by a `/browse/` link works for an issue on a board that is not configured
+- [ ] Reload the tab → the draft, the plan and every typed estimate are still there. Nothing changed in Jira
+- [ ] **Refresh tasks** re-reads Jira; an issue closed in Jira meanwhile leaves the candidates
+- [ ] **Split** on a leftover: confirm, then the original is Done in Jira, a "Placeholder: … pt.2" exists linked to it, and pt.2 is in the plan
+- [ ] **Review & push** lists every change; with an unassigned issue in the target sprint the push button is disabled and the issue is named
+- [ ] Push → Jira shows the moves, assignees and estimates; the button's pending count drops to 0
+- [ ] With one issue Jira will refuse (e.g. one in another board's active sprint): the report names it with Jira's reason, "tried 4×", and it stays in the draft
+- [ ] `chrome.storage.sync` in DevTools holds no `sprintPlanner`; a device backup does not contain it
+- [ ] **Discard draft** asks first, then empties the plan without touching Jira
+
 ## 4. Branding and theme
 - [ ] No org logo configured → product logo only, nothing broken
 - [ ] Point Branding → logo path at a real file → appears in the nav bar

@@ -216,6 +216,27 @@ export async function getActiveSprint(boardId, creds) {
   });
 }
 
+// Sprints created in Jira and not yet started, soonest first — what the sprint
+// planner (M15) plans into. Sprints are made and started in Jira's own UI; this
+// only reads them. Paged like the closed list, since a board can queue several.
+// Sorted by start date where one is set, undated ones last, keeping Jira's own
+// order (the order they were created) among equals.
+export async function getFutureSprints(boardId, creds) {
+  return cached(`cache_futureSprints_${boardId}`, async () => {
+    const values = await fetchAllPages(
+      `/rest/agile/1.0/board/${boardId}/sprint`,
+      creds,
+      { state: "future" },
+      "values"
+    );
+    const starts = (s) => new Date(s?.startDate || 0).getTime() || Infinity;
+    return values
+      .map((s, i) => ({ s, i }))
+      .sort((a, b) => starts(a.s) - starts(b.s) || a.i - b.i)
+      .map((x) => x.s);
+  });
+}
+
 // Every sprint the board has closed, newest first.
 //
 // Paged, unlike the active call above, and that is not symmetry for its own

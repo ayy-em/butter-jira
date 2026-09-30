@@ -62,8 +62,9 @@ the same way:
 - **What it talks to:** the user's own Jira Cloud or Data Center site over HTTP
   Basic (email + API token), and optionally their GitHub host, read-only, scoped
   to an explicit repo allowlist.
-- **Rituals it is shaped around:** the daily standup (timed, per-person, with
-  sound cues and the keyboard handed to the session); sprint hygiene checks
+- **Rituals it is shaped around:** sprint planning (prepared the day before,
+  reviewed in the meeting, pushed to Jira in one batch); the daily standup
+  (timed, per-person, with sound cues and the keyboard handed to the session); sprint hygiene checks
   between standups; the end-of-sprint review, including a printable recap PDF
   produced by a print stylesheet over the same numbers the dashboard shows.
 - **Setup is a real part of the product:** first run asks for site, email and
@@ -91,8 +92,9 @@ panel, breakdowns by status, board and person, delivery-per-person including
 optional GitHub columns), Gantt/roadmap, Backlog, Kanban, Monitor (four hygiene
 checks), Standup mode, the weekly 1:1 sheet (per-person window, device-local
 notes and archive, Slack copy, mini-Gantt) with a personal todo list beside it,
-issue detail as drawer and full page with a GitHub development section, command
-palette, sprint freeze and diff, linked issues, sprint recap PDF for the active,
+issue detail as drawer and full page with a GitHub development section, the
+sprint planner (setup, capacity per person, carryover and backlog, a device-local
+draft pushed as one reviewed batch), command palette, sprint freeze and diff, linked issues, sprint recap PDF for the active,
 the last closed or any chosen set of sprints (Recap config), quarterly overview
 PDF, team roster, GitHub sync, config export/import, device backup with
 merge-on-restore, optional redirect of Jira links into the app, numbered storage
@@ -100,9 +102,10 @@ migrations, Settings for everything above.
 
 **Writes.** The app writes to Jira in a bounded set of places and nowhere else:
 workflow transition by dragging a card, field edits (assignee, due date, story
-points), issue and sub-task creation, comments, and issue links (its only
-DELETE). Each is user-initiated by a click and reports what Jira said if it
-refused.
+points), issue and sub-task creation, comments, issue links (its only DELETE),
+and the sprint planner's push (sprint moves in and out, assignee, story points,
+as one confirmed batch; its Split is a create, a link and a transition). Each is
+user-initiated by a click and reports what Jira said if it refused.
 
 **Binding constraints — future work must preserve all three.** Confirmed
 2026-09-05:
@@ -141,11 +144,11 @@ the per-person clock the next sheet's window opens from. *Carried* = an action
 still open when a 1:1 was completed, moved into the next session under a dated
 rule.
 
-**Open product decisions.** The sprint planner (M15) is next, and its open
-questions are recorded in the roadmap for a scoping pass before any code: how
-capacity is measured, where days off come from, whether the planner creates or
-starts sprints in Jira (each would be a new kind of write), and whether
-unassigned work belongs in a plan. M20 (recording a 1:1 on the device) stays
+**Open product decisions.** The sprint planner (M15) shipped on 2026-09-30 as
+the author scoped it: capacity in story points (one per working day, less a
+buffer), days off typed per person, nothing unassigned or unestimated in a plan,
+and sprints created, started and closed in Jira. Doing any of those three from
+the app is a new kind of write, and each is an M21 item to decide. M20 (recording a 1:1 on the device) stays
 gated on a local-engine question and an AI Enablement / DPIA review, since
 recording a named colleague is worker-management-shaped under the EU AI Act's
 Annex III. Settled and in force: the licence (PolyForm Noncommercial 1.0.0),
@@ -173,8 +176,8 @@ recap and the quarterly overview, and the team scope above.
 - `docs/ROADMAP.md` — what is still open, and the product rules in force.
   Completed milestones were removed on 2026-09-29; their record is
   `docs/CHANGELOG.md` and the commit history.
-- Twenty-seven `scripts/test-*.mjs` suites (2295 checks, no dependencies, no
-  network, no browser), thirteen preview harnesses in `preview/`, most of them
+- Twenty-eight `scripts/test-*.mjs` suites (2375 checks, no dependencies, no
+  network, no browser), fourteen preview harnesses in `preview/`, most of them
   sharing `preview/preview-fixture.js`, and
   `scripts/SMOKE-CHECKLIST.md`. Every suite runs in GitHub Actions on push and
   pull request, and again as the gate before a tag publishes a release.

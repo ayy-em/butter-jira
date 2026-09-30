@@ -6,6 +6,33 @@ tag into the release notes, so the wording here is the wording published — kee
 it about what a user gets. The reasoning is in the commit history;
 [ROADMAP.md](ROADMAP.md) is what is still to come.
 
+## Unreleased
+
+**A sprint planner.** `LAUNCH → SPRINT PLANNER`, or press `p`. Prepare the next
+sprint before the planning meeting, go through it in the meeting, and push it to
+Jira in one reviewed batch at the end.
+
+- **Setup.** Choose the boards. On each, choose the sprint to plan into (made
+  in Jira first) and the sprints to carry leftovers over from. Then the dates
+  and working days, a buffer for unplanned work (a percentage or points per
+  person), and the people. Everyone's capacity is their working days less
+  their buffer, one day being one story point. Days and buffer can be changed
+  per person for leave.
+- **Planning.** Everyone's face with their capacity, what is assigned to them
+  and the difference, warning at 100% and 120%. Below: the leftovers first,
+  then the backlogs, under way before to do before on hold, filterable by epic,
+  label and priority, with each epic's remaining work alongside. Drag cards
+  onto the plan or onto a person, or click Add. Nothing gets in without an
+  assignee and an estimate, and cards with no estimate are marked in red.
+  Estimate in place. Add issues from any board by key or link. Split a leftover
+  into a closed part one and a new part two.
+- **The draft stays on this device** until you push, so it survives a reload
+  and can be finished the next day. **Refresh tasks** re-reads Jira.
+- **Review & push** re-reads Jira, shows every change and anything that moved
+  underneath the plan, and refuses to push an unassigned or unestimated issue.
+  A write that fails is retried three times, then reported by issue with Jira's
+  reason. Sprints are still created, started and closed in Jira.
+
 ## v0.8.0
 
 **Development on every issue.** With GitHub connected, an issue's page and

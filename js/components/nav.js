@@ -44,6 +44,9 @@ const TABS = [
     flair: true,
     items: [
       { hash: "#standup", label: "STANDUP", key: "S", flair: true, prewarm: prewarmGithub },
+      // Sprint planning is the fourth ritual: prepared the day before, reviewed
+      // in the meeting, pushed to Jira at the end of it (M15).
+      { hash: "#planner", label: "SPRINT PLANNER", key: "P" },
       { hash: "#oneone", label: "1:1", key: "1" },
       { hash: "#todos", label: "MY TODOS", key: "T" },
       // Opens its own tab rather than a view: it is a print-styled document,

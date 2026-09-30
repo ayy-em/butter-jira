@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-09-29
+Last updated: 2026-09-30
 
 An MV3 browser extension for Chrome, Firefox and Edge that gives one tab of
 Gantt, Backlog, Kanban, sprint and team views over several Jira Cloud boards.
@@ -9,7 +9,9 @@ Gantt, Backlog, Kanban, sprint and team views over several Jira Cloud boards.
 Completed milestones were removed on 2026-09-29. What shipped is in
 [CHANGELOG.md](CHANGELOG.md). The full milestone record, with the reasoning
 behind every shipped decision, is the version of this file at commit `c818893`
-(`git show c818893:docs/ROADMAP.md`). Shipped milestone labels still appear in
+(`git show c818893:docs/ROADMAP.md`). M15 (the sprint planner) was removed on
+2026-09-30. Its settled answers and the calls made while building it are in the
+commit that shipped it (`git log --grep "M15"`). Shipped milestone labels still appear in
 code comments and commit subjects, so they are indexed at the bottom.
 
 ## Current state
@@ -17,15 +19,15 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Aspect | Status |
 |---|---|
 | Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
-| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
+| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Sprint planner (setup + plan), 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
 | Documents | Sprint recap PDF (active, last closed, or any chosen sprints) and quarterly overview PDF, both print-styled pages of their own |
-| Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE). Nothing else writes |
+| Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE), and the sprint planner's reviewed push (sprint moves in and out, assignee, story points). Nothing else writes |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist. Feeds the standup, dashboard, recap, quarterly overview and each issue's Development section |
 | Permissions | `storage`, `declarativeNetRequestWithHostAccess` (the opt-in Jira-links redirect), host access to `*.atlassian.net` and `api.github.com`, optional host access for anything else |
-| Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, 1:1 notes, todos and a five-minute response cache. Settings backs up everything but tokens and 1:1 notes to a file, and restore merges |
+| Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
 | Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
 | Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
-| Tests | 27 `scripts/test-*.mjs` suites (2295 checks), 13 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Tests | 28 `scripts/test-*.mjs` suites (2375 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
@@ -36,7 +38,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Order of work
 
 ```
-M15 Sprint planner (L) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated)
+M21 Sprint planner v2 (M) ─▶ M22 1:1 screen improvements (S–M) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated)
 ```
 
 The deferred backlog below is scoped but unscheduled, and any item in it can be
@@ -52,8 +54,9 @@ author.
   runtime dependencies; credentials device-local and no telemetry; nothing
   instance-specific hardcoded.
 - **Every Jira write is user-initiated and enumerable.** A new kind of write is
-  a product decision, not an implementation detail. That matters for M15, which
-  may need several.
+  a product decision, not an implementation detail. The sprint planner's push
+  is sprint moves and field writes, and its Split is create, link and
+  transition, so M15 added none. M21's items 1 to 3 would each add one.
 - **The reporting screens count the roster only.** The dashboard, recap and
   quarterly overview count issues held by active roster members, plus unassigned
   ones (`teamScope` in `js/team.js`). The board views keep a Team only /
@@ -76,8 +79,8 @@ author.
 
 | Risk | Where | Mitigation |
 |---|---|---|
-| Writes corrupt real sprint data | M15 | Draft mode, one reviewed batch, per-issue failures reported by name. No write on drag |
-| Request fan-out across boards hits rate limits | M15, M17 | Reuse cached aggregates, batch where the API allows (sprint moves already batch 50) |
+| Writes corrupt real sprint data | Planner (shipped), M21 | Device-local draft, Jira re-read before the review, one confirmed batch, each failure retried alone up to three times and then reported by name. No write on drag |
+| Request fan-out across boards hits rate limits | Planner (shipped), M17 | Reuse cached aggregates, batch where the API allows (sprint moves already batch 50) |
 | Per-person figures read as a performance measure | 1:1, recap, quarterly | Stated framing on every surface. Ranked only in the quarterly overview, at the author's request |
 | Recording a colleague's voice is a different category of data | M20 | Local-only, off by default, per-session start, visible indicator, and an AI Enablement / DPIA review before any code |
 | The Jira-links redirect misbehaves on Firefox | shipped | Verified in Chromium only. Settings reports "not supported" where the API is missing; check with the smoke checklist before relying on it there |
@@ -94,114 +97,6 @@ author.
 ---
 
 # Open
-
-## M15 — Sprint planner
-
-**Size: L** · Every dependency is in place: the write layer (sprint moves
-batched 50 at a time, assignee and story-point writes with rollback), the roster,
-the dashboard aggregates, and the daily snapshot's per-person block, recorded
-since 2026-08-20.
-
-**The scope as it stands:**
-
-- **Inputs:** sprint length and working days, days off per person, an optional
-  focus factor.
-- **Capacity per person:** from historical velocity in the app's own snapshot
-  history, not Jira's closed-sprint data, with a manual points-per-day rate for
-  anyone without history.
-- **Carryover:** the unfinished issues from the current sprint, with their
-  points, listed before anything new.
-- **Assignment:** pick backlog issues and give each to a person. Each person has
-  a live utilisation bar, with warnings at 100% and 120%, and the team's
-  committed points show against its capacity throughout.
-- **Draft, then push:** plan locally, review the full diff, then push every
-  sprint move and assignment in one confirmed batch. Never write on a drag.
-
-**What velocity history exists.** Snapshots before 2026-08-20 have no
-`byPerson`, so a person's history is at most about three sprints today. The
-unassigned bucket is recorded under `__unassigned__`, so rows sum to the day's
-totals.
-
-**Exit criteria:** a sprint can be planned in the app and pushed to Jira in one
-reviewed batch, with per-person utilisation visible throughout and any failed
-write attributed rather than silently dropped.
-
-**A first cut was sketched on 2026-09-29 for a planning session the next day:**
-capacity, carryover first, click-to-assign into a draft, utilisation bars and a
-reviewed push, with drag-and-drop and multi-board planning deferred. It was not
-built. The questions below come first.
-
-### Open questions — to settle in a scoping pass before building
-
-**The session**
-
-1. **Who drives it, and on what screen?** Shared on a big screen during the
-   meeting, like the standup (large type, the keyboard owned for the duration),
-   or prepared by one person beforehand and reviewed in the meeting? The answer
-   changes the whole layout.
-2. **One board or all of them?** The team works across several boards. Is it one
-   plan across every configured board, with capacity per person across all of
-   them, or one board at a time?
-3. **Can a draft be prepared the day before and finished in the meeting?** That
-   means keeping the draft on the device and re-checking it against Jira before
-   the push, since issues may have moved in between.
-
-**The sprint itself**
-
-4. **Plan into a sprint that already exists, or create it?** Today the app reads
-   only active and closed sprints. Reading future sprints is a new read.
-   Creating a sprint, and setting its name, dates or goal, would each be a new
-   kind of write.
-5. **Does the app start the sprint, or close the old one?** Jira's "complete
-   sprint" is also what moves unfinished issues on. Doing either here is a new
-   write with consequences Jira normally confirms itself. Leaving both in Jira
-   is the conservative answer.
-
-**Capacity**
-
-6. **What unit is capacity in?** Story points (what the velocity history
-   holds), issue count for people who don't estimate, or hours? And how are
-   unestimated issues treated: zero, a default, or a blocker until estimated?
-7. **How is a person's velocity computed?** Mean of their last N sprints'
-   completed points, done only or done plus in review, and what N, given at most
-   about three sprints of per-person history today? What about someone new to
-   the team?
-8. **Where do days off come from?** Typed in each session, or stored per person
-   as a working pattern (part-time, a four-day week)? And public holidays:
-   typed, or a Dutch calendar built in? A calendar feed is in the icebox.
-9. **A buffer for unplanned work?** A fixed share of capacity held back for
-   support and incidents, per team or per person, and does the focus factor
-   already cover it?
-
-**The plan**
-
-10. **Carryover by default?** Are unfinished issues included in the new sprint
-    automatically (their remaining points counting against capacity, and
-    removable), or offered for selection like everything else?
-11. **Which issues are candidates?** The board backlog in its rank order, plus
-    filters by epic, label or priority? Issues from other boards? Should it
-    surface each epic's remaining work to steer the choice?
-12. **Can the plan hold unassigned issues?** A team that pulls work needs
-    unassigned items in the sprint. Do they count against team capacity but
-    no one's bar?
-13. **Is estimating part of the session?** Editing story points in the planner
-    already works through the field write. Should unestimated candidates be
-    estimated in line, before they can be committed?
-14. **Order within the sprint.** Does the plan's order need writing back as Jira
-    rank? That is a new write (the rank API) and the one most likely to be
-    refused on a busy board.
-
-**The push**
-
-15. **What goes in the batch?** At least sprint moves and assignments. Story
-    points if estimated in the session. A sprint goal and rank only if 4 and 14
-    say so. Each extra kind of write is a product decision under "Rules in
-    force".
-16. **What happens on a partial failure?** Retry just the failures, report and
-    stop, or offer to undo what landed? Undo is a second write and the app has
-    none.
-17. **Hygiene before the push?** Should the Monitor checks (no estimate, no
-    assignee, overdue) run over the plan and warn before anything is written?
 
 ## M17 — Per-sprint history
 
@@ -273,6 +168,134 @@ https://stxgroup.atlassian.net/servicedesk/customer/portal/1/group/819
    With it, the feature attributes statements to a named person.
 4. **What happens to a recording if Complete is never pressed?** Audio that
    silently expires and audio that silently persists are both wrong.
+
+
+## M21 — Sprint planner v2
+
+**Size: M, as a set.** Follows M15. Each item stands alone and can be taken in a
+gap. Items 1 to 3 are each a new kind of Jira write, so each is a product
+decision under "Rules in force" before it is code.
+
+### New capability
+
+1. **Create a sprint from the planner.** Name, start and end dates, goal, on a
+   chosen board (`POST /rest/agile/1.0/sprint`). The setup screen's "Plan into"
+   list would offer "New sprint…" beside the upcoming ones, with its dates
+   prefilling the planning dates.
+2. **Start the planned sprint from the planner** after the push lands
+   (`POST /rest/agile/1.0/sprint/{id}` with `state: active`). Jira refuses a
+   start on a board that already has an active sprint unless parallel sprints
+   are on, and that sentence should reach the user unchanged.
+3. **Complete the outgoing sprint from the planner.** Jira's "complete sprint"
+   also moves unfinished issues on, which the planner's carryover already does
+   issue by issue. Jira normally confirms this write itself, so the planner's
+   confirm has to say where the open issues go. Wants a real session's worth of
+   use of 1 and 2 first.
+4. **Public holidays without typing them.** A Dutch holiday calendar built in
+   (computed, so Easter-based dates need no table per year), taken off the
+   suggested working days with each holiday named. Optionally a calendar feed
+   (ICS URL) for personal leave, which is the iCal idea in the deferred backlog.
+   That is a new host permission, so it is opt-in and per origin.
+5. **Proposed due dates.** For each planned issue, a suggested due date from its
+   estimate, the other work already planned for the same person, and for an
+   epic the due dates and points of its children. Shown beside the issue and
+   written only if accepted: a due-date write, a kind the app already makes.
+6. **Part two in To Do explicitly.** If a workflow's first status is not in the
+   To Do category, Split would transition part two there. Only worth doing once
+   a site shows the case.
+7. **Story points value setting.** Settings gets "Hours per story point",
+   default 8 (one working day). The planner uses it everywhere it turns days
+   into points. See open question 6.
+
+### From M15 QA (2026-09-30)
+
+Setup screen:
+
+- [ ] **Cross-board carryover.** Leftovers from another board's sprint can
+      carry over into this board's new sprint (e.g. MDS's last sprint into the
+      new DP sprint). See open question 1.
+- [ ] **Dates: calendar picker** for start and end. See open question 2.
+- [ ] **Dates: one line of help, below the pickers.** Replace the section hint
+      and the row note with one element: "XX weekdays in timeframe, override
+      above in case of holidays". The field's own default reads "Defaults to
+      number of working days in timeframe".
+- [ ] **Buffer: one line of help** under the controls, replacing the two.
+- [ ] **Buffer: a % / # toggle** instead of the dropdown.
+- [ ] **Buffer: default 20%** for everyone. See open question 5.
+- [ ] **People: remove the help text.** See open question 3.
+
+Bug:
+
+- [x] **Only the first per-person override was saved.** Fixed 2026-09-30. Each
+      save replaced the draft object while the rows on screen still pointed
+      into the old one, so later edits went to a copy that was never saved
+      again. Every setup field was affected, not only capacity. The planner now
+      keeps one draft object for the life of the screen.
+
+### Open questions
+
+1. **Cross-board carryover: which sprints, into which target?** The likely
+   shape is that each planned board's "Carry over from" lists every configured
+   board's active and recent sprints, grouped by board, and leftovers go into
+   the target sprint of the board they were picked under (MDS picked under DP
+   goes to DP's new sprint). Is that right? And does picking MDS as a source
+   also need MDS to be a planned board, with its backlog shown, or is it a
+   source only?
+2. **What should the calendar picker be?** The two fields are already the
+   browser's date input, with a calendar button at the right in Chrome. Is the
+   ask for a click anywhere in the field to open it, or for one range calendar
+   that picks start and end together?
+3. **People card: which text goes?** There are two: the hint under the heading
+   ("One working day is one story point…") and the line under the table ("Buffer
+   is in percent…; blank takes the team's"). Both?
+4. **The empty checklist item** under the setup-screen notes. Was something
+   meant to go there?
+5. **The 20% default: new drafts only?** A draft already on the device keeps
+   what it has unless told otherwise. And the toggle's "#" is points per person,
+   as the dropdown's second option is now?
+6. **Story points value: is a working day still 8 hours?** With 4 hours per
+   point, a day is 2 points and a ten-day sprint 20. That needs hours per
+   working day too: fixed at 8, a second setting, or per person for part-time?
+   It would live in synced config (it is not personal data). It changes only the
+   planner's day-to-point conversion. Estimates already in Jira are not
+   rescaled.
+7. **Creating a sprint (item 1): at once, or with the push?** At once, from its
+   own confirm like Split, is simpler: the plan cannot target a sprint that does
+   not exist yet.
+
+## M22 — 1:1 screen improvements
+
+**Size: S–M.** From use of the 1:1 sheet (M14).
+
+- [ ] Remove the "waiting on their review" list.
+- [ ] Replace the "load over time" graph with one combined chart, weekly, from
+      four full weeks back to this week so far: pull requests opened and merged
+      as a line, Jira issues created, opened and commented on as bars. No
+      explanatory text on it.
+- [ ] Bug: **Copy for Slack** says "Clipboard was refused — the text is in the
+      browser console".
+- [ ] Remove the "Activity, not performance" note. This is a stated rule
+      (per-person figures print a not-an-assessment note), so the rule changes
+      for this screen with it.
+- [ ] In "What is planned", mark epics apart from other issues by the key's
+      colour: purple for epics, green for stories and tasks.
+- [ ] In the "Closed" list, make the issue keys open the issue drawer.
+- [ ] 1:1 config screen footnote (`oo-footnote`): "Notes are only stored
+      locally. Notes are never synced and never included in exports. To delete
+      notes: Settings → Data." No max-width.
+
+### Open questions
+
+1. **"Created + opened + commented on":** is "opened" issues moved into
+   progress, or closed? The bars would otherwise count creation twice.
+2. **Key colours for other types:** bugs and sub-tasks too? The app already
+   colours types (epic purple, story green, task blue, bug red, sub-task cyan).
+   Reuse that, or two colours only?
+3. **"Settings → Data" does not exist.** The section is "1:1 notes and todos".
+   Rename the section, or point the text at the current name?
+4. **Copy for Slack:** in which browser, and after doing what? The refusal
+   usually means the page lost focus or the permission prompt was dismissed.
+   Firefox and Chrome refuse for different reasons.
 
 ---
 
@@ -376,6 +399,7 @@ in `git show c818893:docs/ROADMAP.md`.
 | M12 | Firefox and Edge |
 | M13 | Sprint freeze and diff |
 | M14 | Weekly 1:1 sheet and My todos |
+| M15 | Sprint planner |
 | M16 | Quarterly overview (was "Quarter Wrapped") |
 | M18 | Linked issues |
 | M19 | Tagged releases built by CI |

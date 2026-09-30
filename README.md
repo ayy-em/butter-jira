@@ -445,8 +445,8 @@ comes back and the toast says which field it objected to and why.
 Three of the six meta fields are deliberately *not* editable. Reporter is a
 permission most accounts do not have, start date only makes sense to edit
 alongside the roadmap's dates, and moving an issue between sprints needs the
-board's sprint list to choose from — the write layer supports the move, and the
-sprint planner is where it gets a UI.
+board's sprint list to choose from. The [sprint planner](#sprint-planner) is
+where issues move between sprints.
 
 **+ Sub-task**, on the Linked issues heading, opens the create form with the
 parent fixed. The sub-task issue type is discovered from your project rather
@@ -827,6 +827,74 @@ The rules it counts by:
 - **Epics in progress are as they stand today**, even for a past quarter,
   because Jira keeps no record of an epic's past state. The page says so.
 
+### Sprint planner
+
+**Launch → Sprint planner**, or press `p`. Plan the next sprint ahead of the
+planning meeting, review it in the meeting, and push it to Jira in one reviewed
+batch at the end. Nothing is written to Jira while you plan.
+
+**Setup** comes first:
+
+- **Boards and sprints.** Tick the boards you are planning for. For each, pick
+  the sprint to plan into (an upcoming sprint, or the active one) and the
+  sprints to carry leftovers over from (the active one and the last closed
+  ones). Sprints are created, started and closed in Jira. The planner only reads
+  them.
+- **Dates.** Taken from the target sprint when it has dates. Weekdays between
+  them are suggested as the working days, and you can override that for a
+  public holiday. A Jira sprint that runs Monday to Monday counts as ten days,
+  not eleven.
+- **Buffer for unplanned work.** A percentage of each person's days, or a fixed
+  number of points per person. Overridable per person.
+- **People.** The roster's active members, ticked by default. With no roster,
+  **Find people on these boards** lists whoever holds work on them. Each
+  person's days default to the sprint's working days. Lower them for leave.
+
+One working day is one story point, so a ten-day sprint with a 20% buffer gives
+everyone 8 points. Quarter points are fine.
+
+**The planning screen** shows everyone's face with their capacity, the points
+already given to them and the difference, with a bar that turns amber past 100%
+and red past 120%. A person who is not in the plan, or nobody at all, is counted
+in the team total under *Someone else or no one*. Issue counts are shown beside
+points and play no part in capacity. Below that are two columns:
+
+- **Candidates.** First, the open leftovers from the sprints you ticked, in
+  their own container. Then each board's backlog, under way first, then to do,
+  then on hold. Filter by epic, label, priority or text. The Epics panel lists
+  each epic's remaining open work on these boards. An issue from any other
+  board can be added by key or link.
+- **Sprint plan.** What the sprint will hold, grouped by person: the issues
+  already in the target sprint, plus everything you add. Change the assignee
+  or the estimate in place, or take an issue out. Taking out one that is
+  already in the sprint moves it back to the backlog on push.
+
+Drag a card onto the plan or onto a person, or use **Add →**. **Nothing joins
+the plan without an assignee and an estimate.** If a card lacks either, a popup
+asks for it first. Cards with no estimate are outlined in red. Estimates typed
+in any card are kept with the draft and written with the push.
+
+**Split**, on a leftover card, closes the issue as done and continues it as a
+new issue, *Placeholder: <summary> pt.2*, linked back to it and put in the plan.
+It is the one thing here that writes straight away (three writes, all confirmed
+first), because the new issue has to exist before it can be planned.
+
+**The draft lives on this device.** It survives a reload and a closed tab, so a
+plan prepared the day before is still there for the meeting. **Refresh tasks**
+re-reads Jira without touching the draft. **Discard draft** on the setup screen
+throws it away. It is not in the device backup.
+
+**Review & push** re-reads Jira first, then lists every write: field changes
+with before and after, moves into each sprint, and moves back to the backlog.
+It also names anything that changed underneath the plan (an assignee or
+estimate edited in Jira since, an issue now done, an issue that no longer
+exists). An issue in the sprint with no assignee or no estimate blocks the push
+until it is fixed or taken out. Overdue due dates, and due dates after the
+sprint ends, warn without blocking. Field changes are written before sprint
+moves. Any write that fails is retried on its own up to three times. What still
+fails is listed by issue with Jira's own reason, and stays in the draft for the
+next push.
+
 ### Standup mode
 
 Press `s` or the STANDUP tab. Pick who's in today, set each person's minutes
@@ -1200,6 +1268,7 @@ the product logo stands alone.
 | `d` | Sprint dashboard |
 | `1` | 1:1 |
 | `t` | My todos |
+| `p` | Sprint planner |
 | `Esc` | Close the issue drawer |
 
 Opening the extension with no view in the URL lands on the **Kanban, filtered to
@@ -1266,7 +1335,8 @@ js/components/icons.js       # the app's icon sprite: authored SVG paths
 js/components/theme-toggle.js# the sun/moon toggle, drawn in one place
 js/components/view-header.js # the header every view puts at the top of itself
 js/views/           # dashboard, backlog, gantt, kanban, monitor, standup,
-                    #   oneone (1:1 picker + sheet), todos, recap-config
+                    #   oneone (1:1 picker + sheet), todos, recap-config,
+                    #   planner
 css/                # one stylesheet per view, plus nav.css for the shell and
                     #   settings.css for the settings page
 assets/logo*.png    # the product mark at four sizes, plus the full lockup
@@ -1457,7 +1527,7 @@ Config-layer unit checks — no dependencies, no network, no browser:
 ```bash
 node scripts/test-backlog.mjs      # grouping, paging, tones, views    (115 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
-node scripts/test-imports.mjs      # every module imports what it calls  (64 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (66 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (55 checks)
 node scripts/test-config.mjs       # config layer, field discovery      (88 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
@@ -1482,15 +1552,17 @@ node scripts/test-contrast.mjs     # theme tokens against WCAG AA       (24 chec
 node scripts/test-drawer.mjs       # the drawer's focus layer           (24 checks)
 node scripts/test-release.mjs      # version rewriting, licence, notes   (41 checks)
 node scripts/test-oneone.mjs       # 1:1 windows, notes, todos, JQL    (153 checks)
+node scripts/test-planner.mjs      # capacity, commit rule, push, retries (78 checks)
 ```
 
-View code is verified by rendering it rather than asserting on it. The eleven
-harnesses live in `preview/` — `preview/preview-standup.html`,
+View code is verified by rendering it rather than asserting on it. Harnesses
+live in `preview/` — `preview/preview-standup.html`,
 `preview/preview-backlog.html`, `preview/preview-dashboard.html`,
 `preview/preview-recap.html`, `preview/preview-issue.html`,
 `preview/preview-create.html`, `preview/preview-gantt.html`,
 `preview/preview-kanban.html`, `preview/preview-monitor.html`,
-`preview/preview-oneone.html` and `preview/preview-todos.html` — and each
+`preview/preview-oneone.html`, `preview/preview-todos.html` and
+`preview/preview-planner.html` — and each
 mounts the real view against stubbed extension storage and a stubbed Jira/GitHub
 network, so a screen can be looked at in each of its states without a site, a
 token or a roster. Open one directly (`open preview/preview-standup.html`) or
@@ -1749,6 +1821,10 @@ section of its own rather than a line in Backup & transfer. The same section
 deletes the personal todo list, which carries a colleague's name on any item
 that came out of a 1:1.
 
+The sprint planner's draft is device-local too. It holds the chosen people's
+account ids and names beside your planned changes, so it never syncs and is not
+in the device backup. **Discard draft** on the planner's setup screen deletes it.
+
 A device backup (Settings → Back up this device) never contains either token,
 your account email or any 1:1 note, and contains the roster only if you tick its
 box. It can contain your todos, which may name colleagues, so keep the file
@@ -1799,18 +1875,22 @@ behind it is in the commit history.
 
 | | | |
 |---|---|---|
-| M15 | Sprint planner | Capacity, carryover and assignment, pushed to Jira as one reviewed batch. Open questions recorded before it is built |
 | M17 | Per-sprint history | A per-sprint trend on the dashboard, from rollups written at each rollover |
 | M20 | 1:1 recording | Record and transcribe a 1:1 on the device. Engine and consent unresolved |
+| M21 | Sprint planner v2 | Creating, starting and closing sprints from the planner, a holiday calendar, proposed due dates |
+| M22 | 1:1 screen improvements | A combined weekly activity chart, clearer keys, Copy for Slack fixed |
 
 Releases are automated; see [Releasing](#releasing).
 
-The app writes to Jira in five kinds of place and nowhere else:
+The app writes to Jira in six kinds of place and nowhere else:
 - dragging a card between columns (a workflow transition)
 - editing assignee, due date or story points on the issue detail
 - creating an issue or a sub-task
 - posting a comment
 - adding or removing an issue link
+- pushing a sprint plan: moving issues into or out of sprints and setting their
+  assignee and story points, as one reviewed batch. The planner's Split uses
+  three kinds above (create, link, transition), each confirmed first
 
 Every one is something you asked for by clicking it, and every one reports what
 Jira said if it refused.

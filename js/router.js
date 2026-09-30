@@ -106,6 +106,7 @@ async function init() {
     // is not another letter.
     if (e.key === "1") location.hash = "#oneone";
     if (e.key === "t" || e.key === "T") location.hash = "#todos";
+    if (e.key === "p" || e.key === "P") location.hash = "#planner";
   });
 
   if (!creds || !isConfigured()) {
@@ -180,6 +181,9 @@ async function mountView(creds) {
         break;
       case "#recap-config":
         viewModule = await import("./views/recap-config.js");
+        break;
+      case "#planner":
+        viewModule = await import("./views/planner.js");
         break;
       default:
         viewModule = await import("./views/backlog.js");
