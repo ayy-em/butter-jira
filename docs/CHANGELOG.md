@@ -6,37 +6,40 @@ tag into the release notes, so the wording here is the wording published — kee
 it about what a user gets. The reasoning is in the commit history;
 [ROADMAP.md](ROADMAP.md) is what is still to come.
 
-## Unreleased
+## v0.8.1
 
 **A sprint planner.** `LAUNCH → SPRINT PLANNER`, or press `p`. Prepare the next
 sprint before the planning meeting, go through it in the meeting, and push it to
-Jira in one reviewed batch at the end.
+Jira in one reviewed batch at the end. Sprints are still created, started and
+closed in Jira.
 
-- **Setup.** Choose the boards. On each, choose the sprint to plan into (made
-  in Jira first) and the sprints to carry leftovers over from, including
-  another board's. Then the dates and working days, a buffer for unplanned work
-  (20% by default, or points per person), and the people. Dutch public
-  holidays are taken off the working days and named, each one untickable;
-  Settings can switch the calendar off. Everyone's capacity
-  is their working days less their buffer, one day being one story point
-  unless Settings → Sprint planner says otherwise. Days and buffer can be
-  changed per person for leave.
-- **Planning.** Everyone down the left with their capacity, what is assigned
-  to them and the difference, warning at 100% and 120%. Below: the leftovers first,
-  then the backlogs, under way before to do before on hold, filterable by epic,
-  label and priority, with each epic's remaining work alongside. Drag cards
-  onto the plan or onto a person, or press +. Nothing gets in without an
+- **Setup.** Choose the boards. On each, choose the sprint to plan into and the
+  sprints to carry leftovers over from, including another board's. Then the
+  dates and working days, a buffer for unplanned work (20% by default, or
+  points per person), and the people. Dutch public holidays are taken off the
+  working days and named, each one untickable. Everyone's capacity is their
+  working days less their buffer, one day being one story point unless
+  Settings → Sprint planner says otherwise. Days and buffer can be changed per
+  person for leave.
+- **Planning.** Everyone down the left with their capacity, what is assigned to
+  them and the difference, warning at 100% and 120%. Beside them, the leftovers
+  first, then the backlogs, under way before to do before on hold, filterable
+  by epic, label and priority, with each epic's remaining work alongside. Drag
+  cards onto the plan or onto a person, or press +. Nothing gets in without an
   assignee and an estimate, and cards with no estimate are marked in red.
   Cards are two lines, with the estimate and the assignee changed in place.
-  Add issues from any board by key or link. Split a half-done leftover: the
-  original becomes "- pt.1" and closes with the points done, "- pt.2" carries
-  the rest, the due date and the parent, and both are linked and commented.
+  Add issues from any board by key or link.
+- **Split** a half-done leftover: the original becomes "- pt.1" and closes with
+  the points done (half by default), "- pt.2" carries the rest, the due date and
+  the parent, and both are linked and commented.
 - **The draft stays on this device** until you push, so it survives a reload
   and can be finished the next day. **Refresh tasks** re-reads Jira.
 - **Review & push** re-reads Jira, shows every change and anything that moved
   underneath the plan, and refuses to push an unassigned or unestimated issue.
   A write that fails is retried three times, then reported by issue with Jira's
-  reason. Sprints are still created, started and closed in Jira.
+  reason.
+- **Settings → Sprint planner:** hours per story point and the holiday
+  calendar, both carried in the config export.
 
 ## v0.8.0
 
