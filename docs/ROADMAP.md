@@ -27,7 +27,7 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
 | Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
 | Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
-| Tests | 28 `scripts/test-*.mjs` suites (2402 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Tests | 28 `scripts/test-*.mjs` suites (2405 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
@@ -207,7 +207,7 @@ own UI. Anything that changes that, or that has the app suggest a plan, is M23.
 
 ### Still to do
 
-- [ ] **The people strip.** See open question 7. Blocked on the author's note,
+- [ ] **The people strip.** See open question 1. Blocked on the author's note,
       which ends mid-sentence.
 
 ### From M15 QA (2026-09-30)
@@ -260,24 +260,21 @@ Bug:
       setup field was affected, not only capacity. The planner now keeps one
       draft object for the life of the screen.
 
+### Settled 2026-10-01
+
+- **Cross-board carryover** stays as built; not a concern for M21.
+- **Dates:** the date pickers are the convenience wanted. No calendar feed for
+  personal leave.
+- **Hours per working day:** fixed at 8, not a setting.
+- **Hours per story point** travels in the config export, with the holiday
+  calendar (shipped 2026-10-01).
+- **Split's comments** stay as they are ("continues in …" and "continues …").
+- **Split's points default to half each**, to the quarter point (shipped
+  2026-10-01). Proposing the split from time already spent is M23.
+
 ### Open questions
 
-1. **Cross-board carryover: is the shape right?** Built as described above:
-   sources from any board, leftovers into the target of the board they were
-   picked under, and the source board need not be planned. Should a source
-   board's backlog also be offered?
-2. **The calendar picker: is opening on click enough,** or is the ask one range
-   calendar that picks start and end together?
-3. **Hours per working day.** The new setting assumes an eight-hour day. Should
-   the day be a setting too, or set per person for part-time?
-4. **Story points value: synced, or per device?** It is in synced config now,
-   with the boards. Say if it should differ between machines.
-5. **Split: are the comments' words right?** Part one says the rest continues in
-   part two; part two says it continues part one. Both are fixed text.
-6. **Split: what should part one's points default to?** It is blank, with part
-   two showing the whole estimate until part one is typed. The alternative is
-   half each.
-7. **The people strip.** The note stops at "find a way to have pl-strip
+1. **The people strip.** The note stops at "find a way to have pl-strip
    button/cards". What should it do or become? Some readings: hidden behind a
    toggle, a narrow sidebar instead of a row, one line per person, or each
    person's card opening their plan.
@@ -351,6 +348,22 @@ proposes the plan; that is M24.
 - **Solo and group modes:** a toggle between solo (small type, as much on
   screen as fits) and group (larger type, for sharing the screen).
 
+### Also in scope (added 2026-10-01)
+
+- [ ] **Split points from time spent.** On the wrap-up screen, propose part
+      one's points from the share of the outgoing sprint the issue has been in
+      progress, against its estimate, instead of half each. Shown as a
+      proposal; the person planning can change it.
+- [ ] **Calculate due dates.** For each planned issue, a due date from the
+      sprint's working days, the work already planned for the same person
+      ahead of it, and its estimate (one point being one day at the default
+      hours per point); for an epic, from its children's due dates and points.
+      Shown as a proposal per issue and written only if accepted: a due-date
+      write, a kind the app already makes. Plain arithmetic on figures the
+      planner already holds, so it is here rather than in M24. Open question:
+      what order a person's issues are worked in for this (backlog rank,
+      priority, or the order they appear in the plan).
+
 ### Proposal
 
 Four screens, with a step bar across the top and Back/Next. The draft stays on
@@ -415,7 +428,8 @@ create, which write at once from their own confirm as they do today.
 
 ### Open questions
 
-None open. Build questions get asked as the screens are built.
+1. **Due dates: in what order does a person's work count?** Backlog rank,
+   priority, or the order the issues sit in the plan.
 
 ## M24 — Assisted sprint planning
 
@@ -446,10 +460,6 @@ The author's ideas, 2026-10-01:
       the plan's people, by their remaining capacity.
 - [ ] **Suggest filling remaining capacity.** Take the next issues from epics
       already in progress, in order, into the plan until capacity is reached.
-- [ ] **Proposed due dates.** For each planned issue, a due date from its
-      estimate, the other work already planned for the same person, and for an
-      epic the due dates and points of its children. Written only if accepted:
-      a due-date write, a kind the app already makes.
 
 ### Open questions
 

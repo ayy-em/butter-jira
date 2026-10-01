@@ -1631,11 +1631,14 @@ export async function mount(container, creds) {
       input.inputMode = "decimal";
       input.className = "pl-input pl-num";
     }
-    p1.placeholder = "done";
+    p1.placeholder = "done so far";
     p2.placeholder = "rest";
+    // Half each by default, to the quarter point (settled 2026-10-01). M23
+    // proposes the split from the time already spent instead.
     if (total !== null) {
-      p1.value = "";
-      p2.value = String(total);
+      const half = splitPoints(total, Math.round((total / 2) * 4) / 4);
+      p1.value = String(half.first);
+      p2.value = String(half.second);
     }
     // Part two follows part one until it is typed into itself.
     let p2Touched = false;

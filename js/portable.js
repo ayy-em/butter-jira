@@ -55,6 +55,12 @@ export function buildExport({
         org: String(CONFIG.github?.org || ""),
         repos: [...(CONFIG.github?.repos || [])],
       },
+      // The sprint planner's settings: hours per story point and the holiday
+      // calendar. Team conventions, not personal data, so they travel.
+      planner: {
+        hoursPerPoint: Number(CONFIG.planner?.hoursPerPoint) > 0 ? Number(CONFIG.planner.hoursPerPoint) : 8,
+        holidays: CONFIG.planner?.holidays === "none" ? "none" : "nl",
+      },
     },
   };
 
@@ -192,6 +198,14 @@ export function parseImport(text) {
         `File lists ${config.github.repos.length} GitHub repositor${config.github.repos.length === 1 ? "y" : "ies"} — you will still need your own token.`
       );
     }
+  }
+
+  if (src.planner && typeof src.planner === "object") {
+    const hours = Number(src.planner.hoursPerPoint);
+    config.planner = {
+      hoursPerPoint: hours > 0 && hours <= 80 ? Math.round(hours * 100) / 100 : 8,
+      holidays: src.planner.holidays === "none" ? "none" : "nl",
+    };
   }
 
   // Roster only when the file actually carries one — `undefined` means "leave

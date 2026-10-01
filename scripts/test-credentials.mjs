@@ -256,6 +256,7 @@ await cfg.loadConfig();
 await cfg.saveConfig({
   site: { baseUrl: "https://x.atlassian.net" },
   github: { enabled: true, host: "github.com", org: "acme", repos: ["acme/api", "acme/web"] },
+  planner: { hoursPerPoint: 4, holidays: "none" },
 });
 await creds.saveGithubToken("gh-secret-token");
 payload = portable.buildExport({
@@ -268,7 +269,12 @@ check("host, org and repos are config, not a credential",
 check("the Jira checkbox does not carry the GitHub token",
   !JSON.stringify(payload).includes("gh-secret-token"));
 
+check("planner settings are exported", payload.config.planner.hoursPerPoint === 4 && payload.config.planner.holidays === "none");
 parsed = portable.parseImport(JSON.stringify(payload));
+check("planner settings round-trip", parsed.config.planner.hoursPerPoint === 4 && parsed.config.planner.holidays === "none");
+check("a nonsense hours value imports as the default", portable.parseImport(JSON.stringify({
+  format: portable.EXPORT_FORMAT, config: { planner: { hoursPerPoint: -3, holidays: "mars" } },
+})).config.planner.hoursPerPoint === 8);
 check("github block round-trips", parsed.config.github.repos.join() === "acme/api,acme/web");
 check("repo list import is announced", parsed.warnings.some((w) => w.includes("GitHub repositor")));
 

@@ -369,10 +369,11 @@ Needs an upcoming sprint created in Jira on at least one board.
 - [ ] The **+** beside the filter opens the key field; a key and a `/browse/` link both work for an issue on a board that is not configured
 - [ ] Reload the tab → the draft, the plan and every typed estimate are still there. Nothing changed in Jira
 - [ ] **Refresh tasks** re-reads Jira; an issue closed in Jira meanwhile leaves the candidates
-- [ ] **Split** on a leftover with points and a due date: the original is renamed "… - pt.1" with the pt.1 points and is Done; "… - pt.2" exists with the same due date and parent; they are linked, both have the comment; pt.2 is in the plan with the rest of the points
+- [ ] **Split** opens with the points half each; on a leftover with points and a due date: the original is renamed "… - pt.1" with the pt.1 points and is Done; "… - pt.2" exists with the same due date and parent; they are linked, both have the comment; pt.2 is in the plan with the rest of the points
 - [ ] **Review & push** lists every change; with an unassigned issue in the target sprint the push button is disabled and the issue is named
 - [ ] Push → Jira shows the moves, assignees and estimates; the button's pending count drops to 0
 - [ ] With one issue Jira will refuse (e.g. one in another board's active sprint): the report names it with Jira's reason, "tried 4×", and it stays in the draft
+- [ ] Export config → the file has `planner.hoursPerPoint` and `planner.holidays`; importing it on a fresh profile restores both
 - [ ] `chrome.storage.sync` in DevTools holds no `sprintPlanner`; a device backup does not contain it
 - [ ] **Discard draft** asks first, then empties the plan without touching Jira
 

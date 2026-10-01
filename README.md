@@ -888,8 +888,9 @@ assignees changed on any card are kept with the draft and written with the
 push.
 
 **Split**, on a leftover card, is for work that is half done and carries on.
-The original is renamed *<summary> - pt.1*, keeps the points for what was done,
-and closes. A new *<summary> - pt.2* takes the rest of the points, the same due
+The original is renamed *<summary> - pt.1*, keeps the points for what was done
+(half the estimate unless you change it), and closes. A new *<summary> - pt.2*
+takes the rest of the points, the same due
 date and the same parent, and goes into the plan. The two are linked, and each
 gets a comment saying why. It is the one thing here that writes straight away,
 confirmed first, because part two has to exist before it can be planned; each
@@ -1546,7 +1547,7 @@ node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 chec
 node scripts/test-imports.mjs      # every module imports what it calls  (66 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (55 checks)
 node scripts/test-config.mjs       # config layer, field discovery      (88 checks)
-node scripts/test-credentials.mjs  # migrations, tokens, export/import (102 checks)
+node scripts/test-credentials.mjs  # migrations, tokens, export/import (105 checks)
 node scripts/test-team.mjs         # roster, display names, filtering (138 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
@@ -1895,7 +1896,7 @@ behind it is in the commit history.
 | M20 | 1:1 recording | Record and transcribe a 1:1 on the device. Engine and consent unresolved |
 | M21 | Sprint planner polish | Fixes on the planner's screens; a holiday calendar |
 | M22 | 1:1 screen improvements | A combined weekly activity chart, clearer keys, Copy for Slack fixed |
-| M23 | Planning as a process | The planning ritual as four screens, one board at a time, with sprints created, closed and started from the app |
+| M23 | Planning as a process | The planning ritual as four screens, one board at a time, with sprints created, closed and started from the app, and due dates calculated |
 | M24 | Assisted planning | Proposed splits, estimates, assignees and fill-ups, gated on an AI Enablement review |
 
 Releases are automated; see [Releasing](#releasing).
