@@ -15,7 +15,9 @@ Jira in one reviewed batch at the end.
 - **Setup.** Choose the boards. On each, choose the sprint to plan into (made
   in Jira first) and the sprints to carry leftovers over from, including
   another board's. Then the dates and working days, a buffer for unplanned work
-  (20% by default, or points per person), and the people. Everyone's capacity
+  (20% by default, or points per person), and the people. Dutch public
+  holidays are taken off the working days and named, each one untickable;
+  Settings can switch the calendar off. Everyone's capacity
   is their working days less their buffer, one day being one story point
   unless Settings → Sprint planner says otherwise. Days and buffer can be
   changed per person for leave.

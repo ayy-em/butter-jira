@@ -105,6 +105,10 @@ const DEFAULTS = {
   // against an eight-hour day: 8 means a point is a day.
   planner: {
     hoursPerPoint: 8,
+    // Public holidays taken off the suggested working days: "nl" or "none".
+    // The Netherlands by default because that is where the author plans; a
+    // setting, not an assumption, so another team turns it off in Settings.
+    holidays: "nl",
   },
   github: {
     enabled: false,

@@ -358,6 +358,7 @@ Needs an upcoming sprint created in Jira on at least one board.
 - [ ] The `%` / `#` toggle switches the buffer unit; clicking anywhere in a date field opens its calendar
 - [ ] **From another board** under one board, tick another board's sprint → its leftovers appear and go into the first board's sprint
 - [ ] Settings → Sprint planner → Hours per story point 4 → the same sprint shows twice the points
+- [ ] Dates spanning Christmas: the holidays are listed by name and taken off the working days; unticking one adds it back; Settings → Public holidays → None removes the list
 - [ ] **Go to planning screen** stays disabled until a sprint and a person are chosen
 - [ ] The plan screen shows the target sprint's existing issues in the plan, leftovers in their own container above the backlog, and the backlog ordered under way → to do → on hold
 - [ ] Cards with no estimate are outlined in red; typing an estimate removes it

@@ -842,9 +842,12 @@ batch at the end. Nothing is written to Jira while you plan.
   leftovers go into this board's sprint. Sprints are created, started and
   closed in Jira. The planner only reads them.
 - **Dates.** Taken from the target sprint when it has dates. Weekdays between
-  them are suggested as the working days, and you can override that for a
-  public holiday. A Jira sprint that runs Monday to Monday counts as ten days,
-  not eleven.
+  them, less public holidays, are suggested as the working days, and you can
+  override that. Each holiday in range is listed by name and can be unticked
+  for a team that works it. The calendar is the Netherlands by default (Good
+  Friday, and Liberation Day outside lustrum years, are listed but not taken
+  off), or none, under Settings → Sprint planner. A Jira sprint that runs
+  Monday to Monday counts as ten days, not eleven.
 - **Buffer for unplanned work.** A percentage of each person's points (`%`), or
   a fixed number of points per person (`#`). 20% unless you change it.
   Overridable per person.
@@ -1565,7 +1568,7 @@ node scripts/test-contrast.mjs     # theme tokens against WCAG AA       (24 chec
 node scripts/test-drawer.mjs       # the drawer's focus layer           (24 checks)
 node scripts/test-release.mjs      # version rewriting, licence, notes   (41 checks)
 node scripts/test-oneone.mjs       # 1:1 windows, notes, todos, JQL    (153 checks)
-node scripts/test-planner.mjs      # capacity, commit rule, push, split (92 checks)
+node scripts/test-planner.mjs      # capacity, holidays, push, split (105 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it. Harnesses

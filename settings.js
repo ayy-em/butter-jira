@@ -87,6 +87,7 @@ const monitorCheckList = el("monitorCheckList");
 const discoverFieldsBtn = el("discoverFieldsBtn");
 const additionalFieldsInput = el("additionalFields");
 const hoursPerPointInput = el("hoursPerPoint");
+const plannerHolidaysInput = el("plannerHolidays");
 const localFieldsNote = el("localFieldsNote");
 const orgNameInput = el("orgName");
 const orgLogoInput = el("orgLogo");
@@ -979,7 +980,11 @@ saveBtn.addEventListener("click", async () => {
     fields,
     additionalFields: extraFields,
     monitorChecks,
-    planner: { ...(CONFIG.planner || {}), hoursPerPoint: hoursPerPointValue() },
+    planner: {
+      ...(CONFIG.planner || {}),
+      hoursPerPoint: hoursPerPointValue(),
+      holidays: plannerHolidaysInput.value === "none" ? "none" : "nl",
+    },
     github: {
       enabled: github.enabled,
       host: github.host,
@@ -1033,6 +1038,7 @@ async function init() {
   additionalFieldsInput.value = (CONFIG.additionalFields || []).join(", ");
   monitorChecks = { ...(CONFIG.monitorChecks || {}) };
   hoursPerPointInput.value = String(CONFIG.planner?.hoursPerPoint ?? 8);
+  plannerHolidaysInput.value = CONFIG.planner?.holidays === "none" ? "none" : "nl";
 
   const gh = CONFIG.github || {};
   githubEnabledBox.checked = gh.enabled === true;

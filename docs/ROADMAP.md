@@ -27,7 +27,7 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
 | Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
 | Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
-| Tests | 28 `scripts/test-*.mjs` suites (2389 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Tests | 28 `scripts/test-*.mjs` suites (2402 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
@@ -193,17 +193,22 @@ own UI. Anything that changes that, or that has the app suggest a plan, is M23.
       `parent` or `duedate` on create gets part two without it, then the due
       date by a field write. Splitting "… - pt.2" again makes "… - pt.3".
 
+- [x] **Public holidays without typing them** (2026-10-01). A Dutch calendar,
+      computed (Easter by the Gregorian algorithm, King's Day moved off a
+      Sunday), takes weekday holidays off the suggested working days. Each is
+      named on the Dates card and can be unticked per draft. Good Friday, and
+      Liberation Day outside lustrum years, are listed unticked. Settings →
+      Sprint planner → Public holidays: Netherlands (default) or None. A
+      calendar feed for personal leave was not built: it needs a new host
+      permission, and it stays the icebox's "OOO import from a calendar feed".
+- [x] **Part two in To Do explicitly** (2026-10-01). When part two is created
+      in a status outside the To Do category, Split moves it to one, preferring
+      a status named To Do, and reports the step like the others.
+
 ### Still to do
 
-- [ ] **Public holidays without typing them.** A Dutch holiday calendar built
-      in (computed, so Easter-based dates need no table per year), taken off
-      the suggested working days with each holiday named. Optionally a calendar
-      feed (ICS URL) for personal leave, the iCal idea in the deferred backlog.
-      That is a new host permission, so it is opt-in and per origin.
-- [ ] **Part two in To Do explicitly.** If a workflow's first status is not in
-      the To Do category, Split would transition part two there. Only worth
-      doing once a site shows the case.
-- [ ] **The people strip.** See open question 7.
+- [ ] **The people strip.** See open question 7. Blocked on the author's note,
+      which ends mid-sentence.
 
 ### From M15 QA (2026-09-30)
 

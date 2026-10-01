@@ -83,6 +83,26 @@ check("undated sprint has no range", P.sprintDateRange({ name: "x" }) === null);
 const def = P.defaultDateRange(new Date(2026, 8, 30)); // a Wednesday
 check("default range starts the coming Monday and is ten days", def.start === "2026-10-05" && P.workingDaysBetween(def.start, def.end) === 10);
 
+section("Dutch public holidays");
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+check("Easter Sunday for known years", iso(P.easterSunday(2026)) === "2026-04-05" && iso(P.easterSunday(2025)) === "2025-04-20" && iso(P.easterSunday(2024)) === "2024-03-31");
+const nl26 = Object.fromEntries(P.dutchHolidays(2026).map((h) => [h.name, h]));
+check("Easter-based days follow Easter", nl26["Easter Monday"].date === "2026-04-06" && nl26["Ascension Day"].date === "2026-05-14" && nl26["Whit Monday"].date === "2026-05-25");
+check("King's Day moves to the 26th when the 27th is a Sunday", P.dutchHolidays(2025).find((h) => h.name === "King's Day").date === "2025-04-26" && nl26["King's Day"].date === "2026-04-27");
+check("Liberation Day is a day off only in lustrum years", nl26["Liberation Day"].dayOff === false && P.dutchHolidays(2030).find((h) => h.name === "Liberation Day").dayOff === true);
+check("Good Friday is listed but not taken off", nl26["Good Friday"].dayOff === false);
+const december = P.holidaysBetween("2025-12-22", "2026-01-09");
+check("a range across New Year finds Christmas, Boxing Day and New Year's Day", december.map((h) => h.name).join() === "Christmas Day,Boxing Day,New Year's Day");
+check("weekend holidays are left out", P.holidaysBetween("2027-12-20", "2027-12-31").length === 0); // 25th and 26th fall on a weekend in 2027
+const xmas = P.normalizeDraft({ start: "2025-12-22", end: "2026-01-02" });
+check("suggested working days take holidays off", P.workingDaysBetween(xmas.start, xmas.end) === 10 && P.suggestedWorkingDays(xmas) === 7);
+xmas.holidays["2025-12-26"] = false;
+check("an unticked holiday is worked", P.suggestedWorkingDays(xmas) === 8);
+check("no calendar, no holidays", P.suggestedWorkingDays(xmas, { calendar: "none" }) === 10);
+check("holiday choices survive the draft's round trip", P.normalizeDraft({ holidays: { "2026-12-26": false, junk: true, "2026-12-25": "yes" } }).holidays["2026-12-26"] === false &&
+  Object.keys(P.normalizeDraft({ holidays: { junk: true, "2026-12-25": "yes" } }).holidays).length === 0);
+check("team capacity uses the calendar", P.teamCapacity({ ...xmas, people: [{ accountId: "a", days: null, buffer: null }], buffer: { mode: "percent", value: 0 } }, { calendar: "nl" }).available === 8);
+
 // ── Capacity ───────────────────────────────────────────────────────────────
 section("Capacity");
 const pct = P.personCapacity({ workingDays: 10, buffer: { mode: "percent", value: 20 } });
@@ -330,6 +350,11 @@ const transitions = [
 check("closing picks a done status that is not a rejection", P.doneTransition(transitions)?.id === "3");
 check("a status named Done wins", P.doneTransition([...transitions, { id: "4", toStatus: "Done", to: { statusCategory: { key: "done" } } }])?.id === "4");
 check("no way to done is null", P.doneTransition([transitions[1]]) === null);
+check("part two goes back to a To Do status, preferring one named so", P.todoTransition([
+  { id: "a", toStatus: "Backlog", to: { statusCategory: { key: "new" } } },
+  { id: "b", toStatus: "To Do", to: { statusCategory: { key: "new" } } },
+  { id: "c", toStatus: "Done", to: { statusCategory: { key: "done" } } },
+])?.id === "b" && P.todoTransition([{ id: "c", toStatus: "Done", to: { statusCategory: { key: "done" } } }]) === null);
 check("the link is Relates where the site has it", P.splitLinkType([{ name: "Blocks" }, { name: "Relates", outward: "relates to" }])?.name === "Relates");
 const fields = P.splitCreateFields(issue("ACME-5", { epic: "ACME-1", due: "2026-10-20" }));
 check("part two keeps project, type, parent and due date", fields.project.key === "ACME" && fields.issuetype.id === "10001" && fields.parent.key === "ACME-1" && fields.duedate === "2026-10-20" && /pt\.2$/.test(fields.summary));

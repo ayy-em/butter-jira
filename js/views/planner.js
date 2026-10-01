@@ -77,6 +77,7 @@ import {
   loadBand,
   loadDraft,
   missingForCommit,
+  holidaysBetween,
   parseIssueRef,
   parsePoints,
   parseSourceRef,
@@ -94,6 +95,7 @@ import {
   splitCreateFields,
   splitNames,
   splitPoints,
+  todoTransition,
   sprintDateRange,
   tallies,
   targetFor,
@@ -214,6 +216,10 @@ export async function mount(container, creds) {
     return pointsPerDayFor(CONFIG.planner?.hoursPerPoint ?? DEFAULT_HOURS_PER_POINT);
   }
 
+  function holidayCalendar() {
+    return CONFIG.planner?.holidays === "none" ? "none" : "nl";
+  }
+
   function readyToPlan() {
     return draft.boards.some((b) => b.target) && draft.people.length > 0;
   }
@@ -266,7 +272,7 @@ export async function mount(container, creds) {
     bar.className = "pl-bar";
     const summary = document.createElement("div");
     summary.className = "pl-bar-summary";
-    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay() });
+    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay(), calendar: holidayCalendar() });
     const targets = targetSprintIds(draft);
     summary.textContent =
       `${draft.people.length} ${draft.people.length === 1 ? "person" : "people"} · ` +
@@ -495,20 +501,45 @@ export async function mount(container, creds) {
     el.className = "pl-row";
     const start = dateInput("Start", draft.start, "start", (v) => { draft.start = v; });
     const end = dateInput("End", draft.end, "end", (v) => { draft.end = v; });
-    const suggested = workingDaysBetween(draft.start, draft.end);
+    const weekdays = workingDaysBetween(draft.start, draft.end);
+    const holidays = holidaysBetween(draft.start, draft.end, { calendar: holidayCalendar(), overrides: draft.holidays });
+    const taken = holidays.filter((h) => h.off);
+    const suggested = Math.max(0, weekdays - taken.length);
     const days = document.createElement("label");
     days.className = "pl-field";
     days.appendChild(fieldLabel("Working days"));
     const input = numberInput(draft.workingDays, suggested, "working-days", (v) => { draft.workingDays = v; }, 1);
     days.appendChild(input);
     el.append(start, end, days);
+    const less = taken.length ? `, less ${taken.length} public holiday${taken.length === 1 ? "" : "s"}` : "";
     const hint = note(
       draft.workingDays === null
-        ? `Defaults to the number of working days in the timeframe: ${suggested} weekday${suggested === 1 ? "" : "s"}. Override above for holidays.`
-        : `Set by hand. ${suggested} weekday${suggested === 1 ? "" : "s"} in the timeframe; clear the field to use that.`
+        ? `Defaults to the number of working days in the timeframe: ${weekdays} weekday${weekdays === 1 ? "" : "s"}${less}, so ${suggested}. Override above for anything else.`
+        : `Set by hand. ${suggested} working day${suggested === 1 ? "" : "s"} in the timeframe (${weekdays} weekdays${less}); clear the field to use that.`
     );
     hint.classList.add("pl-row-note");
     el.appendChild(hint);
+
+    // Each holiday in range, named, and untickable for a team that works it.
+    if (holidays.length) {
+      const chips = document.createElement("div");
+      chips.className = "pl-chips pl-row-note";
+      for (const h of holidays) {
+        const chip = document.createElement("label");
+        chip.className = "pl-chip";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = h.off;
+        cb.dataset.focusId = `holiday-${h.date}`;
+        cb.addEventListener("change", () => change(() => { draft.holidays[h.date] = cb.checked; }));
+        const text = document.createElement("span");
+        text.textContent = `${h.name} · ${fmtDate(h.date)}`;
+        chip.title = cb.checked ? "Taken off the working days" : "Counted as a working day";
+        chip.append(cb, text);
+        chips.appendChild(chip);
+      }
+      el.appendChild(chips);
+    }
     return el;
   }
 
@@ -525,7 +556,7 @@ export async function mount(container, creds) {
     valueRow.append(input, unitToggle());
     value.appendChild(valueRow);
     el.append(value);
-    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay() });
+    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay(), calendar: holidayCalendar() });
     const example = personCapacity({ workingDays: cap.workingDays, buffer: draft.buffer, pointsPerDay: pointsPerDay() });
     const hint = note(
       `For support and incidents, ${draft.buffer.mode === "percent" ? `${fmtPoints(draft.buffer.value)}% of each person's points` : `${fmtPoints(draft.buffer.value)} points a person`}: ` +
@@ -575,7 +606,7 @@ export async function mount(container, creds) {
   function peopleBlock() {
     const el = document.createElement("div");
     const offered = offeredPeople();
-    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay() });
+    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay(), calendar: holidayCalendar() });
 
     if (!offered.length) {
       el.appendChild(note("There is no team roster to plan for. Add people under Settings → Team, or find everyone holding work on the chosen boards."));
@@ -791,7 +822,7 @@ export async function mount(container, creds) {
     const wrap = document.createElement("div");
     wrap.className = "pl-wrap pl-plan";
 
-    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay() });
+    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay(), calendar: holidayCalendar() });
     const planned = plannedIssues();
     const tally = tallies(draft, planned);
     const left = round(cap.available - tally.points);
@@ -1732,7 +1763,16 @@ export async function mount(container, creds) {
       }
       await cache.dropBoard(issue.boardId);
 
-      const [fresh] = await getIssuesByKeys([created.key], creds).catch(() => []);
+      let [fresh] = await getIssuesByKeys([created.key], creds).catch(() => []);
+      // A workflow whose first status is not To Do: take part two there.
+      if (fresh && fresh.fields?.status?.statusCategory?.key && fresh.fields.status.statusCategory.key !== "new") {
+        await step(`Moved ${created.key} to To Do`, async () => {
+          const t = todoTransition(await getIssueTransitions(created.key, creds));
+          if (!t) throw new Error(`the workflow offers no move to a To Do status from ${fresh.fields.status.name}`);
+          await transitionIssue(created.key, t.id, creds);
+          fresh.fields.status = t.to || { name: t.toStatus || "To Do", statusCategory: { key: "new" } };
+        }).catch(() => {});
+      }
       const pt2 = fresh || {
         key: created.key,
         boardId: issue.boardId,

@@ -178,7 +178,7 @@ recap and the quarterly overview, and the team scope above.
 - `docs/ROADMAP.md` — what is still open, and the product rules in force.
   Completed milestones were removed on 2026-09-29; their record is
   `docs/CHANGELOG.md` and the commit history.
-- Twenty-eight `scripts/test-*.mjs` suites (2389 checks, no dependencies, no
+- Twenty-eight `scripts/test-*.mjs` suites (2402 checks, no dependencies, no
   network, no browser), fourteen preview harnesses in `preview/`, most of them
   sharing `preview/preview-fixture.js`, and
   `scripts/SMOKE-CHECKLIST.md`. Every suite runs in GitHub Actions on push and

@@ -92,6 +92,88 @@ export function workingDaysBetween(start, end) {
   return count;
 }
 
+// ── Public holidays ─────────────────────────────────────────────────────────
+//
+// Computed rather than tabled, so no year runs out (M21). One calendar so far,
+// the Netherlands, chosen in Settings → Sprint planner; "none" turns it off.
+// `dayOff` is whether the day is taken off by default: Good Friday is not a
+// day off for most, and Liberation Day only every fifth year (2025, 2030…).
+// Either can be ticked or unticked per draft. Sundays are left out — Easter
+// Sunday and Whit Sunday are never working days anyway.
+
+export const HOLIDAY_CALENDARS = ["nl", "none"];
+
+// Gregorian Easter Sunday (the anonymous algorithm).
+export function easterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+export function dutchHolidays(year) {
+  const easter = easterSunday(year);
+  const offset = (n) => {
+    const d = new Date(easter);
+    d.setDate(d.getDate() + n);
+    return isoDay(d);
+  };
+  const pad = (n) => String(n).padStart(2, "0");
+  const fixed = (m, d) => `${year}-${pad(m)}-${pad(d)}`;
+  // King's Day moves to the 26th when the 27th is a Sunday.
+  const kings = new Date(year, 3, 27).getDay() === 0 ? fixed(4, 26) : fixed(4, 27);
+  return [
+    { date: fixed(1, 1), name: "New Year's Day", dayOff: true },
+    { date: offset(-2), name: "Good Friday", dayOff: false },
+    { date: offset(1), name: "Easter Monday", dayOff: true },
+    { date: kings, name: "King's Day", dayOff: true },
+    { date: fixed(5, 5), name: "Liberation Day", dayOff: year % 5 === 0 },
+    { date: offset(39), name: "Ascension Day", dayOff: true },
+    { date: offset(50), name: "Whit Monday", dayOff: true },
+    { date: fixed(12, 25), name: "Christmas Day", dayOff: true },
+    { date: fixed(12, 26), name: "Boxing Day", dayOff: true },
+  ];
+}
+
+// The calendar's holidays that fall on a weekday inside the range, with
+// whether each is taken off: the draft's choice where it made one, else the
+// calendar's default.
+export function holidaysBetween(start, end, { calendar = "nl", overrides = {} } = {}) {
+  const from = parseDay(start);
+  const to = parseDay(end);
+  if (calendar !== "nl" || !from || !to || to < from) return [];
+  const out = [];
+  for (let y = from.getFullYear(); y <= to.getFullYear() && y - from.getFullYear() < 3; y++) {
+    for (const h of dutchHolidays(y)) {
+      const day = parseDay(h.date);
+      if (day < from || day > to) continue;
+      if (day.getDay() === 0 || day.getDay() === 6) continue;
+      const off = Object.prototype.hasOwnProperty.call(overrides, h.date) ? overrides[h.date] === true : h.dayOff;
+      out.push({ ...h, off });
+    }
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// Weekdays in the draft's range less the holidays taken off — what Working
+// days suggests when it is not set by hand.
+export function suggestedWorkingDays(draft, { calendar = "nl" } = {}) {
+  const weekdays = workingDaysBetween(draft.start, draft.end);
+  const off = holidaysBetween(draft.start, draft.end, { calendar, overrides: draft.holidays || {} }).filter((h) => h.off).length;
+  return Math.max(0, weekdays - off);
+}
+
 // The date range a Jira sprint stands for, as two local calendar days.
 //
 // Jira's default sprint runs from a start instant to the same weekday one or
@@ -208,6 +290,7 @@ export function emptyDraft(now = new Date()) {
     start: "",
     end: "",
     workingDays: null,
+    holidays: {},
     // 20% held back unless set otherwise (settled 2026-10-01). Only a new
     // draft gets it; a stored one keeps what it was given.
     buffer: { mode: "percent", value: 20 },
@@ -237,6 +320,9 @@ export function normalizeDraft(raw, now = new Date()) {
   d.start = parseDay(raw.start) ? String(raw.start).slice(0, 10) : "";
   d.end = parseDay(raw.end) ? String(raw.end).slice(0, 10) : "";
   d.workingDays = numOrNull(raw.workingDays);
+  for (const [date, off] of Object.entries(isObj(raw.holidays) ? raw.holidays : {})) {
+    if (parseDay(date) && typeof off === "boolean") d.holidays[date] = off;
+  }
   d.buffer = {
     mode: BUFFER_MODES.includes(raw.buffer?.mode) ? raw.buffer.mode : "percent",
     value: numOrNull(raw.buffer?.value) ?? (isObj(raw.buffer) ? 0 : d.buffer.value),
@@ -526,8 +612,8 @@ export function tallies(draft, plannedIssues) {
   return { people, others, points, issues: plannedIssues.length };
 }
 
-export function teamCapacity(draft, { pointsPerDay = 1 } = {}) {
-  const workingDays = draft.workingDays ?? workingDaysBetween(draft.start, draft.end);
+export function teamCapacity(draft, { pointsPerDay = 1, calendar = "none" } = {}) {
+  const workingDays = draft.workingDays ?? suggestedWorkingDays(draft, { calendar });
   let available = 0;
   const byPerson = new Map();
   for (const p of draft.people) {
@@ -800,6 +886,14 @@ export function doneTransition(transitions = []) {
     toDone.find((t) => !/reject|cancel|won'?t|duplicate|invalid/i.test(t.toStatus || "")) ||
     null
   );
+}
+
+// Part two back to the start of the workflow, for a project whose first
+// status is not in the To Do category: a transition into the "new" category,
+// preferring one named To Do. Null when none exists.
+export function todoTransition(transitions = []) {
+  const toNew = transitions.filter((t) => t?.to?.statusCategory?.key === "new");
+  return toNew.find((t) => /^to\s?-?do$/i.test(t.toStatus || "")) || toNew[0] || null;
 }
 
 // "Relates" where the site has it; else anything with a phrase to read.
