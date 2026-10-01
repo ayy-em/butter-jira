@@ -42,6 +42,7 @@ export const ICON_PATHS = {
   // for a team, and this screen is deliberately not that.
   person: "M12 12.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5ZM4.5 20.5a7.5 7.5 0 0 1 15 0",
   list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
+  plus: "M12 5v14M5 12h14",
 
   // ── Priority, by shape ────────────────────────────────────────────────────
   // Jira's own convention, which is the one people arriving here already know:

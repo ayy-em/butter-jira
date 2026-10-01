@@ -97,6 +97,14 @@ check("the buffer never makes capacity negative", P.personCapacity({ workingDays
 check("bands at 100% and 120%", P.loadBand(8, 8).band === "ok" && P.loadBand(9, 8).band === "full" && P.loadBand(10, 8).band === "over");
 check("no capacity and nothing planned is none, not a division", P.loadBand(0, 0).band === "none" && P.loadBand(1, 0).band === "over");
 
+section("Points per day");
+check("8 hours per point is one point a day", P.pointsPerDayFor(8) === 1 && P.pointsPerDayFor(4) === 2);
+check("nonsense falls back to one a day", P.pointsPerDayFor(0) === 1 && P.pointsPerDayFor("x") === 1 && P.pointsPerDayFor(-2) === 1);
+const half = P.personCapacity({ workingDays: 10, buffer: { mode: "percent", value: 20 }, pointsPerDay: 2 });
+check("half-day points double capacity, and the % buffer scales with it", half.base === 20 && half.available === 16 && half.days === 10);
+const halfAbs = P.personCapacity({ workingDays: 10, buffer: { mode: "points", value: 3 }, pointsPerDay: 2 });
+check("a # buffer stays points", halfAbs.available === 17);
+
 // ── Draft ──────────────────────────────────────────────────────────────────
 section("Draft shape");
 const junk = P.normalizeDraft({
@@ -115,6 +123,8 @@ check("people deduplicated, days parsed", junk.people.length === 1 && junk.peopl
 check("only issue keys survive", Object.keys(junk.added).join() === "ACME-1" && junk.removed.join() === "ACME-2");
 check("an empty edit is dropped; a cleared assignee is null", !junk.edits["ACME-4"] && junk.edits["ACME-3"].assignee === null && junk.edits["ACME-3"].points === 2);
 check("a bad working-days override is no override", junk.workingDays === null && junk.stage === "plan");
+check("a new draft holds back 20%", P.emptyDraft().buffer.mode === "percent" && P.emptyDraft().buffer.value === 20);
+check("a stored draft keeps its own buffer, zero included", P.normalizeDraft({ buffer: { mode: "points", value: 0 } }).buffer.value === 0);
 check("garbage in is an empty draft out", P.normalizeDraft("x").stage === "config" && P.normalizeDraft(null).boards.length === 0);
 
 await P.saveDraft({ ...P.emptyDraft(), stage: "plan", people: [{ accountId: "z" }] });
@@ -143,6 +153,10 @@ P.addToPlan(draft, bare, inTarget);
 check("an issue joins its own board's target", draft.added["ACME-10"] === "55");
 check("an issue from an unplanned board joins the first target", P.targetFor(draft, issue("OTHER-1", { boardId: 9 })) === "55");
 check("an issue on the second board joins that board's target", P.targetFor(draft, issue("PLAT-1", { boardId: 2 })) === "66");
+const crossed = { ...issue("MDS-4", { boardId: 7 }), planBoardId: "2" };
+check("a cross-board leftover joins the target of the board it was picked under", P.targetFor(draft, crossed) === "66");
+check("a source ref is a bare id on its own board, board:sprint on another", P.sourceRef(2, 41, "2") === "41" && P.sourceRef(7, 90, "2") === "7:90");
+check("source refs parse back", JSON.stringify(P.parseSourceRef("7:90", "2")) === '{"boardId":"7","sprintId":"90"}' && JSON.stringify(P.parseSourceRef("41", "2")) === '{"boardId":"2","sprintId":"41"}');
 const already = issue("ACME-20", { assignee: "bo", sp: 2 });
 P.addToPlan(draft, already, inTarget);
 check("adding what is already in the target is not a move", !draft.added["ACME-20"]);
@@ -300,8 +314,14 @@ check("what landed leaves the draft; what failed stays for the next push", !sDra
 
 // ── Split ──────────────────────────────────────────────────────────────────
 section("Split");
-check("part two is named after the original", P.splitSummary("Rewrite the importer") === "Placeholder: Rewrite the importer pt.2");
-check("splitting part two makes part three, not a nested placeholder", P.splitSummary("Placeholder: Rewrite the importer pt.2") === "Placeholder: Rewrite the importer pt.3");
+const names = P.splitNames("Rewrite the importer");
+check("the original becomes part one and the new issue part two", names.first === "Rewrite the importer - pt.1" && names.second === "Rewrite the importer - pt.2");
+const again = P.splitNames("Rewrite the importer - pt.2");
+check("splitting part two keeps its name and makes part three", again.first === "Rewrite the importer - pt.2" && again.second === "Rewrite the importer - pt.3");
+check("the old Placeholder: prefix is dropped", P.splitNames("Placeholder: Rewrite the importer pt.2").second === "Rewrite the importer - pt.3");
+check("points divide between the parts", JSON.stringify(P.splitPoints(5, 2)) === '{"first":2,"second":3}' && JSON.stringify(P.splitPoints(5, 9)) === '{"first":5,"second":0}');
+check("an unestimated original gives part two nothing", P.splitPoints(null, 1).second === null);
+check("each part's comment names the other", /ACME-9/.test(P.splitComment({ other: "ACME-9", role: "first" })) && /continues ACME-5/.test(P.splitComment({ other: "ACME-5", role: "second" })));
 const transitions = [
   { id: "1", toStatus: "Rejected", to: { statusCategory: { key: "done" } } },
   { id: "2", toStatus: "In Review", to: { statusCategory: { key: "indeterminate" } } },
@@ -311,8 +331,9 @@ check("closing picks a done status that is not a rejection", P.doneTransition(tr
 check("a status named Done wins", P.doneTransition([...transitions, { id: "4", toStatus: "Done", to: { statusCategory: { key: "done" } } }])?.id === "4");
 check("no way to done is null", P.doneTransition([transitions[1]]) === null);
 check("the link is Relates where the site has it", P.splitLinkType([{ name: "Blocks" }, { name: "Relates", outward: "relates to" }])?.name === "Relates");
-const fields = P.splitCreateFields(issue("ACME-5", { epic: "ACME-1" }));
-check("part two keeps project, type and parent", fields.project.key === "ACME" && fields.issuetype.id === "10001" && fields.parent.key === "ACME-1" && /pt\.2$/.test(fields.summary));
+const fields = P.splitCreateFields(issue("ACME-5", { epic: "ACME-1", due: "2026-10-20" }));
+check("part two keeps project, type, parent and due date", fields.project.key === "ACME" && fields.issuetype.id === "10001" && fields.parent.key === "ACME-1" && fields.duedate === "2026-10-20" && /pt\.2$/.test(fields.summary));
+check("and can go without the due date", !P.splitCreateFields(issue("ACME-5", { due: "2026-10-20" }), { withDue: false }).duedate);
 check("and can go without the parent", !P.splitCreateFields(issue("ACME-5", { epic: "ACME-1" }), { withParent: false }).parent);
 
 console.log(`\n── ${pass} passed, ${fail} failed ──`);

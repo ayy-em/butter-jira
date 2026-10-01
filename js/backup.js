@@ -32,7 +32,7 @@ const MAX_DAYS_PER_SPRINT = 60; // js/snapshots.js keeps the same depth
 // Config lives in sync storage; the list mirrors `STORAGE_KEYS` in js/config.js.
 const CONFIG_KEYS = [
   "configVersion", "site", "brand", "boards",
-  "statusGroups", "fields", "additionalFields", "monitorChecks", "github",
+  "statusGroups", "fields", "additionalFields", "monitorChecks", "github", "planner",
 ];
 
 // Small conveniences, restored only where this device has none of its own.

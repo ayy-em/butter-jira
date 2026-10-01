@@ -148,7 +148,9 @@ rule.
 the author scoped it: capacity in story points (one per working day, less a
 buffer), days off typed per person, nothing unassigned or unestimated in a plan,
 and sprints created, started and closed in Jira. Doing any of those three from
-the app is a new kind of write, and each is an M21 item to decide. M20 (recording a 1:1 on the device) stays
+the app is a new kind of write, and M23 (settled 2026-10-01) does all three
+from a four-screen planning flow. M24 holds assisted planning, gated on an AI
+Enablement review because it proposes who does what. M20 (recording a 1:1 on the device) stays
 gated on a local-engine question and an AI Enablement / DPIA review, since
 recording a named colleague is worker-management-shaped under the EU AI Act's
 Annex III. Settled and in force: the licence (PolyForm Noncommercial 1.0.0),
@@ -176,7 +178,7 @@ recap and the quarterly overview, and the team scope above.
 - `docs/ROADMAP.md` — what is still open, and the product rules in force.
   Completed milestones were removed on 2026-09-29; their record is
   `docs/CHANGELOG.md` and the commit history.
-- Twenty-eight `scripts/test-*.mjs` suites (2375 checks, no dependencies, no
+- Twenty-eight `scripts/test-*.mjs` suites (2389 checks, no dependencies, no
   network, no browser), fourteen preview harnesses in `preview/`, most of them
   sharing `preview/preview-fixture.js`, and
   `scripts/SMOKE-CHECKLIST.md`. Every suite runs in GitHub Actions on push and

@@ -20,6 +20,7 @@
 // tasks re-reads Jira without touching it.
 
 import {
+  addIssueComment,
   createIssue,
   createIssueLink,
   getActiveSprint,
@@ -44,10 +45,13 @@ import {
   fmtDate,
   getAvatarUrl,
   getEpicKey,
+  getStoryPoints,
   hashColor,
   isOverdue,
   showToast,
 } from "../utils.js";
+import { CONFIG, writeFieldId } from "../config.js";
+import { textToAdf } from "../adf.js";
 import { activeMembers, avatarAssetUrl, memberFor, memberLabel, shortenName } from "../team.js";
 import { viewHeader, viewTiles } from "../components/view-header.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
@@ -75,15 +79,21 @@ import {
   missingForCommit,
   parseIssueRef,
   parsePoints,
+  parseSourceRef,
+  pointsPerDayFor,
+  DEFAULT_HOURS_PER_POINT,
+  sourceRef,
   personCapacity,
   removeFromPlan,
   saveDraft,
   setEdit,
   settleDraft,
   splitCandidates,
-  splitCreateFields,
   splitLinkType,
-  splitSummary,
+  splitComment,
+  splitCreateFields,
+  splitNames,
+  splitPoints,
   sprintDateRange,
   tallies,
   targetFor,
@@ -198,6 +208,12 @@ export async function mount(container, creds) {
     return null;
   }
 
+  // Settings → Sprint planner: hours per story point, eight by default, so one
+  // working day is one point unless the site says otherwise.
+  function pointsPerDay() {
+    return pointsPerDayFor(CONFIG.planner?.hoursPerPoint ?? DEFAULT_HOURS_PER_POINT);
+  }
+
   function readyToPlan() {
     return draft.boards.some((b) => b.target) && draft.people.length > 0;
   }
@@ -242,15 +258,15 @@ export async function mount(container, creds) {
     );
 
     wrap.appendChild(section("Boards and sprints", "The sprint to plan into is made in Jira first. Leftovers from the sprints ticked under Carry over are offered before the backlog.", boardsBlock()));
-    wrap.appendChild(section("Dates", "Weekdays between the two dates are suggested as working days. Take public holidays off here, or per person below.", datesBlock()));
-    wrap.appendChild(section("Buffer for unplanned work", "Held back from everyone's capacity for support and incidents. Override it per person below.", bufferBlock()));
-    wrap.appendChild(section("People", "One working day is one story point. A person's days default to the sprint's working days; lower them for leave.", peopleBlock()));
+    wrap.appendChild(section("Dates", "", datesBlock()));
+    wrap.appendChild(section("Buffer for unplanned work", "", bufferBlock()));
+    wrap.appendChild(section("People", "", peopleBlock()));
 
     const bar = document.createElement("div");
     bar.className = "pl-bar";
     const summary = document.createElement("div");
     summary.className = "pl-bar-summary";
-    const cap = teamCapacity(draft);
+    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay() });
     const targets = targetSprintIds(draft);
     summary.textContent =
       `${draft.people.length} ${draft.people.length === 1 ? "person" : "people"} · ` +
@@ -380,37 +396,79 @@ export async function mount(container, creds) {
     const sources = document.createElement("div");
     sources.className = "pl-field";
     sources.appendChild(fieldLabel("Carry over from"));
-    const seen = new Set([entry.target]);
-    const offered = [...list.active, ...list.closed.slice(0, CLOSED_OFFERED)].filter((s) => {
+    const own = offeredSprints(list, new Set([entry.target]));
+    if (!own.length) sources.appendChild(note("No active or closed sprint on this board."));
+    const chips = document.createElement("div");
+    chips.className = "pl-chips";
+    for (const s of own) chips.appendChild(sourceChip(entry, entry.id, s));
+    sources.appendChild(chips);
+
+    // Cross-board carryover: another board's sprints, whose leftovers join this
+    // board's target. Folded away unless one is already picked, since most
+    // plans carry over from their own board only.
+    const others = BOARDS.filter((b) => String(b.id) !== entry.id)
+      .map((b) => ({ board: b, list: sprintLists.get(String(b.id)) }))
+      .filter((x) => x.list && !x.list.error);
+    const picked = entry.sources.some((ref) => parseSourceRef(ref, entry.id).boardId !== entry.id);
+    if (others.length) {
+      const more = document.createElement("details");
+      more.className = "pl-other-sources";
+      more.open = picked || ui.otherSources?.has(entry.id) === true;
+      more.addEventListener("toggle", () => {
+        ui.otherSources = ui.otherSources || new Set();
+        if (more.open) ui.otherSources.add(entry.id);
+        else ui.otherSources.delete(entry.id);
+      });
+      const sum = document.createElement("summary");
+      sum.textContent = "From another board";
+      more.appendChild(sum);
+      for (const { board, list: otherList } of others) {
+        const offered = offeredSprints(otherList, new Set());
+        if (!offered.length) continue;
+        const row = document.createElement("div");
+        row.className = "pl-other-board";
+        const name = document.createElement("span");
+        name.className = "pl-other-board-name";
+        name.textContent = board.name;
+        const otherChips = document.createElement("div");
+        otherChips.className = "pl-chips";
+        for (const s of offered) otherChips.appendChild(sourceChip(entry, String(board.id), s));
+        row.append(name, otherChips);
+        more.appendChild(row);
+      }
+      sources.appendChild(more);
+    }
+    grid.appendChild(sources);
+    return grid;
+  }
+
+  function offeredSprints(list, skip) {
+    const seen = new Set(skip);
+    return [...(list.active || []), ...(list.closed || []).slice(0, CLOSED_OFFERED)].filter((s) => {
       const id = String(s.id);
       if (seen.has(id)) return false;
       seen.add(id);
       return true;
     });
-    if (!offered.length) sources.appendChild(note("No active or closed sprint on this board."));
-    const chips = document.createElement("div");
-    chips.className = "pl-chips";
-    for (const s of offered) {
-      const id = String(s.id);
-      const chip = document.createElement("label");
-      chip.className = "pl-chip";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = entry.sources.includes(id);
-      cb.dataset.focusId = `source-${entry.id}-${id}`;
-      cb.addEventListener("change", () =>
-        change(() => {
-          entry.sources = cb.checked ? [...entry.sources, id] : entry.sources.filter((x) => x !== id);
-        })
-      );
-      const text = document.createElement("span");
-      text.textContent = `${s.name}${s.state === "active" ? " (active)" : ""}`;
-      chip.append(cb, text);
-      chips.appendChild(chip);
-    }
-    sources.appendChild(chips);
-    grid.appendChild(sources);
-    return grid;
+  }
+
+  function sourceChip(entry, boardId, s) {
+    const ref = sourceRef(boardId, s.id, entry.id);
+    const chip = document.createElement("label");
+    chip.className = "pl-chip";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = entry.sources.includes(ref);
+    cb.dataset.focusId = `source-${entry.id}-${ref}`;
+    cb.addEventListener("change", () =>
+      change(() => {
+        entry.sources = cb.checked ? [...entry.sources, ref] : entry.sources.filter((x) => x !== ref);
+      })
+    );
+    const text = document.createElement("span");
+    text.textContent = `${s.name}${s.state === "active" ? " (active)" : ""}`;
+    chip.append(cb, text);
+    return chip;
   }
 
   function sprintDates(s) {
@@ -446,8 +504,8 @@ export async function mount(container, creds) {
     el.append(start, end, days);
     const hint = note(
       draft.workingDays === null
-        ? `${suggested} weekday${suggested === 1 ? "" : "s"} from ${fmtDate(draft.start)} to ${fmtDate(draft.end)}, both included.`
-        : `Set by hand — ${suggested} weekdays between the dates. Clear the field to use that.`
+        ? `Defaults to the number of working days in the timeframe: ${suggested} weekday${suggested === 1 ? "" : "s"}. Override above for holidays.`
+        : `Set by hand. ${suggested} weekday${suggested === 1 ? "" : "s"} in the timeframe; clear the field to use that.`
     );
     hint.classList.add("pl-row-note");
     el.appendChild(hint);
@@ -457,28 +515,45 @@ export async function mount(container, creds) {
   function bufferBlock() {
     const el = document.createElement("div");
     el.className = "pl-row";
-    const mode = document.createElement("label");
-    mode.className = "pl-field";
-    mode.appendChild(fieldLabel("Held back as"));
-    const select = document.createElement("select");
-    select.className = "pl-input";
-    select.dataset.focusId = "buffer-mode";
-    select.append(new Option("% of each person's days", "percent"), new Option("points per person", "points"));
-    select.value = draft.buffer.mode;
-    select.addEventListener("change", () => change(() => { draft.buffer.mode = select.value; }));
-    mode.appendChild(select);
     const value = document.createElement("label");
     value.className = "pl-field";
-    value.appendChild(fieldLabel(draft.buffer.mode === "percent" ? "Percent" : "Points"));
-    value.appendChild(
-      numberInput(draft.buffer.value, 0, "buffer-value", (v) => { draft.buffer.value = v ?? 0; }, draft.buffer.mode === "percent" ? 5 : 0.25)
+    value.appendChild(fieldLabel("Held back per person"));
+    const valueRow = document.createElement("div");
+    valueRow.className = "pl-inline";
+    const input = numberInput(draft.buffer.value, 0, "buffer-value", (v) => { draft.buffer.value = v ?? 0; }, draft.buffer.mode === "percent" ? 5 : 0.25);
+    input.setAttribute("aria-label", draft.buffer.mode === "percent" ? "Buffer, percent of each person's days" : "Buffer, points per person");
+    valueRow.append(input, unitToggle());
+    value.appendChild(valueRow);
+    el.append(value);
+    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay() });
+    const example = personCapacity({ workingDays: cap.workingDays, buffer: draft.buffer, pointsPerDay: pointsPerDay() });
+    const hint = note(
+      `For support and incidents, ${draft.buffer.mode === "percent" ? `${fmtPoints(draft.buffer.value)}% of each person's points` : `${fmtPoints(draft.buffer.value)} points a person`}: ` +
+        `${fmtPoints(example.base)} points over ${fmtPoints(cap.workingDays)} days leaves ${fmtPoints(example.available)} each. Override per person below.`
     );
-    el.append(mode, value);
-    const example = personCapacity({ workingDays: teamCapacity(draft).workingDays, buffer: draft.buffer });
-    const hint = note(`With ${fmtPoints(example.base)} working days that leaves ${fmtPoints(example.available)} points each.`);
     hint.classList.add("pl-row-note");
     el.appendChild(hint);
     return el;
+  }
+
+  // % or # — a two-way switch rather than a dropdown, because it is one.
+  function unitToggle() {
+    const group = document.createElement("div");
+    group.className = "pl-toggle";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", "Buffer unit");
+    for (const [mode, label, title] of [["percent", "%", "Percent of each person's points"], ["points", "#", "Points per person"]]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = `pl-toggle-btn mono${draft.buffer.mode === mode ? " active" : ""}`;
+      b.textContent = label;
+      b.title = title;
+      b.setAttribute("aria-pressed", String(draft.buffer.mode === mode));
+      b.dataset.focusId = `buffer-${mode}`;
+      b.addEventListener("click", () => change(() => { draft.buffer.mode = mode; }));
+      group.appendChild(b);
+    }
+    return group;
   }
 
   // Everyone offered: the roster's active members, then anyone already in the
@@ -500,7 +575,7 @@ export async function mount(container, creds) {
   function peopleBlock() {
     const el = document.createElement("div");
     const offered = offeredPeople();
-    const cap = teamCapacity(draft);
+    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay() });
 
     if (!offered.length) {
       el.appendChild(note("There is no team roster to plan for. Add people under Settings → Team, or find everyone holding work on the chosen boards."));
@@ -525,7 +600,7 @@ export async function mount(container, creds) {
     table.className = "pl-people";
     const head = document.createElement("div");
     head.className = "pl-people-row pl-people-head";
-    for (const t of ["", "Person", "Days", "Buffer", "Capacity"]) {
+    for (const t of ["", "Person", "Days", `Buffer ${draft.buffer.mode === "percent" ? "%" : "#"}`, "Capacity"]) {
       const c = document.createElement("span");
       c.textContent = t;
       head.appendChild(c);
@@ -569,13 +644,12 @@ export async function mount(container, creds) {
       if (planned) {
         const c = cap.byPerson.get(person.accountId);
         capEl.textContent = `${fmtPoints(c.available)} pt`;
-        capEl.title = `${fmtPoints(c.base)} days − ${fmtPoints(c.buffer)} buffer`;
+        capEl.title = `${fmtPoints(c.days)} days = ${fmtPoints(c.base)} points, − ${fmtPoints(c.buffer)} buffer`;
       }
       row.append(cb, who, days, buf, capEl);
       table.appendChild(row);
     }
     el.appendChild(table);
-    el.appendChild(note(`Buffer is in ${draft.buffer.mode === "percent" ? "percent of a person's days" : "points"}; blank takes the team's.`));
     return el;
   }
 
@@ -589,6 +663,14 @@ export async function mount(container, creds) {
     input.value = value || "";
     input.dataset.focusId = focusId;
     input.addEventListener("change", () => change(() => set(input.value)));
+    // The whole field opens the calendar, not only the small icon at its end.
+    input.addEventListener("click", () => {
+      try {
+        input.showPicker();
+      } catch {
+        /* not supported, or not from a user gesture: the icon still works */
+      }
+    });
     wrap.appendChild(input);
     return wrap;
   }
@@ -649,8 +731,17 @@ export async function mount(container, creds) {
 
       const carry = (
         await Promise.all(
-          boards.flatMap(({ entry, board }) =>
-            entry.sources.map((sid) => getSprintIssues(board.id, sid, creds).catch(() => []))
+          boards.flatMap(({ entry }) =>
+            entry.sources.map(async (ref) => {
+              const { boardId, sprintId } = parseSourceRef(ref, entry.id);
+              const source = boardEntry(boardId);
+              if (!source) return [];
+              const list = await getSprintIssues(source.id, sprintId, creds).catch(() => []);
+              // Where a leftover goes: the target of the board it was picked
+              // under, which for cross-board carryover is not its own board.
+              for (const issue of list) if (!issue.planBoardId) issue.planBoardId = entry.id;
+              return list;
+            })
           )
         )
       ).flat();
@@ -700,12 +791,41 @@ export async function mount(container, creds) {
     const wrap = document.createElement("div");
     wrap.className = "pl-wrap pl-plan";
 
-    const cap = teamCapacity(draft);
+    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay() });
     const planned = plannedIssues();
     const tally = tallies(draft, planned);
     const left = round(cap.available - tally.points);
     const targets = targetSprintIds(draft);
 
+    // One row: title and what is being planned, the four figures, and the
+    // three buttons. Everything below it is the plan.
+    const controls = document.createElement("div");
+    controls.className = "pl-head-controls";
+    const back = button("← Setup", "btn small ghost");
+    back.addEventListener("click", () => change(() => { draft.stage = "config"; }));
+    const refresh = button(data.loading ? "Refreshing…" : "Refresh tasks", "btn small");
+    refresh.disabled = data.loading;
+    const readAt = data.readAt
+      ? ` Last read ${String(data.readAt.getHours()).padStart(2, "0")}:${String(data.readAt.getMinutes()).padStart(2, "0")}.`
+      : "";
+    refresh.title = `Re-read the sprints and backlogs from Jira. The draft is kept.${readAt} ${savedLabel()}.`;
+    refresh.addEventListener("click", () => loadPlanData({ fresh: true }));
+    const pending = pendingCount();
+    const push = button(pending ? `Review & push ${pending}` : "Review & push", "btn small primary");
+    push.title = pending ? `${pending} change${pending === 1 ? "" : "s"} waiting to be written to Jira` : "Nothing waiting yet";
+    push.disabled = !data.loaded || data.loading;
+    push.addEventListener("click", openReview);
+    controls.append(
+      viewTiles([
+        { num: fmtPoints(cap.available), label: "capacity", tone: "total" },
+        { num: fmtPoints(tally.points), label: "planned", tone: "blue" },
+        { num: fmtPoints(Math.abs(left)), label: left < 0 ? "over" : "free", tone: left < 0 ? "red" : "green" },
+        { num: tally.issues, label: tally.issues === 1 ? "issue" : "issues", tone: "gray" },
+      ]),
+      back,
+      refresh,
+      push
+    );
     wrap.appendChild(
       viewHeader({
         iconName: "calendar",
@@ -715,37 +835,9 @@ export async function mount(container, creds) {
           draft.start && draft.end ? `${fmtDate(draft.start)} → ${fmtDate(draft.end)}` : "",
           `${fmtPoints(cap.workingDays)} working days`,
         ].filter(Boolean).join(" · "),
-        right: viewTiles([
-          { num: fmtPoints(cap.available), label: "capacity", tone: "total" },
-          { num: fmtPoints(tally.points), label: "planned", tone: "blue" },
-          { num: fmtPoints(Math.abs(left)), label: left < 0 ? "over" : "free", tone: left < 0 ? "red" : "green" },
-          { num: tally.issues, label: tally.issues === 1 ? "issue" : "issues", tone: "gray" },
-        ]),
+        right: controls,
       })
     );
-
-    const toolbar = document.createElement("div");
-    toolbar.className = "pl-toolbar";
-    const back = button("← Setup", "btn small ghost");
-    back.addEventListener("click", () => change(() => { draft.stage = "config"; }));
-    const refresh = button(data.loading ? "Refreshing…" : "Refresh tasks", "btn small");
-    refresh.disabled = data.loading;
-    refresh.title = "Re-read the sprints and backlogs from Jira. The draft is kept.";
-    refresh.addEventListener("click", () => loadPlanData({ fresh: true }));
-    const saved = document.createElement("span");
-    saved.className = "pl-saved";
-    saved.textContent = savedLabel();
-    const read = document.createElement("span");
-    read.className = "pl-saved";
-    if (data.readAt) read.textContent = `· read from Jira ${String(data.readAt.getHours()).padStart(2, "0")}:${String(data.readAt.getMinutes()).padStart(2, "0")}`;
-    const spacer = document.createElement("span");
-    spacer.style.flex = "1";
-    const pending = pendingCount();
-    const push = button(pending ? `Review & push ${pending} change${pending === 1 ? "" : "s"}` : "Review & push", "btn primary");
-    push.disabled = !data.loaded || data.loading;
-    push.addEventListener("click", openReview);
-    toolbar.append(back, refresh, saved, read, spacer, push);
-    wrap.appendChild(toolbar);
 
     if (data.error) wrap.appendChild(note(`Could not read Jira — ${data.error}`, "pl-error"));
 
@@ -784,60 +876,59 @@ export async function mount(container, creds) {
       card.type = "button";
       card.className = `pl-person band-${band}${ui.person === p.accountId ? " selected" : ""}`;
       card.dataset.focusId = `strip-${p.accountId}`;
-      card.title = `${personName(p)} — ${fmtPoints(c.base)} days − ${fmtPoints(c.buffer)} buffer = ${fmtPoints(c.available)} points. Click to show only their plan; drop a card here to give it to them.`;
+      card.title = `${personName(p)} — ${fmtPoints(c.days)} days, ${fmtPoints(c.base)} points − ${fmtPoints(c.buffer)} buffer = ${fmtPoints(c.available)} points. Click to show only their plan; drop a card here to give it to them.`;
       card.addEventListener("click", () => change(() => { ui.person = ui.person === p.accountId ? "" : p.accountId; }));
       dropTarget(card, (key) => tryAdd(data.issues.get(key), { assignee: p.accountId }));
 
-      const top = document.createElement("div");
-      top.className = "pl-person-top";
+      const pct = Number.isFinite(ratio) ? `${Math.round(ratio * 100)}%` : "no capacity";
+      card.setAttribute(
+        "aria-label",
+        `${personName(p)}: ${fmtPoints(t.points)} of ${fmtPoints(c.available)} points, ${pct}, ${t.issues} issue${t.issues === 1 ? "" : "s"}`
+      );
+      card.appendChild(avatar(p.accountId, personName(p), 28));
+      const textCol = document.createElement("div");
+      textCol.className = "pl-person-text";
+      const line1 = document.createElement("div");
+      line1.className = "pl-person-line";
       const nm = document.createElement("span");
       nm.className = "pl-person-label";
       nm.textContent = personName(p);
-      top.append(avatar(p.accountId, personName(p), 34), nm);
-      card.appendChild(top);
-
-      const figures = document.createElement("div");
-      figures.className = "pl-person-figures mono";
-      const assigned = document.createElement("span");
-      assigned.textContent = `${fmtPoints(t.points)} / ${fmtPoints(c.available)}`;
       const d = document.createElement("span");
-      d.className = `pl-diff ${diff < 0 ? "neg" : "pos"}`;
+      d.className = `pl-diff mono ${diff < 0 ? "neg" : "pos"}`;
       d.textContent = diff < 0 ? `${fmtPoints(-diff)} over` : `${fmtPoints(diff)} free`;
-      figures.append(assigned, d);
-      card.appendChild(figures);
-
+      line1.append(nm, d);
+      const line2 = document.createElement("div");
+      line2.className = "pl-person-line pl-person-figures mono";
+      const fig = document.createElement("span");
+      fig.textContent = `${fmtPoints(t.points)}/${fmtPoints(c.available)} · ${t.issues}×`;
+      const pctEl = document.createElement("span");
+      pctEl.className = "pl-person-pct";
+      pctEl.textContent = pct;
+      line2.append(fig, pctEl);
       const bar = document.createElement("div");
       bar.className = "pl-meter";
-      bar.setAttribute("role", "meter");
-      bar.setAttribute("aria-valuemin", "0");
-      bar.setAttribute("aria-valuemax", String(c.available));
-      bar.setAttribute("aria-valuenow", String(t.points));
-      bar.setAttribute("aria-label", `${personName(p)}: ${fmtPoints(t.points)} of ${fmtPoints(c.available)} points`);
+      bar.setAttribute("aria-hidden", "true");
       const fill = document.createElement("span");
       fill.style.transform = `scaleX(${Math.min(1, Number.isFinite(ratio) ? ratio : 1)})`;
       bar.appendChild(fill);
-      card.appendChild(bar);
-
-      const foot = document.createElement("div");
-      foot.className = "pl-person-foot";
-      const pct = Number.isFinite(ratio) ? `${Math.round(ratio * 100)}%` : "no capacity";
-      foot.textContent = `${t.issues} issue${t.issues === 1 ? "" : "s"} · ${pct}${band === "over" ? " — over 120%" : band === "full" ? " — over 100%" : ""}`;
-      card.appendChild(foot);
+      textCol.append(line1, line2, bar);
+      card.appendChild(textCol);
       strip.appendChild(card);
     }
     if (tally.others.issues) {
       const card = document.createElement("div");
       card.className = "pl-person pl-person-others";
+      card.title = "Unassigned, or held by people outside this plan: counted in the total, not in anyone's capacity";
+      const textCol = document.createElement("div");
+      textCol.className = "pl-person-text";
       const nm = document.createElement("div");
       nm.className = "pl-person-label";
       nm.textContent = "Someone else or no one";
       const fig = document.createElement("div");
       fig.className = "pl-person-figures mono";
-      fig.textContent = `${fmtPoints(tally.others.points)} pt`;
-      const foot = document.createElement("div");
-      foot.className = "pl-person-foot";
-      foot.textContent = `${tally.others.issues} issue${tally.others.issues === 1 ? "" : "s"} unassigned or held by people outside this plan — counted in the total, not in anyone's capacity`;
-      card.append(nm, fig, foot);
+      fig.textContent = `${fmtPoints(tally.others.points)} pt · ${tally.others.issues}×`;
+      textCol.append(nm, fig);
+      card.appendChild(textCol);
       strip.appendChild(card);
     }
     return strip;
@@ -868,7 +959,7 @@ export async function mount(container, creds) {
 
     const all = [...carryover, ...backlog];
     col.appendChild(filtersBar(all));
-    col.appendChild(addByKey());
+    if (ui.addOpen) col.appendChild(addByKey());
     col.appendChild(epicsPanel());
 
     const list = document.createElement("div");
@@ -899,7 +990,10 @@ export async function mount(container, creds) {
   }
 
   function sourceNames() {
-    return draft.boards.flatMap((b) => b.sources).map(sprintName).join(", ");
+    return draft.boards
+      .flatMap((b) => b.sources.map((ref) => parseSourceRef(ref, b.id).sprintId))
+      .map(sprintName)
+      .join(", ");
   }
 
   function filtersBar(issues) {
@@ -930,7 +1024,18 @@ export async function mount(container, creds) {
     ], ui.filters.epic, "filter-epic", (v) => { ui.filters.epic = v; });
     const label = select("Label", [["", "All labels"], ...opts.labels.map((l) => [l, l])], ui.filters.label, "filter-label", (v) => { ui.filters.label = v; });
     const priority = select("Priority", [["", "All priorities"], ...opts.priorities.map((p) => [p, p])], ui.filters.priority, "filter-priority", (v) => { ui.filters.priority = v; });
-    bar.append(search, epic, label, priority);
+    const searchWrap = document.createElement("div");
+    searchWrap.className = "pl-search";
+    const plus = iconButton("plus", ui.addOpen ? "Close: add an issue from another board" : "Add an issue from another board, by key or link", () => {
+      ui.addOpen = !ui.addOpen;
+      schedulePaint();
+      if (ui.addOpen) setTimeout(() => container.querySelector('[data-focus-id="add-key"]')?.focus(), 20);
+    });
+    plus.dataset.focusId = "add-toggle";
+    plus.setAttribute("aria-expanded", String(Boolean(ui.addOpen)));
+    if (ui.addOpen) plus.classList.add("active");
+    searchWrap.append(search, plus);
+    bar.append(searchWrap, epic, label, priority);
     return bar;
   }
 
@@ -991,12 +1096,19 @@ export async function mount(container, creds) {
     form.className = "pl-addkey";
     const input = document.createElement("input");
     input.className = "pl-input";
-    input.placeholder = "Add an issue from any board — key or link";
+    input.placeholder = "Issue key or Jira link, from any board";
     input.dataset.focusId = "add-key";
     input.setAttribute("aria-label", "Issue key or Jira link to add to the candidates");
-    const go = button("Add", "btn small");
+    const go = button("OK", "btn small");
     go.type = "submit";
     form.append(input, go);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        ui.addOpen = false;
+        schedulePaint();
+      }
+    });
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const key = parseIssueRef(input.value);
@@ -1036,7 +1148,29 @@ export async function mount(container, creds) {
   }
 
   function candidateCard(issue, { carry }) {
-    const card = issueCard(issue);
+    const actions = [];
+    if (carry) {
+      const split = button("Split", "btn small ghost pl-mini");
+      split.title = `Close ${issue.key} as part one and continue it in a new issue`;
+      split.addEventListener("click", () => openSplit(issue));
+      actions.push(split);
+    }
+    if (draft.extraKeys.includes(issue.key)) {
+      actions.push(
+        iconButton("close", `Take ${issue.key} off the candidates`, () =>
+          change(() => {
+            draft.extraKeys = draft.extraKeys.filter((k) => k !== issue.key);
+            data.extra = data.extra.filter((i) => i.key !== issue.key);
+          })
+        )
+      );
+    }
+    const add = iconButton("plus", `Add ${issue.key} to the sprint plan`, () => tryAdd(issue));
+    add.classList.add("pl-add");
+    add.dataset.focusId = `add-${issue.key}`;
+    actions.push(add);
+
+    const card = issueCard(issue, { tag: draft.extraKeys.includes(issue.key) ? "by key" : "", actions });
     card.classList.add("pl-candidate");
     card.draggable = true;
     card.addEventListener("dragstart", (e) => {
@@ -1045,41 +1179,18 @@ export async function mount(container, creds) {
       card.classList.add("dragging");
     });
     card.addEventListener("dragend", () => card.classList.remove("dragging"));
-
-    const actions = document.createElement("div");
-    actions.className = "pl-card-actions";
-    if (draft.extraKeys.includes(issue.key)) {
-      const tag = document.createElement("span");
-      tag.className = "pl-tag mono";
-      tag.textContent = "added by key";
-      actions.appendChild(tag);
-      const drop = iconButton("close", `Take ${issue.key} off the candidates`, () =>
-        change(() => {
-          draft.extraKeys = draft.extraKeys.filter((k) => k !== issue.key);
-          data.extra = data.extra.filter((i) => i.key !== issue.key);
-        })
-      );
-      actions.appendChild(drop);
-    }
-    if (carry) {
-      const split = button("Split", "btn small ghost");
-      split.title = `Close ${issue.key} as done and continue it in a new issue`;
-      split.addEventListener("click", () => openSplit(issue));
-      actions.appendChild(split);
-    }
-    const add = button("Add →", "btn small");
-    add.dataset.focusId = `add-${issue.key}`;
-    add.title = "Add to the sprint plan";
-    add.addEventListener("click", () => tryAdd(issue));
-    actions.appendChild(add);
-    card.appendChild(actions);
     return card;
   }
 
-  // The card both lists share. Unestimated cards are marked red all over, as
-  // the author asked — an estimate is the thing that has to happen before a
-  // card can move.
-  function issueCard(issue) {
+  // The card both lists share, in two rows, because vertical space is what a
+  // forty-issue plan runs out of first (M21 QA, sized for a 14" laptop):
+  //
+  //   key · priority · status · epic · due ……………… tag · story points
+  //   summary, up to two lines ……………………………… assignee ▾ · actions
+  //
+  // Unestimated cards are marked red all over, as the author asked — an
+  // estimate is the thing that has to happen before a card can move.
+  function issueCard(issue, { tag = "", actions = [] } = {}) {
     const f = issue.fields || {};
     const eff = effective(draft, issue);
     const card = document.createElement("article");
@@ -1109,36 +1220,130 @@ export async function mount(container, creds) {
       epic.title = `Epic ${epicLabel(epicKey)}`;
       top.appendChild(epic);
     }
-    card.appendChild(top);
-
-    const summary = document.createElement("div");
-    summary.className = "pl-card-summary";
-    summary.textContent = f.summary || "";
-    card.appendChild(summary);
-
-    const foot = document.createElement("div");
-    foot.className = "pl-card-foot";
-    if (eff.assignee) {
-      foot.appendChild(avatar(eff.assignee, nameFor(eff.assignee, issue), 18));
-      const nm = document.createElement("span");
-      nm.className = "pl-card-who";
-      nm.textContent = nameFor(eff.assignee, issue);
-      foot.appendChild(nm);
-    } else {
-      const nm = document.createElement("span");
-      nm.className = "pl-card-who muted";
-      nm.textContent = "Unassigned";
-      foot.appendChild(nm);
-    }
     if (f.duedate) {
       const due = document.createElement("span");
       due.className = `pl-due mono${isOverdue(issue) ? " overdue" : ""}`;
       due.textContent = `${isOverdue(issue) ? "overdue " : "due "}${fmtDate(f.duedate)}`;
-      foot.appendChild(due);
+      top.appendChild(due);
     }
-    foot.appendChild(pointsField(issue));
-    card.appendChild(foot);
+    const spacer = document.createElement("span");
+    spacer.className = "pl-spacer";
+    top.appendChild(spacer);
+    if (tag) {
+      const t = document.createElement("span");
+      t.className = "pl-tag mono";
+      t.textContent = tag;
+      top.appendChild(t);
+    }
+    top.appendChild(pointsField(issue));
+    card.appendChild(top);
+
+    const main = document.createElement("div");
+    main.className = "pl-card-main";
+    const summary = document.createElement("div");
+    summary.className = "pl-card-summary";
+    summary.textContent = f.summary || "";
+    summary.title = f.summary || "";
+    main.append(summary, assigneePicker(issue));
+    for (const a of actions) main.appendChild(a);
+    card.appendChild(main);
     return card;
+  }
+
+  // Avatar and name as one control that opens the list of people — the
+  // picker and the "who is this" row the card used to spend a line on.
+  // Choosing someone is a draft edit, written with the push.
+  function assigneePicker(issue) {
+    const eff = effective(draft, issue);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `pl-who${eff.assignee ? "" : " none"}`;
+    btn.dataset.focusId = `who-${issue.key}`;
+    btn.setAttribute("aria-haspopup", "listbox");
+    btn.setAttribute("aria-label", `${issue.key} assignee: ${eff.assignee ? nameFor(eff.assignee, issue) : "unassigned"}. Change`);
+    if (eff.assignee) btn.appendChild(avatar(eff.assignee, nameFor(eff.assignee, issue), 18));
+    const nm = document.createElement("span");
+    nm.className = "pl-who-name";
+    nm.textContent = eff.assignee ? nameFor(eff.assignee, issue) : "Unassigned";
+    btn.appendChild(nm);
+    const caret = icon("chevron", 11);
+    caret.classList.add("pl-who-caret");
+    btn.appendChild(caret);
+    if (draft.edits[issue.key] && "assignee" in draft.edits[issue.key]) btn.classList.add("edited");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openPeopleMenu(btn, eff.assignee, (accountId) => change(() => setEdit(draft, issue, { assignee: accountId })));
+    });
+    return btn;
+  }
+
+  // A small list anchored under its button. Escape, a click elsewhere or a
+  // scroll closes it; arrows move between people.
+  let openMenu = null;
+  function openPeopleMenu(anchor, current, onPick) {
+    closeMenu();
+    const menu = document.createElement("div");
+    menu.className = "pl-menu";
+    menu.setAttribute("role", "listbox");
+    const options = draft.people.map((p) => ({ id: p.accountId, name: personName(p) }));
+    if (current && !options.some((o) => o.id === current)) options.push({ id: current, name: nameFor(current) });
+    for (const o of options) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = `pl-menu-item${o.id === current ? " current" : ""}`;
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", String(o.id === current));
+      item.append(avatar(o.id, o.name, 18), document.createTextNode(o.name));
+      item.addEventListener("click", () => {
+        closeMenu();
+        if (o.id !== current) onPick(o.id);
+        anchor.focus?.();
+      });
+      menu.appendChild(item);
+    }
+    document.body.appendChild(menu);
+    const r = anchor.getBoundingClientRect();
+    const h = menu.offsetHeight;
+    const below = window.innerHeight - r.bottom > h + 8;
+    menu.style.top = `${below ? r.bottom + 4 : Math.max(8, r.top - h - 4)}px`;
+    menu.style.left = `${Math.max(8, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 8))}px`;
+    const items = [...menu.querySelectorAll(".pl-menu-item")];
+    (items.find((i) => i.classList.contains("current")) || items[0])?.focus();
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        closeMenu();
+        anchor.focus?.();
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const i = items.indexOf(document.activeElement);
+        const next = items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length];
+        next?.focus();
+      }
+    };
+    const onDown = (e) => {
+      if (!menu.contains(e.target)) closeMenu();
+    };
+    const onScroll = (e) => {
+      if (!menu.contains(e.target)) closeMenu();
+    };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("scroll", onScroll, true);
+    openMenu = () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("scroll", onScroll, true);
+      menu.remove();
+    };
+  }
+  function closeMenu() {
+    if (openMenu) {
+      const close = openMenu;
+      openMenu = null;
+      close();
+    }
   }
 
   // Estimating in line. Kept in the draft and written with the push, like
@@ -1154,7 +1359,7 @@ export async function mount(container, creds) {
     input.inputMode = "decimal";
     input.className = "pl-input pl-num";
     input.value = eff.points === null || eff.points === undefined ? "" : String(eff.points);
-    input.placeholder = "SP";
+    input.placeholder = "–";
     input.dataset.focusId = `points-${issue.key}`;
     input.setAttribute("aria-label", `${issue.key} story points`);
     input.addEventListener("click", (e) => e.stopPropagation());
@@ -1194,7 +1399,7 @@ export async function mount(container, creds) {
     if (!planned.length) {
       const empty = document.createElement("div");
       empty.className = "pl-empty";
-      empty.textContent = "Drag cards here, onto a person above, or use Add →.";
+      empty.textContent = "Drag cards here or onto a person above, or press + on a card.";
       list.appendChild(empty);
     }
 
@@ -1248,55 +1453,29 @@ export async function mount(container, creds) {
   }
 
   function planRow(issue) {
-    const card = issueCard(issue);
-    card.classList.add("pl-planned");
-    const missing = missingForCommit(draft, issue);
-    if (missing.includes("assignee")) card.classList.add("unassigned");
-    card.draggable = true;
-    card.addEventListener("dragstart", (e) => {
-      e.dataTransfer.setData("text/plain", issue.key);
-      e.dataTransfer.effectAllowed = "move";
-    });
-
-    const actions = document.createElement("div");
-    actions.className = "pl-card-actions";
-    if (draft.added[issue.key]) {
-      const tag = document.createElement("span");
-      tag.className = "pl-tag mono";
-      tag.textContent = "moving in";
-      actions.appendChild(tag);
-    }
-
-    const who = document.createElement("select");
-    who.className = "pl-input";
-    who.dataset.focusId = `who-${issue.key}`;
-    who.setAttribute("aria-label", `${issue.key} assignee`);
-    const eff = effective(draft, issue);
-    if (!eff.assignee) who.appendChild(new Option("Choose someone…", ""));
-    for (const p of draft.people) who.appendChild(new Option(personName(p), p.accountId));
-    if (eff.assignee && !draft.people.some((p) => p.accountId === eff.assignee)) {
-      who.appendChild(new Option(nameFor(eff.assignee, issue), eff.assignee));
-    }
-    who.value = eff.assignee || "";
-    who.addEventListener("change", () => change(() => setEdit(draft, issue, { assignee: who.value || null })));
-    actions.appendChild(who);
-
+    const actions = [];
     const targets = targetSprintIds(draft);
     if (draft.added[issue.key] && targets.length > 1) {
       const sprintSel = document.createElement("select");
-      sprintSel.className = "pl-input";
+      sprintSel.className = "pl-input pl-mini-select";
       sprintSel.dataset.focusId = `sprint-${issue.key}`;
       sprintSel.setAttribute("aria-label", `${issue.key} target sprint`);
       for (const id of targets) sprintSel.appendChild(new Option(sprintName(id), id));
       sprintSel.value = draft.added[issue.key];
       sprintSel.addEventListener("change", () => change(() => { draft.added[issue.key] = sprintSel.value; }));
-      actions.appendChild(sprintSel);
+      actions.push(sprintSel);
     }
-
-    actions.appendChild(
+    actions.push(
       iconButton("close", `Take ${issue.key} out of the plan`, () => change(() => removeFromPlan(draft, issue, targetKeys())))
     );
-    card.appendChild(actions);
+    const card = issueCard(issue, { tag: draft.added[issue.key] ? "moving in" : "", actions });
+    card.classList.add("pl-planned");
+    if (missingForCommit(draft, issue).includes("assignee")) card.classList.add("unassigned");
+    card.draggable = true;
+    card.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", issue.key);
+      e.dataTransfer.effectAllowed = "move";
+    });
     return card;
   }
 
@@ -1382,53 +1561,87 @@ export async function mount(container, creds) {
 
   // ── Split ─────────────────────────────────────────────────────────────────
 
+  // Split, as the author's planning flow step 3 describes it (M21): the
+  // original becomes "<summary> - pt.1" with the points for what was done and
+  // closes; "<summary> - pt.2" continues it with the rest, the same due date,
+  // the same parent; the two are linked and each carries a comment saying why.
+  // Every write happens on confirm, each reported on its own, because part two
+  // has to exist before it can be planned. Part two's assignee and estimate
+  // are draft edits, written with the push like everything else here.
   function openSplit(issue) {
     const eff = effective(draft, issue);
+    const total = getStoryPoints(issue);
+    const names = splitNames(issue.fields?.summary);
     const { dialog, body, actions, close } = openDialog(`Split ${issue.key}`);
-    const newSummary = splitSummary(issue.fields?.summary);
+
     const list = document.createElement("ol");
     list.className = "pl-dialog-list";
-    for (const line of [
-      `Create “${newSummary}” in ${String(issue.key).split("-")[0]}, as a new ${issue.fields?.issuetype?.name || "issue"} in its first status`,
-      `Link it to ${issue.key}`,
-      `Move ${issue.key} to Done`,
-    ]) {
+    const lines = [
+      `Create “${names.second}”${issue.fields?.duedate ? `, due ${fmtDate(issue.fields.duedate)}` : ""}`,
+      "Link the two, and comment on both saying why",
+      `Rename ${issue.key} to “${names.first}”, set its points, and move it to Done`,
+    ];
+    for (const line of lines) {
       const li = document.createElement("li");
       li.textContent = line;
       list.appendChild(li);
     }
-    body.appendChild(note("These three writes happen as soon as you confirm — not with the push — so the new issue exists to be planned."));
     body.appendChild(list);
+    body.appendChild(note("These writes happen as soon as you confirm, not with the push, so part two exists to be planned."));
+
+    const grid = document.createElement("div");
+    grid.className = "pl-row";
+    const p1 = document.createElement("input");
+    const p2 = document.createElement("input");
+    for (const input of [p1, p2]) {
+      input.type = "number";
+      input.min = "0";
+      input.step = "0.25";
+      input.inputMode = "decimal";
+      input.className = "pl-input pl-num";
+    }
+    p1.placeholder = "done";
+    p2.placeholder = "rest";
+    if (total !== null) {
+      p1.value = "";
+      p2.value = String(total);
+    }
+    // Part two follows part one until it is typed into itself.
+    let p2Touched = false;
+    p2.addEventListener("input", () => { p2Touched = true; });
+    p1.addEventListener("input", () => {
+      if (p2Touched || total === null) return;
+      const split = splitPoints(total, parsePoints(p1.value) ?? 0);
+      p2.value = split.second === null ? "" : String(split.second);
+    });
+    const f1 = document.createElement("label");
+    f1.className = "pl-field";
+    f1.append(fieldLabel(`pt.1 points${total !== null ? ` (of ${fmtPoints(total)})` : ""}`), p1);
+    const f2 = document.createElement("label");
+    f2.className = "pl-field";
+    f2.append(fieldLabel("pt.2 points"), p2);
 
     const who = document.createElement("select");
     who.className = "pl-input";
     who.appendChild(new Option("Choose someone…", ""));
     for (const p of draft.people) who.appendChild(new Option(personName(p), p.accountId));
     who.value = draft.people.some((p) => p.accountId === eff.assignee) ? eff.assignee : "";
-    const whoRow = document.createElement("label");
-    whoRow.className = "pl-field";
-    whoRow.append(fieldLabel("pt.2 assignee"), who);
-    const points = document.createElement("input");
-    points.type = "number";
-    points.min = "0";
-    points.step = "0.25";
-    points.inputMode = "decimal";
-    points.className = "pl-input pl-num";
-    points.placeholder = "remaining";
-    const pointsRow = document.createElement("label");
-    pointsRow.className = "pl-field";
-    pointsRow.append(fieldLabel("pt.2 story points"), points);
+    const f3 = document.createElement("label");
+    f3.className = "pl-field";
+    f3.append(fieldLabel("pt.2 assignee"), who);
+    grid.append(f1, f2, f3);
+    body.appendChild(grid);
+
     const planIt = document.createElement("label");
     planIt.className = "pl-check";
     const planBox = document.createElement("input");
     planBox.type = "checkbox";
     planBox.checked = true;
     planIt.append(planBox, document.createTextNode(" Put pt.2 in this sprint's plan"));
-    body.append(whoRow, pointsRow, planIt);
-    body.appendChild(note("The assignee and estimate are set on pt.2 with the push, like every other change here."));
+    body.appendChild(planIt);
 
-    const status = document.createElement("div");
-    status.className = "pl-dialog-status";
+    const status = document.createElement("ul");
+    status.className = "pl-review-list pl-split-log";
     body.appendChild(status);
 
     const ok = button("Split in Jira", "btn primary");
@@ -1441,83 +1654,146 @@ export async function mount(container, creds) {
       e.preventDefault();
       ok.disabled = true;
       cancel.disabled = true;
-      const say = (text, bad = false) => {
-        status.textContent = text;
-        status.classList.toggle("bad", bad);
+      status.innerHTML = "";
+      const problems = [];
+      const log = (text, bad = false) => {
+        const li = document.createElement("li");
+        li.textContent = text;
+        if (bad) {
+          li.classList.add("bad");
+          problems.push(text);
+        }
+        status.appendChild(li);
       };
+      const step = async (label, fn) => {
+        try {
+          await fn();
+          log(`✓ ${label}`);
+          return true;
+        } catch (err) {
+          if (String(err?.message).includes("401")) throw err;
+          log(`✕ ${label} — ${err.message || err}`, true);
+          return false;
+        }
+      };
+
       let created = null;
       try {
-        say("Creating pt.2…");
-        created = await createWithParentFallback(issue);
-        say(`Created ${created.key}. Linking…`);
-        let linkNote = "";
-        try {
-          const type = splitLinkType(await getIssueLinkTypes(creds));
-          const payload = type
-            ? linkPayloadFor({ typeName: type.name, direction: "outward" }, { issueKey: created.key, otherKey: issue.key })
-            : null;
-          if (payload) await createIssueLink(payload, creds);
-          else linkNote = " — this site has no link type, so it was not linked";
-        } catch (err) {
-          linkNote = ` — the link failed: ${err.message || err}`;
-        }
-        say(`Created ${created.key}${linkNote}. Moving ${issue.key} to Done…`);
-        let doneNote = "";
-        try {
-          const t = doneTransition(await getIssueTransitions(issue.key, creds));
-          if (t) await transitionIssue(issue.key, t.id, creds);
-          else doneNote = ` The workflow offers ${issue.key} no move to a done status from ${issue.fields?.status?.name || "here"} — close it in Jira.`;
-        } catch (err) {
-          doneNote = ` ${issue.key} could not be moved to Done — ${err.message || err}`;
-        }
-        await cache.dropBoard(issue.boardId);
-
-        const [fresh] = await getIssuesByKeys([created.key], creds).catch(() => []);
-        const pt2 = fresh || { key: created.key, boardId: issue.boardId, fields: { summary: newSummary, status: { name: "To Do", statusCategory: { key: "new" } }, issuetype: issue.fields?.issuetype } };
-        data.issues.set(pt2.key, pt2);
-        if (!doneNote) issue.fields.status = { name: "Done", statusCategory: { key: "done" } };
-        change(() => {
-          if (!draft.extraKeys.includes(pt2.key)) draft.extraKeys.push(pt2.key);
-          data.extra.push(pt2);
-          const changes = {};
-          if (who.value) changes.assignee = who.value;
-          const p = parsePoints(points.value);
-          if (p !== null) changes.points = p;
-          if (Object.keys(changes).length) setEdit(draft, pt2, changes);
-          if (planBox.checked && canCommit(draft, pt2)) addToPlan(draft, pt2, targetKeys(), targetFor(draft, issue));
-        });
-        if (doneNote) {
-          say(`Created and linked ${pt2.key}.${doneNote}`, true);
-          cancel.disabled = false;
-          cancel.textContent = "Close";
-        } else {
-          close();
-          showToast(
-            `${issue.key} → Done, continued as ${pt2.key}` +
-              (planBox.checked && !canCommit(draft, pt2) ? " — give it an assignee and an estimate to plan it" : "")
+        const made = await createPartTwo(issue);
+        created = made.created;
+        log(`✓ Created ${created.key}${made.dropped.length ? ` (without ${made.dropped.join(" and ")}, which the project refused on create)` : ""}`);
+        if (made.dropped.includes("the due date") && issue.fields?.duedate) {
+          await step(`Due date ${fmtDate(issue.fields.duedate)} on ${created.key}`, () =>
+            updateIssueFields(created.key, { dueDate: String(issue.fields.duedate).slice(0, 10) }, creds)
           );
         }
       } catch (err) {
         if (String(err?.message).includes("401")) return close();
-        say(`${created ? `Created ${created.key}, then stopped` : "Nothing was created"} — ${err.message || err}`, true);
+        log(`✕ Nothing was created — ${err.message || err}`, true);
         ok.disabled = false;
         cancel.disabled = false;
+        return;
+      }
+
+      try {
+        await step(`Linked ${created.key} and ${issue.key}`, async () => {
+          const type = splitLinkType(await getIssueLinkTypes(creds));
+          if (!type) throw new Error("this site has no issue link type");
+          await createIssueLink(
+            linkPayloadFor({ typeName: type.name, direction: "outward" }, { issueKey: created.key, otherKey: issue.key }),
+            creds
+          );
+        });
+        await step(`Commented on ${issue.key}`, () =>
+          addIssueComment(issue.key, textToAdf(splitComment({ other: created.key, role: "first" })), creds)
+        );
+        await step(`Commented on ${created.key}`, () =>
+          addIssueComment(created.key, textToAdf(splitComment({ other: issue.key, role: "second" })), creds)
+        );
+        const p1Value = parsePoints(p1.value);
+        const changes = { summary: names.first };
+        if (p1Value !== null && p1Value !== total) changes.storyPoints = p1Value;
+        const renamed = await step(
+          `Renamed ${issue.key} to “${names.first}”${"storyPoints" in changes ? `, ${fmtPoints(p1Value)} points` : ""}`,
+          () => updateIssueFields(issue.key, changes, creds, { issue })
+        );
+        if (renamed) {
+          issue.fields.summary = names.first;
+          if ("storyPoints" in changes) applyPoints(issue, p1Value);
+        }
+        await step(`Moved ${issue.key} to Done`, async () => {
+          const t = doneTransition(await getIssueTransitions(issue.key, creds));
+          if (!t) throw new Error(`the workflow offers no move to a done status from ${issue.fields?.status?.name || "here"} — close it in Jira`);
+          await transitionIssue(issue.key, t.id, creds);
+          issue.fields.status = t.to || { name: t.toStatus || "Done", statusCategory: { key: "done" } };
+        });
+      } catch (err) {
+        if (String(err?.message).includes("401")) return close();
+      }
+      await cache.dropBoard(issue.boardId);
+
+      const [fresh] = await getIssuesByKeys([created.key], creds).catch(() => []);
+      const pt2 = fresh || {
+        key: created.key,
+        boardId: issue.boardId,
+        fields: { summary: names.second, status: { name: "To Do", statusCategory: { key: "new" } }, issuetype: issue.fields?.issuetype },
+      };
+      pt2.planBoardId = issue.planBoardId;
+      data.issues.set(pt2.key, pt2);
+      change(() => {
+        if (!draft.extraKeys.includes(pt2.key)) draft.extraKeys.push(pt2.key);
+        data.extra.push(pt2);
+        const edit = {};
+        if (who.value) edit.assignee = who.value;
+        const p = parsePoints(p2.value);
+        if (p !== null) edit.points = p;
+        if (Object.keys(edit).length) setEdit(draft, pt2, edit);
+        if (planBox.checked && canCommit(draft, pt2)) addToPlan(draft, pt2, targetKeys(), targetFor(draft, issue));
+      });
+      const unplanned = planBox.checked && !canCommit(draft, pt2) ? " — give it an assignee and an estimate to plan it" : "";
+      if (problems.length) {
+        cancel.disabled = false;
+        cancel.textContent = "Close";
+        log(`${pt2.key} exists; fix the steps marked ✕ in Jira${unplanned}`, true);
+      } else {
+        close();
+        showToast(`${issue.key} closed as pt.1, continued as ${pt2.key}${unplanned}`);
       }
     });
   }
 
-  // A parent is carried where the issue has one; a company-managed project
-  // files epics under Epic Link and refuses `parent` on a story, so a refusal
-  // naming the parent is retried without it rather than failing the split.
-  async function createWithParentFallback(issue) {
-    try {
-      return await createIssue(splitCreateFields(issue), creds);
-    } catch (err) {
-      if (issue.fields?.parent?.key && err?.fieldErrors && "parent" in err.fieldErrors) {
-        return createIssue(splitCreateFields(issue, { withParent: false }), creds);
+  function applyPoints(issue, value) {
+    const id = writeFieldId("storyPoints", issue);
+    if (id) issue.fields[id] = value;
+  }
+
+  // Part two's create, with two refusals worked around rather than failing the
+  // split: a company-managed project files epics under Epic Link and refuses
+  // `parent`, and a create screen without Due date refuses `duedate`. Each is
+  // dropped only when Jira names it, and the due date is then set by a field
+  // write instead.
+  async function createPartTwo(issue) {
+    const dropped = [];
+    let opts = { withParent: true, withDue: true };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return { created: await createIssue(splitCreateFields(issue, opts), creds), dropped };
+      } catch (err) {
+        const fieldErrors = err?.fieldErrors || {};
+        if (opts.withParent && issue.fields?.parent?.key && "parent" in fieldErrors) {
+          opts = { ...opts, withParent: false };
+          dropped.push("the parent");
+          if (!("duedate" in fieldErrors)) continue;
+        }
+        if (opts.withDue && issue.fields?.duedate && "duedate" in fieldErrors) {
+          opts = { ...opts, withDue: false };
+          dropped.push("the due date");
+          continue;
+        }
+        throw err;
       }
-      throw err;
     }
+    throw new Error("Jira refused the create");
   }
 
   // ── Review and push ───────────────────────────────────────────────────────

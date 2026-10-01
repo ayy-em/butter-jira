@@ -150,6 +150,8 @@ globalThis.fetch = async (input, options = {}) => {
     if (issue && body.fields) {
       if ("assignee" in body.fields) issue.fields.assignee = body.fields.assignee ? person(Number(body.fields.assignee.accountId.split("-")[1])) : null;
       if ("cf_sp" in body.fields) issue.fields.cf_sp = body.fields.cf_sp;
+      if ("summary" in body.fields) issue.fields.summary = body.fields.summary;
+      if ("duedate" in body.fields) issue.fields.duedate = body.fields.duedate;
     }
     return empty();
   }
@@ -163,7 +165,7 @@ globalThis.fetch = async (input, options = {}) => {
     const n = 990 + created;
     const project = body.fields.project.key;
     const board = Number(Object.entries(PROJECT).find(([, p]) => p === project)?.[0] || 1);
-    const issue = make(board, n, { summary: body.fields.summary, epic: Boolean(body.fields.parent) });
+    const issue = make(board, n, { summary: body.fields.summary, epic: Boolean(body.fields.parent), due: body.fields.duedate || null });
     return json({ id: issue.id, key: issue.key });
   }
   return base(input, options);

@@ -86,6 +86,7 @@ const fieldRoleList = el("fieldRoleList");
 const monitorCheckList = el("monitorCheckList");
 const discoverFieldsBtn = el("discoverFieldsBtn");
 const additionalFieldsInput = el("additionalFields");
+const hoursPerPointInput = el("hoursPerPoint");
 const localFieldsNote = el("localFieldsNote");
 const orgNameInput = el("orgName");
 const orgLogoInput = el("orgLogo");
@@ -428,6 +429,12 @@ discoverFieldsBtn.addEventListener("click", () =>
 );
 
 additionalFieldsInput.addEventListener("input", renderLocalFieldsNote);
+
+// Blank, zero or nonsense saves the default rather than a capacity of nothing.
+function hoursPerPointValue() {
+  const n = Number(String(hoursPerPointInput.value).replace(",", "."));
+  return n > 0 && n <= 80 ? Math.round(n * 100) / 100 : 8;
+}
 
 async function renderTokenStatus() {
   const status = await tokenStatus();
@@ -972,6 +979,7 @@ saveBtn.addEventListener("click", async () => {
     fields,
     additionalFields: extraFields,
     monitorChecks,
+    planner: { ...(CONFIG.planner || {}), hoursPerPoint: hoursPerPointValue() },
     github: {
       enabled: github.enabled,
       host: github.host,
@@ -1024,6 +1032,7 @@ async function init() {
   );
   additionalFieldsInput.value = (CONFIG.additionalFields || []).join(", ");
   monitorChecks = { ...(CONFIG.monitorChecks || {}) };
+  hoursPerPointInput.value = String(CONFIG.planner?.hoursPerPoint ?? 8);
 
   const gh = CONFIG.github || {};
   githubEnabledBox.checked = gh.enabled === true;

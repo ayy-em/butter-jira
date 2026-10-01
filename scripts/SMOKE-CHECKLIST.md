@@ -353,17 +353,22 @@ Needs an upcoming sprint created in Jira on at least one board.
 
 - [ ] `LAUNCH → Sprint planner`, and the `p` key, both open the setup screen
 - [ ] A first visit ticks every board with an upcoming sprint and everyone on the roster; dates come from the target sprint, and a Monday-to-Monday sprint suggests 10 working days, not 11
-- [ ] A 20% buffer on 10 days shows 8 pt per person; lowering one person's days to 7 shows 5.6 for them only
+- [ ] A new draft starts at 20%: 10 days shows 8 pt per person; lowering one person's days to 7 shows 5.6 for them only
+- [ ] Override days for three people in a row, then reload → all three are kept
+- [ ] The `%` / `#` toggle switches the buffer unit; clicking anywhere in a date field opens its calendar
+- [ ] **From another board** under one board, tick another board's sprint → its leftovers appear and go into the first board's sprint
+- [ ] Settings → Sprint planner → Hours per story point 4 → the same sprint shows twice the points
 - [ ] **Go to planning screen** stays disabled until a sprint and a person are chosen
 - [ ] The plan screen shows the target sprint's existing issues in the plan, leftovers in their own container above the backlog, and the backlog ordered under way → to do → on hold
 - [ ] Cards with no estimate are outlined in red; typing an estimate removes it
-- [ ] Add → on an unassigned or unestimated card opens the popup; **Add to plan** stays disabled until both are set
+- [ ] A card's **+** on an unassigned or unestimated card opens the popup; **Add to plan** stays disabled until both are set
+- [ ] Clicking a card's assignee opens the people list; arrows and Escape work; picking one marks the change for the push
 - [ ] Dragging a card onto a person assigns it to them; their bar and figures move, amber past 100%, red past 120%
 - [ ] Epic, label, priority and text filters narrow both lists; the Epics panel lists open work per epic
-- [ ] Add by key and by a `/browse/` link works for an issue on a board that is not configured
+- [ ] The **+** beside the filter opens the key field; a key and a `/browse/` link both work for an issue on a board that is not configured
 - [ ] Reload the tab → the draft, the plan and every typed estimate are still there. Nothing changed in Jira
 - [ ] **Refresh tasks** re-reads Jira; an issue closed in Jira meanwhile leaves the candidates
-- [ ] **Split** on a leftover: confirm, then the original is Done in Jira, a "Placeholder: … pt.2" exists linked to it, and pt.2 is in the plan
+- [ ] **Split** on a leftover with points and a due date: the original is renamed "… - pt.1" with the pt.1 points and is Done; "… - pt.2" exists with the same due date and parent; they are linked, both have the comment; pt.2 is in the plan with the rest of the points
 - [ ] **Review & push** lists every change; with an unassigned issue in the target sprint the push button is disabled and the issue is named
 - [ ] Push → Jira shows the moves, assignees and estimates; the button's pending count drops to 0
 - [ ] With one issue Jira will refuse (e.g. one in another board's active sprint): the report names it with Jira's reason, "tried 4×", and it stays in the draft

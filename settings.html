@@ -307,6 +307,18 @@
           no epic of its own and inherits its parent's dates and estimate.
         </div>
         <div class="board-list" id="monitorCheckList"></div>
+
+        <div class="section-title">Sprint planner</div>
+        <div class="hint">
+          How many hours of work one story point stands for. With an eight-hour
+          day, 8 makes a point one working day; 4 makes it half a day, so a
+          ten-day sprint holds 20 points a person. Estimates already in Jira are
+          not rescaled.
+        </div>
+        <div class="field-group">
+          <label for="hoursPerPoint">Hours per story point</label>
+          <input type="number" id="hoursPerPoint" min="0.5" max="80" step="0.5" placeholder="8">
+        </div>
       </div>
     </details>
 

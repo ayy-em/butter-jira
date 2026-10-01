@@ -133,12 +133,27 @@ export const BUFFER_MODES = ["percent", "points"];
 // buffer as 1.5 points a person instead: 10 − 1.5 = 8.5. A person on leave for
 // three days overrides `days` to 7, and keeps the team buffer unless that is
 // overridden too.
-export function personCapacity({ workingDays = 0, days = null, buffer = { mode: "percent", value: 0 }, bufferOverride = null } = {}) {
-  const base = Math.max(0, round2(days ?? workingDays ?? 0));
+//
+// `pointsPerDay` comes from Settings → Sprint planner (hours per story point,
+// against an eight-hour day): 1 by default, 2 on a site where a point is half a
+// day. Days stay days on screen; only points are scaled.
+export function personCapacity({ workingDays = 0, days = null, buffer = { mode: "percent", value: 0 }, bufferOverride = null, pointsPerDay = 1 } = {}) {
+  const dayCount = Math.max(0, Number(days ?? workingDays ?? 0) || 0);
+  const base = round2(dayCount * (Number(pointsPerDay) > 0 ? Number(pointsPerDay) : 1));
   const value = Math.max(0, Number(bufferOverride ?? buffer?.value ?? 0) || 0);
   const held = buffer?.mode === "points" ? value : (base * value) / 100;
   const bufferPoints = round2(Math.min(base, held));
-  return { base, buffer: bufferPoints, available: round2(base - bufferPoints) };
+  return { days: round2(dayCount), base, buffer: bufferPoints, available: round2(base - bufferPoints) };
+}
+
+export const HOURS_PER_DAY = 8;
+export const DEFAULT_HOURS_PER_POINT = 8;
+
+// Hours per story point → points per working day. Anything unusable falls back
+// to the default rather than to zero capacity.
+export function pointsPerDayFor(hoursPerPoint) {
+  const h = Number(hoursPerPoint);
+  return h > 0 && h <= 80 ? round2(HOURS_PER_DAY / h) : 1;
 }
 
 // Utilisation as a share of capacity, and the band it falls in. Warnings at
@@ -193,7 +208,9 @@ export function emptyDraft(now = new Date()) {
     start: "",
     end: "",
     workingDays: null,
-    buffer: { mode: "percent", value: 0 },
+    // 20% held back unless set otherwise (settled 2026-10-01). Only a new
+    // draft gets it; a stored one keeps what it was given.
+    buffer: { mode: "percent", value: 20 },
     people: [],
     added: {},
     removed: [],
@@ -222,7 +239,7 @@ export function normalizeDraft(raw, now = new Date()) {
   d.workingDays = numOrNull(raw.workingDays);
   d.buffer = {
     mode: BUFFER_MODES.includes(raw.buffer?.mode) ? raw.buffer.mode : "percent",
-    value: numOrNull(raw.buffer?.value) ?? 0,
+    value: numOrNull(raw.buffer?.value) ?? (isObj(raw.buffer) ? 0 : d.buffer.value),
   };
   const seenPeople = new Set();
   d.people = (Array.isArray(raw.people) ? raw.people : [])
@@ -272,10 +289,27 @@ export async function clearDraft() {
 // first board's. An issue added by key from a board not being planned has no
 // target of its own, and the first one is as good a guess as any — the plan
 // row lets it be changed.
+//
+// A leftover picked under a board — including one from another board's sprint
+// (cross-board carryover) — carries `planBoardId`, and goes to that board's
+// target before anything else.
 export function targetFor(draft, issue) {
+  const picked = issue?.planBoardId && draft.boards.find((b) => b.target && b.id === str(issue.planBoardId));
+  if (picked) return picked.target;
   const boardIds = (issue?.boardIds?.length ? issue.boardIds : [issue?.boardId]).map(str);
   const own = draft.boards.find((b) => b.target && boardIds.includes(b.id));
   return own?.target || draft.boards.find((b) => b.target)?.target || "";
+}
+
+// A carryover source is a sprint id on the planned board itself, or
+// "boardId:sprintId" for another board's sprint.
+export function sourceRef(boardId, sprintId, ownBoardId) {
+  return str(boardId) === str(ownBoardId) ? str(sprintId) : `${str(boardId)}:${str(sprintId)}`;
+}
+
+export function parseSourceRef(ref, ownBoardId) {
+  const m = /^([^:]+):(.+)$/.exec(str(ref));
+  return m ? { boardId: m[1], sprintId: m[2] } : { boardId: str(ownBoardId), sprintId: str(ref) };
 }
 
 export function targetSprintIds(draft) {
@@ -492,16 +526,16 @@ export function tallies(draft, plannedIssues) {
   return { people, others, points, issues: plannedIssues.length };
 }
 
-export function teamCapacity(draft) {
+export function teamCapacity(draft, { pointsPerDay = 1 } = {}) {
   const workingDays = draft.workingDays ?? workingDaysBetween(draft.start, draft.end);
   let available = 0;
   const byPerson = new Map();
   for (const p of draft.people) {
-    const cap = personCapacity({ workingDays, days: p.days, buffer: draft.buffer, bufferOverride: p.buffer });
+    const cap = personCapacity({ workingDays, days: p.days, buffer: draft.buffer, bufferOverride: p.buffer, pointsPerDay });
     byPerson.set(p.accountId, cap);
     available = round2(available + cap.available);
   }
-  return { workingDays, available, byPerson };
+  return { workingDays, pointsPerDay, available, byPerson };
 }
 
 // ── The push ────────────────────────────────────────────────────────────────
@@ -721,17 +755,40 @@ export function settleDraft(draft, result) {
 // a confirmed dialog rather than joining the batch, because the new issue has
 // to exist before it can be planned.
 
-// "Placeholder: Rewrite importer pt.2", and pt.3 from a pt.2.
-export function splitSummary(summary) {
-  let base = String(summary || "").trim();
-  let part = 2;
-  base = base.replace(/^placeholder:\s*/i, "");
-  const m = /\s+pt\.?\s*(\d+)$/i.exec(base);
+// Both halves' names. "Rewrite importer" becomes "Rewrite importer - pt.1" and
+// "Rewrite importer - pt.2"; splitting "Rewrite importer - pt.2" again leaves it
+// named as it is and makes "- pt.3". A "Placeholder: " prefix from the first
+// version of Split is dropped.
+export function splitNames(summary) {
+  let base = String(summary || "").trim().replace(/^placeholder:\s*/i, "");
+  const m = /\s*-?\s*pt\.?\s*(\d+)$/i.exec(base);
   if (m) {
-    part = Number(m[1]) + 1;
-    base = base.slice(0, m.index);
+    const part = Number(m[1]);
+    base = base.slice(0, m.index).trim();
+    return { first: `${base} - pt.${part}`.slice(0, 255), second: `${base} - pt.${part + 1}`.slice(0, 255) };
   }
-  return `Placeholder: ${base} pt.${part}`.slice(0, 255);
+  return { first: `${base} - pt.1`.slice(0, 255), second: `${base} - pt.2`.slice(0, 255) };
+}
+
+export function splitSummary(summary) {
+  return splitNames(summary).second;
+}
+
+// The points split: part one keeps what was done, part two gets the rest.
+// Neither goes below zero; an unestimated original gives part two nothing to
+// inherit.
+export function splitPoints(total, first) {
+  const t = Number(total);
+  const f = Math.max(0, Number(first) || 0);
+  if (!(t > 0)) return { first: f || null, second: null };
+  return { first: round2(Math.min(f, t)), second: round2(Math.max(0, t - f)) };
+}
+
+// The comment each half gets, so either issue explains itself on its own.
+export function splitComment({ other, role }) {
+  return role === "first"
+    ? `Split during sprint planning: the work done so far stays here and closes with this sprint. The rest continues in ${other}.`
+    : `Split during sprint planning: continues ${other}, which closed with the work done so far.`;
 }
 
 // The transition that closes the issue: one landing in the done category,
@@ -758,7 +815,7 @@ export function splitLinkType(types = []) {
 // The create payload for part two: same project, same type, same parent where
 // it has one. The parent is dropped by the caller on a retry if the site
 // refuses it (company-managed projects file an epic under Epic Link instead).
-export function splitCreateFields(issue, { withParent = true } = {}) {
+export function splitCreateFields(issue, { withParent = true, withDue = true } = {}) {
   const fields = {
     project: { key: String(issue.key).split("-")[0] },
     issuetype: issue.fields?.issuetype?.id
@@ -768,5 +825,6 @@ export function splitCreateFields(issue, { withParent = true } = {}) {
   };
   const parent = issue.fields?.parent?.key;
   if (withParent && parent) fields.parent = { key: parent };
+  if (withDue && issue.fields?.duedate) fields.duedate = String(issue.fields.duedate).slice(0, 10);
   return fields;
 }

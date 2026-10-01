@@ -101,6 +101,11 @@ const DEFAULTS = {
   // nothing is fetched from GitHub unless it is named here, so an empty list
   // means the feature is off however the other keys are set. Non-secret, so it
   // syncs — the token does not (see js/credentials.js).
+  // The sprint planner (M15, M21). Hours of work one story point stands for,
+  // against an eight-hour day: 8 means a point is a day.
+  planner: {
+    hoursPerPoint: 8,
+  },
   github: {
     enabled: false,
     host: "github.com",  // anything else is GitHub Enterprise Server
@@ -111,7 +116,7 @@ const DEFAULTS = {
 
 const STORAGE_KEYS = [
   "configVersion", "site", "brand", "boards",
-  "statusGroups", "fields", "additionalFields", "monitorChecks", "github",
+  "statusGroups", "fields", "additionalFields", "monitorChecks", "github", "planner",
 ];
 
 // Live config object. Mutated in place so modules can hold a reference.

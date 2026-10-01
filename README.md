@@ -838,20 +838,24 @@ batch at the end. Nothing is written to Jira while you plan.
 - **Boards and sprints.** Tick the boards you are planning for. For each, pick
   the sprint to plan into (an upcoming sprint, or the active one) and the
   sprints to carry leftovers over from (the active one and the last closed
-  ones). Sprints are created, started and closed in Jira. The planner only reads
-  them.
+  ones). **From another board** offers other boards' sprints too: their
+  leftovers go into this board's sprint. Sprints are created, started and
+  closed in Jira. The planner only reads them.
 - **Dates.** Taken from the target sprint when it has dates. Weekdays between
   them are suggested as the working days, and you can override that for a
   public holiday. A Jira sprint that runs Monday to Monday counts as ten days,
   not eleven.
-- **Buffer for unplanned work.** A percentage of each person's days, or a fixed
-  number of points per person. Overridable per person.
+- **Buffer for unplanned work.** A percentage of each person's points (`%`), or
+  a fixed number of points per person (`#`). 20% unless you change it.
+  Overridable per person.
 - **People.** The roster's active members, ticked by default. With no roster,
   **Find people on these boards** lists whoever holds work on them. Each
   person's days default to the sprint's working days. Lower them for leave.
 
 One working day is one story point, so a ten-day sprint with a 20% buffer gives
-everyone 8 points. Quarter points are fine.
+everyone 8 points. Quarter points are fine. **Settings → Sprint planner → Hours
+per story point** changes that: at 4, a point is half a day and the same sprint
+holds 16 points a person. Estimates already in Jira are not rescaled.
 
 **The planning screen** shows everyone's face with their capacity, the points
 already given to them and the difference, with a bar that turns amber past 100%
@@ -869,15 +873,24 @@ points and play no part in capacity. Below that are two columns:
   or the estimate in place, or take an issue out. Taking out one that is
   already in the sprint moves it back to the backlog on push.
 
-Drag a card onto the plan or onto a person, or use **Add →**. **Nothing joins
-the plan without an assignee and an estimate.** If a card lacks either, a popup
-asks for it first. Cards with no estimate are outlined in red. Estimates typed
-in any card are kept with the draft and written with the push.
+Cards are two lines each, so a forty-issue plan fits on a laptop screen: key,
+status, epic, due date and story points on the first; the summary and the
+assignee on the second. Click the assignee to give the issue to someone else.
+The **+** beside the filter adds an issue from any board by key or link.
 
-**Split**, on a leftover card, closes the issue as done and continues it as a
-new issue, *Placeholder: <summary> pt.2*, linked back to it and put in the plan.
-It is the one thing here that writes straight away (three writes, all confirmed
-first), because the new issue has to exist before it can be planned.
+Drag a card onto the plan or onto a person, or press its **+**. **Nothing joins
+the plan without an assignee and an estimate.** If a card lacks either, a popup
+asks for it first. Cards with no estimate are outlined in red. Estimates and
+assignees changed on any card are kept with the draft and written with the
+push.
+
+**Split**, on a leftover card, is for work that is half done and carries on.
+The original is renamed *<summary> - pt.1*, keeps the points for what was done,
+and closes. A new *<summary> - pt.2* takes the rest of the points, the same due
+date and the same parent, and goes into the plan. The two are linked, and each
+gets a comment saying why. It is the one thing here that writes straight away,
+confirmed first, because part two has to exist before it can be planned; each
+step reports on its own if Jira refuses it.
 
 **The draft lives on this device.** It survives a reload and a closed tab, so a
 plan prepared the day before is still there for the meeting. **Refresh tasks**
@@ -1552,7 +1565,7 @@ node scripts/test-contrast.mjs     # theme tokens against WCAG AA       (24 chec
 node scripts/test-drawer.mjs       # the drawer's focus layer           (24 checks)
 node scripts/test-release.mjs      # version rewriting, licence, notes   (41 checks)
 node scripts/test-oneone.mjs       # 1:1 windows, notes, todos, JQL    (153 checks)
-node scripts/test-planner.mjs      # capacity, commit rule, push, retries (78 checks)
+node scripts/test-planner.mjs      # capacity, commit rule, push, split (92 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it. Harnesses
@@ -1877,8 +1890,10 @@ behind it is in the commit history.
 |---|---|---|
 | M17 | Per-sprint history | A per-sprint trend on the dashboard, from rollups written at each rollover |
 | M20 | 1:1 recording | Record and transcribe a 1:1 on the device. Engine and consent unresolved |
-| M21 | Sprint planner v2 | Creating, starting and closing sprints from the planner, a holiday calendar, proposed due dates |
+| M21 | Sprint planner polish | Fixes on the planner's screens; a holiday calendar |
 | M22 | 1:1 screen improvements | A combined weekly activity chart, clearer keys, Copy for Slack fixed |
+| M23 | Planning as a process | The planning ritual as four screens, one board at a time, with sprints created, closed and started from the app |
+| M24 | Assisted planning | Proposed splits, estimates, assignees and fill-ups, gated on an AI Enablement review |
 
 Releases are automated; see [Releasing](#releasing).
 
