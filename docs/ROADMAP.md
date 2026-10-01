@@ -28,7 +28,7 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
 | Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
 | Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
-| Tests | 28 `scripts/test-*.mjs` suites (2405 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Tests | 29 `scripts/test-*.mjs` suites (2445 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
@@ -250,19 +250,21 @@ proposes the plan; that is M24.
 
 ### Also in scope (added 2026-10-01)
 
-- [ ] **Split points from time spent.** On the wrap-up screen, propose part
+- [x] **Split points from time spent.** On the wrap-up screen, propose part
       one's points from the share of the outgoing sprint the issue has been in
       progress, against its estimate, instead of half each. Shown as a
       proposal; the person planning can always override it (settled
       2026-10-01).
-- [ ] **Calculate due dates.** For each planned issue, a due date from the
+- [x] **Calculate due dates.** For each planned issue, a due date from the
       sprint's working days, the work already planned for the same person
       ahead of it, and its estimate (one point being one day at the default
       hours per point); for an epic, from its children's due dates and points.
       Shown as a proposal per issue and written only if accepted: a due-date
       write, a kind the app already makes. Plain arithmetic on figures the
       planner already holds, so it is here rather than in M24. A person's
-      issues are taken oldest first (settled 2026-10-01).
+      issues are taken oldest first (settled 2026-10-01). Built for planned
+      issues; epics are never in a plan, so their dates are not proposed (see
+      open question 2).
 
 ### Proposal
 
@@ -326,9 +328,42 @@ create, which write at once from their own confirm as they do today.
     compare end-of-sprint state against when wrapping the current one up
 ```
 
+### Built (on branch `m23-planning-flow`, 2026-10-01)
+
+The four-screen proposal below, as written, beside the planner (`#planflow`,
+"Sprint planning (new)") so the two can be compared. Calls made while building
+it:
+
+- **The flow is a mode of the planner view**, not a copy: the Plan screen is the
+  same code. It keeps its own draft (`sprintPlanFlow`), so the planner's is
+  untouched.
+- **Retry re-reads Jira first**, then resumes after the last step done; the run
+  state is saved in the draft, so a reload resumes too.
+- **The freeze is recorded under the new sprint's own key.** The recap of that
+  sprint reads it. The dashboard keys its freeze by every configured board's
+  active sprints together, so with several boards it still takes its own on
+  first view (open question 1).
+- **Quick create** uses the project's Story type, else Task, else the first
+  creatable one, chosen in the form; a refused `parent` is retried through the
+  site's Epic Link field.
+- **A split whose time has outrun the estimate** keeps the whole estimate on
+  part one and asks for a fresh one on part two, rather than proposing zero.
+- `scripts/test-planflow.mjs` covers the pure half (38 checks);
+  `preview/preview-planner.html?flow=1` is the harness, with
+  `&sprint-start=refuse` for the refusal path.
+
 ### Open questions
 
-None open. Build questions get asked as the screens are built.
+1. **The dashboard's freeze with several boards.** The flow's freeze is keyed by
+   the one sprint it started; the dashboard looks for one keyed by all active
+   sprints across boards, and takes its own when it finds none. Should the
+   dashboard also read per-sprint freezes, so the flow's start-of-sprint one is
+   what it shows?
+2. **Due dates for epics.** Epics are never planned, so they get no proposal.
+   Should the flow propose an epic's due date from its children's, as a
+   separate list?
+3. **Planner and flow, after comparing:** keep both, or does the flow replace
+   the planner (and its multi-board setup)?
 
 ## M24 — Assisted sprint planning
 

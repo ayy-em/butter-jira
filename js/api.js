@@ -1083,6 +1083,38 @@ async function inBatches(issueKeys, run) {
   }
 }
 
+// ── Sprints themselves (M23) ────────────────────────────────────────────────
+//
+// The three sprint writes the planning flow was settled to make (2026-10-01):
+// create, start and complete. Until then sprints were made and run in Jira's
+// own UI. Each is called from one confirmed step of the flow and reports what
+// Jira said, like every other write here.
+
+// `POST /rest/agile/1.0/sprint`. Dates are optional on create; a sprint can be
+// made undated and given its dates when it starts.
+export async function createSprint({ boardId, name, startDate, endDate, goal }, creds) {
+  const body = { name: String(name || "").trim(), originBoardId: Number(boardId) };
+  if (startDate) body.startDate = startDate;
+  if (endDate) body.endDate = endDate;
+  if (goal) body.goal = String(goal);
+  return jiraPost("/rest/agile/1.0/sprint", creds, body);
+}
+
+// A partial update, which is how the agile API starts and completes a sprint:
+// `state: "active"` needs start and end dates; `state: "closed"` needs the
+// sprint to be active, and Jira moves its open issues to the backlog.
+export async function updateSprint(sprintId, changes, creds) {
+  return jiraPost(`/rest/agile/1.0/sprint/${encodeURIComponent(sprintId)}`, creds, changes);
+}
+
+export async function startSprint(sprintId, { startDate, endDate }, creds) {
+  return updateSprint(sprintId, { state: "active", startDate, endDate }, creds);
+}
+
+export async function completeSprint(sprintId, creds) {
+  return updateSprint(sprintId, { state: "closed" }, creds);
+}
+
 // ── People ──────────────────────────────────────────────────────────────────
 
 function toPerson(user) {

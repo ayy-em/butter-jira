@@ -104,7 +104,9 @@ migrations, Settings for everything above.
 workflow transition by dragging a card, field edits (assignee, due date, story
 points), issue and sub-task creation, comments, issue links (its only DELETE),
 and the sprint planner's push (sprint moves in and out, assignee, story points,
-as one confirmed batch; its Split is a create, a link and a transition). Each is
+due dates, as one confirmed batch; its Split is a create, a link and a
+transition), and from the planning flow alone, creating, completing and
+starting a sprint, each a confirmed step. Each is
 user-initiated by a click and reports what Jira said if it refused.
 
 **Binding constraints — future work must preserve all three.** Confirmed
@@ -178,7 +180,7 @@ recap and the quarterly overview, and the team scope above.
 - `docs/ROADMAP.md` — what is still open, and the product rules in force.
   Completed milestones were removed on 2026-09-29; their record is
   `docs/CHANGELOG.md` and the commit history.
-- Twenty-eight `scripts/test-*.mjs` suites (2405 checks, no dependencies, no
+- Twenty-nine `scripts/test-*.mjs` suites (2445 checks, no dependencies, no
   network, no browser), fourteen preview harnesses in `preview/`, most of them
   sharing `preview/preview-fixture.js`, and
   `scripts/SMOKE-CHECKLIST.md`. Every suite runs in GitHub Actions on push and

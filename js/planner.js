@@ -346,29 +346,47 @@ export function normalizeDraft(raw, now = new Date()) {
     const out = {};
     if ("assignee" in edit) out.assignee = str(edit.assignee) || null;
     if ("points" in edit) out.points = numOrNull(edit.points);
+    if ("dueDate" in edit) out.dueDate = parseDay(edit.dueDate) ? String(edit.dueDate).slice(0, 10) : null;
     if (Object.keys(out).length) d.edits[key] = out;
   }
   for (const [key, base] of Object.entries(isObj(raw.baseline) ? raw.baseline : {})) {
     if (!KEY_RE.test(key) || !isObj(base)) continue;
-    d.baseline[key] = { assignee: str(base.assignee) || null, points: numOrNull(base.points) };
+    d.baseline[key] = { assignee: str(base.assignee) || null, points: numOrNull(base.points), dueDate: parseDay(base.dueDate) ? String(base.dueDate).slice(0, 10) : null };
+  }
+  // The planning flow's own state (M23); absent on the planner's draft.
+  if (isObj(raw.flow)) {
+    const f = raw.flow;
+    d.flow = {
+      step: ["setup", "wrapup", "plan", "start"].includes(f.step) ? f.step : "setup",
+      boardId: str(f.boardId),
+      outgoingSprintId: str(f.outgoingSprintId),
+      goal: str(f.goal).slice(0, 2000),
+      mode: f.mode === "group" ? "group" : "solo",
+      run: Object.fromEntries(
+        Object.entries(isObj(f.run) ? f.run : {}).filter(([k, v]) => ["push", "close", "start", "freeze"].includes(k) && v === true)
+      ),
+      recapOpened: f.recapOpened === true,
+    };
   }
   d.extraKeys = [...new Set((Array.isArray(raw.extraKeys) ? raw.extraKeys : []).map(str).filter((k) => KEY_RE.test(k)))];
   return d;
 }
 
-export async function loadDraft(now = new Date()) {
-  const stored = await localGet([PLANNER_KEY]);
-  return normalizeDraft(stored[PLANNER_KEY], now);
+// `key` lets the planning flow (M23) keep a draft of its own beside the
+// planner's, so the two can be used and compared without trampling each other.
+export async function loadDraft(now = new Date(), key = PLANNER_KEY) {
+  const stored = await localGet([key]);
+  return normalizeDraft(stored[key], now);
 }
 
-export async function saveDraft(draft, now = new Date()) {
+export async function saveDraft(draft, now = new Date(), key = PLANNER_KEY) {
   const next = normalizeDraft({ ...draft, updatedAt: now.toISOString() }, now);
-  await localSet({ [PLANNER_KEY]: next });
+  await localSet({ [key]: next });
   return next;
 }
 
-export async function clearDraft() {
-  await localRemove([PLANNER_KEY]);
+export async function clearDraft(key = PLANNER_KEY) {
+  await localRemove([key]);
 }
 
 // The sprint an issue joins when it is added: its own board's target, else the
@@ -415,7 +433,12 @@ export function effective(draft, issue) {
   return {
     assignee: "assignee" in edit ? edit.assignee : jiraAssignee(issue),
     points: "points" in edit ? edit.points : getStoryPoints(issue),
+    dueDate: "dueDate" in edit ? edit.dueDate : jiraDue(issue),
   };
+}
+
+export function jiraDue(issue) {
+  return issue?.fields?.duedate ? String(issue.fields.duedate).slice(0, 10) : null;
 }
 
 // The rule an issue has to meet to be in the plan. Returns what is missing, so
@@ -437,11 +460,13 @@ export function canCommit(draft, issue) {
 export function setEdit(draft, issue, changes) {
   const key = issue.key;
   if (!draft.baseline[key]) {
-    draft.baseline[key] = { assignee: jiraAssignee(issue), points: getStoryPoints(issue) };
+    draft.baseline[key] = { assignee: jiraAssignee(issue), points: getStoryPoints(issue), dueDate: jiraDue(issue) };
   }
   const edit = { ...(draft.edits[key] || {}) };
   if ("assignee" in changes) edit.assignee = changes.assignee || null;
   if ("points" in changes) edit.points = changes.points === null ? null : round2(changes.points);
+  if ("dueDate" in changes) edit.dueDate = changes.dueDate || null;
+  if ("dueDate" in edit && edit.dueDate === jiraDue(issue)) delete edit.dueDate;
   if ("assignee" in edit && edit.assignee === jiraAssignee(issue)) delete edit.assignee;
   if ("points" in edit && edit.points === getStoryPoints(issue)) delete edit.points;
   if (Object.keys(edit).length) draft.edits[key] = edit;
@@ -666,6 +691,10 @@ export function buildPushPlan({ draft, issues, inTarget, sprintEnd = "", now = n
       if ("points" in base && base.points !== getStoryPoints(issue)) {
         conflicts.push({ key, message: "estimate changed in Jira since this was planned — the plan's figure will replace it" });
       }
+    }
+    if ("dueDate" in edit && edit.dueDate !== jiraDue(issue)) {
+      changes.dueDate = edit.dueDate;
+      from.dueDate = jiraDue(issue);
     }
     if (Object.keys(changes).length) fieldWrites.push({ key, issue, changes, from });
   }

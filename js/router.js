@@ -185,6 +185,9 @@ async function mountView(creds) {
       case "#planner":
         viewModule = await import("./views/planner.js");
         break;
+      case "#planflow":
+        viewModule = await import("./views/planflow.js");
+        break;
       default:
         viewModule = await import("./views/backlog.js");
         break;

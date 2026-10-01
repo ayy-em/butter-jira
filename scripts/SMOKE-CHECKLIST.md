@@ -380,6 +380,20 @@ Needs an upcoming sprint created in Jira on at least one board.
 - [ ] `chrome.storage.sync` in DevTools holds no `sprintPlanner`; a device backup does not contain it
 - [ ] **Discard draft** asks first, then empties the plan without touching Jira
 
+## 3i. Sprint planning flow (M23)
+
+Use a board where closing and starting a sprint is safe to try.
+
+- [ ] `LAUNCH → Sprint planning (new)` opens Set up; the planner's draft is untouched
+- [ ] Pick a board: its active sprint is named as outgoing; "Create a new sprint…" suggests the next name; **Create in Jira** makes it (check in Jira) and selects it; Next stays disabled until it exists
+- [ ] Wrap up: every open issue defaults to Backlog; Carry asks for an assignee or estimate if missing; Split proposes points from time under way, and a part two with no points stays listed under "Added this session"
+- [ ] Plan: **+ New issue** creates in Jira and lands in the plan; **Propose due dates** shows a date per issue, oldest first per person; **Use all** marks them for the push
+- [ ] Next to Review & start opens the recap of the outgoing sprint in a new tab
+- [ ] **Write, close and start**: Jira shows the moves, the old sprint closed with its uncarried open issues in the backlog, the new sprint active with the planned dates
+- [ ] The dashboard for that sprint shows the freeze as taken at the start
+- [ ] With another sprint still active on the board (parallel sprints off): the start step fails with Jira's sentence, **Retry** resumes without redoing the earlier steps, and the board link opens Jira
+- [ ] Solo / Group changes the type size on every screen
+
 ## 4. Branding and theme
 - [ ] No org logo configured → product logo only, nothing broken
 - [ ] Point Branding → logo path at a real file → appears in the nav bar

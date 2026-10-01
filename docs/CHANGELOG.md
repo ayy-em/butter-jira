@@ -8,6 +8,15 @@ it about what a user gets. The reasoning is in the commit history;
 
 ## Unreleased
 
+**Sprint planning as a process.** `LAUNCH → SPRINT PLANNING (NEW)`: set up,
+wrap up the outgoing sprint, plan, review and start, one board at a time. The
+new sprint can be created from here, the outgoing one is closed and the new one
+started from here, the recap opens before the close and the scope snapshot is
+taken at the start. Split proposes part one's points from the time already
+spent; due dates can be proposed for the whole plan; new issues can be created
+straight into it. A Solo / Group switch sizes the type for one person or a
+shared screen.
+
 **The 1:1 sheet, tidier.** Copy for Slack works when the browser refuses its
 clipboard (it said "Clipboard was refused" whenever the page had lost focus).
 Keys in the Closed list open the issue. In What is planned, epics are purple and

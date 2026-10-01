@@ -21,9 +21,12 @@
 
 import {
   addIssueComment,
+  completeSprint,
   createIssue,
   createIssueLink,
+  createSprint,
   getActiveSprint,
+  getCreateIssueTypes,
   getBoardBacklog,
   getClosedSprints,
   getEpicNames,
@@ -35,9 +38,27 @@ import {
   harvestTeamCandidates,
   moveIssuesToBacklog,
   moveIssuesToSprint,
+  startSprint,
   transitionIssue,
   updateIssueFields,
 } from "../api.js";
+import { localRemove, runtimeUrl } from "../browser.js";
+import { withSkip } from "../jira-links.js";
+import { recapHref } from "../recap-selection.js";
+import { freezeFrom, recordFreeze } from "../freeze.js";
+import { sprintKey } from "../snapshots.js";
+import {
+  FLOW_KEY,
+  FLOW_STEPS,
+  executeRun,
+  nextSprintName,
+  proposeDueDates,
+  proposeSplitPoints,
+  runSteps,
+  sprintInstants,
+  stepIndex,
+  wrapUpIssues,
+} from "../planflow.js";
 import {
   BOARDS,
   boardColor,
@@ -57,12 +78,13 @@ import { viewHeader, viewTiles } from "../components/view-header.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
 import { icon, priorityIcon } from "../components/icons.js";
 import { statusTone } from "../backlog.js";
-import { isSubtask } from "../monitor.js";
+import { isDone, isSubtask } from "../monitor.js";
 import { linkPayloadFor } from "../issue-link.js";
 import {
   addToPlan,
   buildPushPlan,
   canCommit,
+  PLANNER_KEY,
   clearDraft,
   defaultDateRange,
   doneTransition,
@@ -106,8 +128,13 @@ import {
 
 const CLOSED_OFFERED = 3;
 
-export async function mount(container, creds) {
-  let draft = await loadDraft();
+// `flow: true` is the planning flow (M23, route #planflow): the same screens,
+// one board, four steps, and the sprint writes at the end. It keeps a draft of
+// its own so the planner and the flow can be compared side by side.
+export async function mount(container, creds, { flow = false } = {}) {
+  const draftKey = flow ? FLOW_KEY : PLANNER_KEY;
+  let draft = await loadDraft(new Date(), draftKey);
+  if (flow && !draft.flow) draft.flow = emptyFlow();
 
   // Sprint lists per board: { active, future, closed, error }.
   const sprintLists = new Map();
@@ -137,7 +164,7 @@ export async function mount(container, creds) {
       // Keep the same object: the rows on screen hold references into it, and
       // swapping in the saved copy sent every later edit to an orphan — the
       // second person's override in a row was silently never saved.
-      const saved = await saveDraft(draft).catch(() => null);
+      const saved = await saveDraft(draft, new Date(), draftKey).catch(() => null);
       if (saved) draft.updatedAt = saved.updatedAt;
       const label = container.querySelector(".pl-saved");
       if (label) label.textContent = savedLabel();
@@ -182,6 +209,7 @@ export async function mount(container, creds) {
 
   function paint() {
     container.innerHTML = "";
+    if (flow) return paintFlow();
     if (draft.stage === "plan" && readyToPlan()) paintPlan();
     else paintSetup();
   }
@@ -283,8 +311,9 @@ export async function mount(container, creds) {
     const reset = button("Discard draft", "btn ghost");
     reset.addEventListener("click", async () => {
       if (!confirm("Discard the whole draft — setup, plan and every unpushed change? Nothing in Jira is touched.")) return;
-      await clearDraft();
+      await clearDraft(draftKey);
       draft = emptyDraft();
+      if (flow) draft.flow = emptyFlow();
       data.loaded = false;
       paint();
     });
@@ -820,7 +849,8 @@ export async function mount(container, creds) {
 
   function paintPlan() {
     const wrap = document.createElement("div");
-    wrap.className = "pl-wrap pl-plan";
+    wrap.className = `pl-wrap pl-plan${flow ? ` pl-flow pl-mode-${draft.flow.mode}` : ""}`;
+    if (flow) wrap.appendChild(stepBar());
 
     const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay(), calendar: holidayCalendar() });
     const planned = plannedIssues();
@@ -832,8 +862,11 @@ export async function mount(container, creds) {
     // three buttons. Everything below it is the plan.
     const controls = document.createElement("div");
     controls.className = "pl-head-controls";
-    const back = button("← Setup", "btn small ghost");
-    back.addEventListener("click", () => change(() => { draft.stage = "config"; }));
+    const back = button(flow ? "← Wrap up" : "← Setup", "btn small ghost");
+    back.addEventListener("click", () => change(() => {
+      if (flow) draft.flow.step = "wrapup";
+      else draft.stage = "config";
+    }));
     const refresh = button(data.loading ? "Refreshing…" : "Refresh tasks", "btn small");
     refresh.disabled = data.loading;
     const readAt = data.readAt
@@ -845,7 +878,13 @@ export async function mount(container, creds) {
     const push = button(pending ? `Review & push ${pending}` : "Review & push", "btn small primary");
     push.title = pending ? `${pending} change${pending === 1 ? "" : "s"} waiting to be written to Jira` : "Nothing waiting yet";
     push.disabled = !data.loaded || data.loading;
-    push.addEventListener("click", openReview);
+    if (flow) {
+      push.textContent = "Next: review & start →";
+      push.title = "Opens the outgoing sprint's recap, then lists everything that will be written";
+      push.addEventListener("click", () => goToStart());
+    } else {
+      push.addEventListener("click", openReview);
+    }
     controls.append(
       viewTiles([
         { num: fmtPoints(cap.available), label: "capacity", tone: "total" },
@@ -853,6 +892,7 @@ export async function mount(container, creds) {
         { num: fmtPoints(Math.abs(left)), label: left < 0 ? "over" : "free", tone: left < 0 ? "red" : "green" },
         { num: tally.issues, label: tally.issues === 1 ? "issue" : "issues", tone: "gray" },
       ]),
+      ...(flow ? [modeToggle()] : []),
       back,
       refresh,
       push
@@ -860,7 +900,7 @@ export async function mount(container, creds) {
     wrap.appendChild(
       viewHeader({
         iconName: "calendar",
-        title: "Sprint planner",
+        title: flow ? "Sprint planning" : "Sprint planner",
         subtitle: [
           targets.map(sprintName).join(" · "),
           draft.start && draft.end ? `${fmtDate(draft.start)} → ${fmtDate(draft.end)}` : "",
@@ -1012,7 +1052,7 @@ export async function mount(container, creds) {
     carryBox.className = "pl-carry";
     const carryHead = document.createElement("div");
     carryHead.className = "pl-group-head";
-    carryHead.textContent = `Left over from ${sourceNames() || "the chosen sprints"} · ${shownCarry.length}${shownCarry.length !== carryover.length ? ` of ${carryover.length}` : ""}`;
+    carryHead.textContent = `${flow ? "Not carried from" : "Left over from"} ${sourceNames() || "the chosen sprints"}${flow ? ", going to the backlog" : ""} · ${shownCarry.length}${shownCarry.length !== carryover.length ? ` of ${carryover.length}` : ""}`;
     carryBox.appendChild(carryHead);
     if (!carryover.length) carryBox.appendChild(note(draft.boards.some((b) => b.sources.length) ? "Nothing open is left over." : "No sprint ticked under Carry over in setup."));
     for (const issue of shownCarry) carryBox.appendChild(candidateCard(issue, { carry: true }));
@@ -1209,7 +1249,7 @@ export async function mount(container, creds) {
     add.dataset.focusId = `add-${issue.key}`;
     actions.push(add);
 
-    const card = issueCard(issue, { tag: draft.extraKeys.includes(issue.key) ? "by key" : "", actions });
+    const card = issueCard(issue, { tag: draft.extraKeys.includes(issue.key) ? (flow ? "added" : "by key") : "", actions });
     card.classList.add("pl-candidate");
     card.draggable = true;
     card.addEventListener("dragstart", (e) => {
@@ -1259,10 +1299,11 @@ export async function mount(container, creds) {
       epic.title = `Epic ${epicLabel(epicKey)}`;
       top.appendChild(epic);
     }
-    if (f.duedate) {
+    if (eff.dueDate) {
+      const overdue = eff.dueDate === (f.duedate || "").slice(0, 10) && isOverdue(issue);
       const due = document.createElement("span");
-      due.className = `pl-due mono${isOverdue(issue) ? " overdue" : ""}`;
-      due.textContent = `${isOverdue(issue) ? "overdue " : "due "}${fmtDate(f.duedate)}`;
+      due.className = `pl-due mono${overdue ? " overdue" : ""}${draft.edits[issue.key]?.dueDate ? " edited" : ""}`;
+      due.textContent = `${overdue ? "overdue " : "due "}${fmtDate(eff.dueDate)}`;
       top.appendChild(due);
     }
     const spacer = document.createElement("span");
@@ -1425,6 +1466,37 @@ export async function mount(container, creds) {
     fig.className = "pl-col-fig mono";
     fig.textContent = `${fmtPoints(tally.points)} pt · ${tally.issues} issue${tally.issues === 1 ? "" : "s"}`;
     head.appendChild(fig);
+    if (flow) {
+      const create = button("+ New issue", "btn small");
+      create.title = "Create an issue in Jira and put it in this plan";
+      create.addEventListener("click", () => openQuickCreate());
+      const dues = button("Propose due dates", "btn small ghost");
+      dues.title = "Each person's issues, oldest first, laid end to end over the sprint's working days";
+      dues.addEventListener("click", () => change(() => { ui.showDue = !ui.showDue; }));
+      if (ui.showDue) dues.classList.add("active");
+      head.append(create, dues);
+      if (ui.showDue) {
+        ui.dueProposals = proposeDueDates({
+          issues: planned,
+          assigneeOf: (i) => effective(draft, i).assignee,
+          pointsOf: (i) => effective(draft, i).points,
+          start: draft.start,
+          end: draft.end,
+          calendar: holidayCalendar(),
+          holidays: draft.holidays,
+          pointsPerDay: pointsPerDay(),
+        });
+        const all = button("Use all", "btn small ghost");
+        all.title = "Use every proposed due date (written with the push)";
+        all.addEventListener("click", () => change(() => {
+          for (const issue of planned) {
+            const p = ui.dueProposals.get(issue.key);
+            if (p) setEdit(draft, issue, { dueDate: p.due });
+          }
+        }));
+        head.appendChild(all);
+      }
+    }
     if (ui.person) {
       const clear = button(`Showing ${personName(draft.people.find((p) => p.accountId === ui.person) || {})} — show everyone`, "btn small ghost");
       clear.addEventListener("click", () => change(() => { ui.person = ""; }));
@@ -1503,6 +1575,16 @@ export async function mount(container, creds) {
       sprintSel.value = draft.added[issue.key];
       sprintSel.addEventListener("change", () => change(() => { draft.added[issue.key] = sprintSel.value; }));
       actions.push(sprintSel);
+    }
+    const proposal = flow && ui.showDue ? ui.dueProposals?.get(issue.key) : null;
+    if (proposal && proposal.due !== effective(draft, issue).dueDate) {
+      const chip = button(`→ ${fmtDate(proposal.due)}${proposal.over ? " (past the end)" : ""}`, "btn small ghost pl-mini pl-due-proposal");
+      chip.title = proposal.over
+        ? "More work queued for this person than the sprint holds: dated on its last day"
+        : "Proposed due date: click to use it (written with the push)";
+      chip.dataset.focusId = `due-${issue.key}`;
+      chip.addEventListener("click", () => change(() => setEdit(draft, issue, { dueDate: proposal.due })));
+      actions.push(chip);
     }
     actions.push(
       iconButton("close", `Take ${issue.key} out of the plan`, () => change(() => removeFromPlan(draft, issue, targetKeys())))
@@ -1641,12 +1723,29 @@ export async function mount(container, creds) {
     }
     p1.placeholder = "done so far";
     p2.placeholder = "rest";
-    // Half each by default, to the quarter point (settled 2026-10-01). M23
-    // proposes the split from the time already spent instead.
+    // Half each by default, to the quarter point (settled 2026-10-01). The
+    // flow proposes part one from the time already spent in the outgoing
+    // sprint instead (M23); either way it is only a starting value.
+    let basis = "";
     if (total !== null) {
-      const half = splitPoints(total, Math.round((total / 2) * 4) / 4);
+      let first = Math.round((total / 2) * 4) / 4;
+      if (flow) {
+        const outgoing = sprintById(draft.flow.outgoingSprintId);
+        const proposal = proposeSplitPoints(issue, {
+          sprintStart: outgoing?.startDate || "",
+          pointsPerDay: pointsPerDay(),
+          statusGroups: CONFIG.statusGroups,
+        });
+        if (proposal.basis === "time") {
+          first = proposal.first;
+          basis = proposal.overrun
+            ? `${proposal.days} working days under way this sprint is past the ${fmtPoints(total)}-point estimate, so part one keeps all of it. Give part two its own estimate.`
+            : `Proposed from ${proposal.days} working day${proposal.days === 1 ? "" : "s"} under way this sprint.`;
+        }
+      }
+      const half = splitPoints(total, first);
       p1.value = String(half.first);
-      p2.value = String(half.second);
+      p2.value = half.second > 0 ? String(half.second) : "";
     }
     // Part two follows part one until it is typed into itself.
     let p2Touched = false;
@@ -1673,6 +1772,7 @@ export async function mount(container, creds) {
     f3.append(fieldLabel("pt.2 assignee"), who);
     grid.append(f1, f2, f3);
     body.appendChild(grid);
+    if (basis) body.appendChild(note(basis));
 
     const planIt = document.createElement("label");
     planIt.className = "pl-check";
@@ -1946,6 +2046,10 @@ export async function mount(container, creds) {
       const pts = (v) => (v === null || v === undefined ? "none" : fmtPoints(v));
       parts.push(`Story points ${pts(w.from.storyPoints)} → ${pts(w.changes.storyPoints)}`);
     }
+    if ("dueDate" in w.changes) {
+      const day = (v) => (v ? fmtDate(v) : "none");
+      parts.push(`Due ${day(w.from.dueDate)} → ${day(w.changes.dueDate)}`);
+    }
     return parts.join(", ");
   }
 
@@ -1971,6 +2075,725 @@ export async function mount(container, creds) {
       body.appendChild(note("The failed changes stay in the draft. Push again once the cause is fixed."));
     }
     showToast(result.failed.length ? `Push finished with ${result.failed.length} failure${result.failed.length === 1 ? "" : "s"}` : "Plan pushed to Jira", Boolean(result.failed.length));
+  }
+
+
+  // ── The planning flow (M23) ───────────────────────────────────────────────
+
+  function emptyFlowState() {
+    return emptyFlow();
+  }
+
+  function flowBoard() {
+    return boardEntry(draft.flow.boardId);
+  }
+
+  function flowList() {
+    return sprintLists.get(String(draft.flow.boardId)) || null;
+  }
+
+  function targetSprint() {
+    return sprintById(draft.boards[0]?.target) || null;
+  }
+
+  function paintFlow() {
+    const step = draft.flow.step;
+    if (step === "plan" && readyToPlan()) return paintPlan();
+    if (step === "wrapup" && readyToPlan()) return paintWrapUp();
+    if (step === "start" && readyToPlan()) return paintStart();
+    return paintFlowSetup();
+  }
+
+  function goTo(step) {
+    if (step === "start") {
+      ui.startLoad = "idle";
+      ui.runResult = null;
+    }
+    change(() => { draft.flow.step = step; });
+    if (step === "wrapup" || step === "plan") loadPlanData();
+  }
+
+  // The steps across the top, each one a way back to it once reached.
+  function stepBar() {
+    const bar = document.createElement("nav");
+    bar.className = "pf-steps";
+    bar.setAttribute("aria-label", "Planning steps");
+    const current = stepIndex(draft.flow.step);
+    FLOW_STEPS.forEach((s, i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = `pf-step${i === current ? " current" : ""}${i < current ? " done" : ""}`;
+      b.textContent = `${i + 1}. ${s.label}`;
+      b.disabled = i > current || (i > 0 && !readyToPlan());
+      if (i === current) b.setAttribute("aria-current", "step");
+      b.addEventListener("click", () => { if (i < current) goTo(s.id); });
+      bar.appendChild(b);
+    });
+    const spacer = document.createElement("span");
+    spacer.style.flex = "1";
+    bar.appendChild(spacer);
+    if (draft.flow.step !== "plan") bar.appendChild(modeToggle());
+    return bar;
+  }
+
+  // Solo: small type, as much on screen as fits. Group: larger type for a
+  // shared screen. Settled 2026-10-01; kept with the draft.
+  function modeToggle() {
+    const group = document.createElement("div");
+    group.className = "pl-toggle pf-mode";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", "Screen mode");
+    for (const [mode, label, title] of [["solo", "Solo", "Small type, as much on screen as fits"], ["group", "Group", "Larger type, for sharing the screen"]]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = `pl-toggle-btn${draft.flow.mode === mode ? " active" : ""}`;
+      b.textContent = label;
+      b.title = title;
+      b.setAttribute("aria-pressed", String(draft.flow.mode === mode));
+      b.dataset.focusId = `mode-${mode}`;
+      b.addEventListener("click", () => change(() => { draft.flow.mode = mode; }));
+      group.appendChild(b);
+    }
+    return group;
+  }
+
+  function flowWrap(extra = "") {
+    const wrap = document.createElement("div");
+    wrap.className = `pl-wrap pl-setup pl-flow pl-mode-${draft.flow.mode}${extra ? ` ${extra}` : ""}`;
+    wrap.appendChild(stepBar());
+    return wrap;
+  }
+
+  // ── 1. Set up ─────────────────────────────────────────────────────────────
+
+  function paintFlowSetup() {
+    const wrap = flowWrap();
+    wrap.appendChild(
+      viewHeader({
+        iconName: "calendar",
+        title: "Sprint planning",
+        subtitle: "One board, one session: set the new sprint up, wrap the old one up, plan, then start it.",
+      })
+    );
+    wrap.appendChild(section("Board", "", flowBoardBlock()));
+    if (draft.flow.boardId) {
+      wrap.appendChild(section("New sprint", "", flowSprintBlock()));
+      wrap.appendChild(section("Dates", "", datesBlock()));
+      wrap.appendChild(section("Buffer for unplanned work", "", bufferBlock()));
+      wrap.appendChild(section("People", "", peopleBlock()));
+    }
+
+    const bar = document.createElement("div");
+    bar.className = "pl-bar";
+    const summary = document.createElement("div");
+    summary.className = "pl-bar-summary";
+    const cap = teamCapacity(draft, { pointsPerDay: pointsPerDay(), calendar: holidayCalendar() });
+    const target = targetSprint();
+    summary.textContent = draft.flow.boardId
+      ? `${flowBoard()?.name || "Board"} · ${target ? target.name : "no new sprint yet"} · ${draft.people.length} ${draft.people.length === 1 ? "person" : "people"} · ${fmtPoints(cap.available)} points`
+      : "Choose a board";
+    const actions = document.createElement("div");
+    actions.className = "pl-bar-actions";
+    const reset = button("Start over", "btn ghost");
+    reset.addEventListener("click", async () => {
+      if (!confirm("Discard this planning session's draft? Nothing in Jira is touched.")) return;
+      await clearDraft(draftKey);
+      draft = emptyDraft();
+      draft.flow = emptyFlowState();
+      data.loaded = false;
+      paint();
+    });
+    const next = button(draft.flow.outgoingSprintId ? "Next: wrap up the outgoing sprint →" : "Next: plan →", "btn primary");
+    next.disabled = !readyToPlan() || Boolean(ui.creatingSprint);
+    next.title = ui.creatingSprint
+      ? "Create the new sprint first, or pick an existing one"
+      : next.disabled ? "Choose the new sprint and at least one person" : "";
+    next.addEventListener("click", () => goTo(draft.flow.outgoingSprintId ? "wrapup" : "plan"));
+    actions.append(reset, next);
+    bar.append(summary, actions);
+    wrap.appendChild(bar);
+    container.appendChild(wrap);
+  }
+
+  function flowBoardBlock() {
+    const el = document.createElement("div");
+    el.className = "pl-chips";
+    if (!BOARDS.length) {
+      el.appendChild(note("No boards configured. Add one under Settings → Boards."));
+      return el;
+    }
+    for (const board of BOARDS) {
+      const id = String(board.id);
+      const chip = document.createElement("label");
+      chip.className = "pl-chip pf-board";
+      chip.style.setProperty("--pl-board", board.color || "var(--muted)");
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "pf-board";
+      radio.checked = draft.flow.boardId === id;
+      radio.dataset.focusId = `pf-board-${id}`;
+      radio.addEventListener("change", () => change(() => chooseBoard(id)));
+      const name = document.createElement("span");
+      name.className = "pl-board-name";
+      name.textContent = board.name;
+      chip.append(radio, name);
+      el.appendChild(chip);
+    }
+    return el;
+  }
+
+  function chooseBoard(id) {
+    const list = sprintLists.get(id);
+    const active = list?.active?.[0] || null;
+    draft.flow.boardId = id;
+    draft.flow.outgoingSprintId = active ? String(active.id) : "";
+    draft.flow.run = {};
+    draft.flow.recapOpened = false;
+    draft.boards = [{ id, target: defaultTarget(list), sources: active ? [String(active.id)] : [] }];
+    draft.added = {};
+    draft.removed = [];
+    fillDatesFromTargets(true);
+  }
+
+  function flowSprintBlock() {
+    const el = document.createElement("div");
+    const list = flowList();
+    const entry = draft.boards[0];
+    const outgoing = sprintById(draft.flow.outgoingSprintId);
+    el.appendChild(note(
+      outgoing
+        ? `Outgoing: ${outgoing.name}${sprintDates(outgoing)}. It is wrapped up on the next screen and closed when the new one starts.`
+        : "No active sprint on this board, so there is nothing to wrap up or close."
+    ));
+    if (!list) {
+      el.appendChild(note("Reading sprints…"));
+      return el;
+    }
+    const row = document.createElement("div");
+    row.className = "pl-row";
+    const pick = document.createElement("label");
+    pick.className = "pl-field";
+    pick.appendChild(fieldLabel("Plan into"));
+    const select = document.createElement("select");
+    select.className = "pl-input";
+    select.dataset.focusId = "pf-target";
+    select.appendChild(new Option(list.future.length ? "Choose a sprint…" : "No upcoming sprint yet", ""));
+    for (const s of list.future) select.appendChild(new Option(`${s.name}${sprintDates(s)}`, String(s.id)));
+    select.appendChild(new Option("Create a new sprint…", "__new__"));
+    select.value = ui.creatingSprint ? "__new__" : entry?.target || "";
+    select.addEventListener("change", () => change(() => {
+      ui.creatingSprint = select.value === "__new__";
+      if (!ui.creatingSprint && entry) {
+        entry.target = select.value;
+        fillDatesFromTargets(true);
+      }
+    }));
+    pick.appendChild(select);
+    row.appendChild(pick);
+    el.appendChild(row);
+    if (ui.creatingSprint || (!list.future.length && !entry?.target)) el.appendChild(createSprintForm(list));
+    return el;
+  }
+
+  // Creating the sprint writes at once, from its own confirm: everything after
+  // this screen needs a real sprint id to plan into.
+  function createSprintForm(list) {
+    const form = document.createElement("form");
+    form.className = "pf-create";
+    const latest = [...(list.future || []), ...(list.active || []), ...(list.closed || [])][0];
+    const name = document.createElement("input");
+    name.className = "pl-input";
+    name.value = ui.newSprintName ?? nextSprintName(latest?.name, flowBoard()?.name);
+    name.dataset.focusId = "pf-new-name";
+    name.addEventListener("input", () => { ui.newSprintName = name.value; });
+    const goal = document.createElement("textarea");
+    goal.className = "pl-input";
+    goal.rows = 2;
+    goal.placeholder = "Sprint goal (optional)";
+    goal.value = draft.flow.goal || "";
+    goal.addEventListener("input", () => { draft.flow.goal = goal.value; persist(); });
+    const f1 = document.createElement("label");
+    f1.className = "pl-field";
+    f1.append(fieldLabel("Name"), name);
+    const f2 = document.createElement("label");
+    f2.className = "pl-field pf-goal";
+    f2.append(fieldLabel("Goal"), goal);
+    const make = button("Create in Jira", "btn primary small");
+    make.type = "submit";
+    form.append(f1, f2, make);
+    form.appendChild(note("Uses the dates below. Created straight away, before the rest of the plan, so the plan has a sprint to go into."));
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!name.value.trim()) return showToast("Give the sprint a name", true);
+      make.disabled = true;
+      try {
+        const dates = sprintInstants(draft.start, draft.end) || {};
+        const sprint = await createSprint(
+          { boardId: draft.flow.boardId, name: name.value.trim(), goal: draft.flow.goal, ...dates },
+          creds
+        );
+        await dropSprintCaches(draft.flow.boardId);
+        const lists = sprintLists.get(String(draft.flow.boardId));
+        if (lists && sprint?.id) lists.future = [...lists.future, { state: "future", ...sprint }];
+        change(() => {
+          ui.creatingSprint = false;
+          ui.newSprintName = undefined;
+          draft.boards[0].target = String(sprint.id);
+        });
+        showToast(`${sprint.name || name.value.trim()} created in Jira`);
+      } catch (err) {
+        if (!String(err?.message).includes("401")) showToast(`The sprint could not be created — ${err.message || err}`, true);
+        make.disabled = false;
+      }
+    });
+    return form;
+  }
+
+  async function dropSprintCaches(boardId) {
+    await localRemove([
+      `cache_activeSprint_${boardId}`,
+      `cache_futureSprints_${boardId}`,
+      `cache_closedSprints_${boardId}`,
+    ]).catch(() => {});
+    await cache.dropBoard(boardId);
+  }
+
+  // ── 2. Wrap up ────────────────────────────────────────────────────────────
+
+  function paintWrapUp() {
+    const wrap = flowWrap("pf-wrapup");
+    const outgoing = sprintById(draft.flow.outgoingSprintId);
+    wrap.appendChild(
+      viewHeader({
+        iconName: "calendar",
+        title: `Wrap up ${outgoing?.name || "the outgoing sprint"}`,
+        subtitle: "Every open issue goes to the backlog when the sprint closes, unless it is carried or split here.",
+      })
+    );
+    if (!data.loaded) {
+      const loading = document.createElement("div");
+      loading.className = "pl-loading";
+      loading.appendChild(document.createElement("div")).className = "spinner";
+      wrap.appendChild(loading);
+      container.appendChild(wrap);
+      return;
+    }
+    const inT = targetKeys();
+    const open = wrapUpIssues(data.carryover);
+    const doneCount = data.carryover.filter((i) => i?.key && !isSubtask(i)).length - open.length;
+    const carried = open.filter((i) => isPlanned(draft, i, inT));
+    const madePlanned = data.extra.filter((i) => !isDone(i) && isPlanned(draft, i, inT)).length;
+
+    const list = document.createElement("div");
+    list.className = "pf-wrap-list";
+    list.dataset.scrollId = "wrapup";
+    const head = document.createElement("div");
+    head.className = "pl-group-head";
+    head.textContent = `${open.length} open · ${carried.length} carried · ${open.length - carried.length} to the backlog · ${doneCount} done`;
+    list.appendChild(head);
+    if (!open.length) list.appendChild(note("Nothing is left open in the outgoing sprint."));
+    for (const issue of open) list.appendChild(wrapRow(issue, isPlanned(draft, issue, inT)));
+    // Part twos and anything else made this session, planned or not yet, so a
+    // split never disappears just because its second half still wants an
+    // estimate.
+    const parts = data.extra.filter((i) => !isDone(i));
+    if (parts.length) {
+      const h = document.createElement("div");
+      h.className = "pl-group-head";
+      h.textContent = `Added this session · ${parts.length}`;
+      list.appendChild(h);
+      for (const issue of parts) list.appendChild(wrapRow(issue, isPlanned(draft, issue, inT), { made: true }));
+    }
+    wrap.appendChild(list);
+
+    const bar = document.createElement("div");
+    bar.className = "pl-bar";
+    const summary = document.createElement("div");
+    summary.className = "pl-bar-summary";
+    summary.textContent = `${carried.length + madePlanned} going into ${targetSprint()?.name || "the new sprint"}`;
+    const actions = document.createElement("div");
+    actions.className = "pl-bar-actions";
+    const back = button("← Set up", "btn ghost");
+    back.addEventListener("click", () => goTo("setup"));
+    const next = button("Next: plan →", "btn primary");
+    next.addEventListener("click", () => goTo("plan"));
+    actions.append(back, next);
+    bar.append(summary, actions);
+    wrap.appendChild(bar);
+    container.appendChild(wrap);
+  }
+
+  function wrapRow(issue, carried, { made = false } = {}) {
+    const choices = document.createElement("div");
+    choices.className = "pl-toggle pf-choice";
+    choices.setAttribute("role", "group");
+    choices.setAttribute("aria-label", `${issue.key}: where it goes`);
+    const opts = made
+      ? [["backlog", "Leave out"], ["carry", "Carry"]]
+      : [["backlog", "Backlog"], ["carry", "Carry"], ["split", "Split"]];
+    for (const [id, label] of opts) {
+      const b = document.createElement("button");
+      b.type = "button";
+      const on = id === "carry" ? carried : id === "backlog" ? !carried : false;
+      b.className = `pl-toggle-btn${on ? " active" : ""}`;
+      b.textContent = label;
+      b.setAttribute("aria-pressed", String(on));
+      b.dataset.focusId = `wrap-${id}-${issue.key}`;
+      b.addEventListener("click", () => {
+        if (id === "carry" && !carried) tryAdd(issue);
+        if (id === "backlog" && carried) change(() => removeFromPlan(draft, issue, targetKeys()));
+        if (id === "split") openSplit(issue);
+      });
+      choices.appendChild(b);
+    }
+    const card = issueCard(issue, { tag: made ? "pt.2" : "", actions: [choices] });
+    card.classList.add("pf-wrap-card");
+    if (carried) card.classList.add("carried");
+    return card;
+  }
+
+  // ── 3 → 4: the recap opens on the click that leaves the plan ──────────────
+
+  function goToStart() {
+    // Opened here, on the click itself, because a browser only allows a new
+    // tab from a user's gesture — and before anything closes, so the recap
+    // reads the outgoing sprint as it ended (settled 2026-10-01).
+    if (draft.flow.outgoingSprintId && !draft.flow.recapOpened) openRecap();
+    goTo("start");
+  }
+
+  function openRecap() {
+    const href = recapHref({ [draft.flow.boardId]: [draft.flow.outgoingSprintId] });
+    if (!href) return;
+    window.open(runtimeUrl(href), "_blank", "noopener");
+    draft.flow.recapOpened = true;
+    persist();
+  }
+
+  // ── 4. Review & start ─────────────────────────────────────────────────────
+
+  function paintStart() {
+    const wrap = flowWrap("pf-start");
+    const target = targetSprint();
+    const outgoing = sprintById(draft.flow.outgoingSprintId);
+    wrap.appendChild(
+      viewHeader({
+        iconName: "calendar",
+        title: `Start ${target?.name || "the new sprint"}`,
+        subtitle: outgoing
+          ? `Writes the plan, closes ${outgoing.name}, starts the new sprint and takes its snapshot, in that order.`
+          : "Writes the plan, starts the new sprint and takes its snapshot, in that order.",
+      })
+    );
+
+    const recap = document.createElement("div");
+    recap.className = "pf-recap";
+    if (outgoing) {
+      recap.appendChild(note(draft.flow.recapOpened
+        ? `The recap of ${outgoing.name} opened in a new tab. Save or print it before the sprint closes.`
+        : `The recap of ${outgoing.name} has not been opened yet.`));
+      const again = button(draft.flow.recapOpened ? "Open the recap again" : "Open the recap", "btn small");
+      again.addEventListener("click", () => { openRecap(); schedulePaint(); });
+      recap.appendChild(again);
+    }
+    wrap.appendChild(recap);
+
+    const review = document.createElement("div");
+    review.className = "pf-review";
+    wrap.appendChild(review);
+    const stepsEl = document.createElement("ol");
+    stepsEl.className = "pf-run";
+    wrap.appendChild(stepsEl);
+    const status = document.createElement("div");
+    status.className = "pf-run-status";
+    wrap.appendChild(status);
+
+    const bar = document.createElement("div");
+    bar.className = "pl-bar";
+    const summary = document.createElement("div");
+    summary.className = "pl-bar-summary";
+    const actions = document.createElement("div");
+    actions.className = "pl-bar-actions";
+    const back = button("← Plan", "btn ghost");
+    back.addEventListener("click", () => goTo("plan"));
+    const go = button("Write, close and start", "btn primary");
+    go.disabled = true;
+    actions.append(back, go);
+    bar.append(summary, actions);
+    wrap.appendChild(bar);
+    container.appendChild(wrap);
+
+    const finished = draft.flow.run.freeze === true;
+    let plan = null;
+    const paintSteps = (states, failed = null) => {
+      stepsEl.innerHTML = "";
+      for (const st of states) {
+        if (!st.applies) continue;
+        const li = document.createElement("li");
+        li.className = `pf-run-step${st.done ? " done" : ""}${failed?.id === st.id ? " failed" : ""}`;
+        li.textContent = `${st.done ? "✓ " : failed?.id === st.id ? "✕ " : ""}${st.label}${failed?.id === st.id ? ` — ${failed.error}` : ""}`;
+        stepsEl.appendChild(li);
+      }
+    };
+    const stepsNow = () =>
+      runSteps({
+        hasWrites: Boolean(plan?.writeCount) || draft.flow.run.push === true,
+        outgoingSprintId: draft.flow.outgoingSprintId,
+        targetSprintId: draft.boards[0]?.target,
+        targetState: target?.state || "future",
+        done: draft.flow.run,
+      });
+
+    if (finished) {
+      summary.textContent = `${target?.name || "The sprint"} is running.`;
+      paintSteps(stepsNow());
+      go.textContent = "Plan another sprint";
+      go.disabled = false;
+      go.addEventListener("click", async () => {
+        await clearDraft(draftKey);
+        draft = emptyDraft();
+        draft.flow = emptyFlowState();
+        data.loaded = false;
+        ui.startLoad = "idle";
+        ui.runResult = null;
+        paint();
+        await loadSprintLists();
+        paint();
+      });
+      const dash = document.createElement("a");
+      dash.className = "btn small";
+      dash.href = "#dashboard";
+      dash.textContent = "Open the sprint dashboard";
+      recap.appendChild(dash);
+      return;
+    }
+
+    // One fresh read per visit to this screen. The read itself repaints when
+    // it lands, so it must not be started from the paint, or the two chase
+    // each other; the run's progress and result live in `ui` for the same
+    // reason, so a repaint mid-run shows them rather than losing them.
+    if (ui.startLoad !== "done") {
+      review.appendChild(note("Re-reading Jira so the plan is checked against what is there now…"));
+      if (ui.startLoad !== "loading") {
+        ui.startLoad = "loading";
+        loadPlanData({ fresh: true }).then(() => {
+          ui.startLoad = "done";
+          schedulePaint();
+        });
+      }
+      paintSteps(stepsNow());
+      return;
+    }
+    if (data.error) {
+      review.appendChild(note(`Could not read Jira — ${data.error}. Nothing was written.`, "pl-error"));
+      return;
+    }
+    plan = buildPushPlan({ draft, issues: data.issues, inTarget: data.inTarget, sprintEnd: draft.end });
+    renderReview(review, plan);
+    if (!plan.writeCount && !draft.flow.run.push) review.appendChild(note("No field changes or moves to write: Jira already matches the plan."));
+    if (plan.blocked.length) {
+      review.appendChild(note("Every issue in the sprint needs an assignee and an estimate. Fix the ones above on the Plan screen first.", "pl-error"));
+    }
+    if (!sprintInstants(draft.start, draft.end)) {
+      review.appendChild(note("The new sprint needs start and end dates — set them on the Set up screen.", "pl-error"));
+    }
+    const failed = ui.runResult?.failed || null;
+    paintSteps(ui.runResult?.states || stepsNow(), failed);
+    summary.textContent = ui.running ? "Running…" : `${plan.writeCount} change${plan.writeCount === 1 ? "" : "s"} to write`;
+    go.disabled = ui.running || plan.blocked.length > 0 || !sprintInstants(draft.start, draft.end);
+    if (failed) {
+      go.textContent = "Retry";
+      status.appendChild(note(`Stopped at “${failed.label}”. Everything before it is done.`, "pl-error"));
+      const board = document.createElement("a");
+      board.className = "btn small";
+      board.target = "_blank";
+      board.rel = "noopener";
+      board.href = withSkip(`${CONFIG.site.baseUrl}/secure/RapidBoard.jspa?rapidView=${encodeURIComponent(flowBoard()?.id ?? "")}`);
+      board.textContent = "Open the board in Jira";
+      board.title = "Do the step in Jira's own screens, then press Retry";
+      status.appendChild(board);
+    }
+
+    go.addEventListener("click", async () => {
+      if (failed) {
+        // Retry: re-read Jira, then the run resumes after what is done.
+        ui.runResult = null;
+        ui.startLoad = "idle";
+        schedulePaint();
+        return;
+      }
+      const outgoingName = outgoing?.name || "the outgoing sprint";
+      if (!confirm(
+        `Write the plan${outgoing ? `, close ${outgoingName}` : ""} and start ${target?.name || "the new sprint"}?\n\n` +
+        "Each step runs only if the one before it worked."
+      )) return;
+      ui.running = true;
+      schedulePaint();
+      const result = await executeRun(stepsNow(), {
+        push: async () => {
+          const r = await executePush(plan, pushApi());
+          settleDraft(draft, r);
+          persist();
+          if (r.failed.length) {
+            return { ok: false, message: r.failed.map((f) => `${f.key}: ${f.message}`).join("; ") };
+          }
+          draft.flow.run.push = true;
+          return { ok: true };
+        },
+        close: async () => {
+          await completeSprint(draft.flow.outgoingSprintId, creds);
+          draft.flow.run.close = true;
+          persist();
+        },
+        start: async () => {
+          await startSprint(draft.boards[0].target, sprintInstants(draft.start, draft.end), creds);
+          draft.flow.run.start = true;
+          persist();
+        },
+        freeze: async () => {
+          await dropSprintCaches(draft.flow.boardId);
+          const sprintObj = { ...(target || {}), id: draft.boards[0].target, ...sprintInstants(draft.start, draft.end) };
+          const issues = await getSprintIssues(flowBoard().id, draft.boards[0].target, creds);
+          await recordFreeze(sprintKey([sprintObj]), freezeFrom({ issues, sprints: [sprintObj], statusGroups: CONFIG.statusGroups }));
+          draft.flow.run.freeze = true;
+          persist();
+        },
+      });
+      ui.running = false;
+      ui.runResult = result.failed ? result : null;
+      if (!result.failed) {
+        sprintLists.delete(String(draft.flow.boardId));
+        await loadSprintLists();
+        showToast(`${target?.name || "The new sprint"} started`);
+      }
+      schedulePaint();
+    });
+  }
+
+  function pushApi() {
+    return {
+      updateFields: (issue, changes) => updateIssueFields(issue.key, changes, creds, { issue }),
+      moveToSprint: (sprintId, keys) => moveIssuesToSprint(sprintId, keys, creds),
+      moveToBacklog: (keys) => moveIssuesToBacklog(keys, creds),
+    };
+  }
+
+  // ── Quick create (step 7 of the author's ritual) ──────────────────────────
+
+  async function openQuickCreate() {
+    const board = boardEntry(draft.boards[0]?.id);
+    const projectKey = board?.projectKey || board?.name || "";
+    const { dialog, body, actions, close } = openDialog(`New issue in ${projectKey || "the board"}`);
+    const status = document.createElement("div");
+    status.className = "pl-dialog-status";
+
+    const title = document.createElement("input");
+    title.className = "pl-input";
+    title.required = true;
+    title.placeholder = "Summary";
+    const type = document.createElement("select");
+    type.className = "pl-input";
+    type.appendChild(new Option("Reading issue types…", ""));
+    const parent = document.createElement("select");
+    parent.className = "pl-input";
+    parent.appendChild(new Option("No parent", ""));
+    for (const [key, name] of Object.entries(data.epicNames || {})) {
+      if (projectKey && !key.startsWith(`${projectKey}-`)) continue;
+      parent.appendChild(new Option(`${key} ${name}`, key));
+    }
+    const desc = document.createElement("textarea");
+    desc.className = "pl-input";
+    desc.rows = 4;
+    desc.placeholder = "Description (optional)";
+    const who = document.createElement("select");
+    who.className = "pl-input";
+    who.appendChild(new Option("Choose someone…", ""));
+    for (const p of draft.people) who.appendChild(new Option(personName(p), p.accountId));
+    const points = document.createElement("input");
+    points.type = "number";
+    points.min = "0.25";
+    points.step = "0.25";
+    points.inputMode = "decimal";
+    points.className = "pl-input pl-num";
+    points.placeholder = "2";
+    const field = (label, el) => {
+      const f = document.createElement("label");
+      f.className = "pl-field";
+      f.append(fieldLabel(label), el);
+      return f;
+    };
+    const row = document.createElement("div");
+    row.className = "pl-row";
+    row.append(field("Type", type), field("Parent", parent));
+    const row2 = document.createElement("div");
+    row2.className = "pl-row";
+    row2.append(field("Assignee", who), field("Story points", points));
+    body.append(field("Title", title), row, field("Description", desc), row2, status);
+    body.appendChild(note("Created in Jira at once and put in this plan; the assignee and points are written with the rest of the plan."));
+
+    const ok = button("Create and add", "btn primary");
+    ok.type = "submit";
+    const cancel = button("Cancel", "btn ghost");
+    cancel.addEventListener("click", close);
+    actions.append(cancel, ok);
+    title.focus();
+
+    try {
+      const types = (await getCreateIssueTypes(projectKey, creds)).filter((t) => !t.subtask && !(t.hierarchyLevel >= 1));
+      type.innerHTML = "";
+      for (const t of types) type.appendChild(new Option(t.name, t.id));
+      const preferred = types.find((t) => /^story$/i.test(t.name)) || types.find((t) => /^task$/i.test(t.name)) || types[0];
+      if (preferred) type.value = preferred.id;
+      if (!types.length) status.textContent = `Your account cannot create issues in ${projectKey}.`;
+    } catch (err) {
+      status.textContent = `Could not read ${projectKey}'s issue types — ${err.message || err}`;
+    }
+
+    dialog.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!title.value.trim() || !type.value) return;
+      ok.disabled = true;
+      status.textContent = "Creating…";
+      const fields = {
+        project: { key: projectKey },
+        issuetype: { id: type.value },
+        summary: title.value.trim(),
+      };
+      if (desc.value.trim()) fields.description = textToAdf(desc.value.trim());
+      if (parent.value) fields.parent = { key: parent.value };
+      try {
+        let created;
+        try {
+          created = await createIssue(fields, creds);
+        } catch (err) {
+          // A company-managed project files epics under Epic Link and refuses
+          // `parent` on a story; try the epic-link field the site has instead.
+          const epicField = writeFieldId("epicLink");
+          if (!parent.value || !(err?.fieldErrors && "parent" in err.fieldErrors) || !epicField) throw err;
+          const { parent: _drop, ...rest } = fields;
+          created = await createIssue({ ...rest, [epicField]: parent.value }, creds);
+        }
+        const [fresh] = await getIssuesByKeys([created.key], creds).catch(() => []);
+        const issue = fresh || { key: created.key, boardId: board?.id, fields: { summary: fields.summary, status: { name: "To Do", statusCategory: { key: "new" } }, issuetype: { name: type.selectedOptions[0]?.textContent || "" } } };
+        data.issues.set(issue.key, issue);
+        change(() => {
+          if (!draft.extraKeys.includes(issue.key)) draft.extraKeys.push(issue.key);
+          data.extra.push(issue);
+          const edit = {};
+          if (who.value) edit.assignee = who.value;
+          const p = parsePoints(points.value);
+          if (p !== null) edit.points = p;
+          if (Object.keys(edit).length) setEdit(draft, issue, edit);
+          if (canCommit(draft, issue)) addToPlan(draft, issue, targetKeys());
+        });
+        close();
+        showToast(canCommit(draft, issue) ? `${issue.key} created and planned` : `${issue.key} created — give it an assignee and an estimate to plan it`);
+      } catch (err) {
+        if (String(err?.message).includes("401")) return close();
+        status.textContent = `Not created — ${err.message || err}`;
+        ok.disabled = false;
+      }
+    });
   }
 
   // ── Small parts ───────────────────────────────────────────────────────────
@@ -2059,7 +2882,15 @@ export async function mount(container, creds) {
   await loadSprintLists();
   // A new draft starts with every board that has an upcoming sprint and
   // everyone on the roster, which is the common case.
-  if (!draft.boards.length && draft.stage === "config" && !draft.people.length) {
+  if (flow) {
+    // A new session: everyone on the roster, and the board chosen for you when
+    // there is only one.
+    if (!draft.flow.boardId && !draft.people.length) {
+      draft.people = activeMembers().map((m) => ({ accountId: m.accountId, name: memberLabel(m), days: null, buffer: null }));
+      if (BOARDS.length === 1) chooseBoard(String(BOARDS[0].id));
+      persist();
+    }
+  } else if (!draft.boards.length && draft.stage === "config" && !draft.people.length) {
     for (const board of BOARDS) {
       const list = sprintLists.get(String(board.id));
       if (list?.future?.length) {
@@ -2071,7 +2902,11 @@ export async function mount(container, creds) {
     if (draft.boards.length || draft.people.length) persist();
   }
   paint();
-  if (draft.stage === "plan" && readyToPlan()) loadPlanData();
+  if ((flow ? ["wrapup", "plan", "start"].includes(draft.flow.step) : draft.stage === "plan") && readyToPlan()) loadPlanData();
+}
+
+function emptyFlow() {
+  return { step: "setup", boardId: "", outgoingSprintId: "", goal: "", mode: "solo", run: {}, recapOpened: false };
 }
 
 function round(n) {
