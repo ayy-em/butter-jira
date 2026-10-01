@@ -872,21 +872,23 @@ export async function mount(container, creds) {
 
     if (data.error) wrap.appendChild(note(`Could not read Jira — ${data.error}`, "pl-error"));
 
-    wrap.appendChild(peopleStrip(cap, tally));
-
+    // People down the left, the two lists beside them: a row of people cards
+    // across the top cost the lists a fifth of a laptop screen (M21 QA).
+    const body = document.createElement("div");
+    body.className = "pl-body";
+    body.appendChild(peopleStrip(cap, tally));
     if (!data.loaded) {
       const loading = document.createElement("div");
       loading.className = "pl-loading";
       loading.appendChild(document.createElement("div")).className = "spinner";
-      wrap.appendChild(loading);
-      container.appendChild(wrap);
-      return;
+      body.appendChild(loading);
+    } else {
+      const cols = document.createElement("div");
+      cols.className = "pl-cols";
+      cols.append(candidatesColumn(), planColumn(planned, tally));
+      body.appendChild(cols);
     }
-
-    const cols = document.createElement("div");
-    cols.className = "pl-cols";
-    cols.append(candidatesColumn(), planColumn(planned, tally));
-    wrap.appendChild(cols);
+    wrap.appendChild(body);
     container.appendChild(wrap);
   }
 
@@ -895,8 +897,14 @@ export async function mount(container, creds) {
   }
 
   function peopleStrip(cap, tally) {
-    const strip = document.createElement("div");
+    const strip = document.createElement("aside");
     strip.className = "pl-strip";
+    strip.setAttribute("aria-label", "People: capacity and what is planned for each");
+    strip.dataset.scrollId = "people";
+    const head = document.createElement("div");
+    head.className = "pl-group-head";
+    head.textContent = `People · ${draft.people.length}`;
+    strip.appendChild(head);
     for (const p of draft.people) {
       const c = cap.byPerson.get(p.accountId) || { available: 0, base: 0, buffer: 0 };
       const t = tally.people.get(p.accountId) || { points: 0, issues: 0, missing: 0 };

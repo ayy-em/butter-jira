@@ -364,7 +364,7 @@ Needs an upcoming sprint created in Jira on at least one board.
 - [ ] Cards with no estimate are outlined in red; typing an estimate removes it
 - [ ] A card's **+** on an unassigned or unestimated card opens the popup; **Add to plan** stays disabled until both are set
 - [ ] Clicking a card's assignee opens the people list; arrows and Escape work; picking one marks the change for the push
-- [ ] Dragging a card onto a person assigns it to them; their bar and figures move, amber past 100%, red past 120%
+- [ ] People are listed down the left; dragging a card onto one assigns it to them; their bar and figures move, amber past 100%, red past 120%; clicking one shows only their plan
 - [ ] Epic, label, priority and text filters narrow both lists; the Epics panel lists open work per epic
 - [ ] The **+** beside the filter opens the key field; a key and a `/browse/` link both work for an issue on a board that is not configured
 - [ ] Reload the tab → the draft, the plan and every typed estimate are still there. Nothing changed in Jira

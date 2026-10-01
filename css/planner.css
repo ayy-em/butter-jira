@@ -232,17 +232,27 @@ select.pl-input { max-width: 100%; }
 
 .pl-loading { display: flex; justify-content: center; padding: 40px; }
 
-/* Faces. Each card is a drop target and a filter for the plan list. */
+/* Faces, down the left beside the lists. Each row is a drop target and a
+   filter for the plan list. */
+.pl-body {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .pl-strip {
   display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  flex: 0 0 auto;
-  padding-bottom: 4px;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
 }
+.pl-body > .pl-cols { min-height: 0; }
 .pl-person {
-  flex: 1 1 176px;
-  max-width: 240px;
+  flex: none;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -626,12 +636,22 @@ select.pl-input { max-width: 100%; }
 }
 
 @media (max-width: 1000px) {
+  .pl-plan > .view-header { flex-wrap: wrap; }
+  .pl-head-controls { flex: 1 1 100%; flex-wrap: wrap; min-width: 0; }
+  .pl-head-controls .view-tiles { flex-wrap: wrap; max-width: 100%; }
+  .pl-body { grid-template-columns: minmax(0, 1fr); }
+  .pl-strip { flex-direction: row; overflow-x: auto; overflow-y: visible; }
+  .pl-strip > .pl-group-head { display: none; }
+  .pl-person { width: 190px; }
   .pl-cols { grid-template-columns: minmax(0, 1fr); }
   .pl-plan { height: auto; }
   .pl-list { max-height: 60vh; }
 }
 @media (max-width: 640px) {
   .pl-wrap { padding: 16px 16px 0; }
+  .pl-card-main { flex-wrap: wrap; }
+  .pl-card-main .pl-card-summary { flex-basis: 100%; }
+  .pl-card-main .pl-who { margin-right: auto; }
   .pl-board-grid { grid-template-columns: minmax(0, 1fr); }
   .pl-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .pl-people-row { grid-template-columns: 24px minmax(0, 1fr) 72px 72px; }

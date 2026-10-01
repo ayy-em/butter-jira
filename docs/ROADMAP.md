@@ -11,7 +11,8 @@ Completed milestones were removed on 2026-09-29. What shipped is in
 behind every shipped decision, is the version of this file at commit `c818893`
 (`git show c818893:docs/ROADMAP.md`). M15 (the sprint planner) was removed on
 2026-09-30. Its settled answers and the calls made while building it are in the
-commit that shipped it (`git log --grep "M15"`). Shipped milestone labels still appear in
+commit that shipped it (`git log --grep "M15"`). M21, the planner's polish, was
+removed on 2026-10-01 the same way (`git log --grep "M21"`). Shipped milestone labels still appear in
 code comments and commit subjects, so they are indexed at the bottom.
 
 ## Current state
@@ -38,7 +39,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Order of work
 
 ```
-M21 Planner polish (S–M) ─▶ M23 Planning as a process (L, v0.9.0) ─▶ M22 1:1 screen improvements (S–M) ─▶ M24 Assisted planning (L, gated) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated)
+M23 Planning as a process (L, v0.9.0) ─▶ M22 1:1 screen improvements (S–M) ─▶ M24 Assisted planning (L, gated) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated)
 ```
 
 The deferred backlog below is scoped but unscheduled, and any item in it can be
@@ -172,113 +173,6 @@ https://stxgroup.atlassian.net/servicedesk/customer/portal/1/group/819
    silently expires and audio that silently persists are both wrong.
 
 
-## M21 — Sprint planner polish
-
-**Size: S–M, as a set.** Follows M15. Polish and bugfixes on the planner's two
-screens as they are: sprints are still created, started and closed in Jira's
-own UI. Anything that changes that, or that has the app suggest a plan, is M23.
-
-### Shipped from it so far
-
-- [x] **Story points value setting** (2026-10-01): Settings → Sprint planner →
-      Hours per story point, default 8, against a fixed eight-hour day (so 4
-      makes a point half a day). Days stay days on screen; capacity is scaled to
-      points, and a `%` buffer scales with it. Estimates in Jira are not
-      rescaled.
-- [x] **Split, as the author's flow describes it** (2026-10-01). The original is
-      renamed "<summary> - pt.1", keeps the points typed for part one, and is
-      moved to Done. "<summary> - pt.2" gets the rest of the points, the same
-      due date and the same parent. The two are linked, and each gets a comment
-      naming the other. Every step reports on its own. A project that refuses
-      `parent` or `duedate` on create gets part two without it, then the due
-      date by a field write. Splitting "… - pt.2" again makes "… - pt.3".
-
-- [x] **Public holidays without typing them** (2026-10-01). A Dutch calendar,
-      computed (Easter by the Gregorian algorithm, King's Day moved off a
-      Sunday), takes weekday holidays off the suggested working days. Each is
-      named on the Dates card and can be unticked per draft. Good Friday, and
-      Liberation Day outside lustrum years, are listed unticked. Settings →
-      Sprint planner → Public holidays: Netherlands (default) or None. A
-      calendar feed for personal leave was not built: it needs a new host
-      permission, and it stays the icebox's "OOO import from a calendar feed".
-- [x] **Part two in To Do explicitly** (2026-10-01). When part two is created
-      in a status outside the To Do category, Split moves it to one, preferring
-      a status named To Do, and reports the step like the others.
-
-### Still to do
-
-- [ ] **The people strip.** See open question 1. Blocked on the author's note,
-      which ends mid-sentence.
-
-### From M15 QA (2026-09-30)
-
-Setup screen:
-
-- [x] **Cross-board carryover.** Shipped 2026-10-01, built as open question 1
-      proposed: "From another board", under each board's "Carry over from",
-      lists the other boards' active and last closed sprints. Their leftovers go
-      into the target sprint of the board they were picked under. The other
-      board does not have to be planned. Please confirm that shape.
-- [x] **Dates: calendar picker.** Shipped 2026-10-01: a click anywhere in either
-      date field opens the browser's calendar, not only the icon. A range
-      picker is still open question 2.
-- [x] **Dates: one line of help, below the pickers.** "Defaults to the number of
-      working days in the timeframe: 10 weekdays. Override above for holidays."
-- [x] **Buffer: one line of help** under the controls.
-- [x] **Buffer: a % / # toggle** instead of the dropdown.
-- [x] **Buffer: default 20%** for a new draft. A stored draft keeps its own.
-- [x] **People: help text removed**, both lines. The table's heading carries
-      the buffer's unit instead.
-
-Planner screen. **The design basis is a 14" MacBook Pro, browser window
-maximised (about 1512 × 830 CSS px of page, 754 of it below the app's nav).**
-Planning 40+ issues across eight people does not work when each column shows
-three cards, so vertical space is the constraint every item here serves.
-
-- [x] **Planned cards, much shorter.** Shipped 2026-10-01: two lines, 66px
-      instead of about 130. Key, status, epic, due date and story points on the
-      first; summary and assignee on the second. The assignee is one control,
-      avatar and name, that opens a list of the plan's people (arrows and
-      Escape work).
-- [x] **Candidate cards, the same**, with Split and + at the end of the second
-      line.
-- [x] **Add an issue from another board: a small + beside the filter**, which
-      opens into the key or link field and an OK button.
-- [x] **More of the screen for the lists**: the header is one row with the
-      figures and buttons in it, and each person's card is two lines. At the
-      design size the candidate list shows six cards, up from three.
-- [ ] **The people strip** find a way to have pl-strip button/cards be less tall
-
-Bug:
-
-- [x] **Only the first per-person override was saved** (reported in Chrome:
-      "can't override capacity for multiple people, or changing DAYS more than
-      once per cell; sometimes it randomly works"). Fixed 2026-09-30. Each save
-      replaced the draft object while the rows on screen still pointed into the
-      old one, so later edits went to a copy that was never saved again, until
-      the next repaint re-pointed them, which is why it sometimes worked. Every
-      setup field was affected, not only capacity. The planner now keeps one
-      draft object for the life of the screen.
-
-### Settled 2026-10-01
-
-- **Cross-board carryover** stays as built; not a concern for M21.
-- **Dates:** the date pickers are the convenience wanted. No calendar feed for
-  personal leave.
-- **Hours per working day:** fixed at 8, not a setting.
-- **Hours per story point** travels in the config export, with the holiday
-  calendar (shipped 2026-10-01).
-- **Split's comments** stay as they are ("continues in …" and "continues …").
-- **Split's points default to half each**, to the quarter point (shipped
-  2026-10-01). Proposing the split from time already spent is M23.
-
-### Open questions
-
-1. **The people strip.** The note stops at "find a way to have pl-strip
-   button/cards". What should it do or become? Some readings: hidden behind a
-   toggle, a narrow sidebar instead of a row, one line per person, or each
-   person's card opening their plan.
-
 ## M22 — 1:1 screen improvements
 
 **Size: S–M.** From use of the 1:1 sheet (M14).
@@ -315,7 +209,7 @@ Bug:
 
 ## M23 — Sprint planning as a process
 
-**Size: L · Target release: v0.9.0.** Next after M21. The author's ten-step
+**Size: L · Target release: v0.9.0.** Next in the queue. The author's ten-step
 planning ritual (below) as one flow in the app, from wrapping up the outgoing sprint to starting the new
 one, including the sprint writes Jira's UI does today. Not gated: nothing here
 proposes the plan; that is M24.
@@ -353,16 +247,16 @@ proposes the plan; that is M24.
 - [ ] **Split points from time spent.** On the wrap-up screen, propose part
       one's points from the share of the outgoing sprint the issue has been in
       progress, against its estimate, instead of half each. Shown as a
-      proposal; the person planning can change it.
+      proposal; the person planning can always override it (settled
+      2026-10-01).
 - [ ] **Calculate due dates.** For each planned issue, a due date from the
       sprint's working days, the work already planned for the same person
       ahead of it, and its estimate (one point being one day at the default
       hours per point); for an epic, from its children's due dates and points.
       Shown as a proposal per issue and written only if accepted: a due-date
       write, a kind the app already makes. Plain arithmetic on figures the
-      planner already holds, so it is here rather than in M24. Open question:
-      what order a person's issues are worked in for this (backlog rank,
-      priority, or the order they appear in the plan).
+      planner already holds, so it is here rather than in M24. A person's
+      issues are taken oldest first (settled 2026-10-01).
 
 ### Proposal
 
@@ -428,8 +322,7 @@ create, which write at once from their own confirm as they do today.
 
 ### Open questions
 
-1. **Due dates: in what order does a person's work count?** Backlog rank,
-   priority, or the order the issues sit in the plan.
+None open. Build questions get asked as the screens are built.
 
 ## M24 — Assisted sprint planning
 
@@ -582,3 +475,4 @@ in `git show c818893:docs/ROADMAP.md`.
 | M16 | Quarterly overview (was "Quarter Wrapped") |
 | M18 | Linked issues |
 | M19 | Tagged releases built by CI |
+| M21 | Sprint planner polish: compact cards, people down the left, Dutch holidays, hours per story point, Split as pt.1 / pt.2 |

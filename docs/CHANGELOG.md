@@ -21,8 +21,8 @@ Jira in one reviewed batch at the end.
   is their working days less their buffer, one day being one story point
   unless Settings → Sprint planner says otherwise. Days and buffer can be
   changed per person for leave.
-- **Planning.** Everyone's face with their capacity, what is assigned to them
-  and the difference, warning at 100% and 120%. Below: the leftovers first,
+- **Planning.** Everyone down the left with their capacity, what is assigned
+  to them and the difference, warning at 100% and 120%. Below: the leftovers first,
   then the backlogs, under way before to do before on hold, filterable by epic,
   label and priority, with each epic's remaining work alongside. Drag cards
   onto the plan or onto a person, or press +. Nothing gets in without an

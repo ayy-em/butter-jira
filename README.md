@@ -860,9 +860,10 @@ everyone 8 points. Quarter points are fine. **Settings → Sprint planner → Ho
 per story point** changes that: at 4, a point is half a day and the same sprint
 holds 16 points a person. Estimates already in Jira are not rescaled.
 
-**The planning screen** shows everyone's face with their capacity, the points
-already given to them and the difference, with a bar that turns amber past 100%
-and red past 120%. A person who is not in the plan, or nobody at all, is counted
+**The planning screen** lists everyone down the left, each with their capacity,
+the points already given to them and the difference, and a bar that turns amber
+past 100% and red past 120%. Click a person to show only their plan; drop a card
+on them to give it to them. A person who is not in the plan, or nobody at all, is counted
 in the team total under *Someone else or no one*. Issue counts are shown beside
 points and play no part in capacity. Below that are two columns:
 
@@ -1894,7 +1895,6 @@ behind it is in the commit history.
 |---|---|---|
 | M17 | Per-sprint history | A per-sprint trend on the dashboard, from rollups written at each rollover |
 | M20 | 1:1 recording | Record and transcribe a 1:1 on the device. Engine and consent unresolved |
-| M21 | Sprint planner polish | Fixes on the planner's screens; a holiday calendar |
 | M22 | 1:1 screen improvements | A combined weekly activity chart, clearer keys, Copy for Slack fixed |
 | M23 | Planning as a process | The planning ritual as four screens, one board at a time, with sprints created, closed and started from the app, and due dates calculated |
 | M24 | Assisted planning | Proposed splits, estimates, assignees and fill-ups, gated on an AI Enablement review |
