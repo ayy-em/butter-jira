@@ -47,7 +47,7 @@ import {
   isGithubConfigured,
   statsFor,
 } from "../github.js";
-import { isDone, isSubtask } from "../monitor.js";
+import { isDone, isEpic, isSubtask } from "../monitor.js";
 import { loadAllSnapshots, personSeries } from "../snapshots.js";
 import {
   WINDOW_OPTIONS,
@@ -193,8 +193,8 @@ async function mountPicker(container) {
   const footnote = document.createElement("p");
   footnote.className = "oo-footnote";
   footnote.textContent =
-    "Notes stay on this device. They are never synced and never included in a config export. " +
-    "Settings → Data has the one button that deletes them.";
+    "Notes are only stored locally. Notes are never synced and never included in exports. " +
+    "To delete notes: Settings → 1:1 notes and todos.";
   wrap.appendChild(footnote);
 
   container.appendChild(wrap);
@@ -455,12 +455,8 @@ async function mountSheet(container, creds, accountId) {
       ));
     }
 
-    box.appendChild(note(
-      "Activity, not performance. A high count is not a good number and a low one is not a bad one — this is what to talk about, not a score."
-    ));
-
     if (theirs?.completedIssues?.length) {
-      box.appendChild(keyRow("Closed", theirs.completedIssues));
+      box.appendChild(keyRow("Closed", theirs.completedIssues, creds));
     }
     return box;
   }
@@ -474,13 +470,12 @@ async function mountSheet(container, creds, accountId) {
     const login = githubLoginFor(accountId);
     const gh = login && github.activity ? githubActivityFor(github.activity, login) : null;
     const stuckPrs = gh ? [...gh.open].sort(comparePrs) : [];
-    const waitingOnThem = gh ? gh.reviewRequests : [];
 
     const box = section(
       "What is stuck",
-      jira.length || stuckPrs.length || waitingOnThem.length
-        ? "Blocked, overdue, and the pull requests in the way"
-        : "Nothing overdue, blocked, or waiting"
+      jira.length || stuckPrs.length
+        ? "Blocked, overdue, and their open pull requests"
+        : "Nothing overdue or blocked"
     );
 
     if (jira.length) {
@@ -494,10 +489,6 @@ async function mountSheet(container, creds, accountId) {
     if (stuckPrs.length) {
       box.appendChild(subheading("Their pull requests"));
       box.appendChild(prList(stuckPrs));
-    }
-    if (waitingOnThem.length) {
-      box.appendChild(subheading("Waiting on their review"));
-      box.appendChild(prList(waitingOnThem));
     }
     return box;
   }
@@ -525,7 +516,9 @@ async function mountSheet(container, creds, accountId) {
     );
     if (planned.length) {
       box.appendChild(
-        issueList(planned, (i) => (i.fields.duedate ? `due ${fmtDate(i.fields.duedate)}` : i.fields.status?.name || ""))
+        issueList(planned, (i) => (i.fields.duedate ? `due ${fmtDate(i.fields.duedate)}` : i.fields.status?.name || ""), {
+          byType: true,
+        })
       );
     }
     return box;
@@ -827,15 +820,14 @@ async function mountSheet(container, creds, accountId) {
 
   async function copyForSlack(session = null) {
     const text = slackText({ name, session: session || draft, when: new Date() });
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyText(text)) {
       showToast("Copied — paste it into Slack.");
-    } catch {
-      // A denied clipboard is not a lost note: put it somewhere it can be
-      // selected by hand rather than telling somebody their notes are gone.
-      showToast("Clipboard was refused — the text is in the browser console.", true);
-      console.info(text);
+      return;
     }
+    // A denied clipboard is not a lost note: put it somewhere it can be
+    // selected by hand rather than telling somebody their notes are gone.
+    showToast("The browser refused the clipboard — the text is in the browser console.", true);
+    console.info(text);
   }
 
   async function onComplete() {
@@ -934,16 +926,20 @@ async function mountSheet(container, creds, accountId) {
 
   // ── Shared bits ───────────────────────────────────────────────────────────
 
-  function issueList(issues, contextOf) {
+  // `byType` colours the key by what the issue is rather than by its board:
+  // purple for an epic, green for a story or task, as the author asked for
+  // "What is planned", where an epic and a ticket otherwise look the same.
+  function issueList(issues, contextOf, { byType = false } = {}) {
     const list = document.createElement("ul");
     list.className = "oo-issues";
     for (const issue of issues.slice(0, 40)) {
       const li = document.createElement("li");
       const key = document.createElement("a");
       key.className = "issue-key";
-      key.style.color = boardColor(issue.boardId);
+      key.style.color = byType ? keyColorByType(issue) : boardColor(issue.boardId);
       key.textContent = issue.key;
       attachIssueOpener(key, issue.key, creds);
+      if (byType) key.title = `${issue.fields.issuetype?.name || "Issue"} ${issue.key} — click for details`;
       li.appendChild(key);
 
       const summary = document.createElement("span");
@@ -1113,16 +1109,62 @@ function linesTile(stats) {
   return el;
 }
 
-function keyRow(label, keys) {
+// Each key opens the issue in the drawer, like every other key on the sheet.
+function keyRow(label, keys, creds) {
   const row = document.createElement("div");
   row.className = "oo-keyrow mono";
   const title = document.createElement("span");
   title.className = "oo-keyrow-label";
   title.textContent = label;
   row.appendChild(title);
-  row.appendChild(document.createTextNode(keys.slice(0, 12).join(" · ")));
+  keys.slice(0, 12).forEach((k, i) => {
+    if (i) row.appendChild(document.createTextNode(" · "));
+    const a = document.createElement("a");
+    a.className = "issue-key";
+    a.textContent = k;
+    attachIssueOpener(a, k, creds);
+    row.appendChild(a);
+  });
   if (keys.length > 12) row.appendChild(document.createTextNode(` +${keys.length - 12}`));
   return row;
+}
+
+function keyColorByType(issue) {
+  if (isEpic(issue)) return "var(--tone-purple)";
+  const name = String(issue?.fields?.issuetype?.name || "").toLowerCase();
+  if (name === "story" || name === "task") return "var(--tone-green)";
+  return boardColor(issue.boardId);
+}
+
+// The async clipboard refuses whenever the page does not hold focus at the
+// moment of the write — DevTools focused, a confirm() just closed, the click
+// having landed during a repaint — which is how "Copy for Slack" kept failing.
+// The selection-based copy needs only the click itself, so it is the fallback.
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through */
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;";
+  document.body.appendChild(area);
+  const active = document.activeElement;
+  area.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  area.remove();
+  active?.focus?.();
+  return ok;
 }
 
 function note(text) {

@@ -1030,8 +1030,8 @@ On the left:
 
 - **On their plate** — their open issues in the active sprint, with points.
 - **What they did** in the window — issues closed and moved (from the changelog, via `activityFrom`), issues created, and with GitHub sync on: pull requests opened, merged and reviewed, and lines added and removed.
-- **What is stuck** — blocked and overdue issues, their own pull requests ordered by *how* stuck (changes requested → checks failing → approved-and-unmerged → waiting on review), and anything waiting on their review.
-- **What is planned** — queued beyond this sprint, plus anything due in the next fortnight whatever sprint it is in.
+- **What is stuck** — blocked and overdue issues, and their own pull requests ordered by *how* stuck (changes requested → checks failing → approved-and-unmerged → waiting on review).
+- **What is planned** — queued beyond this sprint, plus anything due in the next fortnight whatever sprint it is in. Epic keys are purple and story and task keys green, so an epic stands out from a ticket.
 - **Load over time** — points assigned and shipped per sprint, from the stored snapshots, bounded by when this device started recording and saying so.
 - **A mini-Gantt** across the bottom: every open issue and epic of theirs carrying a start or due date, over a *fixed* three-weeks-back to six-weeks-forward horizon with today drawn as a red line. Fixed rather than following the toggle, so the same piece of work sits in the same place from one week to the next and position is read by habit rather than by re-reading the axis.
 

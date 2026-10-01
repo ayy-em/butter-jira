@@ -66,8 +66,9 @@ author.
 - **Per-person figures.** Per-person GitHub figures are shown on the 1:1 sheet,
   the sprint recap and the quarterly overview. The quarterly overview's
   per-person table is ranked (Jira activity, commits, lines, equal weights), and
-  its charts stay in name order. Every such surface prints a
-  not-an-assessment note.
+  its charts stay in name order. The recap and the quarterly overview print a
+  not-an-assessment note; the 1:1 sheet dropped its own at the author's request
+  (2026-10-01), since it is read by the manager alone.
 - **1:1 notes never leave the device.** There is no export path and they are not
   in the backup; the only way out is Copy for Slack. Retention is unbounded, and
   the Settings delete is the whole retention policy.
@@ -177,22 +178,28 @@ https://stxgroup.atlassian.net/servicedesk/customer/portal/1/group/819
 
 **Size: S–M.** From use of the 1:1 sheet (M14).
 
-- [ ] Remove the "waiting on their review" list.
+- [x] Remove the "waiting on their review" list (2026-10-01).
 - [ ] Replace the "load over time" graph with one combined chart, weekly, from
       four full weeks back to this week so far: pull requests opened and merged
       as a line, Jira issues created, opened and commented on as bars. No
       explanatory text on it.
-- [ ] Bug: **Copy for Slack** says "Clipboard was refused — the text is in the
-      browser console".
-- [ ] Remove the "Activity, not performance" note. This is a stated rule
-      (per-person figures print a not-an-assessment note), so the rule changes
-      for this screen with it.
-- [ ] In "What is planned", mark epics apart from other issues by the key's
-      colour: purple for epics, green for stories and tasks.
-- [ ] In the "Closed" list, make the issue keys open the issue drawer.
-- [ ] 1:1 config screen footnote (`oo-footnote`): "Notes are only stored
-      locally. Notes are never synced and never included in exports. To delete
-      notes: Settings → Data." No max-width.
+- [x] Bug: **Copy for Slack** said "Clipboard was refused — the text is in the
+      browser console" (fixed 2026-10-01). The async clipboard refuses whenever
+      the page does not hold focus at the moment of the write; the copy now
+      falls back to a selection-based copy, which needs only the click, and
+      the console only after both fail.
+- [x] Remove the "Activity, not performance" note (2026-10-01). The rule in
+      force now names the recap and the quarterly overview only.
+- [x] In "What is planned", mark epics apart from other issues by the key's
+      colour: purple for epics, green for stories and tasks (2026-10-01).
+      Other types keep their board's colour; see open question 2.
+- [x] In the "Closed" list, make the issue keys open the issue drawer
+      (2026-10-01).
+- [x] 1:1 config screen footnote (`oo-footnote`), no max-width (2026-10-01):
+      "Notes are only stored locally. Notes are never synced and never included
+      in exports. To delete notes: Settings → 1:1 notes and todos." The real
+      section name rather than "Settings → Data", which does not exist; see
+      open question 3.
 
 ### Open questions
 
@@ -201,11 +208,10 @@ https://stxgroup.atlassian.net/servicedesk/customer/portal/1/group/819
 2. **Key colours for other types:** bugs and sub-tasks too? The app already
    colours types (epic purple, story green, task blue, bug red, sub-task cyan).
    Reuse that, or two colours only?
-3. **"Settings → Data" does not exist.** The section is "1:1 notes and todos".
-   Rename the section, or point the text at the current name?
-4. **Copy for Slack:** in which browser, and after doing what? The refusal
-   usually means the page lost focus or the permission prompt was dismissed.
-   Firefox and Chrome refuse for different reasons.
+3. **"Settings → Data":** the footnote names the existing section, "1:1 notes
+   and todos". Say if the section should be renamed to Data instead.
+4. **Copy for Slack:** if it still fails after the fix, in which browser and
+   after doing what?
 
 ## M23 — Sprint planning as a process
 

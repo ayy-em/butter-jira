@@ -6,6 +6,15 @@ tag into the release notes, so the wording here is the wording published — kee
 it about what a user gets. The reasoning is in the commit history;
 [ROADMAP.md](ROADMAP.md) is what is still to come.
 
+## Unreleased
+
+**The 1:1 sheet, tidier.** Copy for Slack works when the browser refuses its
+clipboard (it said "Clipboard was refused" whenever the page had lost focus).
+Keys in the Closed list open the issue. In What is planned, epics are purple and
+stories and tasks green. The "waiting on their review" list and the "activity,
+not performance" note are gone, and the picker's footnote says where notes are
+deleted.
+
 ## v0.8.1
 
 **A sprint planner.** `LAUNCH → SPRINT PLANNER`, or press `p`. Prepare the next

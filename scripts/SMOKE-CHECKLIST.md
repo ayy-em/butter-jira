@@ -334,6 +334,9 @@ that loses them loses them.
 - [ ] Copy from an archived session pastes that session, not the current draft
 - [ ] Deny clipboard access in the browser → the app says so and does not claim to have copied
 
+- [ ] Copy for Slack with DevTools focused, then with the page focused → both copy (the selection fallback covers the first)
+- [ ] "Closed" keys under What they did open the drawer; in What is planned, epic keys are purple and story/task keys green; no "Waiting on their review" list
+
 ## 3g. My todos, and deleting all of it
 
 - [ ] `LAUNCH → My todos`, and the `t` key, both open the list

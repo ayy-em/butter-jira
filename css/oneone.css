@@ -91,8 +91,8 @@
   font-size: calc(11.5px * var(--font-scale));
   line-height: 1.6;
   color: var(--muted);
-  max-width: 62ch;
 }
+.todo-note { max-width: 62ch; }
 
 .oo-empty {
   flex-direction: column;
