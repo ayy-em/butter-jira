@@ -1,5 +1,6 @@
 import { BOARDS, cache } from "./utils.js";
 import { compactChangelogs } from "./activity.js";
+import { isEmptyAdf, textToAdf } from "./adf.js";
 import {
   FIELD_ROLES,
   detailIssueFields,
@@ -843,6 +844,14 @@ export function fieldWritePayload(changes = {}, { issue = null } = {}) {
       case "summary":
         fields.summary = String(value ?? "");
         break;
+      // ADF on the v3 API. Plain text is converted here so a caller holding a
+      // textarea's value does not need to know that; an empty document is sent
+      // as null, which is how Jira itself stores "no description".
+      case "description": {
+        const doc = value && typeof value === "object" ? value : textToAdf(value);
+        fields.description = isEmptyAdf(doc) ? null : doc;
+        break;
+      }
       // Jira's own id for the due date is lowercase and one word; it is not a
       // custom field on any site, so it needs no discovery.
       case "dueDate":

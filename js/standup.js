@@ -404,6 +404,105 @@ export async function clearSession() {
   await localRemove([SESSION_KEY]);
 }
 
+// ── History ──────────────────────────────────────────────────────────────────
+//
+// One record per finished standup, kept for analytics nobody has asked for
+// yet: how long it ran, who was there, how long each of them took, how many
+// notes it produced. Recorded the moment the end screen appears, so closing
+// the tab on it still counts; the end screen's "do not record" takes it back
+// out for test runs and standups started by accident.
+//
+// Device-local like the session, and in the backup file (js/backup.js) so a
+// new laptop does not start the series again. Account ids only, never names:
+// the roster is where a name lives, and a rename should not split a person's
+// history in two.
+
+export const HISTORY_KEY = "standupHistory";
+// A standup a working day for about four years. Records are a few hundred
+// bytes; the cap is there so the store cannot grow without limit, not because
+// it is close to one.
+export const MAX_HISTORY = 1000;
+
+// Same identity a resumed session keeps, so recording twice is a no-op.
+export function historyId(session) {
+  return `${session?.startedAt ?? 0}-${session?.seed ?? 0}`;
+}
+
+function noteLineCount(note) {
+  return String(note ?? "")
+    .split("\n")
+    .filter((line) => line.trim())
+    .length;
+}
+
+export function historyRecord(session) {
+  const finishedAt = session.finishedAt ?? session.phaseStartedAt ?? session.startedAt;
+  const actual = session.actualMs || {};
+  const notes = session.notesByPerson || {};
+  const attendees = (session.order || []).map((accountId) => ({
+    accountId,
+    plannedSec: clampDuration(session.durations?.[accountId] ?? DEFAULT_DURATION_SEC),
+    // null, not 0: "ended before their turn" and "spoke for no time" are
+    // different things to average over.
+    spokeMs: Number.isFinite(actual[accountId]) ? Math.round(actual[accountId]) : null,
+    notes: noteLineCount(notes[accountId]),
+  }));
+  return {
+    id: historyId(session),
+    startedAt: new Date(session.startedAt).toISOString(),
+    finishedAt: new Date(finishedAt).toISOString(),
+    // Wall clock, start to end screen: lead-in, hand-offs and pauses included.
+    durationMs: Math.max(0, finishedAt - session.startedAt),
+    speakingMs: attendees.reduce((sum, a) => sum + (a.spokeMs || 0), 0),
+    endedEarly: attendees.some((a) => a.spokeMs === null),
+    attendees,
+    // Non-empty parking-lot lines across everyone — one line is one thing to
+    // pick up, which is closer to "a note" than one box per person.
+    notes: attendees.reduce((sum, a) => sum + a.notes, 0),
+  };
+}
+
+export function isHistoryRecord(record) {
+  return Boolean(
+    record &&
+      typeof record === "object" &&
+      typeof record.id === "string" &&
+      typeof record.startedAt === "string" &&
+      Array.isArray(record.attendees)
+  );
+}
+
+// Union by id, the existing record winning, oldest first, capped from the old
+// end. Shared by recording and by a backup restore.
+export function mergeHistory(existing = [], incoming = []) {
+  const mine = (Array.isArray(existing) ? existing : []).filter(isHistoryRecord);
+  const ids = new Set(mine.map((r) => r.id));
+  const extra = (Array.isArray(incoming) ? incoming : []).filter(
+    (r) => isHistoryRecord(r) && !ids.has(r.id) && ids.add(r.id)
+  );
+  const value = [...mine, ...extra]
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+    .slice(-MAX_HISTORY);
+  return { value, added: extra.length };
+}
+
+export async function loadHistory() {
+  const stored = await localGet([HISTORY_KEY]);
+  return Array.isArray(stored[HISTORY_KEY]) ? stored[HISTORY_KEY].filter(isHistoryRecord) : [];
+}
+
+export async function recordHistory(session) {
+  const record = historyRecord(session);
+  const { value } = mergeHistory(await loadHistory(), [record]);
+  await localSet({ [HISTORY_KEY]: value });
+  return record;
+}
+
+export async function discardHistory(id) {
+  const history = await loadHistory();
+  await localSet({ [HISTORY_KEY]: history.filter((r) => r.id !== id) });
+}
+
 // ── Slack digest ─────────────────────────────────────────────────────────────
 //
 // One message in two representations: plain text, which is what the facilitator

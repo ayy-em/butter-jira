@@ -28,6 +28,7 @@ import * as confetti from "../confetti.js";
 import { renderColumns } from "../components/board.js";
 import { openIssueDrawer } from "../components/issue-detail.js";
 import { createIssueMover } from "../issue-move.js";
+import { ISSUE_EDITED_EVENT, applyValues } from "../issue-edit.js";
 import * as sfx from "../sfx.js";
 import {
   DEFAULT_DURATION_SEC,
@@ -42,11 +43,13 @@ import {
   createSession,
   currentId,
   digestHtml,
+  discardHistory,
   digestText,
   estimatedWallSec,
   finish,
   formatClock,
   handoffPhrase,
+  historyId,
   isOverrun,
   isPaused,
   loadPrefs,
@@ -60,6 +63,7 @@ import {
   phaseTotalMs,
   plannedTotalSec,
   pressure,
+  recordHistory,
   savePrefs,
   saveSession,
   shouldAutoAdvance,
@@ -2065,16 +2069,48 @@ export async function mount(container, creds) {
     }
 
     // Leaving is not the action this screen is for.
-    const again = el("button", "su-btn small ghost su-done-again", "Back to setup");
+    const footer = el("div", "su-done-footer");
+    const again = el("button", "su-btn small ghost", "Back to setup");
     again.addEventListener("click", () => {
       session = null;
       renderSetup();
     });
-    wrap.appendChild(again);
+    footer.append(again, historyToggle(session));
+    wrap.appendChild(footer);
 
     // After the panels are in the DOM, so the bursts land on the finished screen
     // rather than on the one being torn down.
     confetti.celebrate();
+  }
+
+  // The stats are recorded as this screen appears (see History in
+  // js/standup.js), so a closed tab still counts and the button is the way
+  // out rather than the way in. It flips back, because the one click on it
+  // that matters is the accidental one. Writes are chained so a click before
+  // the first write has landed cannot be overtaken by it.
+  function historyToggle(finished) {
+    let recorded = true;
+    let pending = recordHistory(finished).catch(() => {});
+    const btn = el("button", "su-btn small ghost su-done-history");
+    const paint = () => {
+      btn.textContent = recorded
+        ? "Don't record this standup's stats"
+        : "Stats not recorded — record them after all";
+      btn.title = recorded
+        ? "For test runs and accidental standups: leave this one out of the standup history"
+        : "Put this standup back into the standup history";
+      btn.classList.toggle("off", !recorded);
+    };
+    btn.addEventListener("click", () => {
+      recorded = !recorded;
+      paint();
+      const want = recorded;
+      pending = pending
+        .then(() => (want ? recordHistory(finished) : discardHistory(historyId(finished))))
+        .catch(() => {});
+    });
+    paint();
+    return btn;
   }
 
   // Dated heading for the pasted message, so a channel full of these is
@@ -2188,6 +2224,18 @@ export async function mount(container, creds) {
   }
   document.addEventListener("keydown", onKeydown);
 
+  // A title or assignee changed in the issue drawer is changed on the drawer's
+  // own copy of the issue; this puts it on the copy the speaker's board was
+  // painted from, so the card is right when the drawer closes.
+  function onIssueEdited(e) {
+    const { key, changes } = e.detail || {};
+    const issue = sprintIssues.find((i) => i.key === key);
+    if (!issue) return;
+    applyValues(issue, changes);
+    if (session?.phase === PHASES.SPEAKING) paintSpeakingBoard();
+  }
+  document.addEventListener(ISSUE_EDITED_EVENT, onIssueEdited);
+
   // The router swaps views by replacing the container's contents, so clean up
   // the timer, the audio and the nav-key suppression when that happens.
   const observer = new MutationObserver(() => {
@@ -2201,6 +2249,7 @@ export async function mount(container, creds) {
       confetti.stop();
       document.body.dataset.standupActive = "";
       document.removeEventListener("keydown", onKeydown);
+      document.removeEventListener(ISSUE_EDITED_EVENT, onIssueEdited);
       observer.disconnect();
     }
   });

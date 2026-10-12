@@ -182,6 +182,10 @@ export function openDrawerPanel({ label, className = "", onClose = null } = {}) 
   function onKey(e) {
     if (e.key === "Tab") return trapTab(e);
     if (e.key !== "Escape") return;
+    // An in-place editor inside the panel (the issue's summary and description)
+    // uses Escape to cancel the edit; closing the whole drawer over it would
+    // throw the typing away along with the panel.
+    if (e.target?.closest?.("[data-keeps-escape]")) return;
     // Capture phase, and the key is consumed here. The standup binds Escape on
     // document too, to end the meeting; without this, opening a card mid-turn
     // and pressing Escape to close it also ended the standup and cleared the

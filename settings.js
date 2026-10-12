@@ -627,11 +627,13 @@ backupBtn.addEventListener("click", async () => {
   const d = describeBackup(backup);
   backupNote.textContent =
     `Backed up ${d.days} snapshot day${d.days === 1 ? "" : "s"} across ${d.sprints} sprint${d.sprints === 1 ? "" : "s"}, ` +
-    `${d.freezes} freeze${d.freezes === 1 ? "" : "s"}, ${d.todos} todo${d.todos === 1 ? "" : "s"}` +
+    `${d.freezes} freeze${d.freezes === 1 ? "" : "s"}, ${d.todos} todo${d.todos === 1 ? "" : "s"}, ` +
+    `${d.standups} standup${d.standups === 1 ? "" : "s"} of history` +
     (d.roster ? `, ${d.members} roster member${d.members === 1 ? "" : "s"}` : "") +
     (d.config ? " and the config." : ".");
-  flash(includeRoster || d.todos ? "Backed up — the file holds personal data, store it carefully" : "Backed up",
-    includeRoster || d.todos ? "warning" : "success");
+  const personal = includeRoster || d.todos || d.standups;
+  flash(personal ? "Backed up — the file holds personal data, store it carefully" : "Backed up",
+    personal ? "warning" : "success");
 });
 
 restoreBtn.addEventListener("click", () => restoreFile.click());
@@ -655,6 +657,7 @@ restoreFile.addEventListener("change", async () => {
     `${a.snapshotDays} snapshot day${a.snapshotDays === 1 ? "" : "s"}`,
     `${a.freezes} sprint freeze${a.freezes === 1 ? "" : "s"}`,
     `${a.todos} todo${a.todos === 1 ? "" : "s"}`,
+    a.standups ? `${a.standups} standup${a.standups === 1 ? "" : "s"} of history` : null,
     a.members ? `${a.members} roster member${a.members === 1 ? "" : "s"}` : null,
     a.preferences ? `${a.preferences} preference${a.preferences === 1 ? "" : "s"}` : null,
     plan.config === "restored" ? "the config (this install is not set up yet)" : null,

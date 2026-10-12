@@ -23,6 +23,7 @@
 
 import { localGet, localSet, syncGet, syncSet } from "./browser.js";
 import { MAX_SPRINTS_KEPT } from "./snapshots.js";
+import { mergeHistory } from "./standup.js";
 
 export const BACKUP_FORMAT = "butterjira-backup";
 export const BACKUP_VERSION = 1;
@@ -45,6 +46,7 @@ export const STORES = {
   snapshots: "sprintSnapshots",
   freezes: "sprintFreezes",
   todos: "myTodos",
+  standupHistory: "standupHistory",
   roster: "teams",
 };
 
@@ -65,6 +67,7 @@ export function buildBackup({ local = {}, sync = {}, includeRoster = false, now 
       snapshots: isObject(local[STORES.snapshots]) ? local[STORES.snapshots] : {},
       freezes: isObject(local[STORES.freezes]) ? local[STORES.freezes] : {},
       todos: Array.isArray(local[STORES.todos]) ? local[STORES.todos] : [],
+      standupHistory: Array.isArray(local[STORES.standupHistory]) ? local[STORES.standupHistory] : [],
       ...(includeRoster && local[STORES.roster] ? { roster: local[STORES.roster] } : {}),
     },
     preferences: pick(local, PREFERENCE_KEYS),
@@ -85,6 +88,7 @@ export function describeBackup(backup) {
     days,
     freezes: Object.keys(s.freezes || {}).length,
     todos: (s.todos || []).length,
+    standups: Array.isArray(s.standupHistory) ? s.standupHistory.length : 0,
     members,
     roster: Boolean(s.roster),
     config: Boolean(backup?.config?.site?.baseUrl),
@@ -208,6 +212,9 @@ export function planRestore(backup, { local = {}, sync = {} } = {}) {
   const snapshots = mergeSnapshots(local[STORES.snapshots], s.snapshots);
   const freezes = mergeFreezes(local[STORES.freezes], s.freezes);
   const todos = mergeTodos(local[STORES.todos], s.todos);
+  // A file from before standup history existed has no such store, and merges
+  // as nothing to add.
+  const standups = mergeHistory(local[STORES.standupHistory], s.standupHistory);
   const roster = s.roster ? mergeRoster(local[STORES.roster], s.roster) : { value: undefined, added: 0 };
 
   const localWrites = {
@@ -215,6 +222,7 @@ export function planRestore(backup, { local = {}, sync = {} } = {}) {
     [STORES.freezes]: freezes.value,
     [STORES.todos]: todos.value,
   };
+  if (standups.added) localWrites[STORES.standupHistory] = standups.value;
   if (roster.value !== undefined) localWrites[STORES.roster] = roster.value;
   const prefs = [];
   for (const [key, value] of Object.entries(isObject(backup?.preferences) ? backup.preferences : {})) {
@@ -237,6 +245,7 @@ export function planRestore(backup, { local = {}, sync = {} } = {}) {
       snapshotDays: snapshots.added,
       freezes: freezes.added,
       todos: todos.added,
+      standups: standups.added,
       members: roster.added,
       preferences: prefs.length,
     },

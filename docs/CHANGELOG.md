@@ -8,6 +8,19 @@ it about what a user gets. The reasoning is in the commit history;
 
 ## Unreleased
 
+**Standup, recorded.** Every finished standup is kept on this device: how long
+it ran, who was there, how long each person spoke and how many parking-lot
+notes it produced. The end screen has a "Don't record this standup's stats"
+button for test runs and accidental starts. The history is in the device
+backup. In session, the parking lot is always the right-hand third of the
+bottom strip and fills its height, with pull requests in the other two thirds,
+so it no longer jumps sides between speakers.
+
+**Edit an issue's title and description in the detail panel.** Click the title
+to change it; Enter saves, Escape cancels. The description has an Edit button
+and a plain-text editor, which warns before saving over lists, links, tables or
+code. Both toast with an undo, and the undo puts the original formatting back.
+
 **The 1:1 sheet, tidier.** Copy for Slack works when the browser refuses its
 clipboard (it said "Clipboard was refused" whenever the page had lost focus).
 Keys in the Closed list open the issue. In What is planned, epics are purple and

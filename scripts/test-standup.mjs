@@ -477,5 +477,58 @@ check("is linear past time-up",
 check("independent of slot length — 30s over is 30s over",
   Math.abs(op(150) - op(270, 240)) < 1e-9);
 
+section("history — one record per finished standup");
+
+{
+  const t0 = 1_760_000_000_000;
+  let h = su.createSession({
+    participants: [{ accountId: "a" }, { accountId: "b" }, { accountId: "c" }],
+    durations: { a: 60, b: 90, c: 120 },
+    seed: 7,
+    now: t0,
+  });
+  h = su.advance(h, t0 + 5_000); // lead-in over
+  const first = h.order[0];
+  const second = h.order[1];
+  const third = h.order[2];
+  h = { ...h, notesByPerson: { [first]: "chase the deploy\n\n- book a room\n", [third]: "   " } };
+  h = su.advance(h, t0 + 65_000); // first spoke 60s
+  h = su.advance(h, t0 + 68_000); // hand-off over
+  h = su.finish(h, t0 + 98_000); // second spoke 30s, third never reached
+
+  const rec = su.historyRecord(h);
+  check("id is stable for the session", rec.id === su.historyId(h) && rec.id === `${t0}-7`);
+  check("wall-clock duration from start to end screen", rec.durationMs === 98_000);
+  check("dates are ISO", rec.startedAt === new Date(t0).toISOString() &&
+    rec.finishedAt === new Date(t0 + 98_000).toISOString());
+  check("attendees in speaking order", rec.attendees.map((a) => a.accountId).join() === h.order.join());
+  const by = Object.fromEntries(rec.attendees.map((a) => [a.accountId, a]));
+  check("per-person speaking time", by[first].spokeMs === 60_000 && by[second].spokeMs === 30_000);
+  check("not reached is null, not zero", by[third].spokeMs === null);
+  check("planned seconds carried", by.a.plannedSec === 60 && by.c.plannedSec === 120);
+  check("speaking total sums the people", rec.speakingMs === 90_000);
+  check("ended early when someone was not reached", rec.endedEarly === true);
+  check("notes count non-empty lines, blank boxes count none",
+    by[first].notes === 2 && by[third].notes === 0 && rec.notes === 2);
+  check("no names in the record", !JSON.stringify(rec).includes("displayName"));
+
+  const merged = su.mergeHistory([rec], [{ ...rec, durationMs: 1 }, { ...rec, id: "x", startedAt: "2020-01-01T00:00:00.000Z" }, { junk: true }]);
+  check("merge keeps the existing record on an id clash", merged.value.find((r) => r.id === rec.id).durationMs === 98_000);
+  check("merge adds new ones, oldest first, and drops junk",
+    merged.added === 1 && merged.value[0].id === "x" && merged.value.length === 2);
+  const lots = Array.from({ length: su.MAX_HISTORY + 5 }, (_, i) => ({
+    id: String(i), startedAt: new Date(t0 + i * 1000).toISOString(), attendees: [],
+  }));
+  const capped = su.mergeHistory([], lots).value;
+  check("capped from the old end", capped.length === su.MAX_HISTORY && capped[0].id === "5");
+
+  delete local[su.HISTORY_KEY];
+  await su.recordHistory(h);
+  await su.recordHistory(h);
+  check("recording twice stores once", (await su.loadHistory()).length === 1);
+  await su.discardHistory(rec.id);
+  check("discard takes it back out", (await su.loadHistory()).length === 0);
+}
+
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

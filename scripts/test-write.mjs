@@ -635,5 +635,37 @@ utils.recallToast();
 check("recall does not draw the action again", !undoButton());
 check("…and nothing was run", undone === 0);
 
+section("description");
+{
+  const adf = await import(new URL("../js/adf.js", import.meta.url));
+  const doc = adf.textToAdf("one\ntwo\n\nthree");
+  check("a plain document is plain", adf.isPlainAdf(doc) && adf.isPlainAdf(null));
+  check("a list is not plain", !adf.isPlainAdf({ type: "doc", content: [{ type: "bulletList", content: [] }] }));
+  check("edit text round-trips a plain document",
+    JSON.stringify(adf.textToAdf(adf.adfToEditText(doc))) === JSON.stringify(doc));
+  const rich = { type: "doc", content: [
+    { type: "paragraph", content: [{ type: "text", text: "Intro" }] },
+    { type: "orderedList", content: ["a", "b"].map((text) => ({ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text }] }] })) },
+    { type: "paragraph", content: [{ type: "mention", attrs: { text: "@Ada" } }, { type: "text", text: " to check" }] },
+  ] };
+  check("lists keep their words as numbered lines, mentions their names",
+    adf.adfToEditText(rich) === "Intro\n\n1. a\n2. b\n\n@Ada to check");
+  check("no document is empty text", adf.adfToEditText(null) === "");
+  check("a link mark is not plain", !adf.isPlainAdf({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "x", marks: [{ type: "link" }] }] }] }));
+
+  check("description is written as ADF", api.fieldWritePayload({ description: doc }).fields.description === doc);
+  check("text is converted on the way", api.fieldWritePayload({ description: "hi" }).fields.description?.type === "doc");
+  check("empty clears it", api.fieldWritePayload({ description: adf.textToAdf("  ") }).fields.description === null &&
+    api.fieldWritePayload({ description: null }).fields.description === null);
+
+  const issue = { key: "ABC-1", fields: { description: { type: "doc", content: [{ type: "bulletList", content: [] }] } }, renderedFields: { description: "<ul></ul>" } };
+  const prev = edit.currentValues(issue, { description: doc });
+  check("previous value is the original ADF", prev.description === issue.fields.description);
+  edit.applyValues(issue, { description: doc });
+  check("applied, and stale rendered HTML dropped", issue.fields.description === doc && !("description" in issue.renderedFields));
+  check("toast does not print the document", edit.describeChanges({ description: doc }, prev) === "Description updated");
+  check("…and says when it was cleared", edit.describeChanges({ description: null }) === "Description cleared");
+}
+
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

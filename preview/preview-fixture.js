@@ -471,6 +471,18 @@ function issueDetailFixture(key) {
     },
     fields: {
       summary: "Move the estimate onto the card without opening Jira",
+      // The ADF behind the rendered HTML above, list included, so the
+      // description editor has text to start from and a reason to warn.
+      description: bare
+        ? null
+        : {
+            type: "doc",
+            version: 1,
+            content: [
+              { type: "paragraph", content: [{ type: "text", text: "The description, as Jira renders it — ADF arrives as HTML and goes through the sanitiser before it reaches the page." }] },
+              { type: "bulletList", content: ["a list item", "and another"].map((text) => ({ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text }] }] })) },
+            ],
+          },
       status: { name: "In Progress", statusCategory: { key: "indeterminate" } },
       issuetype: { name: "Story", subtask: false },
       priority: { name: "Medium" },

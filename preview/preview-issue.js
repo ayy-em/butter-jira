@@ -12,7 +12,8 @@
 // Fixture states: ?theme=light · ?detail=bare (nothing set, so every editable
 // cell shows an em dash) · ?roster=empty (an assignee picker with only the
 // current assignee in it) · ?link=refuse (a refused link create and a refused
-// unlink). This harness adds ?edit=<field> and ?link=open.
+// unlink). This harness adds ?edit=<field> and ?link=open; ?edit=summary and
+// ?edit=description open the in-place title and description editors.
 import { params, CONFIG } from "./preview-fixture.js";
 
 // The Development section's answer, seeded where `getIssueDevelopment` reads it,
@@ -59,6 +60,10 @@ if (label) {
     c.querySelector(".issue-meta-label")?.textContent === label
   );
   cell?.querySelector(".editable-cell")?.click();
+}
+if (params.get("edit") === "summary") document.querySelector(".issue-summary")?.click();
+if (params.get("edit") === "description") {
+  document.querySelector(".issue-description-field .issue-links-action")?.click();
 }
 
 // The link picker is the other state with no way in from a screenshot, and it

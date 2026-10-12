@@ -18,7 +18,7 @@ import { createFieldEditor } from "../issue-edit.js";
 import { groupedLinks } from "../issue-link.js";
 import { assigneeCell, dateCell, pointsCell } from "./field-edit.js";
 import { sanitizeToFragment } from "../sanitize.js";
-import { adfToPlainText, isEmptyAdf, textToAdf } from "../adf.js";
+import { adfToEditText, adfToPlainText, isEmptyAdf, isPlainAdf, textToAdf } from "../adf.js";
 import { statusTone } from "../backlog.js";
 import { icon } from "./icons.js";
 import { getIssueDevelopment, isGithubConfigured } from "../github.js";
@@ -305,10 +305,7 @@ function renderHeader(issue, creds, mode) {
 
   header.appendChild(topRow);
 
-  const summary = document.createElement("h1");
-  summary.className = "issue-summary";
-  summary.textContent = f.summary || "(no summary)";
-  header.appendChild(summary);
+  header.appendChild(renderSummaryField(issue, creds));
 
   const parentRow = renderParentRow(issue, creds);
   if (parentRow) header.appendChild(parentRow);
@@ -379,25 +376,241 @@ function statusBadge(status) {
 // ── Content ──────────────────────────────────────────────────────────────────
 
 function renderContent(issue, creds) {
-  const f = issue.fields;
   const section = document.createElement("section");
   section.className = "issue-content";
 
   section.appendChild(renderMetaGrid(issue, creds));
 
-  const descHeading = document.createElement("h2");
-  descHeading.className = "issue-section-title mono";
-  descHeading.textContent = "Description";
-  section.appendChild(descHeading);
+  section.appendChild(renderDescriptionField(issue, creds));
 
+  return section;
+}
+
+// ── Summary and description ──────────────────────────────────────────────────
+//
+// Both written through the same optimistic editor as the meta grid, so a
+// refusal rolls back and a success toasts with an undo. The summary behaves
+// like the grid's cells — click, type, Enter or clicking away saves, Escape
+// cancels — because it is one line. The description gets explicit Save and
+// Cancel instead: it is long, and a stray click outside the box should not be
+// what sends a paragraph to Jira.
+//
+// Each repaints only itself, for the reason the grid does: a re-render of the
+// whole detail would take a half-typed comment with it.
+
+function renderSummaryField(issue, creds) {
+  let el = build();
+  const editor = createFieldEditor({ creds, repaint: () => swap(build()) });
+  return el;
+
+  function swap(next) {
+    el.replaceWith(next);
+    el = next;
+  }
+
+  function build() {
+    const h = document.createElement("h1");
+    h.className = "issue-summary editable-text";
+    h.tabIndex = 0;
+    h.title = "Click to edit";
+    h.textContent = issue.fields?.summary || "(no summary)";
+    h.addEventListener("click", () => {
+      // Selecting part of the title to copy it is not a request to edit it.
+      if (!window.getSelection()?.toString()) edit();
+    });
+    h.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        edit();
+      }
+    });
+    return h;
+  }
+
+  function edit() {
+    const before = issue.fields?.summary || "";
+    const input = document.createElement("textarea");
+    input.className = "issue-summary issue-summary-input";
+    input.value = before;
+    // Jira's own limit; past it the write is refused with a 400.
+    input.maxLength = 255;
+    input.rows = 1;
+    input.spellcheck = true;
+    input.dataset.keepsEscape = "";
+    input.setAttribute("aria-label", "Summary");
+    const fit = () => {
+      input.style.height = "auto";
+      input.style.height = `${input.scrollHeight}px`;
+    };
+
+    let settled = false;
+    const settle = (save) => {
+      if (settled) return;
+      settled = true;
+      // A summary is one line; a pasted newline would be kept by Jira and then
+      // shown nowhere.
+      const value = input.value.replace(/\s+/g, " ").trim();
+      // Empty is not saved: Jira refuses an issue without a summary.
+      if (save && value && value !== before) editor.write(issue, { summary: value });
+      else swap(build());
+    };
+
+    input.addEventListener("input", fit);
+    input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        settle(true);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        settle(false);
+      }
+    });
+    input.addEventListener("blur", () => settle(true));
+
+    swap(input);
+    fit();
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
+
+function renderDescriptionField(issue, creds) {
+  const wrap = document.createElement("div");
+  wrap.className = "issue-description-field";
+
+  const heading = document.createElement("h2");
+  heading.className = "issue-section-title mono issue-links-heading";
+  heading.textContent = "Description";
+
+  let body = renderDescriptionBody(issue);
+  let editing = false;
+  const actions = document.createElement("span");
+  actions.className = "issue-links-actions";
+  const editBtn = headingButton("Edit the description", "Edit", () => edit());
+  actions.appendChild(editBtn);
+  heading.appendChild(actions);
+  wrap.append(heading, body);
+
+  // A save drops Jira's rendered HTML (it describes the old text), so the body
+  // shows the plain text until the issue is read again. The re-read is applied
+  // only if it holds the text now on screen: the first repaint of a write
+  // happens before the write lands, and an answer from then would put the old
+  // description back.
+  let reread = 0;
+  const editor = createFieldEditor({
+    creds,
+    repaint: () => {
+      if (editing) return;
+      paint();
+      if (!issue.renderedFields?.description && !isEmptyAdf(issue.fields?.description)) {
+        const ticket = ++reread;
+        getIssue(issue.key, creds)
+          .then((fresh) => {
+            if (ticket !== reread || editing) return;
+            const same =
+              adfToPlainText(fresh?.fields?.description).trim() ===
+              adfToPlainText(issue.fields?.description).trim();
+            if (!same || !fresh?.renderedFields?.description) return;
+            issue.fields.description = fresh.fields.description;
+            issue.renderedFields = { ...(issue.renderedFields || {}), description: fresh.renderedFields.description };
+            paint();
+          })
+          .catch(() => {});
+      }
+    },
+  });
+  return wrap;
+
+  function paint() {
+    const next = renderDescriptionBody(issue);
+    body.replaceWith(next);
+    body = next;
+  }
+
+  function edit() {
+    if (editing) return;
+    editing = true;
+    actions.style.display = "none";
+    const original = issue.fields?.description ?? null;
+    const before = adfToEditText(original);
+
+    const form = document.createElement("div");
+    form.className = "issue-description-edit";
+    form.dataset.keepsEscape = "";
+
+    const input = document.createElement("textarea");
+    input.className = "issue-reply-input issue-description-input";
+    input.value = before;
+    input.rows = Math.min(24, Math.max(6, before.split("\n").length + 2));
+    input.placeholder = "Describe the issue…  (⌘/Ctrl + Enter to save, Esc to cancel)";
+    input.setAttribute("aria-label", "Description");
+    form.appendChild(input);
+
+    // Said before anyone types, not after they save: this editor is plain text,
+    // and Jira's lists, links, tables and code blocks do not survive it. The
+    // toast's undo would bring them back, but only for a few seconds.
+    if (!isPlainAdf(original)) {
+      const warn = document.createElement("div");
+      warn.className = "issue-description-warn";
+      warn.textContent =
+        "This description has formatting (lists, links, tables or code). Saving " +
+        "here turns it into plain text — edit it in Jira to keep the formatting.";
+      form.appendChild(warn);
+    }
+
+    const buttons = document.createElement("div");
+    buttons.className = "issue-reply-actions";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "issue-reply-post issue-reply-cancel mono";
+    cancelBtn.textContent = "Cancel";
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "issue-reply-post mono";
+    saveBtn.textContent = "Save";
+    buttons.append(cancelBtn, saveBtn);
+    form.appendChild(buttons);
+
+    const close = () => {
+      editing = false;
+      actions.style.display = "";
+      form.replaceWith(body);
+    };
+    const save = () => {
+      const text = input.value.replace(/\r\n?/g, "\n");
+      close();
+      if (text.trim() === before.trim()) return;
+      editor.write(issue, { description: textToAdf(text) });
+    };
+
+    cancelBtn.addEventListener("click", close);
+    saveBtn.addEventListener("click", save);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        save();
+      }
+    });
+
+    body.replaceWith(form);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
+
+function renderDescriptionBody(issue) {
+  const f = issue.fields || {};
   const description = document.createElement("div");
   description.className = "issue-description rich-text";
   const html = issue.renderedFields?.description;
   if (html && String(html).trim()) {
     description.appendChild(sanitizeToFragment(html, { base: CONFIG.site.baseUrl }));
   } else if (f.description) {
-    // No renderedFields (older instance, or expand refused): fall back to the
-    // ADF's text so the description isn't simply missing.
+    // No renderedFields (older instance, expand refused, or an edit not yet
+    // re-read): fall back to the ADF's text so the description isn't missing.
     const pre = document.createElement("p");
     pre.className = "issue-description-plain";
     pre.textContent = adfToPlainText(f.description).trim() || "(no description)";
@@ -405,9 +618,7 @@ function renderContent(issue, creds) {
   } else {
     description.appendChild(emptyNote("No description."));
   }
-  section.appendChild(description);
-
-  return section;
+  return description;
 }
 
 // Three of these six fields are writable, and they are the three M8a covers.

@@ -1,4 +1,5 @@
-// Editing an issue's fields — assignee, estimate, due date, summary, sprint.
+// Editing an issue's fields — assignee, estimate, due date, summary,
+// description, sprint.
 //
 // The counterpart to `issue-move.js`, which owns the one write the board made
 // before this milestone: dragging a card is a status change, and status is the
@@ -27,7 +28,14 @@ import {
   moveIssuesToSprint,
   updateIssueFields,
 } from "./api.js";
+import { isEmptyAdf, textToAdf } from "./adf.js";
 import { cache, showToast } from "./utils.js";
+
+// Fired on `document` after Jira has taken a single-issue edit (an undo
+// included), with `{ key, changes }`. The issue drawer edits its own copy of
+// the issue; a view whose board sits behind the drawer listens for this to
+// patch the copy it painted, rather than showing the old title until a reload.
+export const ISSUE_EDITED_EVENT = "issue-fields-edited";
 
 // Which field this issue keeps its estimate in, so the caller can paint and roll
 // back without knowing what that site calls it. Resolved against the issue
@@ -46,6 +54,12 @@ export function currentValues(issue, changes) {
     switch (name) {
       case "summary":
         previous.summary = issue?.fields?.summary ?? "";
+        break;
+      // The ADF itself, not its text: an undo has to put back the lists and
+      // links a plain-text edit flattened, and only the original document has
+      // them.
+      case "description":
+        previous.description = issue?.fields?.description ?? null;
         break;
       case "dueDate":
         previous.dueDate = issue?.fields?.duedate ?? null;
@@ -74,6 +88,12 @@ export function applyValues(issue, changes) {
     switch (name) {
       case "summary":
         issue.fields.summary = String(value ?? "");
+        break;
+      // Jira's rendered HTML for the old text is now wrong, so it goes; a
+      // renderer without it falls back to the document's text until it re-reads.
+      case "description":
+        issue.fields.description = value && typeof value === "object" ? value : value ? textToAdf(value) : null;
+        if (issue.renderedFields) delete issue.renderedFields.description;
         break;
       case "dueDate":
         issue.fields.duedate = value || null;
@@ -106,6 +126,11 @@ export function applyValues(issue, changes) {
 export function describeChanges(changes, previous = {}) {
   const parts = [];
   for (const [name, value] of Object.entries(changes || {})) {
+    // A description does not fit in a toast, before or after.
+    if (name === "description") {
+      parts.push(`Description ${value && !isEmptyAdf(value) ? "updated" : "cleared"}`);
+      continue;
+    }
     const label = LABELS[name] || fieldLabel(name);
     const to = displayValue(name, value);
     // A key missing from `previous` means the old value was never captured — a
@@ -157,6 +182,10 @@ export function createFieldEditor({ creds, repaint = () => {} }) {
       // Only this issue's board went stale.
       await cache.dropBoard(issue.boardId);
       repaint();
+      // Guarded for the test runner, which has no DOM.
+      globalThis.document?.dispatchEvent(
+        new CustomEvent(ISSUE_EDITED_EVENT, { detail: { key: issue.key, changes } })
+      );
       showToast(
         `${issue.key}: ${describeChanges(changes, previous)}`,
         false,

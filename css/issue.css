@@ -177,6 +177,46 @@ body.issue-page-body {
   color: var(--text);
   margin-bottom: 10px;
 }
+/* Click-to-edit: a faint tint on hover and focus rather than a pencil on
+   every title. */
+.issue-summary.editable-text {
+  cursor: text;
+  border-radius: var(--radius-sm);
+  margin-left: -6px;
+  padding: 0 6px;
+  outline: none;
+}
+.issue-summary.editable-text:hover,
+.issue-summary.editable-text:focus-visible {
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+/* The same type in a box, so the title does not jump when it becomes an
+   input — only the frame appears. */
+.issue-summary-input {
+  display: block;
+  width: calc(100% + 12px);
+  margin-left: -6px;
+  padding: 0 5px;
+  font-family: inherit;
+  background: var(--bg);
+  border: 1px solid var(--accent-primary);
+  resize: none;
+  overflow: hidden;
+  outline: none;
+}
+
+.issue-description-edit .issue-description-input { display: block; }
+.issue-description-warn {
+  margin-top: 8px;
+  font-size: calc(12px * var(--font-scale));
+  color: var(--accent-warning);
+}
+.issue-reply-post.issue-reply-cancel {
+  margin-left: auto;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
 
 .issue-parent,
 .issue-project {
@@ -268,7 +308,8 @@ body.issue-page-body {
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
-.issue-content > .issue-section-title:first-of-type { margin-top: 0; }
+.issue-content > .issue-section-title:first-of-type,
+.issue-description-field > .issue-section-title { margin-top: 0; }
 
 .issue-empty-note { color: var(--muted); font-size: calc(13px * var(--font-scale)); font-style: italic; }
 

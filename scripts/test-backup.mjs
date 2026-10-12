@@ -94,5 +94,20 @@ store.local.myTodos = [];
 await b.applyRestore(b.planRestore(made, await b.readDeviceState()));
 check("applyRestore writes the merge", store.local.myTodos.length === 1 && store.local.token === "secret-jira");
 
+section("standup history");
+{
+  const rec = (id, startedAt) => ({ id, startedAt, attendees: [{ accountId: "acc-1", spokeMs: 1000 }] });
+  const withHistory = { ...local, standupHistory: [rec("1-1", "2026-10-01T09:00:00.000Z")] };
+  const built = b.buildBackup({ local: withHistory, sync });
+  check("the history is in the file", built.stores.standupHistory.length === 1);
+  check("describe counts standups", b.describeBackup(built).standups === 1);
+  const onto = b.planRestore(built, { local: { standupHistory: [rec("2-2", "2026-10-02T09:00:00.000Z")] }, sync });
+  check("restore merges history by id", onto.added.standups === 1 && onto.localWrites.standupHistory.length === 2);
+  const same = b.planRestore(built, { local: withHistory, sync });
+  check("nothing to add, nothing written", same.added.standups === 0 && !("standupHistory" in same.localWrites));
+  const old = b.planRestore({ ...built, stores: { ...built.stores, standupHistory: undefined } }, { local: withHistory, sync });
+  check("a backup from before history leaves it alone", old.added.standups === 0 && !("standupHistory" in old.localWrites));
+}
+
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);
