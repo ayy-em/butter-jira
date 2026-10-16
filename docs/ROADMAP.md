@@ -41,7 +41,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Order of work
 
 ```
-M22 1:1 screen improvements (S–M) ─▶ M24 Assisted planning (L, gated) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated)
+M22 1:1 screen improvements (S–M) ─▶ M24 Assisted planning (L, gated) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated) ─▶ M25 Planning follow-ups (S–M)
 ```
 
 The deferred backlog below is scoped but unscheduled, and any item in it can be
@@ -99,16 +99,8 @@ author.
    capped at eight sprints (`MAX_SPRINTS_KEPT`). That is right for sixty rows a
    sprint and wrong for M17's one rollup row a sprint, which a trend wants years
    of. Decide per store, with a visible clear action, as part of M17.
-2. **The dashboard's freeze with several boards** (from M23). The planning
-   flow's freeze is keyed by the one sprint it started; the dashboard looks for
-   one keyed by all active sprints across boards, and takes its own when it
-   finds none. Should the dashboard also read per-sprint freezes, so the flow's
-   start-of-sprint one is what it shows?
-3. **Due dates for epics** (from M23). Epics are never planned, so the flow
-   proposes no date for them. Should it propose an epic's due date from its
-   children's, as a separate list?
-4. **Planner and flow** (from M23): keep both, or does the planning flow
-   replace the sprint planner (and its multi-board setup)?
+
+M23's three open questions were answered on 2026-10-16 and became M25.
 
 ---
 
@@ -269,6 +261,33 @@ The author's ideas, 2026-10-01:
    the part Annex III is about, and the one to ask about first.
 4. **"Next items from in-progress epics": next by what?** Backlog rank, epic
    priority, due date, or how close the epic is to done?
+
+## M25 — Planning follow-ups
+
+**Size: S–M, as a set.** Follows M23, which left three open questions. The
+author answered them on 2026-10-16; execution is picked up later.
+
+### Settled 2026-10-16
+
+- [ ] **The dashboard reads per-sprint freezes.** The planning flow takes its
+      freeze keyed by the one sprint it started. With several boards, the
+      dashboard looks for a freeze keyed by all active sprints together and
+      takes its own when it finds none. **Answer: yes.** The dashboard should
+      also read per-sprint freezes, so the flow's start-of-sprint snapshot is
+      the one it shows.
+- [ ] **Due dates for epics.** Epics are never in a plan, so the flow proposes
+      no date for them today. **Answer: yes.** Propose an epic's due date as a
+      separate list, **defaulting to the latest due date among its
+      children**, and write it only if accepted (a due-date write, a kind the
+      app already makes).
+- [ ] **One entry point for both planners.** **Answer: keep both, for now.**
+      Sprint planning gets one launch entry, which opens a selection screen
+      with two buttons:
+      - **"Step-by-step planning wizard"** opens the M23 flow (`#planflow`).
+      - **"Legacy manual flow"** opens the sprint planner (`#planner`).
+
+      The two separate launch entries go away. Whether the flow replaces the
+      planner is revisited after the team has used both.
 
 ---
 
