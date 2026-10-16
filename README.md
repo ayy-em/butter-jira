@@ -913,6 +913,38 @@ moves. Any write that fails is retried on its own up to three times. What still
 fails is listed by issue with Jira's own reason, and stays in the draft for the
 next push.
 
+### Sprint planning (the flow)
+
+**Launch → Sprint planning (new)**, beside the planner while the two are
+compared. The planning ritual as four screens, one board per session, with the
+sprint writes Jira's own screens used to do:
+
+1. **Set up.** The board; the new sprint, picked from its upcoming ones or
+   created there and then (name, goal, the dates below); dates, buffer and
+   people as on the planner's setup. The board's active sprint is the outgoing
+   one.
+2. **Wrap up.** Every open issue in the outgoing sprint, each set to
+   **Backlog** (the default), **Carry** or **Split**. Split proposes part one's
+   points from the working days the issue has been under way this sprint, and
+   asks for a fresh estimate for part two when that time has passed the
+   estimate.
+3. **Plan.** The planner's plan screen for this board, plus **+ New issue**
+   (title, type, parent, description, assignee, points: created in Jira at once
+   and put in the plan) and **Propose due dates**: each person's issues, oldest
+   first, laid end to end over the sprint's working days, used one at a time or
+   all at once and written with the rest.
+4. **Review & start.** The outgoing sprint's recap opens in a new tab on the
+   way in, so it reads the sprint as it ended. Then one confirm writes the plan,
+   completes the outgoing sprint (open issues not carried go to the backlog),
+   starts the new one with the planned dates, and takes its sprint freeze. Each
+   step runs only if the one before it worked. When Jira refuses one, the screen
+   says which, with Jira's reason, a **Retry** that resumes after what is done,
+   and a link to the board in Jira.
+
+**Solo / Group** switches between small type with as much on screen as fits,
+and larger type for sharing the screen. The flow keeps its own draft, separate
+from the planner's.
+
 ### Standup mode
 
 Press `s` or the STANDUP tab. Pick who's in today, set each person's minutes
@@ -1571,6 +1603,7 @@ node scripts/test-drawer.mjs       # the drawer's focus layer           (24 chec
 node scripts/test-release.mjs      # version rewriting, licence, notes   (41 checks)
 node scripts/test-oneone.mjs       # 1:1 windows, notes, todos, JQL    (153 checks)
 node scripts/test-planner.mjs      # capacity, holidays, push, split (105 checks)
+node scripts/test-planflow.mjs     # flow: split from time, due dates, run (38 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it. Harnesses
@@ -1901,15 +1934,17 @@ behind it is in the commit history.
 
 Releases are automated; see [Releasing](#releasing).
 
-The app writes to Jira in six kinds of place and nowhere else:
+The app writes to Jira in seven kinds of place and nowhere else:
 - dragging a card between columns (a workflow transition)
 - editing assignee, due date or story points on the issue detail
 - creating an issue or a sub-task
 - posting a comment
 - adding or removing an issue link
 - pushing a sprint plan: moving issues into or out of sprints and setting their
-  assignee and story points, as one reviewed batch. The planner's Split uses
-  three kinds above (create, link, transition), each confirmed first
+  assignee, story points and due dates, as one reviewed batch. The planner's
+  Split uses three kinds above (create, link, transition), each confirmed first
+- sprints themselves, from the planning flow only: creating one, completing the
+  outgoing sprint and starting the new one, each a confirmed step
 
 Every one is something you asked for by clicking it, and every one reports what
 Jira said if it refused.

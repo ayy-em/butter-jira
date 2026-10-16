@@ -663,3 +663,76 @@ select.pl-input { max-width: 100%; }
 
 .pl-split-log:empty { display: none; }
 .pl-split-log li.bad { color: var(--accent-danger); }
+
+/* ── The planning flow (M23) ────────────────────────────────────────────── */
+
+/* Solo is small type with as much on screen as fits; group is larger type for
+   a shared screen. Only the type scales, as everywhere else in the app. */
+.pl-mode-solo { --font-scale: 1; }
+.pl-mode-group { --font-scale: 1.4; }
+
+.pf-steps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin-bottom: 10px;
+}
+.pl-plan .pf-steps { margin-bottom: 0; }
+.pf-step {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(12px * var(--font-scale));
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.pf-step:disabled { cursor: default; opacity: 0.55; }
+.pf-step.done { color: var(--text); }
+.pf-step.done:hover { border-color: var(--muted); }
+.pf-step.current {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  font-weight: 600;
+}
+.pf-mode .pl-toggle-btn { font-size: calc(11.5px * var(--font-scale)); padding: 3px 10px; }
+
+.pf-board { --pl-board: var(--muted); }
+.pf-create {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr) auto;
+  align-items: end;
+  gap: 10px 14px;
+  margin-top: 10px;
+}
+.pf-create > .pl-note { grid-column: 1 / -1; margin-top: 0; }
+.pf-create textarea { resize: vertical; }
+
+.pf-wrap-list { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
+.pf-wrap-card.carried { border-color: color-mix(in srgb, var(--accent-success) 55%, var(--border)); }
+.pf-choice .pl-toggle-btn { font-size: calc(11.5px * var(--font-scale)); padding: 2px 10px; }
+
+.pf-recap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.pf-recap .pl-note { margin: 0; }
+.pf-review { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.pf-run {
+  margin: 14px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: calc(13px * var(--font-scale));
+  color: var(--muted);
+}
+.pf-run-step.done { color: var(--accent-success); }
+.pf-run-step.failed { color: var(--accent-danger); }
+.pf-run-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.pf-run-status .pl-note { margin: 0; }
+
+.pl-due.edited { color: var(--accent-primary); }
+.btn.pl-due-proposal { color: var(--accent-primary); }
+.pl-col-head .btn.active { color: var(--text); border-color: var(--text); }
+.pl-mode-group .pl-body { grid-template-columns: 250px minmax(0, 1fr); }

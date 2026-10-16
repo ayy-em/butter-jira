@@ -6,7 +6,8 @@
 // and a few unestimated ones. Every write is answered and logged to the
 // console, so a push can be driven end to end. Invented data only. Not shipped.
 //
-// States: ?theme=light · ?push=fail (moving PLAT-312 is always refused, to see
+// States: ?flow=1 (the planning flow, M23) · ?sprint-start=refuse (Jira
+// refuses the start) · ?theme=light · ?push=fail (moving PLAT-312 is always refused, to see
 // the batch break up, the retries and the report) · ?stage=plan (start on the
 // plan screen with a prepared setup)
 import { params } from "./preview-fixture.js";
@@ -26,6 +27,8 @@ const FUTURE = {
   3: { id: 8, name: "DATA 8", state: "future" },
 };
 const PROJECT = { 1: "ACME", 2: "PLAT", 3: "DATA" };
+const CREATED = {};
+const MOVED = {};
 const EPICS = { 1: ["ACME-700", "Importer v2"], 2: ["PLAT-300", "Index cutover"], 3: ["DATA-50", "Pipeline alerts"] };
 
 const status = (name, key) => ({ name, statusCategory: { key } });
@@ -98,9 +101,34 @@ globalThis.fetch = async (input, options = {}) => {
   if (method !== "GET" && !/search\/jql/.test(url)) console.info("[preview write]", method, url.replace(/^https:\/\/[^/]+/, ""), body);
 
   const future = /\/board\/(\d+)\/sprint\?.*state=future/.exec(url);
-  if (future) return json({ values: [FUTURE[future[1]]].filter(Boolean), total: 1 });
+  if (future) {
+    const values = [FUTURE[future[1]], ...(CREATED[future[1]] || [])].filter(Boolean);
+    return json({ values, total: values.length });
+  }
+
+  // M23's sprint writes: create, and the partial update that starts and
+  // completes one. ?sprint-start=refuse answers the way Jira refuses a start
+  // while another sprint is still active.
+  if (/\/rest\/agile\/1\.0\/sprint$/.test(url) && method === "POST") {
+    const board = String(body.originBoardId);
+    const sprint = { id: 900 + Object.values(CREATED).flat().length, state: "future", name: body.name, startDate: body.startDate, endDate: body.endDate, goal: body.goal || "", originBoardId: Number(board) };
+    (CREATED[board] = CREATED[board] || []).push(sprint);
+    return json(sprint);
+  }
+  const sprintUpdate = /\/rest\/agile\/1\.0\/sprint\/(\d+)$/.exec(url);
+  if (sprintUpdate && method === "POST") {
+    if (body.state === "active" && params.get("sprint-start") === "refuse") {
+      return refuse(400, { errorMessages: ["Sprint cannot be started because another sprint is active on this board."] });
+    }
+    return json({ id: Number(sprintUpdate[1]), ...body });
+  }
 
   const sprintIssues = /\/board\/(\d+)\/sprint\/(\d+)\/issue/.exec(url);
+  if (sprintIssues && Number(sprintIssues[2]) >= 900) {
+    // A sprint the flow created: whatever has been moved into it.
+    const list = MOVED[sprintIssues[2]] || [];
+    return json({ issues: tag(list, Number(sprintIssues[1])), total: list.length });
+  }
   if (sprintIssues) {
     const board = Number(sprintIssues[1]);
     if (FUTURE[board]?.id === Number(sprintIssues[2])) {
@@ -131,6 +159,9 @@ globalThis.fetch = async (input, options = {}) => {
   if (move && method === "POST") {
     if (params.get("push") === "fail" && body.issues.includes("PLAT-312")) {
       return refuse(400, { errorMessages: ["Issue PLAT-312 cannot be moved: it is in a sprint on a board you cannot see."] });
+    }
+    if (Number(move[1]) >= 900) {
+      MOVED[move[1]] = [...(MOVED[move[1]] || []), ...body.issues.map((k) => issues.get(k) || { key: k, fields: { summary: k, status: { name: "To Do", statusCategory: { key: "new" } }, issuetype: { name: "Story" } } })];
     }
     for (const key of body.issues) {
       const hit = [...Object.entries(BACKLOG)].find(([, list]) => list.some((i) => i.key === key));
@@ -185,5 +216,6 @@ if (params.get("stage") === "plan") {
 }
 
 const { getCredentials } = await import("../js/credentials.js");
-const { mount } = await import("../js/views/planner.js");
+// ?flow=1 mounts M23's planning flow instead of the planner.
+const { mount } = await import(params.get("flow") ? "../js/views/planflow.js" : "../js/views/planner.js");
 await mount(document.getElementById("view-container"), await getCredentials());

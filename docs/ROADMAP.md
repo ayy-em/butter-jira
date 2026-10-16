@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-09-30
+Last updated: 2026-10-16
 
 An MV3 browser extension for Chrome, Firefox and Edge that gives one tab of
 Gantt, Backlog, Kanban, sprint and team views over several Jira Cloud boards.
@@ -12,7 +12,9 @@ behind every shipped decision, is the version of this file at commit `c818893`
 (`git show c818893:docs/ROADMAP.md`). M15 (the sprint planner) was removed on
 2026-09-30. Its settled answers and the calls made while building it are in the
 commit that shipped it (`git log --grep "M15"`). M21, the planner's polish, was
-removed on 2026-10-01 the same way (`git log --grep "M21"`). Shipped milestone labels still appear in
+removed on 2026-10-01 the same way (`git log --grep "M21"`), and M23, sprint
+planning as a process, on 2026-10-16 (`git log --grep "M23"`); its three open
+questions moved to Open questions below. Shipped milestone labels still appear in
 code comments and commit subjects, so they are indexed at the bottom.
 
 ## Current state
@@ -20,15 +22,15 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Aspect | Status |
 |---|---|
 | Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
-| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Sprint planner (setup + plan), 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
+| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Sprint planner (setup + plan), Sprint planning flow (set up, wrap up, plan, review and start), 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
 | Documents | Sprint recap PDF (active, last closed, or any chosen sprints) and quarterly overview PDF, both print-styled pages of their own |
-| Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE), and the sprint planner's reviewed push (sprint moves in and out, assignee, story points). Nothing else writes |
+| Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE), the sprint planner's reviewed push (sprint moves in and out, assignee, story points), and the planning flow's sprint create, complete and start. Nothing else writes |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist. Feeds the standup, dashboard, recap, quarterly overview and each issue's Development section |
 | Permissions | `storage`, `declarativeNetRequestWithHostAccess` (the opt-in Jira-links redirect), host access to `*.atlassian.net` and `api.github.com`, optional host access for anything else |
 | Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
 | Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
 | Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
-| Tests | 28 `scripts/test-*.mjs` suites (2405 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Tests | 29 `scripts/test-*.mjs` suites (2479 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
@@ -39,7 +41,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Order of work
 
 ```
-M23 Planning as a process (L, v0.9.0) ─▶ M22 1:1 screen improvements (S–M) ─▶ M24 Assisted planning (L, gated) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated)
+M22 1:1 screen improvements (S–M) ─▶ M24 Assisted planning (L, gated) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated)
 ```
 
 The deferred backlog below is scoped but unscheduled, and any item in it can be
@@ -82,7 +84,7 @@ author.
 
 | Risk | Where | Mitigation |
 |---|---|---|
-| Writes corrupt real sprint data | Planner (shipped), M23 | Device-local draft, Jira re-read before the review, one confirmed batch, each failure retried alone up to three times and then reported by name. No write on drag |
+| Writes corrupt real sprint data | Sprint planner and planning flow (shipped) | Device-local draft, Jira re-read before the review, one confirmed batch, each failure retried alone up to three times and then reported by name. No write on drag |
 | Request fan-out across boards hits rate limits | Planner (shipped), M17 | Reuse cached aggregates, batch where the API allows (sprint moves already batch 50) |
 | Per-person figures read as a performance measure | 1:1, recap, quarterly | Stated framing on every surface. Ranked only in the quarterly overview, at the author's request |
 | A planner that proposes who does what is worker-management AI | M24 | Suggestions change the draft only and are accepted by hand. AI Enablement review (EU AI Act Annex III, GDPR) before the assisted half is built; any LLM only through the approved LiteLLM gateway |
@@ -97,6 +99,16 @@ author.
    capped at eight sprints (`MAX_SPRINTS_KEPT`). That is right for sixty rows a
    sprint and wrong for M17's one rollup row a sprint, which a trend wants years
    of. Decide per store, with a visible clear action, as part of M17.
+2. **The dashboard's freeze with several boards** (from M23). The planning
+   flow's freeze is keyed by the one sprint it started; the dashboard looks for
+   one keyed by all active sprints across boards, and takes its own when it
+   finds none. Should the dashboard also read per-sprint freezes, so the flow's
+   start-of-sprint one is what it shows?
+3. **Due dates for epics** (from M23). Epics are never planned, so the flow
+   proposes no date for them. Should it propose an epic's due date from its
+   children's, as a separate list?
+4. **Planner and flow** (from M23): keep both, or does the planning flow
+   replace the sprint planner (and its multi-board setup)?
 
 ---
 
@@ -212,123 +224,6 @@ https://stxgroup.atlassian.net/servicedesk/customer/portal/1/group/819
    and todos". Say if the section should be renamed to Data instead.
 4. **Copy for Slack:** if it still fails after the fix, in which browser and
    after doing what?
-
-## M23 — Sprint planning as a process
-
-**Size: L · Target release: v0.9.0.** Next in the queue. The author's ten-step
-planning ritual (below) as one flow in the app, from wrapping up the outgoing sprint to starting the new
-one, including the sprint writes Jira's UI does today. Not gated: nothing here
-proposes the plan; that is M24.
-
-### Settled 2026-10-01
-
-- **Shape:** a process of screens; four, per the proposal below.
-- **Scope:** one board is one planning session.
-- **Sprint writes are in scope:** create, start and complete. Each is a new kind
-  of Jira write, recorded here as the product decision "Rules in force" asks
-  for.
-- **Recap:** generated automatically before the outgoing sprint is closed.
-- **New issues:** a quick inline row or small modal: title, parent,
-  description, assignee, story points.
-- **Scope snapshot:** taken automatically the moment the new sprint starts.
-- **Who runs it:** one person, possibly sharing the screen.
-- **Other boards:** an issue from another board joins by "add an issue from
-  another board" and a link, not by a cross-board carryover setting. Today's
-  multi-board setup and carryover code is moved into the flow where that is
-  little work, and copied where moving it would not be.
-- **Four screens:** filling and balancing share the Plan screen.
-- **Wrap-up default:** every open issue shows, and goes to the backlog unless
-  it is deliberately moved into the new sprint.
-- **Jira refusing to start the sprint:** a **Retry** button and a link to the
-  board in Jira, so it can be done there by hand.
-- **Carried issues touch two sprints' history briefly** (moved in before the
-  old sprint closes). Accepted, as long as it does not break the snapshots: the
-  freeze reads the new sprint's issues at the moment it starts, so it does not,
-  and the closed sprint's daily snapshots stop at its last day as now.
-- **Solo and group modes:** a toggle between solo (small type, as much on
-  screen as fits) and group (larger type, for sharing the screen).
-
-### Also in scope (added 2026-10-01)
-
-- [ ] **Split points from time spent.** On the wrap-up screen, propose part
-      one's points from the share of the outgoing sprint the issue has been in
-      progress, against its estimate, instead of half each. Shown as a
-      proposal; the person planning can always override it (settled
-      2026-10-01).
-- [ ] **Calculate due dates.** For each planned issue, a due date from the
-      sprint's working days, the work already planned for the same person
-      ahead of it, and its estimate (one point being one day at the default
-      hours per point); for an epic, from its children's due dates and points.
-      Shown as a proposal per issue and written only if accepted: a due-date
-      write, a kind the app already makes. Plain arithmetic on figures the
-      planner already holds, so it is here rather than in M24. A person's
-      issues are taken oldest first (settled 2026-10-01).
-
-### Proposal
-
-Four screens, with a step bar across the top and Back/Next. The draft stays on
-the device as it does now, so the flow can be left and resumed at any screen.
-Nothing is written to Jira until the last screen, except Split and quick
-create, which write at once from their own confirm as they do today.
-
-1. **Set up.** Pick the board. Pick the new sprint from its upcoming sprints,
-   or **New sprint…**: name, dates, goal, created at once from its own
-   confirm, because everything after this needs a real sprint id. Then dates,
-   working days, buffer and people, as on today's setup screen.
-2. **Wrap up the outgoing sprint.** Its open issues, one row each, with three
-   choices: **Carry** (into the new sprint as is), **Split** (part one closes
-   here, part two is carried), or **Back to backlog**. The default is backlog,
-   because carrying should be a decision. Points and assignees can be fixed
-   here.
-3. **Plan.** Today's planning screen for the one board: the carried issues
-   already in, the backlog beside them, people's capacity at the top, and a
-   **+ New issue** row (title, parent, description, assignee, points) that
-   creates in Jira and lands in the plan. Balancing between people is
-   reassigning here.
-4. **Review and start.** Every write, as today's Review & push lists them, then
-   one confirm that runs, in order:
-   1. open the outgoing sprint's recap in a new tab (on the click itself, so
-      the browser allows the tab);
-   2. the field writes and the moves into the new sprint;
-   3. complete the outgoing sprint, whose open issues not carried go to the
-      backlog;
-   4. start the new sprint;
-   5. take the sprint freeze, the scope snapshot M13 already defines, at that
-      moment.
-
-   Each step reports on its own. A failure stops the steps after it, since
-   starting a sprint on top of a failed close is worse than stopping, and the
-   screen says what has and has not happened.
-
-### The planning flow, as the author runs it
-
-```
-1. Generate a sprint recap of the sprint about to be closed
-2. Look at all still-open issues from last/current sprint
-3. Split up ones that are med+ sized and are currently in progress (and that
-   progress we intend to continue - not always the case) into two parts,
-   labeling current "ORIGINAL_ISSUE_NAME - pt.1", and marking it as "Done",
-   then creating a follow-up "ORIGINAL_ISSUE_NAME - pt.2" issue, adding it to
-   new sprint. Both parts should reference each other with a link and a
-   comment explaining the split is to be posted in both tasks. If the original
-   had a set due date, same due date applies to the follow-up task. Split
-   original's story points between pt1 and pt2.
-4. Close the old sprint, moving the remaining still-not-done stuff from old
-   sprint to backlog
-5. Look at backlog, put some stuff from there in the sprint
-6. Evaluate story points for all stuff added to new sprint
-7. Pick and choose what else to add to sprint from backlog if spare capacity
-   exists OR create a few more issues to put in OR move stuff out of sprint if
-   not enough capacity
-8. Shuffle and reassign stuff between people to balance workload
-9. Start a new sprint once satisfied with the split
-10. Generate a snapshot of what the scope is for the newly started sprint to
-    compare end-of-sprint state against when wrapping the current one up
-```
-
-### Open questions
-
-None open. Build questions get asked as the screens are built.
 
 ## M24 — Assisted sprint planning
 
@@ -482,3 +377,4 @@ in `git show c818893:docs/ROADMAP.md`.
 | M18 | Linked issues |
 | M19 | Tagged releases built by CI |
 | M21 | Sprint planner polish: compact cards, people down the left, Dutch holidays, hours per story point, Split as pt.1 / pt.2 |
+| M23 | Sprint planning as a process: a four-screen flow with sprint create, close and start |
