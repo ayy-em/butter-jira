@@ -209,7 +209,7 @@ check(
 
 section("PR state derivation");
 const state = (pr) => gh.prState(pr);
-check("no draft state exists to derive", gh.PR_STATES.DRAFT === undefined);
+check("draft is set from isDraft on the way in, never derived", state({ reviewDecision: null }) !== gh.PR_STATES.DRAFT);
 check("changes requested", state({ reviewDecision: "CHANGES_REQUESTED" }) === "changes-requested");
 check("failing checks", state({ checks: "FAILURE" }) === "checks-failing");
 check("errored checks count as failing", state({ checks: "ERROR" }) === "checks-failing");
@@ -290,7 +290,9 @@ const payload = {
 
 const activity = gh.toActivity(payload, repos, { now: NOW });
 check("PRs collected", activity.pullRequests.length === 2);
-check("drafts dropped on the way in", !activity.pullRequests.some((p) => p.number === 12));
+check("drafts kept out of the PR list", !activity.pullRequests.some((p) => p.number === 12));
+check("drafts kept in their own list", activity.drafts.length === 1 && activity.drafts[0].number === 12);
+check("a draft is labelled as one", activity.drafts[0].state === gh.PR_STATES.DRAFT && gh.PR_STATE_LABELS.draft === "draft");
 check("merged collected", activity.merged.length === 2);
 check("issues collected", activity.issues.length === 1);
 check("reached repos recorded", activity.reached.join() === "acme/platform-api");
@@ -319,11 +321,33 @@ check("assigned issue matched case-insensitively", sam.issues.length === 1);
 
 const ada = gh.activityFor(activity, "ada", { now: NOW });
 check("her own draft is not counted as work in flight", ada.open.length === 0);
+check("her draft is listed as a draft", ada.drafts.length === 1 && ada.drafts[0].number === 12);
 check("PR waiting on Ada is in her review list", ada.reviewRequests.length === 1);
 check("a review request is not counted as her own work", !ada.open.some((p) => p.number === 11));
 
 const nobody = gh.activityFor(activity, "", { now: NOW });
 check("no login yields nothing, never everything", nobody.open.length === 0 && nobody.issues.length === 0);
+check("a cached document without drafts still answers", gh.activityFor({ ...activity, drafts: undefined }, "ada", { now: NOW }).drafts.length === 0);
+
+const samSprint = gh.activityFor(activity, "samlee", { now: NOW, since: "2026-06-15T00:00:00Z" });
+check("a since date widens the merged cutoff", samSprint.merged.length === 2);
+check("and newest merge first", samSprint.merged[0].number === 8);
+
+section("merged over a sprint");
+const windowDoc = {
+  pullRequests: [
+    { repo: "acme/platform-api", number: 8, title: "Shipped today", url: "u8", author: "samlee", mergedAt: "2026-08-07T08:00:00Z" },
+    { repo: "acme/web-ui", number: 3, title: "Shipped last week", url: "u3", author: "SamLee", mergedAt: "2026-08-01T08:00:00Z" },
+    { repo: "acme/web-ui", number: 4, title: "Still open", url: "u4", author: "samlee", mergedAt: "" },
+    { repo: "acme/web-ui", number: 5, title: "Ada's", url: "u5", author: "ada", mergedAt: "2026-08-02T08:00:00Z" },
+  ],
+};
+const sprintMerged = gh.mergedFor(activity, windowDoc, "samlee", { since: "2026-07-25T00:00:00Z" });
+check("union of both queries, deduplicated", sprintMerged.map((p) => p.number).join() === "8,3");
+check("merged before the sprint excluded", !sprintMerged.some((p) => p.number === 7));
+check("activity alone still answers", gh.mergedFor(activity, null, "samlee", { since: "2026-07-25T00:00:00Z" }).length === 1);
+check("window alone still answers", gh.mergedFor(null, windowDoc, "samlee", { since: "2026-07-25T00:00:00Z" }).length === 2);
+check("no login yields nothing", gh.mergedFor(activity, windowDoc, "", { since: "2026-07-25T00:00:00Z" }).length === 0);
 
 section("sprint-window document");
 const windowQuery = gh.buildWindowQuery();
@@ -498,7 +522,7 @@ check("one request for every declared repo", requests.length === 1);
 check("posted to the GraphQL endpoint", requests[0].url === "https://api.github.com/graphql");
 check("bearer auth", requests[0].options.headers.Authorization === "Bearer gh-token");
 check("query names both repos", /platform-api[\s\S]*web-ui/.test(requests[0].options.body));
-check("view model returned, drafts already dropped", fetched.pullRequests.length === 2);
+check("view model returned, drafts already split off", fetched.pullRequests.length === 2);
 await new Promise((r) => setTimeout(r, 0));   // the expiry write is fire-and-forget
 check("expiry recorded from the response header", localStore.githubTokenExpiresAt === "2026-10-01");
 

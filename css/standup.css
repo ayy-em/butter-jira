@@ -920,16 +920,20 @@
 /* 5px rather than 3: this is now one of the two things carrying the sense of
    time running out, and it is read from the far end of a room. */
 .standup-progress { height: 5px; background: var(--border); flex: 0 0 5px; }
+/* Full width and scaled, rather than a width that changes every tick: a scale
+   is composited, so the bar advancing does not lay the stage out again. */
 .standup-progress-fill {
   height: 100%;
-  width: 0;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
   /* Blue with time in hand, warming through amber as the slot empties. */
   background: color-mix(
     in srgb,
     var(--accent-warning) calc(var(--pressure) * 100%),
     var(--accent-primary)
   );
-  transition: width 0.2s linear, background 0.4s linear;
+  transition: transform 0.2s linear, background 0.4s linear;
 }
 /* Last, so it wins outright once the slot is actually spent. */
 .standup-progress-fill.overrun { background: var(--accent-danger); }
@@ -1048,24 +1052,47 @@
    once a standup. The pull requests were in a narrow right-hand column where
    every title wrapped to two lines. They have swapped shapes.
 
-   A fixed two-thirds / one-third grid at a fixed height, rather than flex
-   sized by content: the parking lot used to jump from the right of the screen
-   to the left (and change height) whenever a speaker had no pull requests to
-   sit beside it. Now it is in the same place for everyone, and the facilitator
-   types into the same box all meeting. */
+   A fixed 60 / 40 grid at a fixed height, rather than flex sized by content:
+   the parking lot used to jump from the right of the screen to the left (and
+   change height) whenever a speaker had no pull requests to sit beside it. The
+   pull-request panel is always drawn, saying why when it has nothing to list,
+   so the facilitator types into the same box all meeting.
+
+   The one exception is a speaker with no GitHub login: there is nothing to
+   look up, so the panel shrinks to a 20% placeholder and the parking lot takes
+   the rest. */
 .standup-bottom {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   flex: 0 0 auto;
   height: clamp(180px, 30vh, 340px);
   border-top: 1px solid var(--border);
 }
+.standup-bottom.no-login { grid-template-columns: minmax(0, 1fr) minmax(0, 4fr); }
 .standup-prs {
   grid-column: 1;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   padding: 10px 18px 14px;
+}
+.standup-prs.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.standup-prs-message {
+  font-size: calc(13px * var(--font-scale));
+  color: var(--muted);
+}
+/* The red is pulled a quarter of the way to --text: the bare accent on the grey
+   is 4.28:1 dark and 3.58:1 light, and the mix clears AA in both (5.42, 5.26)
+   because --text is the far end of each theme's ground. */
+.standup-prs.no-login { background: color-mix(in srgb, var(--muted) 14%, transparent); }
+.standup-prs.no-login .standup-prs-message {
+  color: color-mix(in srgb, var(--accent-danger) 75%, var(--text));
+  font-weight: 600;
 }
 .standup-prs-heading {
   font-size: calc(10px * var(--font-scale));
@@ -1116,10 +1143,16 @@
   padding: 1px 5px;
   border-radius: var(--radius-xs);
   border: 1px solid currentColor;
+  /* The tone pulled 30% towards --text: the bare light-theme amber and green
+     are 3.23:1 and 2.99:1 on --bg, which is not enough for a 9.5px label. The
+     mix clears AA for every tone in both themes. */
+  color: color-mix(in srgb, var(--tone, var(--muted)) 70%, var(--text));
 }
-.standup-prs-state.review { color: var(--accent-warning); }
-.standup-prs-state.changes { color: var(--accent-danger); }
-.standup-prs-state.approved { color: var(--accent-success); }
+/* Keyed by PR_STATES in js/github.js, which is the class the row carries. */
+.standup-prs-state.waiting-review { --tone: var(--accent-warning); }
+.standup-prs-state.changes-requested,
+.standup-prs-state.checks-failing { --tone: var(--accent-danger); }
+.standup-prs-state.approved { --tone: var(--accent-success); }
 .standup-prs-state.draft { color: var(--muted); }
 
 .standup-parking {
@@ -1128,11 +1161,10 @@
   background: var(--surface);
   flex: 0 0 auto;
 }
-/* In session it is the right-hand third of the bottom strip rather than a
+/* In session it is the right-hand 40% of the bottom strip rather than a
    full-width footer: nothing typed in here has ever needed a projector's worth
-   of line length. Pinned to its column so an empty PR side leaves a gap rather
-   than moving it, and stretched to the strip's full height with the textarea
-   taking whatever the label leaves. Scoped to the stage so the end screen's
+   of line length. Pinned to its column, and stretched to the strip's full
+   height with the textarea taking whatever the label leaves. Scoped to the stage so the end screen's
    parking lot — where it *is* the point of the page — keeps the full measure. */
 .standup-bottom .standup-parking {
   grid-column: 2;

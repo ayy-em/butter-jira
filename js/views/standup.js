@@ -17,6 +17,7 @@ import {
   getTeamActivity,
   getTeamStats,
   isGithubConfigured,
+  mergedFor,
   onGithubProgress,
   statsFor,
 } from "../github.js";
@@ -1671,8 +1672,14 @@ export async function mount(container, creds) {
     // and the pull-request list still on screen.
     bottom.dataset.drawerBottom = "";
 
-    const prs = renderPullRequests(id);
-    if (prs) bottom.appendChild(prs);
+    // Always present, so the strip has the same shape for every speaker. Someone
+    // with no GitHub login gets a narrow placeholder instead, and the parking
+    // lot takes the width a list could never have filled. With GitHub not
+    // connected at all, a missing login is not this person's problem, so the
+    // full-width panel says that instead.
+    const noLogin = github.state !== "off" && !memberFor(id)?.githubLogin;
+    bottom.classList.toggle("no-login", noLogin);
+    bottom.appendChild(noLogin ? renderNoLogin() : renderPullRequests(id));
 
     // One parking lot per speaker: the box is theirs, so it comes up empty for
     // the next person and the end screen can address each note to someone.
@@ -1683,6 +1690,9 @@ export async function mount(container, creds) {
     notesLabel.textContent = `Parking lot — ${labelFor(id)}`;
     const notesInput = document.createElement("textarea");
     notesInput.className = "standup-parking-input";
+    // Tied to its label, so the box has a name rather than only a placeholder.
+    notesInput.id = "standup-parking-input";
+    notesLabel.htmlFor = notesInput.id;
     notesInput.rows = 4;
     notesInput.placeholder = `Anything to pick up with ${labelFor(id)} after standup…`;
     notesInput.value = session.notesByPerson?.[id] || "";
@@ -1822,24 +1832,40 @@ export async function mount(container, creds) {
   // and the one question this screen exists to answer is what the person
   // standing up is doing — their review queue is their own business and it was
   // the longest section of the three.
+  //
+  // Open lists drafts last, after everything that is ready for review: still
+  // the speaker's work, just not offered yet. Merged covers the whole sprint
+  // rather than the previous working day, from whichever of the two GitHub
+  // queries has landed.
+  //
+  // Always returns a panel, so the strip keeps its shape: when there is nothing
+  // to list, it says why.
   function renderPullRequests(accountId) {
-    if (github.state === "off" || github.state === "error") return null;
-
     const panel = document.createElement("div");
     panel.className = "standup-prs";
 
+    if (github.state === "off" || github.state === "error") {
+      return emptyPanel(panel, githubAbsentReason());
+    }
+
     const login = memberFor(accountId)?.githubLogin || "";
-    const mine = github.activity && login
-      ? activityFor(github.activity, login)
-      : { open: [], reviewRequests: [], merged: [], issues: [] };
+    const mine = activityFor(github.activity, login, { since: sprintStartIso });
+    const merged = mergedFor(github.activity, github.stats, login, { since: sprintStartIso });
 
     const sections = [
-      ["Open", mine.open, prLine],
-      ["Merged", mine.merged, mergedLine],
+      ["Open", [...mine.open, ...mine.drafts], prLine],
+      ["Merged", merged, mergedLine],
       ["Issues", mine.issues, issueLine],
     ].filter(([, items]) => items.length);
 
-    if (!sections.length) return null;
+    if (!sections.length) {
+      return emptyPanel(
+        panel,
+        github.activity
+          ? "No open or merged pull requests this sprint."
+          : githubAbsentReason()
+      );
+    }
 
     for (const [label, items, rowFn] of sections) {
       const heading = document.createElement("div");
@@ -1848,6 +1874,20 @@ export async function mount(container, creds) {
       panel.appendChild(heading);
       for (const item of items) panel.appendChild(rowFn(item));
     }
+    return panel;
+  }
+
+  function emptyPanel(panel, message) {
+    panel.classList.add("empty");
+    panel.appendChild(el("span", "standup-prs-message", message));
+    return panel;
+  }
+
+  // Greyed out and narrow: there is nothing this screen can look up without a
+  // login, and the fix is in the roster rather than in the meeting.
+  function renderNoLogin() {
+    const panel = el("div", "standup-prs empty no-login");
+    panel.appendChild(el("span", "standup-prs-message", "No GitHub user link"));
     return panel;
   }
 
@@ -1950,7 +1990,7 @@ export async function mount(container, creds) {
     if (fill) {
       const total = phaseTotalMs(session) || 1;
       const used = Math.min(1, phaseElapsedMs(session, now) / total);
-      fill.style.width = `${(used * 100).toFixed(1)}%`;
+      fill.style.transform = `scaleX(${used.toFixed(3)})`;
       fill.classList.toggle("overrun", isOverrun(session, now));
     }
   }

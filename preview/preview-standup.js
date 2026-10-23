@@ -17,7 +17,7 @@ const NAMES = [
 
 // ?theme=light · ?select=nobody · ?roster=empty · ?github=off · ?resume=1 ·
 // ?start=1 · ?done=1 · ?sprint=undated · ?github=slow · ?github=stuck ·
-// ?github=partial · ?ghhover=1
+// ?github=partial · ?ghhover=1 · ?ghcase=nologin · ?ghcase=idle
 //
 // The three GitHub states the seeded caches cannot reach on their own. Both
 // caches are warm here, so the fetch normally settles before the first paint
@@ -49,6 +49,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // looked at is a GitHub fetch running behind a screen that is already up.
 let heldKey = "";
 const held = params.get("github");
+// The pull-request panel's two empty shapes: nobody on the roster has a GitHub
+// login (the narrow placeholder), or everybody has one and nothing to show.
+const ghCase = params.get("ghcase");
 const holdFor = async (keys) => {
   if (!heldKey || !keys) return;
   const wanted = Array.isArray(keys) ? keys : [keys];
@@ -236,7 +239,7 @@ TEAMS.teams = [{
     nameOverride: "",
     email: "",
     active: true,
-    githubLogin: p[0].toLowerCase(),
+    githubLogin: ghCase === "nologin" ? "" : p[0].toLowerCase(),
     slackHandle: "",
     avatarUrl: "",
   })),
@@ -267,11 +270,31 @@ local[activityCacheKey(CONFIG)] = {
         updatedAt: new Date().toISOString(),
       }))
     ),
+    // Odd rows have a draft as well, listed after the ready ones.
+    drafts: NAMES.flatMap((p, i) => i % 2 ? [{
+      repo: "example/beta",
+      number: 300 + i,
+      title: `Draft from ${p[0]}`,
+      url: "#",
+      author: p[0].toLowerCase(),
+      state: "draft",
+      reviewers: [],
+      teamReviewers: [],
+      ageDays: 2,
+      staleDays: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }] : []),
     merged: [],
     issues: [],
     failures: [],
   },
 };
+if (ghCase === "idle") {
+  const value = local[activityCacheKey(CONFIG)].value;
+  value.pullRequests = [];
+  value.drafts = [];
+}
 
 // The sprint-window cache: what the per-person statistics are counted from.
 // Deterministic per person — pull requests they opened and merged, and reviews
@@ -343,7 +366,7 @@ local[statsCacheKey(CONFIG)] = {
           { repo: "example/delta", type: "auth", message: "Resource not accessible by personal access token" },
         ]
       : [],
-    pullRequests: windowPrs,
+    pullRequests: ghCase === "idle" ? [] : windowPrs,
     reviews: windowReviews,
     comments: windowComments,
   },

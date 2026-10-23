@@ -21,9 +21,18 @@ shared screen.
 it ran, who was there, how long each person spoke and how many parking-lot
 notes it produced. The end screen has a "Don't record this standup's stats"
 button for test runs and accidental starts. The history is in the device
-backup. In session, the parking lot is always the right-hand third of the
-bottom strip and fills its height, with pull requests in the other two thirds,
-so it no longer jumps sides between speakers.
+backup. In session, the parking lot is always the right-hand 40% of the
+bottom strip and fills its height, with pull requests in the other 60%, so it
+no longer jumps sides between speakers. The pull-request panel is always
+there: it lists the speaker's open pull requests with their drafts last and
+everything they merged this sprint (not just since the previous working day),
+and says "No open or merged pull requests this sprint" when there is nothing.
+A speaker with no GitHub login on the roster gets a narrow "No GitHub user
+link" placeholder and a wider parking lot. Pull-request state labels are
+coloured again (amber waiting on review, red changes requested or checks
+failing, green approved) and clear AA contrast in both themes, the parking-lot
+box is named by its label for screen readers, and the speaker's progress bar
+advances without re-laying-out the stage every second.
 
 **Edit an issue's title and description in the detail panel.** Click the title
 to change it; Enter saves, Escape cancels. The description has an Edit button

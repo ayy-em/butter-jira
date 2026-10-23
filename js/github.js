@@ -286,15 +286,17 @@ fragment PrFields on PullRequest {
 //   2 checks-failing    — same, and often unnoticed
 //   3 approved          — one click from shipping, and nobody has clicked it
 //   4 waiting-review    — blocked on someone else, which a standup can unblock
+//   5 draft             — explicitly marked as not ready
 //
-// There is no draft rank because there are no drafts: a draft is work someone
-// has explicitly marked as not ready, so it is dropped on the way in and never
-// appears in a list, a count or a statistic. See `isDraft` in `toActivity`.
+// A draft never reaches `pullRequests`, so no count or statistic includes one.
+// Drafts are kept in their own `drafts` list, which only the standup's
+// per-person panel reads: the speaker's own unfinished work, listed last.
 export const PR_STATES = {
   CHANGES_REQUESTED: "changes-requested",
   CHECKS_FAILING: "checks-failing",
   APPROVED: "approved",
   WAITING_REVIEW: "waiting-review",
+  DRAFT: "draft",
 };
 
 const STATE_RANK = {
@@ -302,6 +304,7 @@ const STATE_RANK = {
   [PR_STATES.CHECKS_FAILING]: 2,
   [PR_STATES.APPROVED]: 3,
   [PR_STATES.WAITING_REVIEW]: 4,
+  [PR_STATES.DRAFT]: 5,
 };
 
 export const PR_STATE_LABELS = {
@@ -309,6 +312,7 @@ export const PR_STATE_LABELS = {
   [PR_STATES.CHECKS_FAILING]: "checks failing",
   [PR_STATES.APPROVED]: "approved, unmerged",
   [PR_STATES.WAITING_REVIEW]: "waiting on review",
+  [PR_STATES.DRAFT]: "draft",
 };
 
 export function prState(pr) {
@@ -352,6 +356,7 @@ export function toActivity(payload, repos, { now = new Date() } = {}) {
   }
 
   const pullRequests = [];
+  const drafts = [];
   const merged = [];
   const issues = [];
   const reached = [];
@@ -369,9 +374,6 @@ export function toActivity(payload, repos, { now = new Date() } = {}) {
 
     for (const pr of node.openPullRequests?.nodes || []) {
       if (!pr) continue;
-      // Drafts are dropped here rather than filtered at each call site, so that
-      // no count anywhere in the app can disagree with the list beside it.
-      if (pr.isDraft) continue;
       const reviewers = (pr.reviewRequests?.nodes || [])
         .map((r) => normalizeGithubLogin(r?.requestedReviewer?.login))
         .filter(Boolean);
@@ -391,10 +393,12 @@ export function toActivity(payload, repos, { now = new Date() } = {}) {
         reviewers,
         teamReviewers,
       };
-      item.state = prState(item);
+      item.state = pr.isDraft ? PR_STATES.DRAFT : prState(item);
       item.ageDays = ageDays(item.createdAt, now);
       item.staleDays = ageDays(item.updatedAt, now);
-      pullRequests.push(item);
+      // Drafts are split off here rather than filtered at each call site, so
+      // that no count anywhere in the app can disagree with the list beside it.
+      (pr.isDraft ? drafts : pullRequests).push(item);
     }
 
     for (const pr of node.mergedPullRequests?.nodes || []) {
@@ -432,6 +436,7 @@ export function toActivity(payload, repos, { now = new Date() } = {}) {
     repos: repos.map(repoSlug),
     reached,
     pullRequests: pullRequests.sort(comparePrs),
+    drafts: drafts.sort(comparePrs),
     merged,
     issues,
     failures: [...failures.values()],
@@ -464,15 +469,19 @@ export function mergedSince(now = new Date()) {
 const fold = (login) => normalizeGithubLogin(login).toLowerCase();
 
 // Everything one person should be able to talk to, given their GitHub login.
-// An empty login yields empty lists rather than everyone's work.
-export function activityFor(activity, login, { now = new Date() } = {}) {
+// An empty login yields empty lists rather than everyone's work. `since` moves
+// the merged cutoff off the previous working day — the standup lists a whole
+// sprint's merges.
+export function activityFor(activity, login, { now = new Date(), since = mergedSince(now) } = {}) {
   const me = fold(login);
-  const empty = { open: [], reviewRequests: [], merged: [], issues: [] };
+  const empty = { open: [], drafts: [], reviewRequests: [], merged: [], issues: [] };
   if (!me || !activity) return empty;
 
-  const cutoff = mergedSince(now).getTime();
+  const cutoff = new Date(since).getTime();
   return {
     open: activity.pullRequests.filter((pr) => fold(pr.author) === me),
+    // Older cached documents predate the list.
+    drafts: (activity.drafts || []).filter((pr) => fold(pr.author) === me),
     // Somebody else's PR waiting on this person — the ten-second unblock.
     reviewRequests: activity.pullRequests.filter(
       (pr) => fold(pr.author) !== me && pr.reviewers.some((r) => fold(r) === me)
@@ -482,6 +491,34 @@ export function activityFor(activity, login, { now = new Date() } = {}) {
       .sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt))),
     issues: activity.issues.filter((i) => i.assignees.some((a) => fold(a) === me)),
   };
+}
+
+// One person's pull requests merged since `since`, newest first. The activity
+// query only holds each repo's 30 most recently updated merges, which a busy
+// repo goes through in days; the sprint-window query pages back over the whole
+// window but is slower to land and may have lost a repo. Either can be absent,
+// so this takes the union of both, deduplicated by repo and number.
+export function mergedFor(activity, stats, login, { since }) {
+  const me = fold(login);
+  if (!me) return [];
+  const cutoff = new Date(since).getTime();
+  const byKey = new Map();
+  for (const pr of [...(activity?.merged || []), ...(stats?.pullRequests || [])]) {
+    if (fold(pr.author) !== me || !pr.mergedAt) continue;
+    if (new Date(pr.mergedAt).getTime() < cutoff) continue;
+    const key = `${pr.repo}#${pr.number}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        repo: pr.repo,
+        number: pr.number,
+        title: pr.title,
+        url: pr.url,
+        author: pr.author,
+        mergedAt: pr.mergedAt,
+      });
+    }
+  }
+  return [...byKey.values()].sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
 }
 
 // ── Sprint window ────────────────────────────────────────────────────────────
