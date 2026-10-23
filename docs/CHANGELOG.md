@@ -6,7 +6,7 @@ tag into the release notes, so the wording here is the wording published — kee
 it about what a user gets. The reasoning is in the commit history;
 [ROADMAP.md](ROADMAP.md) is what is still to come.
 
-## Unreleased
+## v0.9.0
 
 **Sprint planning as a process.** `LAUNCH → SPRINT PLANNING (NEW)`: set up,
 wrap up the outgoing sprint, plan, review and start, one board at a time. The
@@ -28,8 +28,8 @@ there: it lists the speaker's open pull requests with their drafts last and
 everything they merged this sprint (not just since the previous working day),
 and says "No open or merged pull requests this sprint" when there is nothing.
 A speaker with no GitHub login on the roster gets a narrow "No GitHub user
-link" placeholder and a wider parking lot. Pull-request state labels are
-coloured again (amber waiting on review, red changes requested or checks
+link" placeholder and a wider parking lot. Pull-request state labels now
+carry their colour (amber waiting on review, red changes requested or checks
 failing, green approved) and clear AA contrast in both themes, the parking-lot
 box is named by its label for screen readers, and the speaker's progress bar
 advances without re-laying-out the stage every second.
