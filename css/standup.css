@@ -876,6 +876,30 @@
   margin-left: 18px;
   color: var(--muted);
 }
+/* Deliberately small and quiet beside the name: it is pressed once or twice a
+   standup, by whoever is driving, and the room does not need to read it. */
+.standup-refetch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font-size: calc(12px * var(--font-scale));
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.standup-refetch:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
+.standup-refetch:disabled { cursor: progress; }
+.standup-refetch.busy svg { animation: spin 0.8s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .standup-refetch.busy svg { animation: none; }
+  .standup-refetch.busy { opacity: 0.6; }
+}
 
 /* --overrun-scale is written by paintClock: 1 while there is time left, then a
    step larger every five seconds someone runs over. Multiplied in here rather

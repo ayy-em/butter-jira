@@ -207,5 +207,32 @@ section("nextCardPosition");
       .every((k) => board.nextCardPosition(only, 0, 0, k) === null));
 }
 
+// ── What a re-fetch changed ────────────────────────────────────────────────
+section("diffPlacements");
+{
+  const placed = (pairs) => new Map(pairs);
+  const before = placed([["A-1", "To Do"], ["A-2", "In Progress"], ["A-3", "Done"]]);
+  const after = placed([["A-1", "In Progress"], ["A-2", "In Progress"], ["A-4", "To Do"]]);
+  const diff = board.diffPlacements(before, after);
+
+  check("a card in a new column is moved",
+    diff.moved.length === 1 && diff.moved[0].key === "A-1" &&
+    diff.moved[0].from === "To Do" && diff.moved[0].to === "In Progress",
+    JSON.stringify(diff.moved));
+  check("a card that stayed put is not reported", !JSON.stringify(diff).includes("A-2"));
+  check("a card only after is added", diff.added.join() === "A-4");
+  check("a card only before is removed", diff.removed.join() === "A-3");
+
+  const none = board.diffPlacements(before, before);
+  check("the same board twice is no change",
+    !none.moved.length && !none.added.length && !none.removed.length);
+  const fresh = board.diffPlacements(new Map(), after);
+  check("from an empty board, everything is added", fresh.added.length === 3 && !fresh.moved.length);
+  const emptied = board.diffPlacements(before, new Map());
+  check("to an empty board, everything is removed", emptied.removed.join() === "A-1,A-2,A-3");
+  check("arrivals keep the board's order",
+    board.diffPlacements(new Map(), placed([["B-2", "x"], ["B-1", "x"]])).added.join() === "B-2,B-1");
+}
+
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);
