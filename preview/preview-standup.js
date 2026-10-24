@@ -17,7 +17,7 @@ const NAMES = [
 
 // ?theme=light · ?select=nobody · ?roster=empty · ?github=off · ?resume=1 ·
 // ?start=1 · ?done=1 · ?sprint=undated · ?github=slow · ?github=stuck ·
-// ?github=partial · ?ghhover=1 · ?ghcase=nologin · ?ghcase=idle
+// ?github=partial · ?ghhover=1 · ?ghcase=nologin · ?ghcase=idle · ?refetch=1
 //
 // The three GitHub states the seeded caches cannot reach on their own. Both
 // caches are warm here, so the fetch normally settles before the first paint
@@ -184,6 +184,28 @@ function issuesFor(person, index, count) {
 
 const SPRINT_ISSUES = NAMES.flatMap((p, i) => issuesFor(p, i, p[1]));
 
+// ?refetch=1 — the sprint as the speaker's "Re-fetch Jira" button finds it:
+// every read after the first has, for each person, their first card moved one
+// column on, a card that was not there before, and their last card gone. One of
+// each is what the re-fetch animation has to show.
+let sprintReads = 0;
+function sprintAfterRefetch() {
+  return NAMES.flatMap((p, index) => {
+    const mine = SPRINT_ISSUES.filter((i) => i.fields.assignee.accountId === `acc-${index}`);
+    const kept = structuredClone(mine.slice(0, -1));
+    if (kept[0]) {
+      const at = STATUSES.findIndex((s) => s[0] === kept[0].fields.status.name);
+      const next = STATUSES[(at + 1) % STATUSES.length];
+      kept[0].fields.status = { name: next[0], statusCategory: { key: next[1] } };
+    }
+    const added = issuesFor(p, index, mine.length + 1).at(-1);
+    added.key = `ACME-${900 + index}`;
+    added.fields.summary = `Picked up mid-sprint by ${p[0]}`;
+    added.fields.assignee = { accountId: `acc-${index}`, displayName: p[0] };
+    return [...kept, added];
+  });
+}
+
 globalThis.fetch = async (input) => {
   const url = String(input);
   // Cloned: `compactChangelogs` reduces each issue's changelog in place at the
@@ -206,7 +228,8 @@ globalThis.fetch = async (input) => {
     });
   }
   if (url.includes("/sprint/41/issue")) {
-    return json({ issues: SPRINT_ISSUES, total: SPRINT_ISSUES.length });
+    const issues = params.get("refetch") === "1" && sprintReads++ > 0 ? sprintAfterRefetch() : SPRINT_ISSUES;
+    return json({ issues, total: issues.length });
   }
   return json({ values: [], issues: [], total: 0 });
 };

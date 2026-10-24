@@ -224,6 +224,9 @@ export function renderColumns(board, issues, groups, options = {}) {
     const col = document.createElement("div");
     col.className = "kanban-column";
     col.dataset.colIdx = ci;
+    // By name as well as position, so a snapshot taken before a repaint can
+    // tell which column a card was in — see animateBoardChanges below.
+    col.dataset.column = column.name;
 
     if (onReorder || onIssueMove) {
       col.addEventListener("dragover", (e) => {
@@ -453,4 +456,220 @@ function wireKeyboard(board, columns, grid, { onIssueMove, hadFocus }) {
   }
 
   if (hadFocus) anchor.focus();
+}
+
+// ── What a re-fetch changed ─────────────────────────────────────────────────
+//
+// The board is rebuilt from scratch on every repaint, so a card that changed
+// column between two fetches simply appears somewhere else — invisible on a
+// projected screen unless someone remembers where it was. Snapshot the board
+// before the repaint, then show the difference after it: a moved card flies
+// from its old place to its new one, a new card drops in, and a card that left
+// the board stays behind long enough to be seen going.
+//
+// Moves and departures fly on fixed-position copies rather than on the cards
+// themselves. Every column scrolls on its own, and a card translated out of its
+// column is clipped by that column's overflow — it would vanish at the border
+// halfway through the trip.
+
+// key -> { column, rect, el } for every card, plus each column's count element
+// text. The elements are kept on purpose: a card that is gone after the repaint
+// is animated out using its own, now detached, node.
+export function boardSnapshot(board) {
+  const cards = new Map();
+  const counts = new Map();
+  if (!board) return { cards, counts };
+  for (const card of board.querySelectorAll(".kanban-column .kanban-card[data-issue-key]")) {
+    cards.set(card.dataset.issueKey, {
+      column: card.closest(".kanban-column")?.dataset.column ?? "",
+      rect: card.getBoundingClientRect(),
+      el: card,
+    });
+  }
+  for (const col of board.querySelectorAll(".kanban-column[data-column]")) {
+    counts.set(col.dataset.column, col.querySelector(".kanban-col-count")?.textContent ?? "");
+  }
+  return { cards, counts };
+}
+
+// Pure: two maps of issue key -> column name in, what happened between them
+// out. Order follows the board — `after`'s order for moves and arrivals,
+// `before`'s for departures — so a staggered animation runs left to right.
+export function diffPlacements(before, after) {
+  const moved = [];
+  const added = [];
+  const removed = [];
+  for (const [key, column] of after) {
+    if (!before.has(key)) added.push(key);
+    else if (before.get(key) !== column) moved.push({ key, from: before.get(key), to: column });
+  }
+  for (const key of before.keys()) if (!after.has(key)) removed.push(key);
+  return { moved, added, removed };
+}
+
+const columnsOf = (cards) => new Map([...cards].map(([key, c]) => [key, c.column]));
+
+const FX_STAGGER_MS = 90;
+const FX_EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+
+// Call straight after renderColumns() with the snapshot taken before it.
+// `board` may be null when the repaint left nothing to draw; the diff is still
+// returned so the caller can say what happened. Returns { moved, added, removed }.
+export function animateBoardChanges(board, before) {
+  const after = boardSnapshot(board);
+  const diff = diffPlacements(columnsOf(before.cards), columnsOf(after.cards));
+  if (!board) return diff;
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+  // Cards that stayed in their column but shifted because something above
+  // them arrived or left. Plain FLIP, in place: within one column the clip is
+  // the right behaviour.
+  if (!reduce) {
+    for (const [key, now] of after.cards) {
+      const was = before.cards.get(key);
+      if (!was || was.column !== now.column) continue;
+      const dx = was.rect.left - now.rect.left;
+      const dy = was.rect.top - now.rect.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+      now.el.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }],
+        { duration: 450, easing: FX_EASE }
+      );
+    }
+  }
+
+  // Departures first and arrivals last. A card that leaves and one that
+  // arrives often share a slot — the board closes up behind the one going —
+  // and the new card landing on the ghost before it has started to fall reads
+  // as one muddle rather than one out, one in.
+  diff.removed.forEach((key, i) => {
+    dropOutCard(board, before.cards.get(key), i * FX_STAGGER_MS, reduce);
+  });
+  diff.moved.forEach(({ key, from }, i) => {
+    flyCard(board, before.cards.get(key), after.cards.get(key), from, 250 + i * FX_STAGGER_MS, reduce);
+  });
+  const arrivalsFrom = diff.removed.length ? 900 : 250;
+  diff.added.forEach((key, i) => {
+    dropInCard(after.cards.get(key).el, arrivalsFrom + i * FX_STAGGER_MS, reduce);
+  });
+
+  if (!reduce) {
+    for (const col of board.querySelectorAll(".kanban-column[data-column]")) {
+      const count = col.querySelector(".kanban-col-count");
+      const was = before.counts.get(col.dataset.column);
+      if (!count || was === undefined || was === count.textContent) continue;
+      // A class rather than element.animate(): the flash is in theme tokens,
+      // and var() inside script-built keyframes is not resolved everywhere.
+      count.classList.add("kanban-col-count-bump");
+    }
+  }
+
+  return diff;
+}
+
+// The small label a changed card carries for a few seconds: where it came
+// from, or that it is new or gone. The CSS fades it out by itself.
+function fxTag(card, text) {
+  card.querySelector(".kanban-card-fx-tag")?.remove();
+  const tag = document.createElement("span");
+  tag.className = "kanban-card-fx-tag mono";
+  tag.textContent = text;
+  card.appendChild(tag);
+}
+
+// A copy of `source`, pinned over the board at `rect`. Inside the board element
+// rather than on <body> so the board's own card styles still apply to it.
+function flyer(board, source, rect) {
+  const copy = source.cloneNode(true);
+  copy.classList.add("kanban-card-flyer");
+  copy.removeAttribute("tabindex");
+  // The source may be a card hidden while it waits for its own flight.
+  copy.style.visibility = "";
+  copy.setAttribute("aria-hidden", "true");
+  Object.assign(copy.style, {
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+  });
+  board.appendChild(copy);
+  return copy;
+}
+
+function onSettled(animation, fn) {
+  animation.onfinish = fn;
+  animation.oncancel = fn;
+}
+
+function flyCard(board, was, now, fromColumn, delay, reduce) {
+  const land = () => {
+    now.el.style.visibility = "";
+    now.el.classList.add("kanban-card-moved");
+    fxTag(now.el, `from ${fromColumn}`);
+  };
+  if (reduce) return land();
+
+  // The real card holds its new place, invisible, while a copy of it — new
+  // content, already in its new column's styling — travels there from the old
+  // one. Arcs up and tilts toward where it is going, so it reads as picked up
+  // and put down rather than slid.
+  now.el.style.visibility = "hidden";
+  const copy = flyer(board, now.el, now.rect);
+  const dx = was.rect.left - now.rect.left;
+  const dy = was.rect.top - now.rect.top;
+  const tilt = dx < 0 ? 3 : -3;
+  const animation = copy.animate(
+    [
+      { transform: `translate(${dx}px, ${dy}px)`, boxShadow: "0 0 0 transparent" },
+      {
+        transform: `translate(${dx * 0.75}px, ${dy * 0.75 - 36}px) scale(1.08) rotate(${tilt}deg)`,
+        boxShadow: "0 22px 44px rgba(0, 0, 0, 0.35)",
+        offset: 0.35,
+      },
+      { transform: "none", boxShadow: "0 0 0 transparent" },
+    ],
+    { duration: 950, delay, easing: FX_EASE, fill: "backwards" }
+  );
+  onSettled(animation, () => {
+    copy.remove();
+    land();
+  });
+}
+
+function dropInCard(card, delay, reduce) {
+  card.classList.add("kanban-card-added");
+  fxTag(card, "new");
+  if (reduce) return;
+  // The ring starts when the card appears, not while it is still invisible.
+  card.style.animationDelay = `${delay}ms`;
+  card.animate(
+    [
+      { opacity: 0, transform: "translateY(-28px) scale(0.8)" },
+      { opacity: 1, transform: "translateY(4px) scale(1.04)", offset: 0.6 },
+      { opacity: 1, transform: "none" },
+    ],
+    { duration: 700, delay, easing: FX_EASE, fill: "backwards" }
+  );
+}
+
+// The old card itself, detached by the repaint, put back over the board where
+// it was: it lingers marked as gone, then falls away.
+function dropOutCard(board, was, delay, reduce) {
+  const ghost = flyer(board, was.el, was.rect);
+  ghost.classList.add("kanban-card-removed");
+  fxTag(ghost, "gone");
+  const frames = reduce
+    ? [{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }]
+    : [
+        { opacity: 1, transform: "none" },
+        { opacity: 1, transform: "scale(1.03)", offset: 0.5 },
+        { opacity: 0, transform: "translateY(60px) scale(0.75) rotate(-6deg)" },
+      ];
+  const animation = ghost.animate(frames, {
+    duration: 1600,
+    delay,
+    easing: "ease-in",
+    fill: "both",
+  });
+  onSettled(animation, () => ghost.remove());
 }

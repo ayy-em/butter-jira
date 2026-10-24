@@ -1,6 +1,6 @@
 import { runtimeUrl } from "../browser.js";
 import { getActiveSprint, getAllSprintIssues } from "../api.js";
-import { BOARDS, compactNum, fmtDate, isOverdue, loadStatusGroups } from "../utils.js";
+import { BOARDS, cache, compactNum, fmtDate, isOverdue, loadStatusGroups, showToast } from "../utils.js";
 import {
   activeMembers,
   activeTeam,
@@ -26,7 +26,7 @@ import {
   activityFrom as jiraActivityFrom,
 } from "../activity.js";
 import * as confetti from "../confetti.js";
-import { renderColumns } from "../components/board.js";
+import { animateBoardChanges, boardSnapshot, renderColumns } from "../components/board.js";
 import { openIssueDrawer } from "../components/issue-detail.js";
 import { createIssueMover } from "../issue-move.js";
 import { ISSUE_EDITED_EVENT, applyValues } from "../issue-edit.js";
@@ -89,7 +89,8 @@ export async function mount(container, creds) {
   let mounted = false;
   const githubFetch = startGithubFetch();
 
-  const [sprintIssues, statusGroups, prefs, storedSession] = await Promise.all([
+  // `let` because the speaker's re-fetch button replaces them mid-standup.
+  let [sprintIssues, statusGroups, prefs, storedSession] = await Promise.all([
     getAllSprintIssues(creds),
     loadStatusGroups(),
     loadPrefs(),
@@ -131,7 +132,7 @@ export async function mount(container, creds) {
   // "this sprint" means one thing across the whole table. Derived from the
   // changelog that rode the `getAllSprintIssues` request above — no fetch of its
   // own, which is why this is computed eagerly rather than behind a flag.
-  const jiraActivity = jiraActivityFrom(sprintIssues, {
+  let jiraActivity = jiraActivityFrom(sprintIssues, {
     since: sprintStartIso,
     statusGroups,
   });
@@ -323,6 +324,7 @@ export async function mount(container, creds) {
     soundOff: ["M11 5 6.5 9H3v6h3.5L11 19V5Z", "m16 9.5 5 5", "m21 9.5-5 5"],
     play: ["m8 5.5 11 6.5-11 6.5v-13Z"],
     arrow: ["M4 12h15", "m13 6 6 6-6 6"],
+    refresh: ["M3 12a9 9 0 0 1 15.4-6.4L21 8", "M21 3v5h-5", "M21 12a9 9 0 0 1-15.4 6.4L3 16", "M8 16H3v5"],
   };
 
   // The octicon mark, on its own 16-unit grid and filled rather than stroked —
@@ -1275,6 +1277,7 @@ export async function mount(container, creds) {
     const parts = [
       ["Space", "pause"],
       ["→", "next"],
+      ["R", "re-fetch Jira"],
       ["Shift+Esc", "end"],
     ];
     parts.forEach(([key, what], i) => {
@@ -1599,6 +1602,7 @@ export async function mount(container, creds) {
     position.className = "standup-position mono";
     position.textContent = `${session.index + 1} / ${session.order.length}`;
     who.appendChild(position);
+    who.appendChild(refetchButton());
     bar.appendChild(who);
 
     const clock = document.createElement("div");
@@ -1730,6 +1734,90 @@ export async function mount(container, creds) {
       emptyLabel: "—",
       onIssueMove: moveIssue,
     });
+  }
+
+  // ── Re-fetch ───────────────────────────────────────────────────────────────
+
+  // The sprint is read once, when the view mounts, and a standup is exactly
+  // when it goes stale: "I moved that to review this morning" while the board
+  // on screen says otherwise. One button on the speaker's bar reads the sprint
+  // again, for everyone, and the speaker's board shows what changed.
+  let refetching = false;
+
+  function refetchButton() {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "standup-refetch";
+    btn.className = "standup-refetch mono";
+    btn.title = "Read this sprint from Jira again (R)";
+    btn.append(icon("refresh", 15), el("span", "", "Re-fetch Jira"));
+    btn.addEventListener("click", () => refetchJira());
+    paintRefetchButton(btn);
+    return btn;
+  }
+
+  function paintRefetchButton(btn = document.getElementById("standup-refetch")) {
+    if (!btn) return;
+    btn.disabled = refetching;
+    btn.classList.toggle("busy", refetching);
+    btn.setAttribute("aria-busy", String(refetching));
+  }
+
+  async function refetchJira() {
+    if (refetching || !session) return;
+    refetching = true;
+    paintRefetchButton();
+    try {
+      // Sprint issues only — the sprints themselves do not change mid-standup.
+      // dropBoard takes the backlog with it, which is right: an issue that
+      // just left the sprint is in there now.
+      await Promise.all(BOARDS.map((b) => cache.dropBoard(b.id)));
+      sprintIssues = await getAllSprintIssues(creds);
+      jiraActivity = jiraActivityFrom(sprintIssues, { since: sprintStartIso, statusGroups });
+    } catch (err) {
+      showToast(`Re-fetching Jira failed: ${err?.message || err}`, true);
+      return;
+    } finally {
+      refetching = false;
+      paintRefetchButton();
+    }
+    // Whoever is on screen *now*: the session may have moved on, or ended,
+    // while the request was out.
+    if (session?.phase === PHASES.SPEAKING) repaintAfterRefetch(currentId(session));
+  }
+
+  function repaintAfterRefetch(id) {
+    const before = boardSnapshot(speakingBoard);
+    // Board and rail are repainted in place, so the parking-lot box keeps its
+    // caret. Only an empty board gaining issues, or the reverse, needs the
+    // stage rebuilt — the two are different elements.
+    if (Boolean(speakingBoard) === issuesFor(id).length > 0) {
+      paintSpeakingBoard(id);
+      repaintRail(id);
+    } else {
+      renderRunning();
+    }
+    const { moved, added, removed } = animateBoardChanges(speakingBoard, before);
+    const parts = [
+      moved.length && `${moved.length} moved`,
+      added.length && `${added.length} new`,
+      removed.length && `${removed.length} gone`,
+    ].filter(Boolean);
+    showToast(
+      parts.length
+        ? `Jira re-fetched — ${labelFor(id)}: ${parts.join(", ")}`
+        : `Jira re-fetched — no changes on ${labelFor(id)}'s board`
+    );
+  }
+
+  function repaintRail(id) {
+    const work = wrap.querySelector(".standup-work");
+    if (!work) return;
+    const old = work.querySelector(".standup-rail");
+    const rail = renderStatsRail(id);
+    if (old && rail) old.replaceWith(rail);
+    else if (old) old.remove();
+    else if (rail) work.appendChild(rail);
   }
 
   // ── Stats rail ─────────────────────────────────────────────────────────────
@@ -2250,6 +2338,11 @@ export async function mount(container, creds) {
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
       goNext();
+    } else if ((e.key === "r" || e.key === "R") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      // Cmd/Ctrl+R is still the browser's reload.
+      if (session.phase !== PHASES.SPEAKING) return;
+      e.preventDefault();
+      refetchJira();
     } else if (e.key === "Escape" && e.shiftKey) {
       // Shift is the whole guard, and it is deliberate. Plain Escape is the
       // dismiss gesture for every overlay in this app and the platform's own

@@ -655,3 +655,75 @@
   .kge-row { transition: none; }
   .kge-chip { transition: none; }
 }
+
+/* ── What a re-fetch changed ─────────────────────────────────────────────────
+   Painted by animateBoardChanges in js/components/board.js. The motion is
+   script-driven; these are the marks a changed card carries afterwards, and
+   they are what is left under reduced motion: a ring that fades, and a label
+   saying what happened. --fx is the one colour each kind of change is drawn in. */
+.kanban-card-moved { --fx: var(--accent-primary); animation: kanban-card-fx 2.6s ease-out; }
+.kanban-card-added { --fx: var(--accent-success); animation: kanban-card-fx 2.6s ease-out; }
+.kanban-card-removed {
+  --fx: var(--accent-danger);
+  border-color: var(--accent-danger);
+  background: color-mix(in srgb, var(--accent-danger) 14%, var(--bg));
+}
+.kanban-card-removed .kanban-card-summary { text-decoration: line-through; }
+
+/* Inset as well as outward: the outward half is clipped by the column's
+   overflow on the first and last card, the inset half never is. */
+@keyframes kanban-card-fx {
+  0%, 35% {
+    border-color: var(--fx);
+    box-shadow: 0 0 0 2px var(--fx), inset 0 0 0 1px var(--fx);
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent, inset 0 0 0 1px transparent;
+  }
+}
+
+/* "from In Progress", "new", "gone". Tinted rather than filled: text on a
+   solid green fails AA in the light theme. Sits on the card's top edge, in the
+   8px the column pads above the first card. */
+.kanban-card-fx-tag {
+  position: absolute;
+  top: -8px;
+  right: 8px;
+  max-width: calc(100% - 16px);
+  padding: 0 7px;
+  border: 1px solid var(--fx, var(--accent-primary));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fx, var(--accent-primary)) 22%, var(--bg));
+  color: var(--text);
+  font-size: calc(10px * var(--font-scale));
+  line-height: 15px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  animation: kanban-fx-tag 6s ease forwards;
+}
+@keyframes kanban-fx-tag {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+/* A copy of a card travelling over the board — fixed so no column's overflow
+   clips it mid-flight. Left, top and size are set from the card it copies. */
+.kanban-card-flyer {
+  position: fixed;
+  margin: 0;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.kanban-col-count-bump { display: inline-block; animation: kanban-col-count-bump 0.7s 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes kanban-col-count-bump {
+  30% { transform: scale(1.6); background: var(--accent-primary); color: var(--on-accent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kanban-col-count-bump { display: inline-block; animation: none; }
+}

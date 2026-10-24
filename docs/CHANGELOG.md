@@ -6,6 +6,17 @@ tag into the release notes, so the wording here is the wording published — kee
 it about what a user gets. The reasoning is in the commit history;
 [ROADMAP.md](ROADMAP.md) is what is still to come.
 
+## Unreleased
+
+**Standup: re-fetch Jira mid-meeting.** A small "Re-fetch Jira" button beside
+the speaker's name (or `R`) reads the sprint again without leaving the
+standup. The speaker's board shows what changed since it was loaded: a ticket
+that changed status flies to its new column and says which one it came from,
+a ticket new to the board drops in marked "new", and one that left it is
+marked "gone" before it falls away. A toast counts the changes. The parking
+lot keeps what you were typing, and with reduced motion turned on the changes
+are marked without the movement.
+
 ## v0.9.0
 
 **Sprint planning as a process.** `LAUNCH → SPRINT PLANNING (NEW)`: set up,

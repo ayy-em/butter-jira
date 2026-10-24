@@ -272,6 +272,10 @@ Use a pair of scratch issues.
 - [ ] Drag a card to another column → it moves, toast confirms, Jira reflects it
 - [ ] Drag to a column the workflow disallows → card snaps back, toast names the allowed statuses
 - [ ] Dragging does not open the drawer; the parking-lot text survives a drag
+- [ ] Move a ticket in Jira's own UI mid-standup, then press `Re-fetch Jira` (or `R`) on that person's board → the card flies to its new column tagged "from <old column>", the column counts flash, and a toast says "1 moved"
+- [ ] Add a ticket to the speaker's sprint / remove one, then re-fetch → the new card drops in tagged "new", the removed one turns red, is struck through and falls away; the toast counts both
+- [ ] Re-fetch with nothing changed → no animation, toast says "no changes"; the parking-lot text and its caret survive a re-fetch
+- [ ] With "Reduce motion" on in the OS, a re-fetch moves nothing on screen but the rings and labels still mark what changed
 - [ ] Countdown cue *finishes* as the clock reaches 0:00 (not before, not after)
 - [ ] Timer hits zero → keeps counting up in red, bar turns red, nobody is cut off
 - [ ] `+1 min` adds a minute without jumping the elapsed time
