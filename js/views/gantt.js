@@ -1222,11 +1222,11 @@ export async function mount(container, creds) {
     const y = parseFloat(bar.getAttribute("y"));
     const w = parseFloat(bar.getAttribute("width"));
     const h = parseFloat(bar.getAttribute("height"));
-    const arrowH = Math.max(18, Math.min(32, Math.round(h * 0.9)));
-    const depth = arrowH * 0.42;
-    const gap = arrowH * 0.4;
-    const stroke = Math.max(3, arrowH * 0.15);
-    const datePx = Math.max(11, Math.min(15, Math.round(arrowH * 0.5)));
+    const arrowH = Math.max(14, Math.min(24, Math.round(h * 0.7)));
+    const depth = arrowH * 0.4;
+    const gap = arrowH * 0.38;
+    const stroke = Math.max(2.5, arrowH * 0.13);
+    const datePx = Math.max(10, Math.min(13, Math.round(arrowH * 0.55)));
     const date = dayMonth(iso);
     const blockW = Math.max(depth + gap + stroke, textWidth(date, datePx, 700) + 4);
     // The date under the arrows inside a bar tall enough for both; otherwise
