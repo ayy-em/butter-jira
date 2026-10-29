@@ -41,8 +41,13 @@ override file. Anything else is a finding.
 - [ ] Backlog: sorting by each column works, including Epic
 - [ ] Backlog: issue key and epic key links open the right Jira issue
 - [ ] Gantt: dated epics render; undated section counts correctly
-- [ ] Gantt: bar colours match configured board colours
-- [ ] Gantt: click a child task → opens in Jira; click an epic → expands children
+- [ ] Gantt: bar fill is the delivery state (on track / due soon / overdue / done); the outline is the configured board colour
+- [ ] Gantt: one click on any bar opens the drawer; the caret, level with its bar, expands an epic's children
+- [ ] Gantt: opens on last week's Monday → the Friday four weeks out, by the week; a custom range applies on Apply or Enter and zooms to fit
+- [ ] Gantt: change the zoom, timeframe and a filter, leave the view and come back → all three are as you left them
+- [ ] Gantt: a bar cut by the timeframe shows » with its due date (right) or « with its start date (left); both themes, both title modes
+- [ ] Gantt: Display → Show issue key, Titles inside (centred, up to 3 lines), Hide completed; titles stay on screen while scrolling sideways
+- [ ] Gantt: Export downloads a PNG of just the chart, larger type, in the current theme
 - [ ] Kanban: cards grouped into the configured columns; click opens Jira
 - [ ] Filters: board and assignee filters apply across all three views
 - [ ] `b` / `r` / `k` / `m` switch views; typing in an input does not trigger them

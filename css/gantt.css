@@ -66,13 +66,43 @@
    shipped has stopped being something to watch, and giving it the same colour
    as work that is merely not-late-yet makes a board of finished epics read as
    uniformly healthy. It goes quiet instead. */
-.gantt-chart-wrap .gantt .delivery-on-track  .bar { fill: var(--tone-green); }
-.gantt-chart-wrap .gantt .delivery-due-soon  .bar { fill: var(--tone-yellow); }
-.gantt-chart-wrap .gantt .delivery-overdue   .bar { fill: var(--tone-red); }
-.gantt-chart-wrap .gantt .delivery-done      .bar { fill: var(--muted); }
+/* Each state is a fill and the ink for text drawn on it, as a pair, because a
+   title inside a bar is only as legible as that pairing. The bars used the
+   --tone-* text colours as fills, at 85% opacity: near-white type on a light
+   green in dark theme, and in light theme a dark, muddy green under
+   near-black type. These are solid fills chosen against their ink, every pair
+   at 4.5:1 or better (checked in scripts/test-contrast.mjs). */
+:root,
+[data-theme="dark"] {
+  --bar-on-track: #15803D;   --bar-on-track-ink: #FFFFFF;
+  --bar-due-soon: #EAB308;   --bar-due-soon-ink: #1A1300;
+  --bar-overdue: #C53030;    --bar-overdue-ink: #FFFFFF;
+  --bar-done: #525A69;       --bar-done-ink: #F3F4F6;
+  --bar-untracked: #252830;  --bar-untracked-ink: #E8EAF0;
+  --bar-child: #343A46;      --bar-child-ink: #E8EAF0;
+}
+[data-theme="light"] {
+  --bar-on-track: #4ADE80;   --bar-on-track-ink: #052E16;
+  --bar-due-soon: #FACC15;   --bar-due-soon-ink: #422006;
+  --bar-overdue: #F87171;    --bar-overdue-ink: #450A0A;
+  --bar-done: #D1D5DB;       --bar-done-ink: #111827;
+  --bar-untracked: #E5E7EB;  --bar-untracked-ink: #111827;
+  --bar-child: #E5E7EB;      --bar-child-ink: #111827;
+}
+/* A child issue is quieter than its epic; one that is done reads as done. */
+.gantt-chart-wrap .gantt .child-task         { --bar-fill: var(--bar-child);     --bar-ink: var(--bar-child-ink); }
+.gantt-chart-wrap .gantt .delivery-on-track  { --bar-fill: var(--bar-on-track);  --bar-ink: var(--bar-on-track-ink); }
+.gantt-chart-wrap .gantt .delivery-due-soon  { --bar-fill: var(--bar-due-soon);  --bar-ink: var(--bar-due-soon-ink); }
+.gantt-chart-wrap .gantt .delivery-overdue   { --bar-fill: var(--bar-overdue);   --bar-ink: var(--bar-overdue-ink); }
+.gantt-chart-wrap .gantt .delivery-done      { --bar-fill: var(--bar-done);      --bar-ink: var(--bar-done-ink); }
 /* No due date at all: nothing can be said about it, so nothing is. */
-.gantt-chart-wrap .gantt .delivery-untracked .bar { fill: var(--border); }
-.gantt-chart-wrap .gantt .bar { opacity: 0.85; }
+.gantt-chart-wrap .gantt .delivery-untracked { --bar-fill: var(--bar-untracked); --bar-ink: var(--bar-untracked-ink); }
+.gantt-chart-wrap .gantt .bar-wrapper .bar {
+  fill: var(--bar-fill, var(--bar-untracked));
+  opacity: 1;
+}
+/* Solid fills left hover with nothing to say; a bar opens on click. */
+.gantt-chart-wrap .gantt .bar-wrapper:hover .bar { filter: brightness(1.08); }
 
 /* The legend. Sits with the controls rather than under the chart: it is read
    once, on arrival, and then never again. */
@@ -81,7 +111,8 @@
   align-items: center;
   gap: 12px;
   margin-left: auto;
-  padding-right: 14px;
+  /* Was 14px; the toolbar fits on one line at 1440px only with this smaller. */
+  padding-right: 6px;
 }
 .gantt-legend-item {
   display: flex;
@@ -97,10 +128,10 @@
   border-radius: 2px;
   flex: none;
 }
-.gantt-legend-dot.delivery-on-track  { background: var(--tone-green); }
-.gantt-legend-dot.delivery-due-soon  { background: var(--tone-yellow); }
-.gantt-legend-dot.delivery-overdue   { background: var(--tone-red); }
-.gantt-legend-dot.delivery-done      { background: var(--muted); }
+.gantt-legend-dot.delivery-on-track  { background: var(--bar-on-track); }
+.gantt-legend-dot.delivery-due-soon  { background: var(--bar-due-soon); }
+.gantt-legend-dot.delivery-overdue   { background: var(--bar-overdue); }
+.gantt-legend-dot.delivery-done      { background: var(--bar-done); }
 
 /* Today, as a line rather than a band. The library's pale column says roughly
    where today is; a roadmap is read by asking what is left of it, and that
@@ -121,16 +152,127 @@
   cursor: pointer;
 }
 .gantt-chart-wrap .gantt-caret:hover { color: var(--text); }
+/* The caret's click target. Transparent rather than `none`, because a fill of
+   none is not hit-tested and the chevron's stroke alone is about 2px wide. */
+.gantt-chart-wrap .gantt-caret-hit { fill: transparent; }
+.gantt-chart-wrap .gantt-caret:hover .gantt-caret-hit {
+  fill: color-mix(in srgb, var(--text) 10%, transparent);
+}
 
-.gantt-chart-wrap .gantt .bar { rx: 3; ry: 3; }
-.gantt-chart-wrap .gantt .bar-progress { rx: 3; ry: 3; }
+/* A bar cut at an edge of the chart because the work runs past it: a bold »
+   (due after the last day shown) or « (started before the first), with that
+   date under it. White on a black outline in dark theme, black on white in
+   light, so it reads over every bar fill and over the grid. Not a target;
+   the bar is. Drawn by drawEdgeMark() in js/views/gantt.js. */
+:root,
+[data-theme="dark"] { --edge-mark: #FFFFFF; --edge-mark-outline: #000000; }
+[data-theme="light"] { --edge-mark: #111827; --edge-mark-outline: #FFFFFF; }
+.gantt-chart-wrap .gantt-edge-mark { pointer-events: none; }
+.gantt-chart-wrap .gantt-edge-outline,
+.gantt-chart-wrap .gantt-edge-arrow {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.gantt-chart-wrap .gantt-edge-outline { stroke: var(--edge-mark-outline); }
+.gantt-chart-wrap .gantt-edge-arrow { stroke: var(--edge-mark); }
+.gantt-chart-wrap .gantt-edge-date {
+  fill: var(--edge-mark);
+  stroke: var(--edge-mark-outline);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* The library's popup is a tooltip here, and when "hidden" it is only faded
+   out and moved to the left edge — still there, still catching the clicks
+   meant for whatever is under it. It never takes the pointer. */
+.gantt-chart-wrap .popup-wrapper { pointer-events: none; }
+
+/* Rounder than the library's 3px, and rounder again on the taller bars that
+   hold a title inside. */
+.gantt-chart-wrap { --bar-radius: 6px; }
+.gantt-chart-wrap.titles-inside { --bar-radius: 9px; }
+.gantt-chart-wrap .gantt .bar,
+.gantt-chart-wrap .gantt .bar-progress { rx: var(--bar-radius); ry: var(--bar-radius); }
 .gantt-chart-wrap .gantt .bar-label { fill: var(--text); font-family: 'Ubuntu Sans Mono', ui-monospace, monospace; font-size: calc(12px * var(--font-scale)); }
+/* A label that fits inside its bar is drawn on the bar's fill, in its ink.
+   One beside the bar (`.big`) stays on the chart's own colours. */
+.gantt-chart-wrap .gantt .bar-label:not(.big) { fill: var(--bar-ink, var(--text)); font-weight: 500; }
 
+/* Titles inside the bars (the "Titles: Inside" toggle). The library's
+   one-line label gives way to a wrapped one, drawn as HTML in a foreignObject
+   because SVG text does not wrap. Bars too narrow to hold one keep their
+   label beside them. */
+.gantt-chart-wrap .gantt .title-inside .bar-label { display: none; }
+.gantt-chart-wrap .gantt-bar-title { pointer-events: none; overflow: hidden; }
+.gantt-chart-wrap .gantt-bar-title-box {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Centred, a size up from the one-line labels and a weight heavier, in the
+   bar's own ink. The size is TITLE_PX in js/views/gantt.js, which sizes the
+   bars to fit three lines of it. */
+.gantt-chart-wrap .gantt-bar-title-text {
+  color: var(--bar-ink, var(--text));
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: calc(13px * var(--font-scale));
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--title-lines, 3);
+  line-clamp: var(--title-lines, 3);
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+
+/* The presentation export (exportPresentation() in js/views/gantt.js): the
+   chart drawn again off screen at slide width, with type for a room rather
+   than a laptop. Not scaled by --font-scale, which is a reading preference;
+   a slide has its own. */
+.gantt-chart-wrap.gantt-export {
+  position: fixed;
+  left: -100000px;
+  top: 0;
+  height: auto;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+}
+.gantt-chart-wrap.gantt-export .gantt-container { overflow: visible; }
+.gantt-chart-wrap.gantt-export .gantt .lower-text { font-size: 20px; font-weight: 600; fill: var(--text); }
+.gantt-chart-wrap.gantt-export .gantt .upper-text { font-size: 20px; font-weight: 600; fill: var(--text); }
+.gantt-chart-wrap.gantt-export .gantt .bar-label { font-size: 16px; }
+/* The library draws a label beside its bar in a light weight, faint at a distance. */
+.gantt-chart-wrap.gantt-export .gantt .bar-label.big { font-weight: 500; }
+.gantt-chart-wrap.gantt-export .gantt-bar-title-svg {
+  fill: var(--bar-ink, var(--text));
+  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
+  font-size: 17px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.gantt-chart-wrap.gantt-export .gantt-today-line { stroke-width: 3; }
+
+/* Both rows of the axis — the days, weeks, months or quarters, and the
+   months or years above them — in the app's sans, semibold, about 1rem at
+   the default scale, rather than the bars' mono. One type for the whole
+   header, so the month over a run of weeks reads as part of the same scale. */
 .gantt-chart-wrap .gantt .lower-text,
 .gantt-chart-wrap .gantt .upper-text {
   fill: var(--muted);
-  font-family: 'Ubuntu Sans Mono', ui-monospace, monospace;
-  font-size: calc(11px * var(--font-scale));
+  font-family: 'Ubuntu Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: calc(14px * var(--font-scale));
+  font-weight: 600;
 }
 
 .gantt-chart-wrap .gantt .handle-group { display: none; }
@@ -157,10 +299,8 @@
 /* Per-board bar colours are generated at runtime from the configured boards —
    see injectBoardBarStyles() in js/views/gantt.js. This is the fallback for
    bars whose board has no colour set. */
-.gantt .bar { fill: var(--muted); opacity: 0.7; }
+.gantt .bar { fill: var(--muted); }
 .gantt .bar-progress { fill: var(--muted); }
-
-.child-task .bar { opacity: 0.5; }
 
 /* ── Dropdown controls ─────────────────────────────────────────────────────── */
 
@@ -175,6 +315,10 @@
 .gantt-dropdown-wrap {
   position: relative;
 }
+
+.gantt-export-btn { display: inline-flex; align-items: center; gap: 6px; }
+.gantt-export-btn:disabled { opacity: 0.5; cursor: default; }
+
 
 /* The caret is drawn now rather than a "▾" glued onto the end of the label; the
    gap comes from the shared chip. */

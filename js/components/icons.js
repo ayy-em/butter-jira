@@ -43,6 +43,7 @@ export const ICON_PATHS = {
   person: "M12 12.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5ZM4.5 20.5a7.5 7.5 0 0 1 15 0",
   list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
   plus: "M12 5v14M5 12h14",
+  download: "M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14",
 
   // ── Priority, by shape ────────────────────────────────────────────────────
   // Jira's own convention, which is the one people arriving here already know:
@@ -112,9 +113,14 @@ export function svgIconPath(name, { x, y, size = 12, rotate = 0 } = {}) {
   path.setAttribute("stroke-linecap", "round");
   path.setAttribute("stroke-linejoin", "round");
   // Scale last so the stroke width above is in the icon's own 24-unit grid.
+  // The rotation is about the origin, because translate(-12 -12) has already
+  // moved the icon's centre there. It used to turn about (12 12), which after
+  // that shift is a point off the icon's corner: any rotation other than 0
+  // swung the icon `size` pixels away from (x, y) — the roadmap's collapsed
+  // caret sat a whole caret-height below the middle of its bar.
   path.setAttribute(
     "transform",
-    `translate(${x} ${y}) scale(${size / 24}) rotate(${rotate} 12 12) translate(-12 -12)`
+    `translate(${x} ${y}) scale(${size / 24}) rotate(${rotate}) translate(-12 -12)`
   );
   return path;
 }
