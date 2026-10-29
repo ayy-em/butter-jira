@@ -56,7 +56,8 @@ const EPIC_SPEC = [
   ["ACME-180", "Customer onboarding", -20, 4, STATUS.doing],
   ["ACME-210", "Delivery retries", -45, -9, STATUS.doing],
   ["ACME-240", "Raw ingestion", -60, -22, STATUS.done],
-  ["PLAT-10", "Warehouse migration", -18, 55, STATUS.doing],
+  // Long enough to wrap past three lines with titles inside the bars.
+  ["PLAT-10", "Warehouse migration: move the reporting marts, the finance extracts and every downstream dashboard off the legacy cluster before its support contract lapses", -18, 55, STATUS.doing],
   ["PLAT-40", "Access review tooling", -12, 2, STATUS.doing],
   ["PLAT-70", "Observability baseline", -50, -3, STATUS.doing],
 ];
@@ -99,8 +100,12 @@ const childIssue = ([key, summary, start, due, status]) => ({
 
 // The epic query is a POST to /rest/api/3/search/jql with the JQL in the body,
 // so the stub has to read `init`, not just the URL.
+// Anything that is not Jira — the export's font, say — is a file of the app's
+// own, and goes to the real fetch.
+const realFetch = globalThis.fetch.bind(globalThis);
 globalThis.fetch = async (input, init = {}) => {
   const url = String(input);
+  if (!/^https?:/.test(url)) return realFetch(input, init);
   let body = {};
   try { body = init.body ? JSON.parse(init.body) : {}; } catch { body = {}; }
   const jql = body.jql || decodeURIComponent(url);

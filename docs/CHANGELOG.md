@@ -17,6 +17,80 @@ marked "gone" before it falls away. A toast counts the changes. The parking
 lot keeps what you were typing, and with reduced motion turned on the changes
 are marked without the movement.
 
+**Roadmap: opens on the weeks that matter.** The default timeframe runs from
+the Monday of last week to the Friday four weeks after this one, shown by the
+week. "All time" and the other options are still in the timeframe dropdown,
+and the custom date fields start from the default range.
+
+**Roadmap: remembers how you left it.** The zoom, the timeframe (including
+a custom range) and every Epics, Boards, Statuses, Components and Labels
+filter are saved on this device, and the roadmap opens the same way next
+time. The default timeframe is saved as "last week → 4 weeks out", so it
+moves with the calendar. A filter for an epic, status or board that no longer
+exists is dropped.
+
+**Roadmap: shows work that runs past the view.** A bar cut at the edge of
+the timeframe shows a bold arrow there with the date it actually reaches, as
+DD.MM: » and the due date at the right end, when the epic is due after the
+last day shown; « and the start date at the left, when it started before the
+first. So an epic due mid-December, in a view that stops on 1 December,
+doesn't look like it finishes there. The arrows are white with a black outline
+in dark theme and the reverse in light, so they read over any bar. Hovering
+the bar says which edge it runs past. The marks are in the export too. A
+label that doesn't fit inside a bar cut at the right edge goes before the
+bar rather than off the chart.
+
+**Roadmap: titles stay in view.** When a bar runs off the side of the chart,
+its title moves along with the scroll, so you can still read it.
+
+**Roadmap: zooms to the timeframe you pick.** Choosing a timeframe now sets the
+chart's axis to that range, and the view switches to the zoom that fits it: a
+two-month range shows its weeks across the full width, not two columns lost in
+a year of empty months. The Day/Week/Month/Quarter buttons still change the
+zoom within the range. Bars that run past either end are cut at the edge, and
+hovering one shows its real dates. A custom range applies when you press
+Apply (or Enter) in the date fields, whichever timeframe option was
+selected. Before, Apply with "All time" still selected changed the button's
+label and nothing else. Quarter view works now: it used to draw no
+header and keep whatever scale the last view left behind.
+
+**Roadmap: Export for slides.** An "Export" button downloads the roadmap as a
+PNG, exactly as it is filtered and zoomed: just the chart, without the
+toolbar, carets or app chrome. Month, week and year labels are larger, the
+chart is laid out at slide width (1920px) and saved at twice that for a
+sharp projector, in the current theme.
+
+**Roadmap: easier to read bars.** Bars are solid and rounder. Each delivery
+state now has its own fill and text colour, every pair at 4.5:1 contrast or
+better. White text sits on a deeper green in dark theme, and light theme gets
+a fresh green with dark text instead of the muddy one. The axis labels (days, weeks, months or quarters)
+are larger (about 1rem) and semibold, in the app's sans font. Titles inside bars are
+centred, a size larger and bolder. A bar too narrow to hold its issue key on
+one line keeps its title beside it. Child issues that are done are greyed
+like a done epic.
+
+**Roadmap: a Statuses filter**, next to Boards, listing the epics' statuses
+in workflow order.
+
+**Roadmap: a Display dropdown** beside the view buttons, with three toggles,
+remembered on this device:
+- *Show issue key* (on by default): untick it and titles show the summary
+  alone.
+- *Titles inside*: draws each epic's title inside its bar, wrapped to up to
+  three lines and cut off with an ellipsis after that. A bar too narrow to
+  hold its title keeps it beside the bar.
+- *Hide completed*: leaves out epics, and expanded child issues, that are
+  done.
+
+The button reads "Display · 2" when two settings differ from the defaults, so
+a roadmap with its done epics hidden doesn't pass for the whole roadmap.
+
+**Roadmap: fixes.** One click on a bar opens the issue. Before, it only showed
+a tooltip, the drawer needed a double-click, and a click with any mouse movement
+in it dragged the bar. The expand caret sits level with its bar and has a
+proper click target. The hidden tooltip no longer blocks clicks on whatever is
+under it. The today line now shows on charts that fit their box.
+
 ## v0.9.0
 
 **Sprint planning as a process.** `LAUNCH → SPRINT PLANNING (NEW)`: set up,

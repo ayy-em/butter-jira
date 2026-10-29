@@ -51,11 +51,11 @@ const appCss = await fs.readFile(path.join(ROOT, "css", "app.css"), "utf8");
 // Token blocks are `:root,\n[data-theme="dark"] { … }` and `[data-theme="light"] { … }`.
 // A token can be declared in more than one block per theme (the accents and the
 // extended palette are separate blocks), so later declarations win, as in CSS.
-const tokensFor = (theme) => {
+const tokensFor = (theme, css = appCss) => {
   const out = {};
   const re = /([^{}]+)\{([^{}]*)\}/g;
   let m;
-  while ((m = re.exec(appCss))) {
+  while ((m = re.exec(css))) {
     const selector = m[1];
     const matchesTheme =
       selector.includes(`[data-theme="${theme}"]`) ||
@@ -75,6 +75,19 @@ section("theme tokens are declared in both themes");
 for (const token of ["--bg", "--surface", "--text", "--muted", "--accent-primary", "--on-accent"]) {
   check(`dark  ${token}`, Boolean(dark[token]), Object.keys(dark).join(", "));
   check(`light ${token}`, Boolean(light[token]), Object.keys(light).join(", "));
+}
+
+section("roadmap bars: title ink on its own fill, AA (4.5:1)");
+// css/gantt.css pairs each delivery state's fill with the ink a title inside
+// the bar is drawn in. A title is only as legible as that pairing.
+const ganttCss = await fs.readFile(path.join(ROOT, "css", "gantt.css"), "utf8");
+for (const [theme, tokens] of [["dark", tokensFor("dark", ganttCss)], ["light", tokensFor("light", ganttCss)]]) {
+  for (const state of ["on-track", "due-soon", "overdue", "done", "untracked", "child"]) {
+    const fill = tokens[`--bar-${state}`], ink = tokens[`--bar-${state}-ink`];
+    const r = fill && ink ? contrast(ink, fill) : 0;
+    check(`${theme}: ${state} bar ink = ${r.toFixed(2)}:1`, r >= 4.5,
+      `${ink} on ${fill} needs 4.5:1`);
+  }
 }
 
 section("AA (4.5:1) on the pairs the app actually paints");
