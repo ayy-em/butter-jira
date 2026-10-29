@@ -1507,7 +1507,10 @@ export async function mount(container, creds) {
       drawTodayLine(chart, svg);
       markEdges(svg, false);
       if (display.titlesInside) drawExportTitles(svg);
-      layoutLabels(svg);
+      // Placed once, with the whole chart "on screen": the live chart places
+      // these as it scrolls, and the export has no scrolling to do it.
+      for (const l of layoutLabels(svg))
+        l.label.setAttribute("x", stickyLabelX(l.start, l.end, 0, Infinity, l.width, { lead: l.lead }));
       // A snapshot of the bars mid-way through growing in is not a roadmap.
       svg.querySelectorAll("animate").forEach((a) => a.remove());
       inlineComputedStyles(svg);
