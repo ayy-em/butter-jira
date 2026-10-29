@@ -1229,12 +1229,20 @@ export async function mount(container, creds) {
     const datePx = Math.max(9, Math.min(12, Math.round(arrowH * 0.65)));
     const date = dayMonth(iso);
     const blockW = Math.max(depth + gap + stroke, textWidth(date, datePx, 700) + 4);
-    // The date under the arrows inside a bar tall enough for both; otherwise
-    // the arrows take the bar and the date sits just under it, in the gap
-    // between rows.
-    const inside = h >= arrowH + datePx + 10;
-    const arrowCy = inside ? y + h / 2 - (datePx + 4) / 2 : y + h / 2;
-    const dateY = inside ? arrowCy + arrowH / 2 + 3 + datePx / 2 : y + h + 3 + datePx / 2;
+    // The date under the arrows inside a bar tall enough for both, spaced so
+    // the bar's top to the arrows equals the date to the bar's bottom, with
+    // half that between arrows and date. Measured on what is seen: the arrows
+    // with their stroke, and the date by its digits, which have no descenders.
+    // In a bar too short for that the arrows take the bar and the date sits
+    // just under it, in the gap between rows.
+    const arrowSeen = arrowH + stroke;
+    const dateSeen = datePx * 0.72;
+    const margin = (h - arrowSeen - dateSeen) / 2.5;
+    const inside = margin >= 3;
+    const arrowCy = inside ? y + margin + arrowSeen / 2 : y + h / 2;
+    const dateY = inside
+      ? y + margin + arrowSeen + margin / 2 + dateSeen / 2
+      : y + h + 2 + dateSeen / 2;
     const cx = side === "right" ? x + w - inset - blockW / 2 : x + inset + blockW / 2;
 
     const dir = side === "right" ? 1 : -1;
