@@ -63,8 +63,9 @@ sharp projector, in the current theme.
 **Roadmap: easier to read bars.** Bars are solid and rounder. Each delivery
 state now has its own fill and text colour, every pair at 4.5:1 contrast or
 better. White text sits on a deeper green in dark theme, and light theme gets
-a fresh green with dark text instead of the muddy one. The axis labels (days, weeks, months or quarters)
-are larger (about 1rem) and semibold, in the app's sans font. Titles inside bars are
+a fresh green with dark text instead of the muddy one. Both rows of the axis are larger (about 1rem) and semibold, in the app's
+sans font. Week view labels its columns "Wk 44" (ISO weeks), centred, with
+each month centred over its weeks above. Titles inside bars are
 centred, a size larger and bolder. A bar too narrow to hold its issue key on
 one line keeps its title beside it. Child issues that are done are greyed
 like a done epic.

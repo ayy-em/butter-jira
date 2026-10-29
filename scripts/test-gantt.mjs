@@ -13,7 +13,7 @@ import {
   deliveryState, DUE_SOON_DAYS, rangeDays, modeForRange, columnStart, clipToRange,
   normalizeDisplay, DEFAULT_DISPLAY, isCompleted, issueTitle,
   defaultRange, stickyTitleBox, stickyLabelX, wrapTitle, normalizeFilters, runsPastRange,
-  startsBeforeRange, dayMonth,
+  startsBeforeRange, dayMonth, isoWeek,
 } from "../js/views/gantt.js";
 
 let pass = 0;
@@ -240,6 +240,16 @@ check("started on the first day shown does not", !startsBeforeRange({ _from: "20
 check("all time has no edge to start before", !startsBeforeRange({ _from: "2020-01-01" }, null));
 check("the date under a mark is DD.MM", dayMonth("2026-12-15") === "15.12" && dayMonth("2026-01-05") === "05.01");
 check("no date, no label", dayMonth(null) === "" && dayMonth("15/12") === "");
+
+section("week numbers are ISO weeks");
+const wk = (y, m, d) => isoWeek(new Date(y, m - 1, d));
+check("Monday 2026-10-26 is week 44", wk(2026, 10, 26) === 44);
+check("the whole week shares its number", wk(2026, 11, 1) === 44 && wk(2026, 11, 2) === 45);
+check("2026-01-01, a Thursday, is week 1", wk(2026, 1, 1) === 1);
+check("2027-01-01, a Friday, is still week 53 of 2026", wk(2027, 1, 1) === 53);
+check("2024-12-30, a Monday, is week 1 of 2025", wk(2024, 12, 30) === 1);
+check("2021-01-03, a Sunday, is week 53 of 2020", wk(2021, 1, 3) === 53);
+check("time of day does not move it", isoWeek(new Date(2026, 9, 26, 23, 59)) === 44);
 
 console.log(`\n── ${pass} passed, ${fail} failed ──`);
 process.exit(fail ? 1 : 0);

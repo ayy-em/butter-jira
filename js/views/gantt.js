@@ -254,6 +254,15 @@ export function stickyLabelX(barStart, barEnd, viewStart, viewEnd, labelWidth,
   return Math.min(Math.max(centre, lo), hi);
 }
 
+// The ISO 8601 week number (weeks start on Monday; week 1 holds the year's
+// first Thursday), which is what a calendar in the Netherlands prints.
+export function isoWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));   // that week's Thursday
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
 // A bar's dates cut to the visible range. A zoomed chart has no room either
 // side of the range, so an epic that started last year starts at the left edge
 // instead of off it. The popup still shows the real dates. ISO dates compare
@@ -298,7 +307,9 @@ function roadmapGantt() {
         const end = new Date(`${to}T00:00:00`);
         end.setDate(end.getDate() + 1);
         this.gantt_end = end;
-      } else if (mode === QUARTER) {
+      } else if (mode === QUARTER || mode === "Week") {
+        // On a column boundary, so a week's column is one ISO week rather
+        // than the back half of one and the front of the next.
         this.gantt_start = columnStart(this.gantt_start, mode);
       }
     }
@@ -325,11 +336,29 @@ function roadmapGantt() {
 
     get_date_info(date, last, i) {
       if (this.view_is("Week")) {
-        // Centred in its column like every other mode's, rather than on the
-        // column's left edge — where the first week's date was cut in half by
-        // the edge of a chart that starts on a range boundary.
+        // "Wk 44" centred in its column, where the library put the Monday's
+        // date ("26", then "02 November") on the column's left edge. The
+        // month goes above, once per month, centred over that month's weeks
+        // on screen, rather than two columns in from its first.
         const info = super.get_date_info(date, last, i);
-        return { ...info, lower_x: info.lower_x + this.options.column_width / 2 };
+        const cw = this.options.column_width;
+        const month = (d) => d.getFullYear() * 12 + d.getMonth();
+        let upper = "";
+        let upperX = info.upper_x;
+        if (!last || month(last) !== month(date)) {
+          let j = i;
+          while (j + 1 < this.dates.length && month(this.dates[j + 1]) === month(date)) j++;
+          upper = date.toLocaleString("en", { month: "long" })
+            + (date.getMonth() === 0 || !last ? ` ${date.getFullYear()}` : "");
+          upperX = ((i + j + 1) / 2) * cw;
+        }
+        return {
+          ...info,
+          lower_text: `Wk ${isoWeek(date)}`,
+          lower_x: i * cw + cw / 2,
+          upper_text: upper,
+          upper_x: upperX,
+        };
       }
       if (!this.view_is(QUARTER)) return super.get_date_info(date, last, i);
       const x = i * this.options.column_width + this.options.column_width / 2;
