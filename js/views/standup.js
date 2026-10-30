@@ -547,13 +547,17 @@ export async function mount(container, creds) {
     ];
   }
 
-  // Which of the four absent cases this is, because each has a different fix:
-  // connect GitHub, wait, add a login to the roster, or nothing at all.
-  function githubAbsentReason() {
+  // Which of the absent cases this is, because each has a different fix:
+  // connect GitHub, add a login to the roster, retry, or wait. The login is
+  // looked up rather than inferred from what has landed: the window query can
+  // arrive while the activity query is still running — or after it failed — and
+  // a speaker with a login on the roster was then told they had none.
+  function githubAbsentReason(accountId) {
     if (github.state === "off") return "GitHub is not connected.";
     if (github.state === "error") return `GitHub is unavailable — ${github.error}`;
-    if (!github.activity && !github.stats) return "Still loading pull requests.";
-    return "No GitHub login on the roster for this person.";
+    if (!memberFor(accountId)?.githubLogin) return "No GitHub login on the roster for this person.";
+    if (!github.activity && github.error) return `Pull requests are unavailable — ${github.error}`;
+    return "Still loading pull requests.";
   }
 
   // The last notice passed to renderSetup, so a repaint triggered by the GitHub
@@ -903,7 +907,7 @@ export async function mount(container, creds) {
     row.append(count, pipsEl(n, busiest));
 
     row.appendChild(jiraCell(jiraStatsFor(id)));
-    row.appendChild(githubCell(githubStatsFor(id)));
+    row.appendChild(githubCell(githubStatsFor(id), id));
 
     const flag = flagFor(id);
     const tone = flag.count === 0 ? "ok" : flag.count === 1 ? "warn" : "bad";
@@ -945,12 +949,12 @@ export async function mount(container, creds) {
 
   // Four numbers in one cell, each with the word it means underneath rather than
   // a legend somewhere else on the screen.
-  function githubCell(stats) {
+  function githubCell(stats, accountId) {
     const cell = el("span", "su-person-gh mono");
     if (!stats) {
       cell.classList.add("absent");
       cell.textContent = "—";
-      cell.title = githubAbsentReason();
+      cell.title = githubAbsentReason(accountId);
       return cell;
     }
     cell.appendChild(icon("github", 13));
@@ -1933,7 +1937,7 @@ export async function mount(container, creds) {
     panel.className = "standup-prs";
 
     if (github.state === "off" || github.state === "error") {
-      return emptyPanel(panel, githubAbsentReason());
+      return emptyPanel(panel, githubAbsentReason(accountId));
     }
 
     const login = memberFor(accountId)?.githubLogin || "";
@@ -1951,7 +1955,7 @@ export async function mount(container, creds) {
         panel,
         github.activity
           ? "No open or merged pull requests this sprint."
-          : githubAbsentReason()
+          : githubAbsentReason(accountId)
       );
     }
 
