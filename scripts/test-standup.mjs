@@ -320,30 +320,32 @@ const digest = su.digestText({
 });
 check("title first, then a blank line",
   digest.split("\n").slice(0, 2).join("|") === "Standup - 12.08.2026|");
-check("single-line note shares the bullet with the mention",
-  digest.includes("- @cy - TBD re: the schema rewrite"));
-check("multi-line note becomes sub-bullets under the mention",
-  digest.includes("- @devi\n    - Columnar wins\n    - backfill in progress"));
+check("single-line note goes under the mention, no bullet in front of it",
+  digest.includes("\n@cy\n- TBD re: the schema rewrite\n"));
+check("multi-line note becomes dashed lines under the mention",
+  digest.includes("\n@devi\n- Columnar wins\n- backfill in progress"));
 check("sign-off closes the message", digest.endsWith(`\n\n${su.DIGEST_SIGNOFF}`));
 check("blank lines inside a note are dropped",
   su.digestText({ entries: [{ who: "@a", note: "one\n\n\ntwo" }] })
-    === "- @a\n    - one\n    - two");
+    === "@a\n- one\n- two");
 check("hand-typed bullets are not doubled",
-  su.digestText({ entries: [{ who: "@a", note: "- one\n• two" }] })
-    === "- @a\n    - one\n    - two");
-check("a person with no note still gets a bullet",
-  su.digestText({ entries: [{ who: "@a", note: "" }] }) === "- @a");
+  su.digestText({ entries: [{ who: "@a", note: "- one\n• two\n-three" }] })
+    === "@a\n- one\n- two\n- three");
+check("a single-line note typed with a dash is not doubled",
+  su.digestText({ entries: [{ who: "@a", note: "- x" }] }) === "@a\n- x");
+check("a person with no note still gets a line",
+  su.digestText({ entries: [{ who: "@a", note: "" }] }) === "@a");
 check("no title and no sign-off means no stray blank lines",
-  su.digestText({ entries: [{ who: "@a", note: "x" }] }) === "- @a - x");
+  su.digestText({ entries: [{ who: "@a", note: "x" }] }) === "@a\n- x");
 check("nothing at all is empty, not a crash", su.digestText() === "");
 
 section("slack digest — clipboard HTML");
 const html = su.digestHtml(digest);
 check("first line is bold", html.startsWith("<p><b>Standup - 12.08.2026</b></p>"));
-check("one list wraps every person",
-  (html.match(/<ul>/g) || []).length === 2 && html.includes("<ul><li>@cy"));
-check("sub-bullets nest inside their person's item",
-  html.includes("<li>@devi<ul><li>Columnar wins</li><li>backfill in progress</li></ul></li>"));
+check("each person is a plain paragraph, not a list item",
+  html.includes("<p>@cy</p>") && html.includes("<p>@devi</p>"));
+check("a person's notes are a list right under their name",
+  html.includes("<p>@devi</p>\n<ul><li>Columnar wins</li><li>backfill in progress</li></ul>"));
 check("sign-off is a plain paragraph, not bold",
   html.endsWith(`<p>${su.DIGEST_SIGNOFF}</p>`));
 check("html in a note is escaped, not injected",

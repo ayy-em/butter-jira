@@ -515,22 +515,19 @@ export const DIGEST_HEADING = "Daily Standup Action Points";
 export const DIGEST_EMOJI = "📌";
 export const DIGEST_SIGNOFF = "Cheers 😎";
 
-// Two spaces is enough to mark a sub-bullet for the parser; four reads better
-// in the textarea.
-const SUB_INDENT = "    ";
 // Bullet glyphs people type into the notes box themselves. Stripped on the way
 // in so they don't end up doubled under the bullet we add, and recognised on
 // the way out so a hand-typed list still becomes a real list.
 const BULLET_LINE = /^(\s*)[-*•◦–—]\s+(.*)$/;
 
-// One bullet per person: a single-line note sits on the same line as the
-// mention, a multi-line one becomes sub-bullets under it.
+// Each person's line starts with the mention itself, no bullet in front, and
+// every line of their note is a dashed item underneath — one line or several,
+// so the message has one shape. Not indented: under an unbulleted name an
+// indent would read as belonging to the previous person's list.
 export function digestText({ title = "", entries = [], signoff = "" } = {}) {
-  const blocks = entries.map(({ who, note }) => {
-    const lines = noteLines(note);
-    if (lines.length <= 1) return `- ${[who, lines[0]].filter(Boolean).join(" - ")}`;
-    return [`- ${who}`, ...lines.map((line) => `${SUB_INDENT}- ${line}`)].join("\n");
-  });
+  const blocks = entries.map(({ who, note }) =>
+    [who, ...noteLines(note).map((line) => `- ${line}`)].join("\n")
+  );
   const parts = [];
   if (title) parts.push(title, "");
   parts.push(...blocks);
@@ -538,15 +535,17 @@ export function digestText({ title = "", entries = [], signoff = "" } = {}) {
   return parts.join("\n");
 }
 
+// A line someone already started with a dash keeps just that one, even typed
+// as "-x" with no space after it.
 function noteLines(note) {
   return String(note ?? "")
     .split("\n")
-    .map((line) => line.trim().replace(BULLET_LINE, "$2").trim())
+    .map((line) => line.trim().replace(BULLET_LINE, "$2").replace(/^[-–—](?=\S)/, "").trim())
     .filter(Boolean);
 }
 
 // Markdown-lite -> the small HTML subset Slack's composer honours on paste:
-// bold first line, one <ul> of mentions, a nested <ul> per person's notes.
+// bold first line, then a paragraph per person and a <ul> of their notes.
 export function digestHtml(text) {
   const out = [];
   let list = null;
