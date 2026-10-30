@@ -970,7 +970,11 @@ board in a randomised order, one at a time, full-screen.
   Kanban — "that one's actually done" gets fixed in the meeting rather than
   after it.
 - A parking-lot box is saved as you type and appears in the end summary, with
-  copy and download buttons.
+  copy and download buttons. The summary is a Slack message: the dated
+  heading, then each person's @handle on a line of its own with every line of
+  their note under it as a `- ` item (a line already typed with a dash keeps
+  just the one), then the sign-off. Copy puts it on the clipboard twice over —
+  as a real list for Slack, as plain text for anything else.
 - The summary shows actual vs planned time per person and who never got reached.
 
 **The turn screen is the speaker's board, and everything else gets out of its
@@ -1196,13 +1200,17 @@ inheriting a stale date from the machine that exported it.
 **People are matched by GitHub login**, set per person in the roster. *Match
 logins from GitHub org* proposes mappings from the org member list and fills in
 only the blanks — every row stays editable, and an ambiguous match is left empty
-rather than guessed. Someone with no login simply gets no panel.
+rather than guessed. Someone with no login gets a narrow "No GitHub user link"
+placeholder in place of their pull requests, and dashes for their figures.
 
 **It is never on the critical path.** The fetch starts the moment the STANDUP tab
 is clicked — before the view has even loaded — and runs alongside the sprint
 issues; the standup begins whether or not it has landed. If it is slow the screen
 fills in behind; if it fails, or the token is dead, or GitHub sync is off, the
-panel is absent and the standup is exactly what it was before. A line on the
+pull-request panel says which, and the standup otherwise runs as it would
+without GitHub. The panel looks the speaker's login up before blaming the
+roster: a list still loading, or one whose query failed while the sprint
+numbers arrived, says so rather than "no GitHub login". A line on the
 setup card says which of those happened, including how many of the declared repos
 could not be read, and whether any repo was too busy for the page cap.
 

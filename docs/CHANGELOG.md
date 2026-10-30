@@ -8,6 +8,17 @@ it about what a user gets. The reasoning is in the commit history;
 
 ## Unreleased
 
+**Standup: the Slack summary, one shape for everyone.** Each person's line
+starts with their @handle and nothing in front of it, and every line of their
+notes sits underneath as a "- " item, a one-line note included. A note line
+you already started with a dash keeps just the one, even typed as "-x".
+
+**Standup: no more false "No GitHub login".** A speaker whose GitHub login is
+on the roster could be told it was not, when the sprint numbers had arrived
+before their pull-request list (or the list's query had failed) and they had
+merged nothing this sprint. It cleared itself once the list landed. The panel
+now says the list is still loading, or that it is unavailable and why.
+
 **Standup: re-fetch Jira mid-meeting.** A small "Re-fetch Jira" button beside
 the speaker's name (or `R`) reads the sprint again without leaving the
 standup. The speaker's board shows what changed since it was loaded: a ticket
