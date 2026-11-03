@@ -46,6 +46,12 @@ export const FIELD_ROLES = {
     label: "Sprint",
     names: ["Sprint"],
   },
+  // Jira's own flag ("Impediment"), set from a board card's menu. Read as one of
+  // the two signals for a blocked issue; the other is a status that says so.
+  flagged: {
+    label: "Flagged",
+    names: ["Flagged"],
+  },
 };
 
 // Fields every view needs, independent of Jira instance.
@@ -93,6 +99,7 @@ const DEFAULTS = {
     epicLink: [],
     epicName: [],
     sprint: [],
+    flagged: [],
   },
   additionalFields: [], // extra field IDs to request on every issue query
   // Monitoring checks are on unless explicitly muted — see js/monitor.js.

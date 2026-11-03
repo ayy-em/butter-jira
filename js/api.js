@@ -692,6 +692,36 @@ export async function verifyCredentials(creds) {
   return jiraFetch("/rest/api/3/myself", creds);
 }
 
+// The same answer, cached, for the dashboard header's avatar. Setup keeps
+// calling the uncached one above: it is the credential check, and a cached
+// "yes" from five minutes ago is not one.
+export async function getMyself(creds) {
+  return cached("cache_myself", () => jiraFetch("/rest/api/3/myself", creds));
+}
+
+// Issue links for a set of keys — the dashboard's dependencies check. Links are
+// a detail-only field (see `detailIssueFields`), so the board reads never carry
+// them; this asks for them alone, in pages of a hundred keys, rather than
+// widening every sprint request for one card. Each linked issue arrives with
+// its status, which is all "is the thing it waits on finished" needs.
+export async function getIssueLinks(keys = [], creds) {
+  const wanted = [...new Set(keys.filter((k) => /^[A-Z][A-Z0-9_]*-\d+$/i.test(k)))].sort();
+  if (!wanted.length) return [];
+  return cached(`cache_issueLinks_${wanted.join(",")}`, async () => {
+    const out = [];
+    for (let i = 0; i < wanted.length; i += 100) {
+      const chunk = wanted.slice(i, i + 100);
+      const data = await jiraPost("/rest/api/3/search/jql", creds, {
+        jql: `key in (${chunk.join(",")})`,
+        fields: ["summary", "status", "issuelinks"],
+        maxResults: chunk.length,
+      });
+      out.push(...(data?.issues || []));
+    }
+    return out;
+  });
+}
+
 // Every board the account can see, so nobody has to look up numeric board IDs.
 export async function listBoards(creds) {
   const values = await fetchAllPages("/rest/agile/1.0/board", creds, {}, "values");

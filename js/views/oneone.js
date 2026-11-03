@@ -68,6 +68,7 @@ import { loadTodos, mergeFromOneOne, saveTodos } from "../todos.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
 import { icon } from "../components/icons.js";
 import { viewHeader } from "../components/view-header.js";
+import { NOTES_CHANGED } from "../components/quick-note.js";
 
 // The window the picker will hand to the sheet. Session-scoped rather than
 // stored: the per-person clock is the durable default, and this is only for the
@@ -200,6 +201,15 @@ async function mountPicker(container) {
   container.appendChild(wrap);
 }
 
+// Put on the sheet from the header's quick note, ahead of the meeting.
+function queuedTag(at) {
+  const tag = document.createElement("span");
+  tag.className = "oo-queued mono";
+  tag.textContent = `added ${fmtDate(at)}`;
+  tag.title = "Added from the quick note — kept until this 1:1 is completed";
+  return tag;
+}
+
 function initials(label) {
   return String(label || "?")
     .replace(/[^\p{L}\p{N} ]/gu, "")
@@ -314,6 +324,21 @@ async function mountSheet(container, creds, accountId) {
   wrap.appendChild(ganttWrap);
 
   container.appendChild(wrap);
+
+  // A quick note for this person lands in the draft held here. Reload it
+  // rather than let the next keystroke's save write the old one back over it.
+  const onNotesChanged = async (e) => {
+    if (!wrap.isConnected) {
+      document.removeEventListener(NOTES_CHANGED, onNotesChanged);
+      return;
+    }
+    if (e.detail?.store !== "oneone" || !e.detail.accountIds?.includes(accountId)) return;
+    store = await loadOneOnes();
+    person = personFor(store, accountId);
+    draft = draftFor(store, accountId);
+    renderRight();
+  };
+  document.addEventListener(NOTES_CHANGED, onNotesChanged);
 
   renderRight();
   left.innerHTML = '<div class="spinner" style="height:200px"></div>';
@@ -629,10 +654,15 @@ async function mountSheet(container, creds, accountId) {
   // Saved as you type, debounced by nothing: these are a handful of short
   // strings, the store is device-local, and a note lost to a closed tab is the
   // failure this is here to prevent.
+  //
+  // Read fresh before writing: everyone else's record comes from storage, not
+  // from the copy this sheet loaded, or a quick note queued for somebody else
+  // since then would be written out of existence by this one.
   async function persistDraft() {
     draft = { ...draft, updatedAt: new Date().toISOString() };
-    const next = { people: { ...store.people } };
-    next.people[accountId] = { ...personFor(store, accountId), draft };
+    const fresh = await loadOneOnes();
+    const next = { people: { ...fresh.people } };
+    next.people[accountId] = { ...personFor(fresh, accountId), draft };
     store = await saveOneOnes(next);
     person = personFor(store, accountId);
   }
@@ -731,6 +761,11 @@ async function mountSheet(container, creds, accountId) {
       await persistDraft();
     });
     row.appendChild(due);
+    // A title rather than the tag the notes carry: this row has no width to
+    // spare, and the text field is what it would come out of.
+    if (todo.queuedAt && !todo.carriedFrom) {
+      row.title = `Added from the quick note on ${fmtDate(todo.queuedAt)}`;
+    }
 
     row.appendChild(
       removeButton(`Remove this action`, async () => {
@@ -745,7 +780,7 @@ async function mountSheet(container, creds, accountId) {
   function infoBlock() {
     const box = document.createElement("section");
     box.className = "oo-block";
-    box.appendChild(blockHeading("Important info", ""));
+    box.appendChild(blockHeading("Agenda & FYI", ""));
 
     const list = document.createElement("div");
     list.className = "oo-infos";
@@ -776,12 +811,13 @@ async function mountSheet(container, creds, accountId) {
     field.className = "oo-info-text";
     field.rows = 2;
     field.value = item.text;
-    field.placeholder = "context worth remembering";
+    field.placeholder = "something to raise, or worth remembering";
     field.addEventListener("input", async () => {
       draft = { ...draft, info: draft.info.map((i) => (i.id === item.id ? { ...i, text: field.value } : i)) };
       await persistDraft();
     });
     row.appendChild(field);
+    if (item.queuedAt) row.appendChild(queuedTag(item.queuedAt));
 
     row.appendChild(
       removeButton("Remove this note", async () => {
@@ -841,7 +877,8 @@ async function mountSheet(container, creds, accountId) {
     if (!ok) return;
 
     const at = new Date();
-    const result = completeSession(store, accountId, { draft, window: win, now: at });
+    // Fresh for the same reason as `persistDraft`.
+    const result = completeSession(await loadOneOnes(at), accountId, { draft, window: win, now: at });
     store = await saveOneOnes(result.store, at);
     person = personFor(store, accountId);
     draft = draftFor(store, accountId, at);

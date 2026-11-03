@@ -132,6 +132,26 @@ export function isInReview(issue, statusGroups = []) {
   );
 }
 
+// Blocked: not finished, and either flagged in Jira (the board card's
+// "Impediment" flag) or sitting in a status whose group or name says so —
+// "Blocked", "On hold", "Impediment". Read off the names rather than a fixed
+// list for the same reason review is: every site spells its workflow its own way.
+const BLOCKED_RE = /block|impediment|on hold/i;
+
+export function isFlagged(issue) {
+  const flag = fieldValue(issue, "flagged");
+  return Array.isArray(flag) ? flag.length > 0 : Boolean(flag);
+}
+
+export function isBlocked(issue, statusGroups = []) {
+  if (isDone(issue)) return false;
+  if (isFlagged(issue)) return true;
+  return (
+    BLOCKED_RE.test(resolveGroup(issue, statusGroups)) ||
+    BLOCKED_RE.test(issue?.fields?.status?.name || "")
+  );
+}
+
 // Done and in-review together — how much of the sprint has left the assignee.
 // The share is null rather than zero when nothing is estimated, so the view
 // prints "—" instead of implying no progress.
@@ -217,6 +237,8 @@ export function summarize({
   let carriedInPoints = 0;
   let addedAfterStart = 0;
   let addedAfterStartPoints = 0;
+  let blocked = 0;
+  let blockedPoints = 0;
 
   const byStatus = new Map();
   const byBoard = new Map();
@@ -237,6 +259,10 @@ export function summarize({
     } else if (review) {
       reviewIssues++;
       reviewPoints += value;
+    }
+    if (isBlocked(issue, statusGroups)) {
+      blocked++;
+      blockedPoints += value;
     }
     if (wasCarriedIn(issue, activeSprintIds)) {
       carriedIn++;
@@ -319,6 +345,8 @@ export function summarize({
     addedAfterStart,
     addedAfterStartPoints,
     scopeFromFreeze: Boolean(frozenKeys),
+    blocked,
+    blockedPoints,
     // Everything not finished when the sprint closes carries into the next one.
     projectedCarryOut: notDone,
     projectedCarryOutPoints: openPoints,

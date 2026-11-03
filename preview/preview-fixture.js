@@ -50,7 +50,19 @@ const PEOPLE = [
   ["Devi Okonjo", "deviok", [["In Progress", null], ["In Code Review", null], ["To Do", null]]],
   ["Emil Vance", "", [["In Review", 5], ["In Progress", 3]]],
   ["Freya Salib", "freyas", [["To Do", 8], ["To Do", 5], ["In Progress", 13]]],
+  // A blocked ticket, so the dashboard's Blockers card and its "blocked for more
+  // than two days" check both have something to list.
+  ["Gil Moreau", "gilm", [["In Progress", 5], ["Blocked", 3], ["To Do", 2]]],
+  ["Hana Ito", "hanai", [["Done", 3], ["In Progress", 2]]],
 ];
+
+// Roster roles, for the dashboard's workload rows and the sidebar's team
+// summary: six engineers and an analyst, which is the team the spec describes.
+const ROLES = { "Gil Moreau": "Data Analyst" };
+// Nobody on GitHub this sprint and nothing moved in Jira since the last
+// standup, so the dashboard's "no recent activity" list has a face in it.
+const QUIET = new Set(["Hana Ito"]);
+const roleFor = (name) => ROLES[name] || "Data Engineer";
 
 // A generated avatar, so the harness can exercise the <img> path — and the
 // initials fallback beside it — without touching a real photograph. Half the
@@ -123,6 +135,7 @@ const CATEGORY = {
   "In Progress": "indeterminate",
   "In Code Review": "indeterminate",
   "In Review": "indeterminate",
+  Blocked: "indeterminate",
   Done: "done",
 };
 
@@ -142,6 +155,20 @@ const WORKFLOW = ["To Do", "In Progress", "In Code Review", "In Review", "Done"]
 
 function changelogFor(status, personIdx, n) {
   if (params.get("history") === "off") return undefined;
+
+  // Blocked is off the workflow line: it went In Progress four days ago and
+  // into Blocked the day after, which is what puts it past the two-day mark.
+  if (status === "Blocked") {
+    const who = { accountId: `acc-${personIdx}`, displayName: PEOPLE[personIdx][0] };
+    const step = (id, from, to, ago) => ({
+      id, author: who, created: daysAgo(ago),
+      items: [{ field: "status", fieldId: "status", fieldtype: "jira", fromString: from, toString: to }],
+    });
+    return {
+      startAt: 0, maxResults: 2, total: 2,
+      histories: [step(`h${n}-1`, "To Do", "In Progress", 5), step(`h${n}-2`, "In Progress", "Blocked", 4)],
+    };
+  }
 
   const target = WORKFLOW.indexOf(status);
   const histories = [];
@@ -236,6 +263,8 @@ PEOPLE.forEach((person, i) => {
       created: crept ? daysAgo(2) : daysAgo(12),
     };
     if (points !== null) fields.cf_sp = points;
+    // Every seventh open ticket is past its due date, for the overdue check.
+    if (status !== "Done" && seq % 7 === 3) fields.duedate = daysAgo(2).slice(0, 10);
     // Not always the assignee: "who created this" and "who is doing it" are
     // different questions, and a fixture where they always agree would hide the
     // per-person creation figure being its own number.
@@ -317,6 +346,21 @@ globalThis.fetch = async (input, options = {}) => {
     // for made the closed-sprint document impossible to preview — it rendered,
     // and it rendered the live sprint with a different heading, which is the
     // failure that looks most like success.
+    if (params2(url).get("state") === "closed" && !CLOCK_SHIFT_DAYS) {
+      // The two sprints before this one, fortnight by fortnight — what the
+      // dashboard's sprint selector lists and its like-for-like cards compare
+      // against.
+      return json({
+        values: [1, 2].map((back) => ({
+          id: board.sprint.id - back,
+          name: board.sprint.name.replace(/\d+/, (n) => String(Number(n) - back)).split(":")[0],
+          state: "closed",
+          startDate: undated ? undefined : daysAgo(board.sprint.startsAgo + 14 * back),
+          endDate: undated ? undefined : daysAgo(board.sprint.startsAgo + 14 * back - 13),
+          completeDate: undated ? undefined : daysAgo(board.sprint.startsAgo + 14 * back - 13),
+        })),
+      });
+    }
     if (params2(url).get("state") === "closed") {
       // The same sprint the rest of this fixture describes — the clock shift
       // above has already put it in the past — marked closed, and closed a day
@@ -357,6 +401,16 @@ globalThis.fetch = async (input, options = {}) => {
   // The detail is the screen the field-edit cells live on, so the fixture has to
   // answer for a single issue as well as for a board's worth. Any key resolves —
   // the harness is for looking at the layout, not for navigating a graph.
+  // The signed-in user, for the dashboard's avatar menu. Synthetic.
+  if (/\/rest\/api\/3\/myself/.test(url)) {
+    return json({
+      accountId: "acc-lead",
+      displayName: "Rowan Lead",
+      emailAddress: "lead@example.invalid",
+      avatarUrls: avatarUrlsFor("Rowan Lead", 2),
+    });
+  }
+
   const comments = /\/rest\/api\/3\/issue\/([^/?]+)\/comment/.exec(url);
   if (comments) return json(COMMENT_FIXTURE);
 
@@ -396,6 +450,31 @@ globalThis.fetch = async (input, options = {}) => {
   if (/\/rest\/api\/3\/search\/jql/.test(url)) {
     const jql = options.body ? String(JSON.parse(options.body).jql || "") : "";
     if (/^(summary ~|key =)/.test(jql)) return json({ issues: LINK_SEARCH_RESULTS, isLast: true });
+    // The dashboard's dependencies check: asks for links alone. Two of the open
+    // issues wait on something — one still open, one already done, which the
+    // check must leave out.
+    const wantsLinks = options.body && (JSON.parse(options.body).fields || []).includes("issuelinks");
+    if (wantsLinks) {
+      const keys = (/^key in \(([^)]*)\)/.exec(jql)?.[1] || "").split(",").filter(Boolean);
+      const blockedBy = (key, status, category) => ({
+        id: `l-${key}`,
+        type: { name: "Blocks", inward: "is blocked by", outward: "blocks" },
+        inwardIssue: { key, fields: { summary: "Upstream change", status: { name: status, statusCategory: { key: category } } } },
+      });
+      return json({
+        issues: keys.slice(0, 3).map((key, i) => ({
+          key,
+          fields: {
+            summary: `Work item for ${key}`,
+            status: { name: "In Progress", statusCategory: { key: "indeterminate" } },
+            issuelinks: i === 0 ? [blockedBy("PLAT-777", "In Progress", "indeterminate")]
+              : i === 1 ? [blockedBy("DATA-12", "Done", "done")]
+              : [blockedBy("ACME-650", "To Do", "new")],
+          },
+        })),
+        isLast: true,
+      });
+    }
     // The freeze diff's "where did it go" lookup. One of the two answers, in the
     // backlog with no sprint; the other is absent, which is the fixture showing
     // the case the app cannot distinguish — deleted, or no longer visible.
@@ -695,14 +774,72 @@ TEAMS.teams = [{
     email: "",
     active: true,
     githubLogin: p[1],
+    role: roleFor(p[0]),
     slackHandle: "",
     avatarUrl: "",
   })),
 }];
 await saveTeam(TEAMS);
 
-const { statsCacheKey } = await import("../js/github.js");
+const { statsCacheKey, activityCacheKey } = await import("../js/github.js");
 slowKey = statsCacheKey(CONFIG);
+
+// What is open on GitHub right now — the dashboard's "PRs awaiting review"
+// check and the Individual view's per-person PR line. Ages chosen so one is
+// under the two-day mark and two are over it.
+if (params.get("stats") !== "error") {
+  const open = [
+    ["averyq", 6, null, ["boferreira"]],
+    ["boferreira", 4, null, ["cynakamura"]],
+    ["freyas", 1, null, ["averyq"]],
+    ["cynakamura", 3, "APPROVED", ["deviok"]],
+  ].map(([author, age, decision, reviewers], i) => ({
+    repo: i % 2 ? "example/alpha" : "example/beta",
+    number: 800 + i,
+    title: `Open change ${i + 1} from ${author}`,
+    url: "#",
+    author,
+    createdAt: daysAgo(age),
+    updatedAt: daysAgo(Math.max(0, age - 1)),
+    reviewDecision: decision,
+    checks: "SUCCESS",
+    reviewers,
+    teamReviewers: [],
+    state: decision === "APPROVED" ? "approved" : "waiting-review",
+    ageDays: age,
+    staleDays: Math.max(0, age - 1),
+  }));
+  local[activityCacheKey(CONFIG)] = {
+    ts: Date.now(),
+    value: {
+      fetchedAt: new Date().toISOString(),
+      repos: ["example/alpha", "example/beta"],
+      reached: ["example/alpha", "example/beta"],
+      pullRequests: open,
+      drafts: [],
+      merged: [],
+      issues: [],
+      failures: [],
+    },
+  };
+}
+
+// Yesterday's standup, so "since the last standup" has a moment to count from.
+// ?standup=none leaves it out, which falls back to the previous working day.
+if (params.get("standup") !== "none") {
+  const started = new Date(daysAgo(1));
+  started.setHours(9, 30, 0, 0);
+  local.standupHistory = [{
+    id: `${started.getTime()}-1`,
+    startedAt: started.toISOString(),
+    finishedAt: new Date(started.getTime() + 14 * 60000).toISOString(),
+    durationMs: 14 * 60000,
+    speakingMs: 12 * 60000,
+    endedEarly: false,
+    attendees: [],
+    notes: 0,
+  }];
+}
 
 // ?stats=partial keeps the payload but marks one repo as half-answered and
 // another as truncated — the state where every GitHub figure below is an
@@ -715,7 +852,7 @@ if (params.get("stats") !== "error") {
   // formatter has something to do.
   const windowPrs = [];
   PEOPLE.forEach((person, i) => {
-    if (!person[1]) return;
+    if (!person[1] || QUIET.has(person[0])) return;
     for (let n = 0; n < 1 + ((i * 3) % 5); n++) {
       const merged = n % 2 === 0;
       windowPrs.push({
@@ -762,7 +899,7 @@ if (params.get("stats") !== "error") {
   const windowReviews = [];
   const windowComments = [];
   PEOPLE.forEach((person, i) => {
-    if (!person[1]) return;
+    if (!person[1] || QUIET.has(person[0])) return;
     const target = PEOPLE[(i + 1) % PEOPLE.length];
     if (!target[1]) return;
     for (let n = 0; n < 1 + ((i * 3) % 5); n++) {
@@ -786,6 +923,20 @@ if (params.get("stats") !== "error") {
       });
     }
   });
+
+  // First reviews that land after the pull request opened — the reviews above
+  // are about who reviewed, not when, and most predate the PR they name. Half
+  // a day to three days later, so review turnaround has a median to print.
+  for (const [n, pr] of windowPrs.entries()) {
+    const reviewer = PEOPLE.find((p) => p[1] && p[1] !== pr.author && !QUIET.has(p[0]));
+    const opened = new Date(pr.createdAt).getTime();
+    const at = Math.min(Date.now() - 3600000, opened + (0.5 + (n % 4) * 0.8) * 86400000);
+    if (at <= opened) continue;
+    windowReviews.push({
+      repo: pr.repo, number: pr.number, author: reviewer[1], prAuthor: pr.author,
+      submittedAt: new Date(at).toISOString(), state: "APPROVED", comments: 0,
+    });
+  }
 
   local[slowKey] = {
     ts: Date.now(),
@@ -914,4 +1065,45 @@ if (freezeMode !== "none") {
     now: new Date(daysAgo(takenAgo)),
   });
   await recordFreeze(sprintKey(sprints), freeze);
+}
+
+// ── Daily snapshots, so the burndown has a line to draw ─────────────────────
+//
+// The dashboard records one aggregate a day and draws nothing until it has two,
+// which is right for a real install and leaves a preview with an empty card. So
+// the harness writes the days the sprint has already run: open points easing
+// down from the full scope towards today's figure, and one issue going blocked
+// four days ago. ?snapshots=off leaves them out — the "collecting history" state.
+if (params.get("snapshots") !== "off" && !CLOCK_SHIFT_DAYS) {
+  const { sprintKey } = await import("../js/snapshots.js");
+  const key = sprintKey(BOARD_FIXTURE.map((b) => ({ id: b.sprint.id })));
+  const live = [...ISSUES_BY_BOARD.values()].flat().filter((i) => !i.fields.issuetype?.subtask);
+  const total = live.reduce((n, i) => n + (i.fields.cf_sp ?? 0), 0);
+  const doneNow = live
+    .filter((i) => i.fields.status.statusCategory.key === "done")
+    .reduce((n, i) => n + (i.fields.cf_sp ?? 0), 0);
+  const days = [];
+  const start = Math.max(...BOARD_FIXTURE.map((b) => b.sprint.startsAgo));
+  for (let ago = start; ago >= 1; ago--) {
+    const d = new Date(daysAgo(ago));
+    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    days.push({ ago, date: d });
+  }
+  const pad = (n) => String(n).padStart(2, "0");
+  local.sprintSnapshots = {
+    [key]: days.map(({ ago, date }, i) => {
+      const share = days.length > 1 ? i / (days.length - 1) : 1;
+      const done = Math.round(doneNow * share * 0.9);
+      return {
+        date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+        totalPoints: total - (i < 3 ? 6 : 0),
+        openPoints: total - (i < 3 ? 6 : 0) - done,
+        donePoints: done,
+        issueCount: live.length,
+        doneIssues: Math.round(share * 6),
+        blocked: 0,
+        byPerson: {},
+      };
+    }),
+  };
 }

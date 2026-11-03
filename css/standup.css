@@ -527,7 +527,7 @@
    how it says so — it was on the nav tab that *navigates* to standup, and on
    the counters once a session is running, but not on the button that actually
    starts one. The doorway wore the ceremony and the threshold did not.
-   Same ring as `.nav-tab.flair`, same stops, same mask trick, and it does not
+   Same ring as `.nav-item.flair`, same stops, same mask trick, and it does not
    fire while the button is disabled — nothing to celebrate with nobody
    selected. */
 .su-start:not(:disabled) { position: relative; }
@@ -1253,4 +1253,4 @@
 /* In presentation mode the nav and footer are just clutter. */
 body[data-standup-active="1"] #nav,
 body[data-standup-active="1"] #app-footer { display: none; }
-body[data-standup-active="1"] #view-container { top: 0; bottom: 0; }
+body[data-standup-active="1"] #view-container { top: 0; bottom: 0; left: 0; }

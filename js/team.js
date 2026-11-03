@@ -95,6 +95,9 @@ export function normalizeMember(raw = {}) {
     jiraName: typeof raw.jiraName === "string" ? raw.jiraName : (typeof raw.displayName === "string" ? raw.displayName : ""),
     nameOverride: typeof raw.nameOverride === "string" ? raw.nameOverride.trim() : "",
     emoji: typeof raw.emoji === "string" ? raw.emoji.trim().slice(0, 4) : "",
+    // Free text — "Data Engineer", "Data Analyst". Shown beside the name on the
+    // dashboard's workload list and counted into the sidebar's team summary.
+    role: typeof raw.role === "string" ? raw.role.trim().slice(0, 40) : "",
     // Used to address people in the standup parking-lot digest.
     slackHandle: normalizeSlackHandle(raw.slackHandle),
     // Ties this person to their pull requests. Without it they simply get no
@@ -155,6 +158,7 @@ function dedupeMembers(members) {
     existing.jiraName = existing.jiraName || member.jiraName;
     existing.nameOverride = existing.nameOverride || member.nameOverride;
     existing.emoji = existing.emoji || member.emoji;
+    existing.role = existing.role || member.role;
     existing.slackHandle = existing.slackHandle || member.slackHandle;
     existing.githubLogin = existing.githubLogin || member.githubLogin;
     existing.avatarUrl = existing.avatarUrl || member.avatarUrl;

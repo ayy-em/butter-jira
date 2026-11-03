@@ -123,6 +123,10 @@ export function normalizeTodo(raw = {}, now = new Date()) {
     // typed. Printed under a rule above the new items so a standing action does
     // not read as something just agreed.
     carriedFrom: iso(raw.carriedFrom),
+    // When it was queued from the header's quick note rather than typed on the
+    // sheet. See `queueNote`: a queued item is standing business, like a
+    // carried one, and survives the stale-draft prune.
+    queuedAt: iso(raw.queuedAt),
   };
 }
 
@@ -130,6 +134,7 @@ export function normalizeInfoItem(raw = {}, now = new Date()) {
   return {
     id: text(raw.id, 64) || newId("n", now),
     text: text(raw.text, 1000),
+    queuedAt: iso(raw.queuedAt),
   };
 }
 
@@ -206,19 +211,65 @@ export function isDraftStale(draft, now = new Date()) {
   return now.getTime() - at > DRAFT_MAX_AGE_DAYS * DAY_MS;
 }
 
-// Stale drafts lose what was typed and keep what was carried. The two halves
-// answer to different rules: scratch that has sat for three weeks is misleading
-// on a screen that looks current, while an action agreed last time is open
-// business until it is ticked.
+// Stale drafts lose what was typed and keep what was carried or queued. The two
+// halves answer to different rules: scratch that has sat for three weeks is
+// misleading on a screen that looks current, while an action agreed last time —
+// or an agenda item put aside for this conversation on purpose — is open
+// business until it is ticked or the 1:1 is completed.
 export function pruneStaleDraft(draft, now = new Date()) {
   const clean = normalizeDraft(draft, now);
   if (!isDraftStale(clean, now)) return clean;
-  const carried = clean.todos.filter((t) => t.carriedFrom && !t.done);
-  return { todos: carried, info: [], updatedAt: carried.length ? clean.updatedAt : "" };
+  const todos = clean.todos.filter((t) => (t.carriedFrom || t.queuedAt) && !t.done);
+  const info = clean.info.filter((i) => i.queuedAt);
+  const kept = todos.length + info.length;
+  return { todos, info, updatedAt: kept ? clean.updatedAt : "" };
 }
 
 export function draftFor(store, accountId, now = new Date()) {
   return pruneStaleDraft(personFor(store, accountId).draft, now);
+}
+
+// ── Queueing from outside the sheet ──────────────────────────────────────────
+
+export const QUEUE_KINDS = ["todo", "info"];
+
+// Add one item to the draft of each of `accountIds` — the header's quick note,
+// for one person or for the whole team at once — and return the new store.
+//
+// Each draft is pruned *before* the item goes in. Stamping `updatedAt` on a
+// stale draft without pruning it first would make three-week-old scratch look
+// current again, which is the one thing the prune exists to stop.
+//
+// The item is marked `queuedAt` so it survives a later prune: it was written
+// down deliberately ahead of a meeting that may be a fortnight off, and losing
+// it to the same timer that clears mid-meeting scratch would be the surprise.
+export function queueNote(
+  store,
+  accountIds = [],
+  { kind = "info", text: body = "", owner = "them", due = "", now = new Date() } = {}
+) {
+  const next = normalizeStore(store, now);
+  const clean = text(body, kind === "todo" ? 500 : 1000).trim();
+  if (!clean) return next;
+  const queuedAt = now.toISOString();
+
+  for (const raw of accountIds) {
+    const id = String(raw || "");
+    if (!id) continue;
+    const person = personFor(next, id);
+    const draft = draftFor(next, id, now);
+    if (kind === "todo") {
+      draft.todos = [
+        ...draft.todos,
+        normalizeTodo({ text: clean, owner, due, queuedAt }, now),
+      ];
+    } else {
+      draft.info = [...draft.info, normalizeInfoItem({ text: clean, queuedAt }, now)];
+    }
+    draft.updatedAt = queuedAt;
+    next.people[id] = { ...person, draft };
+  }
+  return next;
 }
 
 // ── Windows ──────────────────────────────────────────────────────────────────
@@ -396,7 +447,7 @@ export function slackText({ name = "", session = null, when = new Date() } = {})
     for (const todo of carried) lines.push(todoLine(todo));
   }
   if (info.length) {
-    lines.push("", "*Important info*");
+    lines.push("", "*Agenda & FYI*");
     for (const item of info) lines.push(`• ${item.text.trim()}`);
   }
 

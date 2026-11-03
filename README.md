@@ -313,7 +313,7 @@ when you ask it to: dragging a card, editing a field, or creating an issue.
 
 ## Configuration
 
-Everything is editable from the Settings page (⚙ in the nav bar):
+Everything is editable from the Settings page (**Settings**, at the foot of the sidebar):
 
 - **Jira site URL** — switch instances without touching code
 - **Boards in scope** — import from Jira, or add board ID + label + project key manually
@@ -323,7 +323,7 @@ Everything is editable from the Settings page (⚙ in the nav bar):
 - **GitHub sync** — optional; host, org, and the explicit list of team repos
 - **Field mapping** — which custom field holds story points, start date, epic link, epic name, sprint
 - **Additional fields** — extra field IDs to fetch on every issue query
-- **Branding** — optional org name and logo shown in the nav bar
+- **Branding** — optional org name and logo shown at the top of the sidebar
 
 ### config.local.json
 
@@ -378,8 +378,10 @@ a Jira profile URL) always works. Adding by **email** stores the person as
 account ID is filled in, which happens automatically on the next harvest.
 
 Per member you can set a display-name override (used everywhere in place of the
-Jira name), an emoji, an avatar override, a Slack handle, a GitHub login, and an
-active flag. Inactive members are kept but ignored by filters.
+Jira name), an emoji, a role ("Data Engineer" — shown on the dashboard's
+workload rows and counted into the sidebar's team summary), an avatar override,
+a Slack handle, a GitHub login, and an active flag. Inactive members are kept
+but ignored by filters.
 
 The Slack handle is only used to address people in the standup parking-lot
 digest, so type it exactly as Slack's @-autocomplete shows it — **spaces and
@@ -549,25 +551,70 @@ lists, and offers to open what it created.
 
 ### Sprint dashboard
 
-Press `d` or the SPRINT tab. Sprint name, goal, dates and working days left, then
-a KPI row: points complete, issues done, carried in, added after start, projected
-carry-out, and a hygiene score that links through to the Monitor tab.
+Press `d` or **Sprint → Dashboard** in the sidebar. The dashboard is a **Team
+Overview**, read top to bottom:
 
-With a roster, every figure on it counts the team only. See
+1. **The sprint header.** A sprint selector — the running sprint, or any of each
+   board's last six closed ones — then the dates and where you are in them
+   (*Day 8 of 14*, in working days), the Jira and GitHub connection state, **Run
+   standup**, and your Jira avatar. The avatar's menu holds the documents:
+   **Generate recap**, **Recap past sprint**, the quarterly overview, **Configure
+   a recap…** and Settings. A closed sprint is a link of its own,
+   `#dashboard/<board>:<sprint>`, so it can be reloaded and kept.
+2. **Two tabs.** *Team overview* (everything below) and *Individual view*: one
+   card per person with what they hold now, what is blocked, their open pull
+   requests and the review requests waiting on them, and a link to their 1:1
+   sheet — followed by the **delivery by person** table (below).
+3. **Five KPIs.** *Sprint progress* is the calendar; *committed vs completed* is
+   the work — kept side by side because day 8 of 14 says nothing about whether
+   57% of the points are done. *Tickets closed* is compared with the previous
+   sprint **at the same working day**, read off that sprint's issue history, so a
+   sprint in its second week is never measured against a finished fortnight.
+   *Blockers* (flagged in Jira, or in a status that says blocked or on hold) shows
+   the change since the last day's reading and opens the list. *PR review
+   turnaround* is the median time from a pull request opening to its first review
+   by someone else, against the previous sprint's window.
+4. **Three charts.** The burndown (ideal against actual); the **velocity trend**,
+   which holds its place with this sprint's provisional figure until per-sprint
+   history exists (roadmap M17) rather than drawing a trend from data that cannot
+   support one; and the issue status split as a donut — To Do, In Progress, In
+   Review, Done, Blocked — with counts and shares beside it, each row opening its
+   issues.
+5. **Team workload & health**, beside **Items to check manually.** One row per
+   roster member, in name order: points done, in review and still open, against
+   the capacity left — the working days remaining at the planner's hours a point
+   — with *over* or *near* capacity marked by an icon and a word. It is what
+   people hold, not what they delivered, and nothing on it is sorted by output.
+   Beside it, **Scope change** (points added and removed since the start, against
+   the original commitment, kept as separate figures) and **Carry-over risk** (the
+   share of the points the current pace leaves unfinished, and its change since
+   the last reading). The checklist — overdue issues, blocked for more than two
+   days, PRs awaiting review for more than two days, unestimated, unassigned,
+   scope added after the start, dependencies to follow up — stays in view as you
+   scroll, and every count opens the issues or pull requests behind it, with the
+   set one click from Jira's own search.
+6. **Today's standup prep.** The three prompts; who has **no recent activity**
+   — no status change, edit or pick-up on the sprint's issues, and no pull
+   request, commit or review — since the last standup (or the previous working
+   day, without one), each linked to their 1:1 sheet; and quick context: what is
+   blocked, what is waiting for review, open dependencies, and what closed or
+   arrived since the last standup. Work happens off both systems, so the list is a
+   prompt, not a verdict.
+
+**Since the freeze** sits at the foot of the overview — the scope card's *What
+changed* jumps to it. With a roster, every figure counts the team only. See
 [Team roster](#team-roster).
 
-In the top right, **Generate recap** prints the sprint running now, and the
-**Recap past sprint** menu offers the last closed sprint, a quarterly overview,
-and **Configure a recap…** for any other choice of sprints.
+**What it costs in requests.** The sprint itself comes from data the other views
+already fetched. After the first paint the screen asks for the boards' closed
+sprints (the selector and the previous-sprint comparisons), the previous
+sprint's issues, one search for the open issues' links (the dependencies check),
+and the signed-in user — each cached for five minutes, none holding up the page.
+Every card says it is still looking rather than printing a zero while it waits.
 
-Below that: a burndown, **what changed since the freeze**, sprint progression by
-status, and breakdowns by board and by person. Everything is derived from data
-the other views already fetched, so opening the tab normally costs no Jira
-requests at all.
-
-At the foot of the view, **delivery by person** — tickets assigned, how many are
-in review or done, points planned, points in review or done, that last pair as a
-share, and with GitHub sync on, PRs opened and lines to main over the sprint. It
+**Delivery by person**, on the Individual view tab — tickets assigned, how many
+are in review or done, points planned, points in review or done, that last pair
+as a share, and with GitHub sync on, PRs opened and lines to main over the sprint. It
 opens sorted by the share, best first; any heading sorts by its column, and rows
 GitHub cannot answer for stay at the bottom either way, because a dash is not a
 small number. The `All` row is always last and is computed by the same code as
@@ -588,6 +635,10 @@ GitHub login on the roster are counted. The fetch
 never blocks the view: the Jira columns render immediately and the GitHub pair
 fills in when the window query lands, or shows why it did not.
 
+**Blocked** reads Jira's own flag when the *Flagged* field is mapped (Settings →
+Field mapping; discovery finds it by name on setup, and an existing install picks
+it up by re-running discovery there) and the status name either way.
+
 **About the burndown.** Jira has no public API for what a sprint looked like on a
 past day. The two available routes are a changelog request *per issue* (60 issues
 = 60 requests, every time you open the tab) and an undocumented internal endpoint.
@@ -600,10 +651,9 @@ That means:
 
 The chart says which of these applies instead of drawing a line it can't support.
 
-**Hygiene** is a coarse share of issues with no finding, meant as a nudge rather
-than a KPI to optimise. **Added after start** used to be an approximation too;
-with a freeze it is not — see below, and note that the tile says which of the two
-it is printing on every load.
+**Scope change** is exact with a freeze taken on the sprint's first day and says
+`approx.` otherwise — see below; the card names which of the two it is printing.
+Sprint hygiene, as a score, is on the [Monitor tab](#monitor-tab).
 
 Sub-tasks are excluded from point totals — their estimates duplicate the parent
 story's — and the excluded count is shown rather than hidden.
@@ -660,7 +710,7 @@ in `scripts/test-dashboard.mjs` rather than assumed.
 
 ### Sprint recap (PDF)
 
-**Generate recap** in the top right of the Sprint Dashboard opens a printable
+**Generate recap**, in the avatar menu at the right of the Sprint Dashboard's header, opens a printable
 end-of-sprint document in a new tab — the retro artefact. Pick **Save as PDF** in
 the print dialog that follows. There is no PDF library involved and nothing is
 rasterised: it is a print stylesheet over the same numbers the dashboard shows,
@@ -780,7 +830,7 @@ labelled. The footer says so on every copy.
 
 ### Recap config
 
-`LAUNCH → RECAP CONFIG`, or *Configure a recap…* in the dashboard's recap menu.
+`LAUNCH → RECAP CONFIG`, or *Configure a recap…* in the dashboard's avatar menu.
 Each board is a card: tick it to include it, then tick its sprints — the active
 one first, closed ones newest first, with **Active**, **Last closed** and
 **Last 3 closed** as shortcuts. **Generate recap** makes one combined document
@@ -1072,9 +1122,9 @@ On the left:
 - **A mini-Gantt** across the bottom: every open issue and epic of theirs carrying a start or due date, over a *fixed* three-weeks-back to six-weeks-forward horizon with today drawn as a red line. Fixed rather than following the toggle, so the same piece of work sits in the same place from one week to the next and position is read by habit rather than by re-reading the axis.
 
 On the right, the notes: **TODO** items with a two-way owner toggle (me / them)
-and an optional deadline, and **Important info** items added one at a time.
-Everything saves as you type. Open actions from last time sit at the top under a
-dated rule.
+and an optional deadline, and **Agenda & FYI** items added one at a time —
+things to raise, and things worth them knowing. Everything saves as you type.
+Open actions from last time sit at the top under a dated rule.
 
 **Copy for Slack** puts the actions and the notes on your clipboard, formatted
 for a message — the outcomes, deliberately not the numbers. **Complete 1:1**
@@ -1096,6 +1146,29 @@ a zero, which is indistinguishable from a quiet week.
 
 **The notes never leave the device.** See [Data handling](#data-handling): no
 sync, no export path at all, and one delete in Settings.
+
+### Quick note
+
+The **+** at the foot of the sidebar, or press `n`, from any view. A small popover for
+writing something down the moment it occurs to you, without opening the sheet
+it belongs on:
+
+- **For a person** — an *Agenda · FYI* item or an *Action* (owner and optional
+  deadline, as on the sheet). It waits on their 1:1 sheet for the next
+  conversation, an agenda item marked with the day it was added.
+- **For everyone** — the same agenda item on every active team member's sheet.
+  Agenda only: an action copied to everyone would have to be ticked once per
+  person.
+- **For me** — a manual item on **My todos**, with an optional deadline.
+
+`Enter` adds, `Shift+Enter` starts a new line, `Esc` closes. On a person's sheet
+it opens addressed to them; elsewhere, to whoever you wrote to last. A sheet or
+the todo list that is open underneath takes the note in straight away.
+
+Anything added this way is kept until the 1:1 is completed, even if the sheet
+goes untouched for longer than the three weeks after which typed scratch is
+cleared: it was written down on purpose, ahead of a meeting that may be a
+fortnight off.
 
 ### My todos
 
@@ -1295,7 +1368,7 @@ backlog. **Team Only** and the scope choice are both remembered.
 
 `assets/brand/` is gitignored apart from its `.gitkeep`. Drop a logo there,
 point **Branding → Organisation logo path** at it (e.g.
-`assets/brand/org-logo.png`), and it appears in the nav bar. Single-colour
+`assets/brand/org-logo.png`), and it appears at the top of the sidebar. Single-colour
 wordmarks are inverted automatically in light theme. With nothing configured,
 the product logo stands alone.
 
@@ -1327,7 +1400,8 @@ the product logo stands alone.
 | `1` | 1:1 |
 | `t` | My todos |
 | `p` | Sprint planner |
-| `Esc` | Close the issue drawer |
+| `n` | Quick note (opens over any view) |
+| `Esc` | Close the issue drawer or the quick note |
 
 Opening the extension with no view in the URL lands on the **Kanban, filtered to
 the current sprint** — the sprint in flight is what people arrive asking about.
@@ -1360,6 +1434,7 @@ js/credentials.js   # device-local token storage + expiry lifecycle
 js/team.js          # team roster: storage, display names, team-only filter
 js/monitor.js       # sprint hygiene checks (pure derivation)
 js/dashboard.js     # sprint aggregation (pure derivation)
+js/overview.js      # Team Overview: workload, risk, checklist, standup prep (DOM-free)
 js/recap.js         # sprint recap model (pure derivation)
 js/recap-page.js    # the printable recap document
 js/recap-selection.js # which boards and sprints a recap covers, in its URL
@@ -1386,7 +1461,7 @@ js/issue-create.js  # createmeta -> form spec -> create payload (DOM-free)
 js/issue-link.js    # issue links: direction, grouping, picker JQL (DOM-free)
 js/utils.js         # board/field/date/theme helpers + response cache
 js/router.js        # hash routing, setup flow, board picker
-js/components/      # nav, filter bar, re-auth, issue detail, board, drawer,
+js/components/      # sidebar nav, filter bar, re-auth, issue detail, board, drawer,
                     #   click-to-edit cells, create-issue panel, link picker,
                     #   icons, theme toggle, view header
 js/components/icons.js       # the app's icon sprite: authored SVG paths
@@ -1513,8 +1588,8 @@ fault rather than as focus.
 scan flags all three on every run; all three findings are declined, not
 outstanding:
 
-1. **The animated gradient** on the STANDUP nav tab, the standup counters and the
-   Start Standup button. Stops live in `--flair-stops` / `--flair-sweep` — one
+1. **The animated gradient** on the STANDUP sidebar item, the standup counters,
+   the Start Standup button and the dashboard's Run standup button. Stops live in `--flair-stops` / `--flair-sweep` — one
    source, do not re-inline them.
 2. **The dark palette.** Light theme was fixed because it was broken (chips at
    1.5–3.3:1). Dark was left alone on purpose, including `--tone-red` (3.96:1)
@@ -1585,7 +1660,7 @@ Config-layer unit checks — no dependencies, no network, no browser:
 ```bash
 node scripts/test-backlog.mjs      # grouping, paging, tones, views    (115 checks)
 node scripts/test-browser.mjs      # cross-browser shim, Gecko + Blink  (40 checks)
-node scripts/test-imports.mjs      # every module imports what it calls  (66 checks)
+node scripts/test-imports.mjs      # every module imports what it calls  (70 checks)
 node scripts/test-manifests.mjs    # per-target manifest rules          (55 checks)
 node scripts/test-config.mjs       # config layer, field discovery      (88 checks)
 node scripts/test-credentials.mjs  # migrations, tokens, export/import (105 checks)
@@ -1594,6 +1669,7 @@ node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 check
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
 node scripts/test-standup.mjs      # session timing, order, pressure (183 checks)
 node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (232 checks)
+node scripts/test-overview.mjs     # team overview, checklist, donut     (82 checks)
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (126 checks)
 node scripts/test-quarter.mjs      # quarter weeks, score, ranking     (54 checks)
 node scripts/test-recap-selection.mjs # recap URL selection, gaps       (17 checks)

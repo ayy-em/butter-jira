@@ -1,0 +1,135 @@
+/* Quick note — the sidebar's "+" popover (js/components/quick-note.js) */
+
+.qn-panel {
+  position: fixed;
+  z-index: var(--z-quick-note);
+  width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4);
+  padding: 10px 12px 12px;
+  animation: qn-drop 0.12s ease;
+}
+@keyframes qn-drop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qn-panel { animation: none; }
+}
+/* The controls set their own display, which would otherwise beat `hidden`. */
+.qn-panel [hidden] { display: none !important; }
+
+.qn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.qn-title {
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.qn-form { display: flex; flex-direction: column; gap: 8px; }
+
+.qn-row { display: flex; align-items: center; gap: 8px; }
+.qn-label {
+  flex: 0 0 auto;
+  font-size: calc(10px * var(--font-scale));
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.qn-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-family: inherit;
+  font-size: calc(12.5px * var(--font-scale));
+  padding: 5px 8px;
+  color-scheme: light dark;
+}
+
+/* Same segmented look as the 1:1 window toggle. */
+.qn-kinds {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.qn-kind {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  font-size: calc(11px * var(--font-scale));
+  letter-spacing: 0.4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.qn-kind:last-child { border-right: none; }
+.qn-kind:hover:not(:disabled) { color: var(--text); }
+.qn-kind.active {
+  background: var(--accent-primary);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.qn-kind:disabled:not(.active) { opacity: 0.4; cursor: not-allowed; }
+
+.qn-text {
+  width: 100%;
+  resize: vertical;
+  min-height: calc(64px * var(--font-scale));
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-family: inherit;
+  font-size: calc(12.5px * var(--font-scale));
+  line-height: 1.5;
+  padding: 6px 8px;
+}
+.qn-text:focus { outline: none; border-color: var(--accent-primary); }
+.qn-text::placeholder { color: var(--muted); }
+
+.qn-opts { display: flex; align-items: center; gap: 10px; }
+.qn-due-wrap { display: flex; align-items: center; gap: 6px; }
+.qn-due {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: calc(10.5px * var(--font-scale));
+  color-scheme: light dark;
+}
+
+.qn-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.qn-hint {
+  font-size: calc(10px * var(--font-scale));
+  color: var(--muted);
+}
+
+/* On the 1:1 sheet: an item put there from the quick note, ahead of the
+   meeting, says when — "raise X" reads differently a fortnight on. */
+.oo-queued {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: calc(9.5px * var(--font-scale));
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  white-space: nowrap;
+}

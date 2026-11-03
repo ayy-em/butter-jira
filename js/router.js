@@ -29,6 +29,7 @@ import {
   isPaletteOpen,
   openPalette,
 } from "./components/palette.js";
+import { isQuickNoteOpen, toggleQuickNote } from "./components/quick-note.js";
 
 const TOKEN_HELP_URL = "https://id.atlassian.com/manage-profile/security/api-tokens";
 
@@ -85,16 +86,27 @@ async function init() {
     }
 
     if (isPaletteOpen()) return; // the palette owns its own keys while open
+    // So does the quick note — its "For" select takes letters to jump to a
+    // name, which must not also switch the view underneath.
+    if (isQuickNoteOpen()) return;
 
     if (
       e.target.tagName === "INPUT" ||
       e.target.tagName === "TEXTAREA" ||
+      e.target.tagName === "SELECT" ||
       e.target.isContentEditable
     )
       return;
     // Standup mode owns the keyboard while it is running: Space, arrows and Esc
     // are its controls, and navigating away mid-standup would lose the session.
     if (document.body.dataset.standupActive === "1") return;
+    // N for note. Modifiers excluded so ⌘N still opens a window, and the key
+    // is consumed so the "n" does not land in the textarea it focuses.
+    if ((e.key === "n" || e.key === "N") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      if (isConfigured()) toggleQuickNote(document.getElementById("nav-quick-note"));
+      return;
+    }
     if (e.key === "r" || e.key === "R") location.hash = "#gantt";
     if (e.key === "b" || e.key === "B") location.hash = "#backlog";
     if (e.key === "k" || e.key === "K") location.hash = "#kanban";
@@ -373,7 +385,7 @@ async function showBoardPicker(creds) {
       "No boards are visible to this account. That usually means the account can " +
       "see projects but not their boards \u2014 ask whoever administers Jira for " +
       "board access. You can also add a board by its ID yourself: open " +
-      "<strong>Settings</strong> with the \u2699 button at the top right." +
+      "<strong>Settings</strong> at the foot of the sidebar." +
       "</div>";
     return;
   }

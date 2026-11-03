@@ -51,8 +51,13 @@ override file. Anything else is a finding.
 - [ ] Kanban: cards grouped into the configured columns; click opens Jira
 - [ ] Filters: board and assignee filters apply across all three views
 - [ ] `b` / `r` / `k` / `m` switch views; typing in an input does not trigger them
-- [ ] Opening the app with no hash lands on the Kanban, filtered to the current sprint, with KANBAN lit under the SPRINT menu
+- [ ] Opening the app with no hash lands on the Kanban, filtered to the current sprint, with KANBAN lit in the sidebar's SPRINT group
 - [ ] A nonsense hash (`app.html#nope`) still lands on the Backlog
+- [ ] Sidebar: three groups (SPRINT, LAUNCH, BACKLOG) always open; the current view is lit, a sub-route (`#oneone/<id>`, `#dashboard/<board>:<sprint>`) keeps its item lit
+- [ ] Sidebar: the TEAM card shows the roster's team name, a count by role ("6 Data Engineers · 1 Data Analyst"), the faces, and opens the 1:1 picker
+- [ ] Sidebar: **+** opens the quick note beside it, inside the window; ⌘K, ⟳, the theme toggle, Jira and Confluence all work; SETTINGS opens the settings page
+- [ ] On a short window the view list scrolls inside the sidebar and the team card and Settings stay pinned at the bottom
+- [ ] The token-expiry banner and the footer start at the sidebar's edge, not under it
 
 ## 3z. Backlog screen
 - [ ] Header shows the icon, title, subtitle, and one tile per configured status group
@@ -75,25 +80,33 @@ override file. Anything else is a finding.
 - [ ] Command palette → jump to a person → Backlog opens filtered to them, and only once
 - [ ] Light theme: tiles, status chips, SP badges and the accent bar all legible
 
-## 3a. Sprint dashboard
-- [ ] `d` or the SPRINT tab opens it; sprint name, goal and dates match Jira
-- [ ] Working days left is right (weekends not counted); a finished sprint reads "ended …" in red
-- [ ] Points complete matches Jira's own sprint total, sub-tasks excluded
-- [ ] A sprint with no estimates shows "—" for points, not 0%
-- [ ] Carried in matches the issues that were in a previous sprint
-- [ ] Added after start looks plausible; the tile reads "exact" or "approx." and the "?" tooltip says which and why
-- [ ] Hygiene tile shows an icon AND a word; clicking it goes to Monitor
-- [ ] First visit → burndown says it is collecting history and explains why
-- [ ] Second day → burndown draws, with the ideal line dashed and a legend present
-- [ ] Hovering the burndown moves the crosshair and updates the readout
-- [ ] Readout says ahead/behind and matches the line position
-- [ ] Progression bar segments sum to the whole; hovering shows each share
-- [ ] Narrow segments have no clipped inline label (the legend carries them)
-- [ ] By board: bars share one hue, board colours appear as dots in the key
-- [ ] By person: roster display-name overrides used; outsiders labelled
+## 3a. Sprint dashboard (Team Overview)
+- [ ] `d` or **SPRINT → DASHBOARD** in the sidebar opens it; sprint name(s), goal and dates match Jira
+- [ ] Header: "Day N of M" is in working days (weekends not counted); a finished sprint reads "ended …" in red
+- [ ] Header: the Jira chip is green; the GitHub chip is off / amber while loading / green / red, and its title says why
+- [ ] Header: **Run standup** opens the standup and carries the animated ring (none under reduced motion)
+- [ ] Header: the avatar loads your Jira picture and name; its menu has Generate recap, Recap past sprint, quarterly overview, Configure a recap…, Settings, and closes on a pick, outside click and Escape
+- [ ] Sprint selector lists each board's last six closed sprints; picking one goes to `#dashboard/<board>:<sprint>`, reloads to the same sprint, and **Current** returns
+- [ ] A closed sprint shows no checklist and no standup prep, writes no snapshot and takes no freeze (Storage unchanged)
+- [ ] Tabs: Team overview / Individual view switch without a reload, arrow keys move between them, and the choice survives ⟳
+- [ ] KPI — Sprint progress: day and bar match the calendar; Committed vs completed matches Jira's sprint points, sub-tasks excluded; no estimates reads "—", not 0%
+- [ ] KPI — Tickets closed: the comparison names "by day N last sprint" and fills in after the first paint
+- [ ] KPI — Blockers: counts flagged issues and blocked/on-hold statuses; first day reads "first reading", next day shows ± since yesterday; clicking opens the list
+- [ ] KPI — PR review turnaround: GitHub off says how to connect it; on, a median in days and how many PRs it is over
+- [ ] First visit → burndown says it is collecting history and explains why; second day → it draws, ideal dashed, legend present, crosshair readout on hover
+- [ ] Velocity card shows this sprint's points marked provisional and names M17 — and draws no fake bars
+- [ ] Issue status donut: five slices in workflow order, total in the middle, legend counts and shares add up; each legend row opens its issues
+- [ ] Workload: every active roster member has a row, in name order, with role; bars show done / in review / open, the capacity line sits at days left × 8 ÷ hours a point
+- [ ] Over / near capacity chips carry an icon and a word; someone holding only unestimated work reads "No estimates", not OK
+- [ ] Scope change matches the freeze panel's points (added − removed + re-estimates) and says exact / approx.; **What changed ↓** scrolls to the freeze panel
+- [ ] Carry-over risk is "—" on day one, a % after, with ± since the last reading
+- [ ] Checklist: all seven rows; the PR and dependencies rows read "…" until their lookups land; every non-zero row opens a drawer list whose rows open the issue (or PR on GitHub) and **Open these in Jira** runs the same keys
+- [ ] The checklist stays in view while scrolling the workload beside it
+- [ ] Standup prep: "since the last standup" names the last session's time, or the previous working day with none; quiet teammates link to their 1:1 sheet
+- [ ] Individual view: a card per person (no sub-tasks listed), PR line fills in with GitHub, then the delivery table sorts as before
 - [ ] Light theme: charts re-pick colours, everything still readable
-- [ ] Opening the tab straight after Kanban issues no new Jira requests (check the Network tab)
-- [ ] Opening it twice in a day does not add a second snapshot row (Storage → `sprintSnapshots`)
+- [ ] Requests after the first paint: closed sprints per board, the previous sprint's issues, one `search/jql` with `issuelinks`, `myself` — and a second open within five minutes repeats none of them
+- [ ] Opening it twice in a day does not add a second snapshot row (Storage → `sprintSnapshots`), and the row now carries `blocked`
 - [ ] Opening it twice does not take a second freeze either (Storage → `sprintFreezes` — `takenAt` unchanged)
 - [ ] No console errors; no chart drawn outside its card
 
@@ -120,11 +133,11 @@ is the fastest way to see all six buckets.
 - [ ] The departure lookup is **one** request for all of them, after the first paint (Network tab, `search/jql` with `key in (...)`)
 - [ ] **Freeze now** → the confirm names the date, issue count and points it is discarding; cancelling changes nothing
 - [ ] Confirm it → the panel redraws empty and the readout shows today
-- [ ] With a start-of-sprint freeze the "Added after start" tile reads **exact**; with one taken mid-sprint it reads **approx.** and names the day
-- [ ] The recap PDF's "What changed underneath the plan" section matches the panel, and its scope note matches the tile
+- [ ] With a start-of-sprint freeze the Scope change card reads **exact**; with one taken mid-sprint it reads **approx.** and names the day
+- [ ] The recap PDF's "What changed underneath the plan" section matches the panel, and its scope note matches the Scope change card
 - [ ] A recap opened for a sprint the dashboard has never seen says there is no frozen state — and writes no freeze (Storage unchanged)
-- [ ] **Recap past sprint → Recap past sprint** builds the last closed sprint on each board, names the closing date on the page, and shows no "days remaining"
-- [ ] That menu is present with no active sprint on any board, and the document it opens is still the previous sprint's
+- [ ] **Avatar menu → Recap past sprint** builds the last closed sprint on each board, names the closing date on the page, and shows no "days remaining"
+- [ ] The avatar menu is present with no active sprint on any board, and the document it opens is still the previous sprint's
 - [ ] The menu closes on a pick, on an outside click and on Escape
 - [ ] With a roster, nobody outside it appears on the dashboard or in the recap — not in the per-person table, the cards, or any total — and the header says how many issues were left out
 - [ ] A team ticket reassigned to someone outside the roster after the freeze shows as pulled out, "reassigned outside the team"
@@ -144,7 +157,7 @@ is the fastest way to see all six buckets.
 - [ ] After nine sprints, `sprintFreezes` and `sprintSnapshots` hold the same eight keys
 
 ## 3b. Monitor tab
-- [ ] Opens with `m` or the MONITOR tab; nav badge shows the total, hidden at zero
+- [ ] Opens with `m` or MONITOR in the sidebar; its badge shows the total, hidden at zero
 - [ ] Counts match reality — spot-check one finding per section against Jira
 - [ ] No sub-tasks in "no epic parent", "no due date" or "no story points"
 - [ ] Sub-tasks DO appear in "unassigned" when nobody is on them
@@ -169,8 +182,8 @@ is the fastest way to see all six buckets.
 - [ ] Kanban card click → drawer; ⌘/Ctrl-click and middle-click → full page
 - [ ] Gantt child bar click → drawer; Monitor row keys → drawer
 - [ ] Esc closes the drawer; clicking the dark backdrop closes it; ✕ closes it
-- [ ] Drawer sits below the nav and above the footer — both stay fully visible
-- [ ] Clicking a nav tab with the drawer open navigates and closes the drawer
+- [ ] Drawer opens over the view, above the footer — the sidebar and footer stay fully visible
+- [ ] Clicking a sidebar item with the drawer open navigates and closes the drawer
 - [ ] Opening a second issue from inside the drawer replaces the first
 - [ ] Header: status badge colour matches the status category (grey/blue/green)
 - [ ] Header: parent row shows type, key and truncated summary; its key opens the parent
@@ -265,7 +278,7 @@ Use a pair of scratch issues.
 - [ ] A ticket someone moved but does not own counts for the mover, not the assignee (check one against its Jira history)
 - [ ] "All in" / "None" work; per-person minutes and "Set all" apply
 - [ ] Totals line updates with attendance and shows both speaking and wall-clock time
-- [ ] Start → goes full-screen, nav and footer hidden, `dun-dun-dun` plays
+- [ ] Start → goes full-screen, sidebar and footer hidden (view uses the full width), `dun-dun-dun` plays
 - [ ] 5-second countdown shows the first person's name, then their board appears
 - [ ] Board shows only that person's current-sprint issues, no assignee avatars
 - [ ] Cards are readable from across a room; clicking one still opens the drawer
@@ -319,7 +332,7 @@ that loses them loses them.
 
 - [ ] `LAUNCH → 1:1`, and the `1` key from any view, both open the picker
 - [ ] `LAUNCH` also holds Standup, My todos and Sprint recap; Standup has no top-level tab any more and `s` still works
-- [ ] Sprint recap opens in its own tab from the menu, and looks the same as the dashboard button's copy
+- [ ] Sprint recap opens in its own tab from the menu, and looks the same as the dashboard avatar menu's copy
 - [ ] The picker lists the roster, most-overdue first, with people you have never met at the top
 - [ ] Each row says how long since the last completed 1:1 ("never" reads as a warning)
 - [ ] With no roster at all the picker says so and offers Settings, rather than an empty list
@@ -405,7 +418,7 @@ Use a board where closing and starting a sprint is safe to try.
 
 ## 4. Branding and theme
 - [ ] No org logo configured → product logo only, nothing broken
-- [ ] Point Branding → logo path at a real file → appears in the nav bar
+- [ ] Point Branding → logo path at a real file → appears at the top of the sidebar
 - [ ] Point it at a missing file → falls back to the product logo
 - [ ] Set organisation name with no logo → text label appears
 - [ ] Toggle light/dark on app and settings → both readable, org wordmark inverts
@@ -519,7 +532,7 @@ Use a board where closing and starting a sprint is safe to try.
 - [ ] Edge: load `dist/edge` unpacked → loads with no manifest warning
       (these two are manual on purpose: headless Chromium refuses to open a
        chrome-extension:// page from the CLI, so nothing automated covers them)
-- [ ] **Click every nav tab after any refactor** — Sprint, Backlog, Roadmap, Kanban, Monitor, Standup.
+- [ ] **Click every sidebar item after any refactor** — Dashboard, Kanban, Monitor, Standup, Planner, Planning, 1:1, Todos, Recap config, All work, Roadmap.
       A missing import only shows up on the view that has it, and the console is where it shows.
 - [ ] `git diff manifest.json` after a build is empty — the root manifest has not drifted from the base
 - [ ] Chrome → export config (both token boxes ticked) → import into Firefox → app works with no re-typing

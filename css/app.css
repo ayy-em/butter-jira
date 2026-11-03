@@ -153,6 +153,7 @@
   --z-toast: 200;
   --z-banner: 190;
   --z-reauth: 300;
+  --z-quick-note: 350;
   --z-palette: 400;
 }
 
@@ -168,25 +169,30 @@ html, body {
   overflow: hidden;
 }
 
+/* The sidebar's width, read by everything fixed that has to clear it: the view
+   container, the footer and the expiry banner. One number, so the three cannot
+   disagree about where the page starts. */
+:root { --sidebar-w: 220px; }
+
 #nav {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  height: 52px;
+  bottom: 0;
+  width: var(--sidebar-w);
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   display: flex;
-  align-items: center;
-  padding: 0 16px;
+  flex-direction: column;
+  padding: 14px 10px 10px;
   z-index: var(--z-nav);
   gap: 4px;
 }
 
 #view-container {
   position: absolute;
-  top: 52px;
-  left: 0;
+  top: 0;
+  left: var(--sidebar-w);
   right: 0;
   bottom: 24px;
   overflow: auto;
@@ -960,16 +966,17 @@ html { scrollbar-color: var(--border) var(--bg); }
 .due-14 { color: #EAB308; }
 .due-normal { color: var(--text); }
 
-/* Nav logo area */
+/* Nav logo area: the mark, the product name and, when set, the org's. */
 .nav-logo-area {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-right: 12px;
+  gap: 10px;
+  padding: 0 6px 4px;
   flex-shrink: 0;
 }
 .nav-logo-area img {
-  height: 24px;
+  height: 28px;
+  cursor: pointer;
 }
 .nav-jira-link {
   display: flex;
@@ -1000,9 +1007,10 @@ html { scrollbar-color: var(--border) var(--bg); }
    that matches the neighbouring nav buttons and to read as muted until hovered,
    like every other control up here. */
 .nav-icon-link {
-  width: 32px;
-  height: 32px;
-  padding: 0;
+  flex: 1;
+  gap: 7px;
+  height: 30px;
+  padding: 0 8px;
 }
 .nav-icon-link img {
   width: 18px;
@@ -1030,7 +1038,7 @@ a:hover > .gh-mark, .gh-mark:hover { opacity: 1; }
 .expiry-banner {
   position: fixed;
   bottom: 24px;
-  left: 0;
+  left: var(--sidebar-w);
   right: 0;
   z-index: var(--z-banner);
   display: flex;

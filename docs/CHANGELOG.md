@@ -8,6 +8,47 @@ it about what a user gets. The reasoning is in the commit history;
 
 ## Unreleased
 
+**The sprint dashboard is now a Team Overview.** A sprint selector (the running
+sprint or any recent closed one), the day of the sprint, Jira and GitHub status
+and a **Run standup** button across the top; five KPIs — sprint progress,
+committed vs completed, tickets closed against the previous sprint at the same
+day, blockers, and PR review turnaround; the burndown, a velocity card that
+holds its place until per-sprint history exists, and the issue status split;
+each person's workload against the capacity left, scope change and carry-over
+risk; a checklist of things to check by hand — overdue, blocked over two days,
+PRs waiting over two days, unestimated, unassigned, scope added, dependencies —
+where every count opens the issues or pull requests behind it; and standup prep,
+including who has no recent activity since the last standup. An **Individual
+view** tab holds a card per person and the delivery-by-person table. The recap
+buttons moved into the avatar menu.
+
+**The navigation moved to a sidebar.** The three menus are now always-open
+groups down the left edge, with the team — its name, a head count by role, the
+faces — and Settings at the foot.
+
+**Roster: a role per person** ("Data Engineer", "Data Analyst"), shown on the
+dashboard and counted into the sidebar's team summary.
+
+**Blocked issues** are read from Jira's *Flagged* field as well as from the
+status name. Re-run field discovery in Settings to map it on an existing install.
+
+**Quick note, from any screen.** A **+** in the sidebar (or `N`) opens a small
+popover for writing something down without leaving what you are looking at:
+an agenda item or an action for one person's 1:1, the same agenda item for
+everyone on the team at once, or a todo for yourself. It opens addressed to
+the person whose sheet you are on. Notes added this way wait on the sheet until
+the 1:1 is completed — they are not cleared with three-week-old scratch — and
+an agenda item shows the day it was added. A sheet or My todos open underneath
+picks the note up straight away.
+
+**1:1: "Important info" is now "Agenda & FYI"**, on the sheet and in the
+Slack paste, since it is where things to raise now go.
+
+**1:1: notes for one person no longer overwrite another's.** Typing on one
+person's sheet wrote back the whole notes store as it was when the sheet
+opened, so with two tabs on two people's sheets, each wrote the other's new
+notes away. A sheet now saves only its own person's notes.
+
 **Standup: the Slack summary, one shape for everyone.** Each person's line
 starts with their @handle and nothing in front of it, and every line of their
 notes sits underneath as a "- " item, a one-line note included. A note line
