@@ -441,6 +441,7 @@ input[readonly] { color: var(--muted); cursor: not-allowed; }
 .roster-row input.roster-avatar-path.missing {
   border-color: var(--accent-warning); color: var(--accent-warning);
 }
+.roster-row input.roster-role { flex: 1 1 96px; min-width: 0; }
 .roster-row input.roster-slack { flex: 1 1 92px; min-width: 0; font-size: calc(10px * var(--font-scale)); }
 .roster-row input.roster-github { flex: 1 1 92px; min-width: 0; font-size: calc(10px * var(--font-scale)); }
 .roster-row input.roster-github.invalid { border-color: var(--accent-warning); color: var(--accent-warning); }

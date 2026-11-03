@@ -2,61 +2,57 @@ import { runtimeUrl } from "../browser.js";
 import { loadTheme } from "../utils.js";
 import { createThemeToggle } from "./theme-toggle.js";
 import { icon } from "./icons.js";
+import { closeQuickNote, toggleQuickNote } from "./quick-note.js";
 import { CONFIG, jiraHomeUrl, siteHost, wikiUrl } from "../config.js";
 import { getBadgeCount } from "../monitor.js";
 import { prewarmGithub } from "../github.js";
+import { activeMembers, activeTeam, avatarAssetUrl, memberLabel } from "../team.js";
 import { burst } from "../confetti.js";
 
-// Six flat tabs outgrew the header, so the five board views collapse into two
-// menus by what you're looking at — the whole backlog, or the sprint in flight.
-// The single-view labels inside a menu never repeat their parent ("ALL WORK",
-// not "BACKLOG > BACKLOG"). Shortcut keys are handled in router.js; the letters
-// here are display only.
+// The left sidebar, which replaced the top bar when the dashboard became the
+// Team Overview. Same three groups the top bar's menus held, now always open:
+// a sidebar has the height a header never had, so nothing needs to hide inside
+// a dropdown, and a view you can see is a view you remember exists.
 //
-// **LAUNCH is the third menu, added with the 1:1 screen (M14), and Standup
-// moved into it.** Standup had been top level on the grounds that a daily
-// ritual is not somewhere you browse to — which was right, and is exactly why
-// it now sits with the other two things you *run* rather than *read*: the 1:1
-// sheet and the sprint recap. Three doors to three rituals, in one place,
-// instead of one ritual promoted and two hidden (the recap was reachable only
-// from a button inside the dashboard header). Standup keeps its S.
+// SPRINT leads because the dashboard is where the day starts. LAUNCH is the
+// rituals you *run* rather than read — standup, planning, the 1:1, the recap —
+// and BACKLOG is the whole of the work beyond this sprint. Shortcut keys are
+// handled in router.js; the letters here are display only.
+//
+// Standup keeps its animated ring (README → Design system, pinned item 1).
 const TABS = [
-  {
-    id: "backlog",
-    label: "BACKLOG",
-    items: [
-      { hash: "#backlog", label: "ALL WORK", key: "B" },
-      { hash: "#gantt", label: "ROADMAP", key: "R" },
-    ],
-  },
   {
     id: "sprint",
     label: "SPRINT",
     items: [
-      { hash: "#dashboard", label: "DASHBOARD", key: "D" },
-      { hash: "#kanban", label: "KANBAN", key: "K" },
-      { hash: "#monitor", label: "MONITOR", key: "M", badge: true },
+      { hash: "#dashboard", label: "DASHBOARD", key: "D", icon: "dashboard" },
+      { hash: "#kanban", label: "KANBAN", key: "K", icon: "columns" },
+      { hash: "#monitor", label: "MONITOR", key: "M", icon: "pulse", badge: true },
     ],
   },
   {
     id: "launch",
     label: "LAUNCH",
-    flair: true,
     items: [
-      { hash: "#standup", label: "STANDUP", key: "S", flair: true, prewarm: prewarmGithub },
+      { hash: "#standup", label: "STANDUP", key: "S", icon: "timer", flair: true, prewarm: prewarmGithub },
       // Sprint planning is the fourth ritual: prepared the day before, reviewed
       // in the meeting, pushed to Jira at the end of it (M15).
-      { hash: "#planner", label: "SPRINT PLANNER", key: "P" },
+      { hash: "#planner", label: "SPRINT PLANNER", key: "P", icon: "calendar" },
       // M23's flow, beside the planner while the two are compared.
-      { hash: "#planflow", label: "SPRINT PLANNING (NEW)" },
-      { hash: "#oneone", label: "1:1", key: "1" },
-      { hash: "#todos", label: "MY TODOS", key: "T" },
-      // Opens its own tab rather than a view: it is a print-styled document,
-      // and `recap.html` deliberately does not load the app stylesheet.
+      { hash: "#planflow", label: "SPRINT PLANNING (NEW)", icon: "flag" },
+      { hash: "#oneone", label: "1:1", key: "1", icon: "person" },
+      { hash: "#todos", label: "MY TODOS", key: "T", icon: "check" },
       // The screen that builds any recap — active, closed, several sprints,
-      // several boards — rather than a link that could only recap the
-      // active sprint.
-      { hash: "#recap-config", label: "RECAP CONFIG" },
+      // several boards — which is what the retrospective prints from.
+      { hash: "#recap-config", label: "RECAP CONFIG", icon: "doc" },
+    ],
+  },
+  {
+    id: "backlog",
+    label: "BACKLOG",
+    items: [
+      { hash: "#backlog", label: "ALL WORK", key: "B", icon: "backlog" },
+      { hash: "#gantt", label: "ROADMAP", key: "R", icon: "roadmap" },
     ],
   },
 ];
@@ -76,7 +72,6 @@ const SITE_LINKS = [
 let lastSync = null;
 let currentTheme = "dark";
 let clockInterval = null;
-let closeMenusHandler = null;
 
 export function setLastSync(date) {
   lastSync = date;
@@ -120,33 +115,32 @@ function updateClock() {
 
 export async function renderNav(onRefresh) {
   const nav = document.getElementById("nav");
+  // Its anchor is about to be thrown away.
+  closeQuickNote({ restoreFocus: false });
   nav.innerHTML = "";
+  nav.setAttribute("aria-label", "Main");
 
   if (clockInterval) clearInterval(clockInterval);
 
   currentTheme = await loadTheme();
 
+  // ── Brand and clock ──────────────────────────────────────────────────────
   const logoArea = document.createElement("div");
   logoArea.className = "nav-logo-area";
-  logoArea.style.cssText = "display:flex;align-items:center;";
 
   // Org branding is optional: point brand.orgLogo at an untracked file under
   // assets/brand/ to show a wordmark, or set brand.orgName for a text label.
   // With neither set, the product logo stands alone.
   const brandMark = document.createElement("img");
   const hasOrgLogo = Boolean(CONFIG.brand.orgLogo);
+  brandMark.className = "nav-brand-mark";
   brandMark.src = hasOrgLogo ? CONFIG.brand.orgLogo : "assets/logo.png";
   brandMark.alt = CONFIG.brand.orgName || CONFIG.brand.productName;
-  brandMark.style.height = "22px";
-  brandMark.style.cursor = "pointer";
   applyBrandMarkTheme(brandMark, hasOrgLogo);
   brandMark.addEventListener("click", (e) => {
     e.preventDefault();
-    // One nozzle at the pointer, thrown in every direction. This used to be a
-    // second confetti implementation living in this file — 34 lines that drew
-    // their own overlay, ran their own animations and, unlike js/confetti.js,
-    // never checked prefers-reduced-motion. Clicking the logo fired sixty
-    // animated particles at someone who had asked for none.
+    // One nozzle at the pointer, thrown in every direction. js/confetti.js is
+    // the only confetti, and it does nothing under prefers-reduced-motion.
     burst({
       origin: [{
         x: e.clientX / window.innerWidth,
@@ -165,68 +159,64 @@ export async function renderNav(onRefresh) {
   });
   logoArea.appendChild(brandMark);
 
-  if (CONFIG.brand.orgName && !hasOrgLogo) {
-    const orgLabel = document.createElement("span");
-    orgLabel.className = "mono";
-    orgLabel.style.cssText =
-      "margin-left:8px;font-size:12px;font-weight:600;letter-spacing:1px;color:var(--muted);";
-    orgLabel.textContent = CONFIG.brand.orgName;
-    logoArea.appendChild(orgLabel);
+  const names = document.createElement("div");
+  names.className = "nav-brand-names";
+  const product = document.createElement("span");
+  product.className = "nav-brand-product mono";
+  product.textContent = CONFIG.brand.productName;
+  names.appendChild(product);
+  if (CONFIG.brand.orgName) {
+    const org = document.createElement("span");
+    org.className = "nav-brand-org";
+    org.textContent = CONFIG.brand.orgName;
+    names.appendChild(org);
   }
+  logoArea.appendChild(names);
+  nav.appendChild(logoArea);
 
-  const leftGroup = document.createElement("div");
-  leftGroup.className = "nav-tabs";
-  leftGroup.appendChild(logoArea);
+  const clock = document.createElement("div");
+  clock.id = "nav-clock";
+  clock.className = "mono";
+  const clockTime = document.createElement("span");
+  clockTime.className = "nav-clock-time";
+  const clockTimezone = document.createElement("span");
+  clockTimezone.className = "nav-clock-timezone";
+  clock.append(clockTime, clockTimezone);
+  nav.appendChild(clock);
+  updateClock();
+  clockInterval = setInterval(updateClock, 1000);
 
-  for (const tab of TABS) {
-    leftGroup.appendChild(tab.items ? createTabMenu(tab) : createTabLink(tab));
-  }
-  nav.appendChild(leftGroup);
-
-  // One document listener for every menu, re-bound on each nav render so a
-  // re-render can't leave a stale closure holding on to detached nodes.
-  if (closeMenusHandler) {
-    document.removeEventListener("click", closeMenusHandler, true);
-    document.removeEventListener("keydown", closeMenusHandler, true);
-  }
-  closeMenusHandler = (e) => {
-    if (e.type === "keydown" && e.key !== "Escape") return;
-    if (e.type === "click" && e.target.closest(".nav-menu")) return;
-    closeAllMenus();
-  };
-  document.addEventListener("click", closeMenusHandler, true);
-  document.addEventListener("keydown", closeMenusHandler, true);
+  // ── Views ────────────────────────────────────────────────────────────────
+  // Scrolls on its own when the window is short, so the team summary and
+  // Settings stay pinned to the bottom edge instead of being pushed off it.
+  const views = document.createElement("div");
+  views.className = "nav-views";
+  for (const group of TABS) views.appendChild(createGroup(group));
+  nav.appendChild(views);
 
   // Restore a count already computed earlier this session.
   updateMonitorBadge(getBadgeCount());
 
-  const centerGroup = document.createElement("div");
-  centerGroup.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;";
-  const clock = document.createElement("span");
-  clock.id = "nav-clock";
-  clock.className = "mono";
-  clock.style.cssText = "display:flex;flex-direction:column;align-items:center;line-height:1.05;color:var(--text);letter-spacing:1px;white-space:nowrap;";
-  const clockTime = document.createElement("span");
-  clockTime.className = "nav-clock-time";
-  clockTime.style.cssText = "font-size:16px;font-weight:500;";
-  const clockTimezone = document.createElement("span");
-  clockTimezone.className = "nav-clock-timezone";
-  clockTimezone.style.cssText = "margin-top:2px;font-size:9px;font-weight:600;letter-spacing:0.8px;color:var(--muted);";
-  clock.append(clockTime, clockTimezone);
-  centerGroup.appendChild(clock);
-  updateClock();
-  clockInterval = setInterval(updateClock, 1000);
-  nav.appendChild(centerGroup);
+  // ── Team, tools, settings ────────────────────────────────────────────────
+  const foot = document.createElement("div");
+  foot.className = "nav-foot";
+  foot.appendChild(teamSummary());
 
-  const rightGroup = document.createElement("div");
-  rightGroup.style.cssText = "display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:0.5rem;";
+  const tools = document.createElement("div");
+  tools.className = "nav-tools";
 
-  const host = siteHost();
-  for (const site of SITE_LINKS) {
-    rightGroup.appendChild(
-      createSiteLink(site, site.url(), host ? `Open ${site.label} on ${host}` : "")
-    );
-  }
+  // In the sidebar rather than on the 1:1 sheet, because the thing to raise with
+  // somebody occurs to you on whatever screen you happen to be on.
+  const quickBtn = document.createElement("button");
+  quickBtn.id = "nav-quick-note";
+  quickBtn.className = "nav-btn mono";
+  quickBtn.appendChild(icon("plus", 16));
+  quickBtn.title = "Quick note (N) — an agenda item or action for someone's 1:1, or a todo for yourself";
+  quickBtn.setAttribute("aria-label", "Quick note");
+  quickBtn.setAttribute("aria-haspopup", "dialog");
+  quickBtn.setAttribute("aria-expanded", "false");
+  quickBtn.addEventListener("click", () => toggleQuickNote(quickBtn));
+  tools.appendChild(quickBtn);
 
   // Discoverability: the palette is a keyboard feature, and nobody finds a
   // keyboard feature without being told it exists.
@@ -237,23 +227,15 @@ export async function renderNav(onRefresh) {
   paletteBtn.addEventListener("click", () => {
     document.dispatchEvent(new CustomEvent("palette-open"));
   });
-  rightGroup.appendChild(paletteBtn);
+  tools.appendChild(paletteBtn);
 
   const refreshBtn = document.createElement("button");
   refreshBtn.className = "nav-btn mono";
-  refreshBtn.textContent = "⟳";
+  refreshBtn.appendChild(icon("refresh", 16));
   refreshBtn.title = "Refresh";
+  refreshBtn.setAttribute("aria-label", "Refresh");
   refreshBtn.addEventListener("click", onRefresh);
-  rightGroup.appendChild(refreshBtn);
-
-  const settingsBtn = document.createElement("button");
-  settingsBtn.className = "nav-btn mono";
-  settingsBtn.textContent = "⚙";
-  settingsBtn.title = "Settings";
-  settingsBtn.addEventListener("click", () => {
-    window.open(runtimeUrl("settings.html"));
-  });
-  rightGroup.appendChild(settingsBtn);
+  tools.appendChild(refreshBtn);
 
   // The sky itself lives in js/components/theme-toggle.js — settings.html used
   // to hand-write the same twenty spans into its own markup.
@@ -265,18 +247,55 @@ export async function renderNav(onRefresh) {
       applyBrandMarkTheme(brandMark, hasOrgLogo);
     },
   });
-  rightGroup.appendChild(themeBtn);
-  nav.appendChild(rightGroup);
+  tools.appendChild(themeBtn);
+  foot.appendChild(tools);
+
+  const sites = document.createElement("div");
+  sites.className = "nav-sites";
+  const host = siteHost();
+  for (const site of SITE_LINKS) {
+    sites.appendChild(
+      createSiteLink(site, site.url(), host ? `Open ${site.label} on ${host}` : "")
+    );
+  }
+  foot.appendChild(sites);
+
+  // Settings last, at the bottom edge — it opens its own page, which is also
+  // where the integrations (Jira, GitHub) are connected.
+  const settings = document.createElement("a");
+  settings.className = "nav-item nav-settings mono";
+  settings.href = runtimeUrl("settings.html");
+  settings.target = "_blank";
+  settings.rel = "noopener";
+  settings.title = "Settings — boards, fields, team roster, Jira and GitHub connections";
+  settings.append(icon("gear", 16));
+  const settingsLabel = document.createElement("span");
+  settingsLabel.textContent = "SETTINGS";
+  settings.appendChild(settingsLabel);
+  foot.appendChild(settings);
+  nav.appendChild(foot);
 
   updateActiveTab();
   renderFooter();
 }
 
-function createTabLink(tab, { inMenu = false } = {}) {
+function createGroup(group) {
+  const section = document.createElement("div");
+  section.className = "nav-group";
+  section.dataset.menu = group.id;
+  const heading = document.createElement("div");
+  heading.className = "nav-group-label mono";
+  heading.textContent = group.label;
+  section.appendChild(heading);
+  for (const item of group.items) section.appendChild(createTabLink(item));
+  return section;
+}
+
+function createTabLink(tab) {
   const link = document.createElement("a");
-  // A `url` item points at another extension page (the recap) rather than at a
-  // view in this one, so it opens in its own tab and never lights up as the
-  // active view — there is no hash for it to match.
+  // A `url` item points at another extension page rather than at a view in this
+  // one, so it opens in its own tab and never lights up as the active view —
+  // there is no hash for it to match.
   if (tab.url) {
     link.href = runtimeUrl(tab.url);
     link.target = "_blank";
@@ -285,10 +304,12 @@ function createTabLink(tab, { inMenu = false } = {}) {
     link.href = tab.hash;
     link.dataset.hash = tab.hash;
   }
-  link.className = inMenu ? "nav-menu-item mono" : "nav-tab mono";
+  link.className = "nav-item mono";
   if (tab.flair) link.classList.add("flair");
+  if (tab.icon) link.appendChild(icon(tab.icon, 16));
 
   const label = document.createElement("span");
+  label.className = "nav-item-label";
   label.textContent = tab.label;
   link.appendChild(label);
 
@@ -300,7 +321,7 @@ function createTabLink(tab, { inMenu = false } = {}) {
   }
 
   if (tab.badge) link.appendChild(createMonitorBadge());
-  if (inMenu && tab.key) {
+  if (tab.key) {
     const hint = document.createElement("span");
     hint.className = "nav-menu-key";
     hint.textContent = tab.key;
@@ -309,62 +330,94 @@ function createTabLink(tab, { inMenu = false } = {}) {
   return link;
 }
 
-function createTabMenu(group) {
-  const wrap = document.createElement("div");
-  wrap.className = "nav-menu";
-  wrap.dataset.menu = group.id;
+// Who the sprint belongs to: the roster's team name, a head count by role
+// ("6 Data Engineers · 1 Data Analyst"), and the faces. Roles are free text on
+// each roster entry; anyone without one is counted as a person. Opens the 1:1
+// picker, which is the one screen organised by person.
+function teamSummary() {
+  const members = activeMembers();
+  const link = document.createElement("a");
+  link.className = "nav-team";
+  link.href = "#oneone";
 
-  const trigger = document.createElement("button");
-  trigger.className = "nav-tab nav-menu-trigger mono";
-  trigger.type = "button";
-  trigger.setAttribute("aria-haspopup", "true");
-  trigger.setAttribute("aria-expanded", "false");
-  trigger.dataset.group = group.items.map((i) => i.hash).filter(Boolean).join(" ");
-  if (group.flair) trigger.classList.add("flair");
+  const label = document.createElement("div");
+  label.className = "nav-group-label mono";
+  label.textContent = "TEAM";
+  link.appendChild(label);
 
-  const label = document.createElement("span");
-  label.textContent = group.label;
-  trigger.appendChild(label);
+  const name = document.createElement("div");
+  name.className = "nav-team-name";
+  name.textContent = activeTeam()?.name || "My team";
+  link.appendChild(name);
 
-  // A count hidden inside a closed menu is a count nobody sees, so the badge
-  // also rides on the trigger and only shows while the menu is shut.
-  if (group.items.some((i) => i.badge)) {
-    const badge = createMonitorBadge();
-    badge.classList.add("nav-tab-badge-rollup");
-    trigger.appendChild(badge);
-  }
+  const counts = document.createElement("div");
+  counts.className = "nav-team-counts";
+  counts.textContent = members.length
+    ? roleSummary(members)
+    : "No roster yet — add people in Settings → Team";
+  link.appendChild(counts);
 
-  const caret = icon("chevron", 11);
-  caret.classList.add("nav-menu-caret");
-  trigger.appendChild(caret);
-
-  const panel = document.createElement("div");
-  panel.className = "nav-menu-panel";
-  for (const item of group.items) panel.appendChild(createTabLink(item, { inMenu: true }));
-
-  trigger.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const open = wrap.classList.contains("open");
-    closeAllMenus();
-    if (!open) {
-      wrap.classList.add("open");
-      trigger.setAttribute("aria-expanded", "true");
+  if (members.length) {
+    const faces = document.createElement("div");
+    faces.className = "nav-team-faces";
+    for (const member of members.slice(0, 8)) faces.appendChild(face(member));
+    if (members.length > 8) {
+      const more = document.createElement("span");
+      more.className = "nav-face nav-face-more mono";
+      more.textContent = `+${members.length - 8}`;
+      faces.appendChild(more);
     }
-  });
-  panel.addEventListener("click", (e) => {
-    // Navigation happens through the href; the menu just gets out of the way.
-    if (e.target.closest(".nav-menu-item")) closeAllMenus();
-  });
-
-  wrap.append(trigger, panel);
-  return wrap;
+    link.appendChild(faces);
+  }
+  link.title = members.length
+    ? `${members.map(memberLabel).join(", ")} — open the 1:1 picker`
+    : "Open Settings to add the team roster";
+  return link;
 }
 
-function closeAllMenus() {
-  document.querySelectorAll(".nav-menu.open").forEach((el) => {
-    el.classList.remove("open");
-    el.querySelector(".nav-menu-trigger")?.setAttribute("aria-expanded", "false");
-  });
+export function roleSummary(members) {
+  const byRole = new Map();
+  for (const member of members) {
+    const role = member.role || "";
+    byRole.set(role, (byRole.get(role) || 0) + 1);
+  }
+  const parts = [...byRole.entries()]
+    .filter(([role]) => role)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([role, n]) => `${n} ${n === 1 || /s$/i.test(role) ? role : role + "s"}`);
+  if (!parts.length) return `${members.length} ${members.length === 1 ? "person" : "people"}`;
+  const unroled = byRole.get("") || 0;
+  if (unroled) parts.push(`${unroled} other`);
+  return parts.join(" · ");
+}
+
+function face(member) {
+  const src = member.avatarOverride ? avatarAssetUrl(member.avatarOverride) : member.avatarUrl;
+  const label = memberLabel(member);
+  const initials = label
+    .replace(/[^\p{L}\s]/gu, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const el = document.createElement("span");
+  el.className = "nav-face mono";
+  el.title = label;
+  if (src) {
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = "";
+    img.addEventListener("error", () => {
+      img.remove();
+      el.textContent = initials || "?";
+    });
+    el.appendChild(img);
+  } else {
+    el.textContent = initials || "?";
+  }
+  return el;
 }
 
 function createMonitorBadge() {
@@ -384,10 +437,13 @@ function createSiteLink(site, url, title) {
   link.target = "_blank";
   link.rel = "noopener";
 
-  const icon = document.createElement("img");
-  icon.src = site.icon;
-  icon.alt = site.label;
-  link.appendChild(icon);
+  const img = document.createElement("img");
+  img.src = site.icon;
+  img.alt = "";
+  link.appendChild(img);
+  const label = document.createElement("span");
+  label.textContent = site.label;
+  link.appendChild(label);
 
   if (url) {
     link.href = url;
@@ -413,12 +469,6 @@ function renderFooter() {
   if (!footer) {
     footer = document.createElement("div");
     footer.id = "app-footer";
-    footer.style.cssText = `
-      position: fixed; bottom: 0; left: 0; right: 0; height: 24px;
-      background: var(--surface); border-top: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 100; padding: 0 16px; gap: 16px;
-    `;
     document.body.appendChild(footer);
   }
   footer.innerHTML = "";
@@ -426,15 +476,14 @@ function renderFooter() {
   const syncLabel = document.createElement("span");
   syncLabel.id = "nav-sync";
   syncLabel.className = "mono";
-  syncLabel.style.cssText = "font-size:11px;color:var(--muted);position:absolute;left:16px;";
   syncLabel.textContent = "";
   footer.appendChild(syncLabel);
 
   const productLogo = document.createElement("img");
+  productLogo.className = "footer-logo";
   productLogo.src = "assets/logo.png";
   productLogo.alt = CONFIG.brand.productName;
   productLogo.title = CONFIG.brand.productName;
-  productLogo.style.cssText = "height:14px;opacity:0.3;";
   footer.appendChild(productLogo);
 
   footer.appendChild(sourceLink());
@@ -442,8 +491,7 @@ function renderFooter() {
 
 // The project's own source, not the user's org — so the label names the repo
 // literally rather than following CONFIG.brand.productName, which a whitelabel
-// install will have changed. Absolutely positioned like the sync label on the
-// left, so neither pushes the centred logo off centre.
+// install will have changed.
 // Hyphen, not underscore: the local directory is butter_jira but the repo —
 // and this checkout's origin — is butter-jira. The underscore form 404s.
 export const SOURCE_URL = "https://github.com/ayy-em/butter-jira";
@@ -455,27 +503,19 @@ function sourceLink() {
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   link.title = SOURCE_URL;
-  link.style.cssText =
-    "display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);" +
-    "position:absolute;right:16px;text-decoration:none;";
 
   link.appendChild(document.createTextNode("butter_jira @"));
   const mark = document.createElement("img");
   mark.className = "gh-mark";
   mark.src = "assets/logos/github.png";
   mark.alt = "GitHub";
-  mark.style.cssText = "height:13px;width:13px;display:block;";
   link.appendChild(mark);
-
-  link.addEventListener("mouseenter", () => { link.style.color = "var(--text)"; });
-  link.addEventListener("mouseleave", () => { link.style.color = "var(--muted)"; });
   return link;
 }
 
 // The count comes from the Monitor view's last run — no extra Jira requests
 // are made just to keep this badge fresh.
 export function updateMonitorBadge(count) {
-  // Two badges now: the menu item and the rollup on its closed trigger.
   const badges = document.querySelectorAll('.nav-tab-badge[data-badge="monitor"]');
   const empty = typeof count !== "number" || count <= 0;
   badges.forEach((badge) => {
@@ -484,21 +524,21 @@ export function updateMonitorBadge(count) {
   });
 }
 
-// A view may own a sub-route — the 1:1 sheet is `#oneone/<accountId>` — and the
-// tab for it has to stay lit while you are inside one. Exported because the
-// router routes on the same rule, and two places disagreeing about what counts
-// as "the current view" is how a tab ends up highlighting nothing.
+// A view may own a sub-route — the 1:1 sheet is `#oneone/<accountId>`, a past
+// sprint on the dashboard `#dashboard/<board>:<sprint>` — and the item for it
+// has to stay lit while you are inside one. Exported because the router routes
+// on the same rule, and two places disagreeing about what counts as "the
+// current view" is how a sidebar ends up highlighting nothing.
 export function routeOf(hash = location.hash) {
   return String(hash || "").split("/")[0];
 }
 
 export function updateActiveTab() {
   const hash = routeOf(location.hash || HOME_HASH);
-  document.querySelectorAll(".nav-tab, .nav-menu-item").forEach((el) => {
-    el.classList.toggle("active", Boolean(el.dataset.hash) && el.dataset.hash === hash);
-  });
-  // A menu trigger lights up for whichever of its children you're on.
-  document.querySelectorAll(".nav-menu-trigger").forEach((el) => {
-    el.classList.toggle("active", (el.dataset.group || "").split(" ").includes(hash));
+  document.querySelectorAll(".nav-item").forEach((el) => {
+    const active = Boolean(el.dataset.hash) && el.dataset.hash === hash;
+    el.classList.toggle("active", active);
+    if (active) el.setAttribute("aria-current", "page");
+    else el.removeAttribute("aria-current");
   });
 }

@@ -126,6 +126,20 @@ export function initRoster({ flash, requireLiveJira, getBoards }) {
 
       refreshAvatar();
 
+      const role = document.createElement("input");
+      role.type = "text";
+      role.className = "roster-role";
+      role.value = member.role;
+      role.placeholder = "Role";
+      role.maxLength = 40;
+      role.title =
+        "Optional: what they do — \"Data Engineer\", \"Data Analyst\". Shown on " +
+        "the dashboard's workload list and counted into the sidebar's team summary.";
+      role.addEventListener("input", () => {
+        members[i].role = role.value.trim();
+      });
+      row.appendChild(role);
+
       const slack = document.createElement("input");
       slack.type = "text";
       slack.className = "roster-slack mono";

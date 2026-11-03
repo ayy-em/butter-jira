@@ -49,6 +49,9 @@ export function snapshotFrom(summary, dayIso) {
     donePoints: round1(summary.donePoints),
     issueCount: summary.issueCount,
     doneIssues: summary.doneIssues,
+    // Read back as "since the last reading" on the dashboard's Blockers card.
+    // Snapshots from before it existed simply lack it, and the card says so.
+    blocked: Number(summary.blocked) || 0,
     byPerson: peopleFrom(summary.byPerson),
   };
 }

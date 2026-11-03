@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-10-30
+Last updated: 2026-11-03
 
 An MV3 browser extension for Chrome, Firefox and Edge that gives one tab of
 Gantt, Backlog, Kanban, sprint and team views over several Jira Cloud boards.
@@ -22,7 +22,7 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Aspect | Status |
 |---|---|
 | Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
-| Views | Sprint dashboard, Gantt, Backlog, Kanban, Monitor, Standup, Sprint planner (setup + plan), Sprint planning flow (set up, wrap up, plan, review and start), 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
+| Views | Sprint dashboard (Team Overview + Individual view), Gantt, Backlog, Kanban, Monitor, Standup, Sprint planner (setup + plan), Sprint planning flow (set up, wrap up, plan, review and start), 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
 | Documents | Sprint recap PDF (active, last closed, or any chosen sprints) and quarterly overview PDF, both print-styled pages of their own |
 | Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE), the sprint planner's reviewed push (sprint moves in and out, assignee, story points), and the planning flow's sprint create, complete and start. Nothing else writes |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist. Feeds the standup, dashboard, recap, quarterly overview and each issue's Development section |
@@ -30,7 +30,7 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
 | Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
 | Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
-| Tests | 29 `scripts/test-*.mjs` suites (2599 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Tests | 30 `scripts/test-*.mjs` suites (2698 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
@@ -112,7 +112,10 @@ M23's three open questions were answered on 2026-10-16 and became M25.
 
 **One chart, a row per sprint:** issues opened and closed, completion rate, pull
 requests merged and lines reaching the default branch, across the last N
-sprints, as a section on the Sprint Dashboard below the burndown. The quarterly
+sprints. **Its slot already exists:** the Team Overview's *Velocity trend*
+card, beside the burndown, holds its place with the running sprint's
+provisional figure and says this milestone fills it — completed points for the
+last six sprints first, the rest of the row as small multiples after. The quarterly
 overview no longer needs it: it now reads GitHub over the quarter's own dates.
 
 - **A rollup record written once per sprint, at rollover**, from the last daily
@@ -131,8 +134,10 @@ overview no longer needs it: it now reads GitHub over the quarter's own dates.
 
 **Open questions:**
 
-1. **Active sprint on the chart?** A partial current sprint beside complete ones
-   reads as a drop every time. Exclude it, or draw it in an in-progress style.
+1. ~~**Active sprint on the chart?**~~ **Answered 2026-11-03, with the Team
+   Overview:** in an in-progress style — drawn hollow beside the closed sprints
+   and labelled provisional with its day of the sprint, which is what the
+   placeholder card already promises.
 2. **Sprints or calendar months?** Everything here is per sprint, which matches
    the app. Months would need events counted by date, as the quarterly overview
    does.
@@ -356,10 +361,10 @@ with the author.
 - **The hash-coloured card top border.** Every board card gets a 3px top edge from
   `hashColor(issue.key)`, which carries no meaning. Removing it, or making it
   carry days-to-due, is an open taste call.
-- **The nav's ticking wall clock**, in the visual centre of the shell, while how
-  stale the data is sits in 11px muted text. Same kind of call.
-- **The dashboard's `✓ ! ✕ –` hygiene scale.** Text, with the word printed beside
-  each mark. Turning a severity scale into icons is a design decision.
+- **The sidebar's ticking wall clock**, under the logo, while how stale the data
+  is sits in 11px muted text in the footer. Same kind of call.
+- **The dashboard's hygiene scale is gone** with the Team Overview, which
+  replaced the hygiene tile with the checklist; the score lives on Monitor.
 - **Kanban's and Monitor's interiors.** Both had their chrome redone. The shape of
   the things themselves has not been reconsidered; any further pass is a redesign
   with a stated intent, started in the harnesses in both themes.

@@ -97,8 +97,10 @@ function restoreFocus(trigger, recipe) {
 
 // Views with their own frame opt in with data-drawer-top / data-drawer-bottom —
 // standup does, so its clock and parking lot survive a card being opened
-// mid-turn.
-const TOP_CHROME = ["[data-drawer-top]", "#nav"];
+// mid-turn. The nav is not on the list since it moved to the left edge: it
+// spans the full height, and measured as top chrome it would push every drawer
+// a quarter of the way down the window.
+const TOP_CHROME = ["[data-drawer-top]"];
 const BOTTOM_CHROME = ["[data-drawer-bottom]", "#app-footer", ".expiry-banner"];
 
 // Largest inset from `edge` across the visible chrome. Height rather than

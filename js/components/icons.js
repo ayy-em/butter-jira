@@ -45,6 +45,19 @@ export const ICON_PATHS = {
   plus: "M12 5v14M5 12h14",
   download: "M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14",
 
+  // ── The sidebar ───────────────────────────────────────────────────────────
+  // One mark per view, added when the nav moved to the left edge and a column
+  // of uppercase labels with nothing to anchor the eye stopped scanning.
+  dashboard: "M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z",
+  pulse: "M3 12h4l2.5-6 5 12 2.5-6H21",
+  timer: "M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM12 9v4l2.5 2.5M9.5 2.5h5",
+  doc: "M6 3h8l4 4v14H6V3Zm8 0v4h4M9 12h6M9 16h6",
+  gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1",
+  refresh: "M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4",
+  roadmap: "M4 6h10M8 12h12M4 18h8",
+  flag: "M5 21V4h11l-1.5 4L16 12H5",
+  warning: "M12 4 2.5 20h19L12 4Zm0 6v4m0 3h.01",
+
   // ── Priority, by shape ────────────────────────────────────────────────────
   // Jira's own convention, which is the one people arriving here already know:
   // arrows up for the urgent end, a bar for the middle, arrows down for the

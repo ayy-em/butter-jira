@@ -483,6 +483,88 @@ export function weeklyLines({ labels = [], partial = [], series = [] }, options 
   return svg;
 }
 
+// ── Donut (part-to-whole, with the whole in the middle) ─────────────────────
+// Five segments at most — the Team Overview's status split. The gap between
+// segments is cut out of the angle rather than drawn as a stroke, so it is the
+// same 2px of surface at the outer edge whatever the segment's size. A segment
+// too small to survive its own gap still draws as a sliver rather than
+// vanishing, because "one blocked issue" must not read as none. The figures
+// live in the caller's legend; the ring carries identity and proportion only.
+
+export function donutChart(segments, options = {}) {
+  const {
+    size = 180,
+    thickness = 22,
+    centerValue = "",
+    centerLabel = "",
+    onHover = null,
+    emptyLabel = "Nothing to show",
+  } = options;
+
+  const total = segments.reduce((sum, s) => sum + s.value, 0);
+  if (!total) return emptyState(emptyLabel);
+
+  const svg = svgRoot(size, size, "chart-donut");
+  svg.setAttribute("width", size);
+  const cx = size / 2;
+  const cy = size / 2;
+  const outer = size / 2 - 2;
+  const inner = outer - thickness;
+  const visible = segments.filter((s) => s.value > 0);
+  const gap = visible.length > 1 ? SEGMENT_GAP / outer : 0;
+  const minSpan = 1.5 / outer;
+
+  const point = (r, a) => [cx + r * Math.sin(a), cy - r * Math.cos(a)];
+  let angle = 0;
+  for (const segment of visible) {
+    const span = (segment.value / total) * Math.PI * 2;
+    let a0 = angle + gap / 2;
+    let a1 = angle + span - gap / 2;
+    if (a1 - a0 < minSpan) {
+      const mid = angle + span / 2;
+      a0 = mid - minSpan / 2;
+      a1 = mid + minSpan / 2;
+    }
+    angle += span;
+    let d;
+    if (visible.length === 1) {
+      // A full ring is two arcs; a single 360° arc has no defined direction.
+      d =
+        `M${cx},${cy - outer}a${outer},${outer} 0 1 1 0,${2 * outer}a${outer},${outer} 0 1 1 0,${-2 * outer}Z` +
+        `M${cx},${cy - inner}a${inner},${inner} 0 1 0 0,${2 * inner}a${inner},${inner} 0 1 0 0,${-2 * inner}Z`;
+    } else {
+      const large = a1 - a0 > Math.PI ? 1 : 0;
+      const [x0, y0] = point(outer, a0);
+      const [x1, y1] = point(outer, a1);
+      const [x2, y2] = point(inner, a1);
+      const [x3, y3] = point(inner, a0);
+      d =
+        `M${x0.toFixed(2)},${y0.toFixed(2)}A${outer},${outer} 0 ${large} 1 ${x1.toFixed(2)},${y1.toFixed(2)}` +
+        `L${x2.toFixed(2)},${y2.toFixed(2)}A${inner},${inner} 0 ${large} 0 ${x3.toFixed(2)},${y3.toFixed(2)}Z`;
+    }
+    const path = el("path", { d, fill: segment.fill, "fill-rule": "evenodd", class: "chart-donut-seg" });
+    const pct = Math.round((segment.value / total) * 100);
+    title(path, `${segment.label}: ${segment.value} (${pct}%)`);
+    if (onHover) {
+      path.addEventListener("mouseenter", () => onHover(segment));
+      path.addEventListener("mouseleave", () => onHover(null));
+    }
+    svg.appendChild(path);
+  }
+
+  if (centerValue !== "") {
+    const value = el("text", { x: cx, y: cy + (centerLabel ? 4 : 9), "text-anchor": "middle", class: "chart-donut-value" });
+    value.textContent = centerValue;
+    svg.appendChild(value);
+  }
+  if (centerLabel) {
+    const label = el("text", { x: cx, y: cy + 22, "text-anchor": "middle", class: "chart-donut-label" });
+    label.textContent = centerLabel;
+    svg.appendChild(label);
+  }
+  return svg;
+}
+
 export function emptyState(text) {
   const el2 = document.createElement("div");
   el2.className = "chart-empty";

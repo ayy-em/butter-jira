@@ -1,115 +1,88 @@
-/* The navigation bar.
-   This lived as a 150-line template literal injected from js/components/nav.js
-   on every render — invisible to every other stylesheet, exempt from the type
-   scale app.css defines, and re-parsed each time the bar was rebuilt. It is the
-   one surface present on every screen and it was the least governed code in the
-   project. Nothing here changed on the way out except the three things that
-   were wrong in the string: every font-size now rides `--font-scale` like the
-   rest of the app promises, the active and hover chips are mixed from `--text`
-   rather than nailed to a near-white that vanished in light theme, and the
-   standup flair reads its stops from `--flair-sweep` instead of restating
-   them. */
+/* The sidebar (js/components/nav.js).
+   It was a top bar of three dropdown menus until the dashboard became the Team
+   Overview; the groups are the same, now always open, one column down the left
+   edge. Every font size rides `--font-scale`, the active and hover chips are
+   mixed from `--text` so they hold in both themes, and the standup flair reads
+   its stops from `--flair-sweep` rather than restating them. */
 
-/* The tab row: the logo, then one control per view group. The gap and the
-   margins were an inline style on the div in js/components/nav.js, which is the
-   last of what that file used to draw in a string. */
-.nav-tabs {
+/* ── Clock ─────────────────────────────────────────────────────────────── */
+#nav-clock {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-left: 1rem;
-  margin-right: auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 8px 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.nav-clock-time { font-size: calc(15px * var(--font-scale)); font-weight: 500; }
+.nav-clock-timezone {
+  font-size: calc(9px * var(--font-scale));
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--muted);
 }
 
-/* One width for every tab, whether or not it carries a caret or a rollup count,
-   and the label centred in it. They were three chips of three different widths
-   with the text hard against the left padding on the two that open a menu — the
-   caret and the count ate the right-hand side, so nothing in the row lined up
-   with anything else. 148px is the widest of them (SPRINT, plus a caret, plus a
-   two-digit count) rounded up, which also means a count appearing no longer
-   widens its own tab and shifts the one after it. */
-.nav-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 148px;
-  text-decoration: none;
-  color: var(--muted);
+.nav-brand-names { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.nav-brand-product {
   font-size: calc(13px * var(--font-scale));
   font-weight: 600;
-  letter-spacing: 1px;
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  transition: color 0.15s, background 0.15s, box-shadow 0.2s;
-}
-.nav-tab:hover { color: var(--text); }
-.nav-tab.active {
+  letter-spacing: 0.5px;
   color: var(--text);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
 }
-
-/* ── Grouped views ─────────────────────────────────────────────────── */
-.nav-menu { position: relative; display: flex; align-items: center; }
-.nav-menu-trigger {
-  /* Width, padding and centring come from .nav-tab, which this also is. */
-  gap: 6px;
-  background: none;
-  border: none;
-  font-family: inherit;
-  cursor: pointer;
-}
-.nav-menu-caret {
+.nav-brand-org {
   font-size: calc(11px * var(--font-scale));
-  line-height: 1;
-  letter-spacing: 0;
-  opacity: 0.7;
-  transition: transform 0.15s;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.nav-menu.open .nav-menu-trigger { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
-.nav-menu.open .nav-menu-caret { transform: rotate(180deg); }
-/* The rollup count is only useful while the menu hides the real badge. */
-.nav-menu.open .nav-tab-badge-rollup { visibility: hidden; }
 
-.nav-menu-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 168px;
-  padding: 4px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+/* ── Views ─────────────────────────────────────────────────────────────── */
+.nav-views {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  z-index: calc(var(--z-nav) + 110);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-4px);
-  transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
+  gap: 10px;
+  padding: 4px 0;
+  /* Room for the flair ring, which sits a pixel outside its item. */
+  margin: 0 -2px;
+  padding-inline: 2px;
 }
-.nav-menu.open .nav-menu-panel {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
+.nav-group { display: flex; flex-direction: column; gap: 1px; }
+.nav-group-label {
+  font-size: calc(10px * var(--font-scale));
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+  opacity: 0.8;
+  padding: 4px 8px 3px;
 }
-.nav-menu-item {
+
+.nav-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   text-decoration: none;
   color: var(--muted);
-  font-size: calc(12px * var(--font-scale));
+  font-size: calc(11.5px * var(--font-scale));
   font-weight: 600;
-  letter-spacing: 1px;
-  padding: 7px 10px;
+  letter-spacing: 0.8px;
+  padding: 6px 8px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
-  transition: color 0.12s, background 0.12s;
+  transition: color 0.12s, background 0.12s, box-shadow 0.2s;
 }
-.nav-menu-item:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
-.nav-menu-item.active { color: var(--text); background: color-mix(in srgb, var(--accent-primary) 16%, transparent); }
+.nav-item .icon { flex: none; opacity: 0.85; }
+.nav-item-label { overflow: hidden; text-overflow: ellipsis; }
+.nav-item:hover { color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.nav-item.active { color: var(--text); background: color-mix(in srgb, var(--accent-primary) 16%, transparent); }
+.nav-item.active .icon { opacity: 1; color: var(--accent-primary); }
 .nav-menu-key {
   margin-left: auto;
   font-size: calc(10px * var(--font-scale));
@@ -121,26 +94,20 @@
   border-radius: var(--radius-xs);
   padding: 0 4px;
 }
-
-/* Below this the centred clock is closer to the tabs than the equal widths are
-   worth: they go back to being as wide as their labels, which is what they were
-   before. Same threshold in spirit as the rest of the app — the fixed layout
-   holds while there is room for it, and yields rather than overlapping. */
-@media (max-width: 1200px) {
-  .nav-tab { min-width: 0; }
-  .nav-tabs { gap: 8px; }
-}
+/* The badge sits before the key hint, and takes the auto margin when the item
+   has one so the two read as a pair at the right edge. */
+.nav-item .nav-tab-badge { margin-left: auto; }
+.nav-item .nav-tab-badge:not([hidden]) + .nav-menu-key { margin-left: 6px; }
 
 /* Standup is a timed, run-once-a-day ritual rather than a view you browse,
-   so it gets an animated gradient ring instead of the flat tab treatment. */
-.nav-tab.flair {
-  position: relative;
+   so it gets an animated gradient ring instead of the flat item treatment. */
+.nav-item.flair {
   color: var(--text);
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--accent-primary) 14%, transparent),
     color-mix(in srgb, var(--accent-purple) 14%, transparent));
 }
-.nav-tab.flair::before {
+.nav-item.flair::before {
   content: "";
   position: absolute;
   inset: -1px;
@@ -155,14 +122,14 @@
   pointer-events: none;
   animation: nav-flair-sweep 6s linear infinite;
 }
-.nav-tab.flair:hover {
+.nav-item.flair:hover {
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--accent-primary) 26%, transparent),
     color-mix(in srgb, var(--accent-purple) 26%, transparent));
   box-shadow: 0 0 14px rgba(79,142,247,0.35);
 }
-.nav-tab.flair:hover::before { animation-duration: 1.6s; }
-.nav-tab.flair.active {
+.nav-item.flair:hover::before { animation-duration: 1.6s; }
+.nav-item.flair.active {
   background: linear-gradient(135deg,
     color-mix(in srgb, var(--accent-primary) 34%, transparent),
     color-mix(in srgb, var(--accent-purple) 34%, transparent));
@@ -170,42 +137,126 @@
 }
 @keyframes nav-flair-sweep { to { background-position: 300% 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .nav-tab.flair::before,
-  .nav-tab.flair:hover::before { animation: none; }
+  .nav-item.flair::before,
+  .nav-item.flair:hover::before { animation: none; }
 }
+
+/* ── Team summary, tools, settings ─────────────────────────────────────── */
+.nav-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.nav-team {
+  display: block;
+  text-decoration: none;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 4px 8px 9px;
+  transition: border-color 0.15s;
+}
+.nav-team:hover { border-color: var(--muted); }
+.nav-team .nav-group-label { padding: 2px 0 2px; }
+.nav-team-name { font-size: calc(12.5px * var(--font-scale)); font-weight: 600; }
+.nav-team-counts { font-size: calc(11px * var(--font-scale)); color: var(--muted); line-height: 1.4; }
+.nav-team-faces { display: flex; margin-top: 7px; padding-left: 4px; }
+.nav-face {
+  width: 22px;
+  height: 22px;
+  margin-left: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: color-mix(in srgb, var(--accent-primary) 30%, var(--surface));
+  color: var(--text);
+  font-size: calc(8px * var(--font-scale));
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex: none;
+}
+.nav-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.nav-face-more { background: var(--border); color: var(--muted); }
+
+.nav-tools { display: flex; align-items: center; gap: 6px; }
+.nav-tools .theme-toggle { margin-left: auto; }
+.nav-sites { display: flex; gap: 6px; }
+
 .nav-btn {
   background: none;
   border: 1px solid var(--border);
   color: var(--muted);
-  font-size: calc(18px * var(--font-scale));
-  width: 32px;
-  height: 32px;
+  font-size: calc(16px * var(--font-scale));
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 4px;
+  flex: none;
   transition: color 0.15s, border-color 0.15s;
 }
 .nav-btn:hover { color: var(--text); border-color: var(--muted); }
 .nav-btn-wide {
   width: auto;
-  padding: 0 9px;
+  padding: 0 8px;
   font-size: calc(11px * var(--font-scale));
   font-weight: 600;
   letter-spacing: 0.5px;
 }
-  
+
+.nav-settings { border-top: 1px solid var(--border); border-radius: 0; padding-top: 9px; margin-top: 2px; }
+.nav-settings:hover { border-radius: var(--radius-sm); }
+
+/* ── Footer ────────────────────────────────────────────────────────────── */
+/* Was an inline style block in nav.js; it starts where the sidebar ends. */
+#app-footer {
+  position: fixed;
+  bottom: 0;
+  left: var(--sidebar-w);
+  right: 0;
+  height: 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-nav);
+  padding: 0 16px;
+  gap: 16px;
+}
+#nav-sync {
+  position: absolute;
+  left: 16px;
+  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
+}
+.footer-logo { height: 14px; opacity: 0.3; }
+.footer-source {
+  position: absolute;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: calc(11px * var(--font-scale));
+  color: var(--muted);
+  text-decoration: none;
+}
+.footer-source:hover { color: var(--text); }
+.footer-source .gh-mark { height: 13px; width: 13px; display: block; }
 
 /* ── Monitor badge ───────────────────────────────────────────────────────── */
-/* Lived in css/monitor.css, which is the stylesheet for the view this badge
-   counts rather than the one for the bar it sits in. `--bg` replaces a
-   hardcoded #0D0F12 so the warning chip's text follows the theme. */
-
+/* `--bg` rather than a hardcoded near-black, so the chip's text follows the
+   theme. */
 .nav-tab-badge {
   display: inline-block;
-  margin-left: 6px;
   min-width: 16px;
   padding: 0 5px;
   border-radius: var(--radius-md);
@@ -216,5 +267,5 @@
   font-weight: 600;
   line-height: 16px;
   text-align: center;
-  vertical-align: middle;
+  letter-spacing: 0;
 }

@@ -87,9 +87,14 @@ the same way:
 
 ## Capabilities and Constraints
 
-**Shipped capabilities.** Sprint dashboard (KPI row, burndown, since-the-freeze
-panel, breakdowns by status, board and person, delivery-per-person including
-optional GitHub columns), Gantt/roadmap, Backlog, Kanban, Monitor (four hygiene
+**Shipped capabilities.** Sprint dashboard as a Team Overview (sprint selector
+over the running and recent closed sprints, five KPIs with like-for-like
+previous-sprint comparisons, burndown, issue status split, workload against
+capacity, scope change and carry-over risk, a checklist of things to check by
+hand where every count opens its issues, standup prep, the since-the-freeze
+panel, and an Individual view with per-person cards and delivery-per-person
+including optional GitHub columns), a left sidebar for navigation with the
+team summary at its foot, Gantt/roadmap, Backlog, Kanban, Monitor (four hygiene
 checks), Standup mode, the weekly 1:1 sheet (per-person window, device-local
 notes and archive, Slack copy, mini-Gantt) with a personal todo list beside it,
 issue detail as drawer and full page with a GitHub development section, the
@@ -217,7 +222,7 @@ No product-specific standard has been established. What exists today is
 evidence, not a commitment: `lang="en"`, ARIA in use (`aria-label`,
 `aria-expanded`, `aria-sort`, `aria-checked`, `aria-haspopup`, `aria-hidden`,
 `aria-modal`, `role="alert"`), `prefers-reduced-motion` honoured across the
-app's stylesheets and the confetti and nav modules, light and dark themes via
+app's stylesheets and the confetti and sidebar nav modules, light and dark themes via
 `data-theme`, and keyboard shortcuts for every view with the standup deliberately
 taking the keyboard for its duration. English only; no i18n layer.
 
