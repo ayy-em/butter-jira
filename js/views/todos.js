@@ -26,6 +26,7 @@ import {
 } from "../todos.js";
 import { icon } from "../components/icons.js";
 import { viewHeader, viewTiles } from "../components/view-header.js";
+import { NOTES_CHANGED } from "../components/quick-note.js";
 
 export async function mount(container) {
   let list = await loadTodos();
@@ -90,6 +91,19 @@ export async function mount(container) {
       textInput.focus();
     }
   });
+
+  // A todo added from the header's quick note while this list is open: take it
+  // in, rather than drop it on the next tick or edit here.
+  const onNotesChanged = async (e) => {
+    if (!wrap.isConnected) {
+      document.removeEventListener(NOTES_CHANGED, onNotesChanged);
+      return;
+    }
+    if (e.detail?.store !== "todos") return;
+    list = await loadTodos();
+    render();
+  };
+  document.addEventListener(NOTES_CHANGED, onNotesChanged);
 
   async function mutate(fn) {
     list = fn(list);

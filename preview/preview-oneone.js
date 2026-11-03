@@ -27,6 +27,10 @@
 //   ?notes=empty     no stored notes or archive at all
 //   ?dates=off       nothing carries a start or due date — the empty Gantt
 //   ?roster=empty    no roster, which is the picker's blocked state
+//   ?quicknote=open  the header's quick note open over the screen
+//   ?quicknote=everyone  open on "Everyone", where only an agenda item is offered
+//   ?quicknote=queue an agenda item and an action queued for the open sheet's
+//                    person through it, so the sheet's reload and "added" tags show
 
 const params = new URLSearchParams(location.search);
 document.documentElement.dataset.theme = params.get("theme") || "dark";
@@ -548,3 +552,40 @@ await view.mount(document.getElementById("view-container"), await getCredentials
 window.addEventListener("hashchange", async () => {
   await view.mount(document.getElementById("view-container"), await getCredentials());
 });
+
+// ── The header's quick note ──────────────────────────────────────────────────
+//
+// No nav here, so a stand-in for its button, pinned where the real one sits.
+const mode = params.get("quicknote");
+if (mode) {
+  const { icon } = await import("../js/components/icons.js");
+  const { openQuickNote } = await import("../js/components/quick-note.js");
+  const btn = document.createElement("button");
+  btn.id = "nav-quick-note";
+  btn.className = "nav-btn mono";
+  btn.style.cssText = "position:fixed;top:12px;right:16px;z-index:1;background:var(--surface);";
+  btn.appendChild(icon("plus", 16));
+  btn.addEventListener("click", () => openQuickNote(btn));
+  document.body.appendChild(btn);
+  openQuickNote(btn);
+
+  if (mode === "everyone") {
+    const select = document.querySelector(".qn-panel .qn-select");
+    select.value = "everyone";
+    select.dispatchEvent(new Event("change"));
+  }
+
+  if (mode === "queue") {
+    const submitWith = async (kind, text) => {
+      const open = document.querySelector(".qn-panel") || (openQuickNote(btn), document.querySelector(".qn-panel"));
+      open.querySelector(".qn-select").value = SUBJECT;
+      open.querySelector(".qn-select").dispatchEvent(new Event("change"));
+      open.querySelector(`.qn-kind:nth-child(${kind === "todo" ? 2 : 1})`).click();
+      open.querySelector(".qn-text").value = text;
+      open.querySelector(".qn-form").requestSubmit();
+      await new Promise((r) => setTimeout(r, 50));
+    };
+    await submitWith("info", "Raise the on-call rota before it goes out");
+    await submitWith("todo", "Send them the conference budget form");
+  }
+}
