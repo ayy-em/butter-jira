@@ -41,6 +41,12 @@ the 1:1 is completed — they are not cleared with three-week-old scratch — an
 an agenda item shows the day it was added. A sheet or My todos open underneath
 picks the note up straight away.
 
+**1:1: one weekly activity chart** replaces "Load over time". Four full weeks
+back and this week so far: bars for the issues the person created, started and
+commented on, lines for their pull requests opened and merged, with a **Table**
+button for the same figures as a table. Bug keys are now red and sub-task keys
+cyan in "What is planned", as in the backlog.
+
 **1:1: "Important info" is now "Agenda & FYI"**, on the sheet and in the
 Slack paste, since it is where things to raise now go.
 

@@ -1117,8 +1117,8 @@ On the left:
 - **On their plate** — their open issues in the active sprint, with points.
 - **What they did** in the window — issues closed and moved (from the changelog, via `activityFrom`), issues created, and with GitHub sync on: pull requests opened, merged and reviewed, and lines added and removed.
 - **What is stuck** — blocked and overdue issues, and their own pull requests ordered by *how* stuck (changes requested → checks failing → approved-and-unmerged → waiting on review).
-- **What is planned** — queued beyond this sprint, plus anything due in the next fortnight whatever sprint it is in. Epic keys are purple and story and task keys green, so an epic stands out from a ticket.
-- **Load over time** — points assigned and shipped per sprint, from the stored snapshots, bounded by when this device started recording and saying so.
+- **What is planned** — queued beyond this sprint, plus anything due in the next fortnight whatever sprint it is in. Epic keys are purple and story and task keys green, so an epic stands out from a ticket; bug keys are red and sub-task keys cyan, as in the backlog.
+- **Activity, weekly** — one chart over four full weeks back and this week so far, Monday to Sunday: bars for the Jira issues they created, started (moved out of a to-do status into work) and commented on, and lines for their pull requests opened and merged. Every figure is a count of issues or pull requests, so the chart has one axis. This week is drawn lighter, with hollow markers, because it is not over. Fixed rather than following the window toggle, for the same reason as the mini-Gantt. A **Table** button shows the same figures as a table.
 - **A mini-Gantt** across the bottom: every open issue and epic of theirs carrying a start or due date, over a *fixed* three-weeks-back to six-weeks-forward horizon with today drawn as a red line. Fixed rather than following the toggle, so the same piece of work sits in the same place from one week to the next and position is read by habit rather than by re-reading the axis.
 
 On the right, the notes: **TODO** items with a two-way owner toggle (me / them)
@@ -2012,9 +2012,8 @@ behind it is in the commit history.
 |---|---|---|
 | M17 | Per-sprint history | A per-sprint trend on the dashboard, from rollups written at each rollover |
 | M20 | 1:1 recording | Record and transcribe a 1:1 on the device. Engine and consent unresolved |
-| M22 | 1:1 screen improvements | A combined weekly activity chart, clearer keys, Copy for Slack fixed |
-| M23 | Planning as a process | The planning ritual as four screens, one board at a time, with sprints created, closed and started from the app, and due dates calculated |
 | M24 | Assisted planning | Proposed splits, estimates, assignees and fill-ups, gated on an AI Enablement review |
+| M25 | Planning follow-ups | The dashboard reading per-sprint freezes, due dates for epics, one entry point for both planners |
 
 Releases are automated; see [Releasing](#releasing).
 
