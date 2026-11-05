@@ -20,10 +20,12 @@
 // write layer. No comparison between colleagues: one person is on screen at a
 // time, by construction — the picker navigates, it does not tile.
 
-import { getActiveSprint, getAllSprintIssues, getAssignedOpenIssues, getIssuesInWindow } from "../api.js";
+import { getActiveSprint, getAllSprintIssues, getAssignedOpenIssues, getIssuesInWindow, getQuarterIssues } from "../api.js";
+import { typeMeta } from "../backlog.js";
 import { runtimeUrl } from "../browser.js";
+import { legend, weeklyCombo } from "../charts.js";
 import { CONFIG } from "../config.js";
-import { sprintWindow } from "../dashboard.js";
+import { isoDay, sprintWindow } from "../dashboard.js";
 import {
   BOARDS,
   boardColor,
@@ -48,9 +50,9 @@ import {
   statsFor,
 } from "../github.js";
 import { isDone, isEpic, isSubtask } from "../monitor.js";
-import { loadAllSnapshots, personSeries } from "../snapshots.js";
 import {
   WINDOW_OPTIONS,
+  activityWindow,
   completeSession,
   draftFor,
   ganttBars,
@@ -62,6 +64,7 @@ import {
   personFor,
   saveOneOnes,
   slackText,
+  weeklyActivity,
   windowFor,
 } from "../oneone.js";
 import { loadTodos, mergeFromOneOne, saveTodos } from "../todos.js";
@@ -252,7 +255,7 @@ async function mountSheet(container, creds, accountId) {
   let win = windowFor({ windowId, lastCompletedAt: person.lastCompletedAt, sprintStart, now });
 
   // Everything the left pane draws, refilled whenever the window moves.
-  const data = { windowIssues: null, assigned: null, sprintIssues: null, series: [], error: "" };
+  const data = { windowIssues: null, assigned: null, sprintIssues: null, weekIssues: null, weekError: "", error: "" };
   const github = { state: "idle", activity: null, stats: null, error: "", statsError: "" };
 
   container.innerHTML = "";
@@ -353,16 +356,22 @@ async function mountSheet(container, creds, accountId) {
     left.innerHTML = '<div class="spinner" style="height:200px"></div>';
     data.error = "";
     try {
-      const [windowIssues, assigned, sprintIssues, snapshots] = await Promise.all([
+      // The chart's five weeks are fixed and open-ended, so the cache key is
+      // the same for every sheet opened this week and a toggle never refetches.
+      const weekSince = activityWindow(now).since.toISOString();
+      const [windowIssues, assigned, sprintIssues, weekIssues] = await Promise.all([
         getIssuesInWindow(creds, { since: win.from, until: win.to }),
         getAssignedOpenIssues(accountId, creds),
         getAllSprintIssues(creds),
-        loadAllSnapshots(),
+        getQuarterIssues(creds, { since: weekSince }).catch((err) => {
+          data.weekError = String(err?.message || err);
+          return null;
+        }),
       ]);
       data.windowIssues = windowIssues;
       data.assigned = assigned;
       data.sprintIssues = sprintIssues;
-      data.series = personSeries(snapshots, accountId);
+      data.weekIssues = weekIssues;
     } catch (err) {
       data.error = String(err?.message || err);
     }
@@ -406,7 +415,7 @@ async function mountSheet(container, creds, accountId) {
     left.appendChild(sectionDid());
     left.appendChild(sectionStuck());
     left.appendChild(sectionPlanned());
-    left.appendChild(sectionLoad());
+    left.appendChild(sectionActivity());
   }
 
   function mine(issues) {
@@ -549,41 +558,80 @@ async function mountSheet(container, creds, accountId) {
     return box;
   }
 
-  function sectionLoad() {
-    const box = section("Load over time", "Points assigned and shipped, per sprint");
-    if (!data.series.length) {
-      box.appendChild(note(
-        "No stored sprint history for this person yet. This builds forward from the day the extension started recording, so it is empty rather than zero."
-      ));
+  function sectionActivity() {
+    const box = section("Activity, weekly");
+    if (data.weekError) {
+      box.appendChild(note(`Jira did not answer: ${data.weekError}`));
       return box;
     }
-    const max = Math.max(...data.series.map((r) => Math.max(r.points, r.donePoints)), 1);
-    const chart = document.createElement("div");
-    chart.className = "oo-load";
-    for (const row of data.series) {
-      const col = document.createElement("div");
-      col.className = "oo-load-col";
-      col.title =
-        `${row.date}\n${row.points} pts assigned, ${row.donePoints} shipped ` +
-        `(${row.issues} issues, ${row.doneIssues} done)`;
-      const bar = document.createElement("div");
-      bar.className = "oo-load-bar";
-      bar.style.height = `${(row.points / max) * 100}%`;
-      const doneBar = document.createElement("div");
-      doneBar.className = "oo-load-done";
-      doneBar.style.height = `${row.points ? (row.donePoints / row.points) * 100 : 0}%`;
-      bar.appendChild(doneBar);
-      col.appendChild(bar);
-      const label = document.createElement("span");
-      label.className = "oo-load-label mono";
-      label.textContent = String(row.date || "").slice(5);
-      col.appendChild(label);
-      chart.appendChild(col);
+    const login = githubLoginFor(accountId);
+    const model = weeklyActivity({
+      issues: data.weekIssues || [],
+      stats: login ? github.stats : null,
+      accountId,
+      githubLogin: login,
+      statusGroups: CONFIG.statusGroups,
+      now,
+    });
+    const labels = model.weeks.map((w) => w.key);
+    const partial = model.weeks.map((w) => w.partial);
+    const bars = [
+      { name: "Issues created", fill: "var(--oo-series-created)", values: model.jira.created },
+      { name: "Issues started", fill: "var(--oo-series-started)", values: model.jira.started },
+      { name: "Issues commented on", fill: "var(--oo-series-commented)", values: model.jira.commented },
+    ];
+    const lines = model.github
+      ? [
+          { name: "PRs opened", stroke: "var(--oo-series-pr)", dashed: true, values: model.github.opened },
+          { name: "PRs merged", stroke: "var(--oo-series-pr)", values: model.github.merged },
+        ]
+      : [];
+    const weekTitle = (i) => {
+      const w = model.weeks[i];
+      const sunday = new Date(w.monday.getFullYear(), w.monday.getMonth(), w.monday.getDate() + 6);
+      return `${w.key} · ${isoDay(w.monday)} → ${isoDay(sunday)}`;
+    };
+
+    const chartView = document.createElement("div");
+    chartView.className = "oo-activity";
+    chartView.appendChild(weeklyCombo({ labels, partial, bars, lines }, { weekTitle }));
+    chartView.appendChild(legend([
+      ...bars.map((s) => ({ label: s.name, fill: s.fill })),
+      ...lines.map((s) => ({ label: s.name, fill: s.stroke, dashed: s.dashed })),
+    ]));
+
+    // The same figures as a table, for whoever cannot tell the bars apart.
+    const tableView = document.createElement("table");
+    tableView.className = "oo-activity-table mono";
+    tableView.hidden = true;
+    const series = [...bars, ...lines];
+    const headRow = tableView.createTHead().insertRow();
+    for (const text of ["", ...labels.map((l, i) => (partial[i] ? `${l} (so far)` : l))]) {
+      const th = document.createElement("th");
+      th.textContent = text;
+      headRow.appendChild(th);
     }
-    box.appendChild(chart);
-    box.appendChild(note(
-      `${data.series.length} sprint${data.series.length === 1 ? "" : "s"} of stored history — bounded by when this device started recording, not by how long they have been here.`
-    ));
+    const body = tableView.createTBody();
+    for (const s of series) {
+      const row = body.insertRow();
+      row.insertCell().textContent = s.name;
+      for (const v of s.values) row.insertCell().textContent = String(v);
+    }
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "oo-activity-toggle";
+    toggle.textContent = "Table";
+    toggle.setAttribute("aria-pressed", "false");
+    toggle.addEventListener("click", () => {
+      const showTable = tableView.hidden;
+      tableView.hidden = !showTable;
+      chartView.hidden = showTable;
+      toggle.textContent = showTable ? "Chart" : "Table";
+      toggle.setAttribute("aria-pressed", String(showTable));
+    });
+    box.querySelector(".oo-section-head").appendChild(toggle);
+    box.append(chartView, tableView);
     return box;
   }
 
@@ -1166,10 +1214,15 @@ function keyRow(label, keys, creds) {
   return row;
 }
 
+// Epics purple, stories and tasks green, as settled for this list; bugs and
+// sub-tasks take the colour the backlog already gives them, so a red key means
+// a bug on both screens. Anything else keeps its board's colour.
 function keyColorByType(issue) {
   if (isEpic(issue)) return "var(--tone-purple)";
   const name = String(issue?.fields?.issuetype?.name || "").toLowerCase();
   if (name === "story" || name === "task") return "var(--tone-green)";
+  const { tone } = typeMeta(name);
+  if (tone === "red" || tone === "cyan") return `var(--tone-${tone})`;
   return boardColor(issue.boardId);
 }
 

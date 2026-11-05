@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-11-03
+Last updated: 2026-11-05
 
 An MV3 browser extension for Chrome, Firefox and Edge that gives one tab of
 Gantt, Backlog, Kanban, sprint and team views over several Jira Cloud boards.
@@ -14,7 +14,8 @@ behind every shipped decision, is the version of this file at commit `c818893`
 commit that shipped it (`git log --grep "M15"`). M21, the planner's polish, was
 removed on 2026-10-01 the same way (`git log --grep "M21"`), and M23, sprint
 planning as a process, on 2026-10-16 (`git log --grep "M23"`); its three open
-questions moved to Open questions below. Shipped milestone labels still appear in
+questions moved to Open questions below. M22, the 1:1 screen improvements, was
+removed on 2026-11-05 (`git log --grep "M22"`). Shipped milestone labels still appear in
 code comments and commit subjects, so they are indexed at the bottom.
 
 ## Current state
@@ -41,7 +42,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Order of work
 
 ```
-M22 1:1 screen improvements (S–M) ─▶ M24 Assisted planning (L, gated) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated) ─▶ M25 Planning follow-ups (S–M)
+M24 Assisted planning (L, gated) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated) ─▶ M25 Planning follow-ups (S–M)
 ```
 
 The deferred backlog below is scoped but unscheduled, and any item in it can be
@@ -182,45 +183,6 @@ https://stxgroup.atlassian.net/servicedesk/customer/portal/1/group/819
 4. **What happens to a recording if Complete is never pressed?** Audio that
    silently expires and audio that silently persists are both wrong.
 
-
-## M22 — 1:1 screen improvements
-
-**Size: S–M.** From use of the 1:1 sheet (M14).
-
-- [x] Remove the "waiting on their review" list (2026-10-01).
-- [ ] Replace the "load over time" graph with one combined chart, weekly, from
-      four full weeks back to this week so far: pull requests opened and merged
-      as a line, Jira issues created, opened and commented on as bars. No
-      explanatory text on it.
-- [x] Bug: **Copy for Slack** said "Clipboard was refused — the text is in the
-      browser console" (fixed 2026-10-01). The async clipboard refuses whenever
-      the page does not hold focus at the moment of the write; the copy now
-      falls back to a selection-based copy, which needs only the click, and
-      the console only after both fail.
-- [x] Remove the "Activity, not performance" note (2026-10-01). The rule in
-      force now names the recap and the quarterly overview only.
-- [x] In "What is planned", mark epics apart from other issues by the key's
-      colour: purple for epics, green for stories and tasks (2026-10-01).
-      Other types keep their board's colour; see open question 2.
-- [x] In the "Closed" list, make the issue keys open the issue drawer
-      (2026-10-01).
-- [x] 1:1 config screen footnote (`oo-footnote`), no max-width (2026-10-01):
-      "Notes are only stored locally. Notes are never synced and never included
-      in exports. To delete notes: Settings → 1:1 notes and todos." The real
-      section name rather than "Settings → Data", which does not exist; see
-      open question 3.
-
-### Open questions
-
-1. **"Created + opened + commented on":** is "opened" issues moved into
-   progress, or closed? The bars would otherwise count creation twice.
-2. **Key colours for other types:** bugs and sub-tasks too? The app already
-   colours types (epic purple, story green, task blue, bug red, sub-task cyan).
-   Reuse that, or two colours only?
-3. **"Settings → Data":** the footnote names the existing section, "1:1 notes
-   and todos". Say if the section should be renamed to Data instead.
-4. **Copy for Slack:** if it still fails after the fix, in which browser and
-   after doing what?
 
 ## M24 — Assisted sprint planning
 
@@ -401,4 +363,5 @@ in `git show c818893:docs/ROADMAP.md`.
 | M18 | Linked issues |
 | M19 | Tagged releases built by CI |
 | M21 | Sprint planner polish: compact cards, people down the left, Dutch holidays, hours per story point, Split as pt.1 / pt.2 |
+| M22 | 1:1 screen improvements: one weekly activity chart, keys coloured by type, the Copy for Slack fallback |
 | M23 | Sprint planning as a process: a four-screen flow with sprint create, close and start |

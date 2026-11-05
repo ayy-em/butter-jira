@@ -483,6 +483,113 @@ export function weeklyLines({ labels = [], partial = [], series = [] }, options 
   return svg;
 }
 
+// ── Weekly bars and lines on one count axis ─────────────────────────────────
+// The 1:1 sheet's activity chart: a group of bars a week (Jira) with lines
+// across the same weeks (GitHub). One axis, because every series is a count of
+// things in a week; two different units would be two charts. Bars in a group
+// sit 2px apart. A part week — this one, so far — is drawn lighter, with
+// hollow markers, so it reads as unfinished rather than as a drop. Each week
+// has a hit area the full height of the plot that names all of its figures.
+
+export function weeklyCombo({ labels = [], partial = [], bars = [], lines = [] }, options = {}) {
+  const {
+    width = 640,
+    height = 190,
+    padding = { top: 12, right: 14, bottom: 24, left: 34 },
+    format = (v) => String(Math.round(v)),
+    ticks = 4,
+    barMax = 14,
+    weekTitle = (i) => labels[i],
+  } = options;
+
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const all = [...bars, ...lines].flatMap((s) => s.values.filter((v) => v !== null && v !== undefined));
+  const scale = niceScale(Math.max(1, ...all), ticks);
+  const maxY = scale.max;
+  const n = Math.max(1, labels.length);
+  const slot = plotWidth / n;
+  const xMid = (i) => padding.left + slot * (i + 0.5);
+  const yFor = (v) => padding.top + plotHeight - (v / maxY) * plotHeight;
+  const barW = Math.min(barMax, (slot * 0.62 - SEGMENT_GAP * (bars.length - 1)) / Math.max(1, bars.length));
+  const groupW = barW * bars.length + SEGMENT_GAP * (bars.length - 1);
+
+  const svg = svgRoot(width, height, "chart-combo");
+
+  for (let v = 0; v <= maxY + 1e-9; v += scale.step) {
+    const y = yFor(v);
+    svg.appendChild(el("line", { x1: padding.left, y1: y, x2: padding.left + plotWidth, y2: y, class: "chart-grid" }));
+    const tick = el("text", { x: padding.left - 6, y: y + 3.5, "text-anchor": "end", class: "chart-tick" });
+    tick.textContent = format(v);
+    svg.appendChild(tick);
+  }
+
+  labels.forEach((label, i) => {
+    const text = el("text", { x: xMid(i), y: height - 7, "text-anchor": "middle", class: "chart-tick" });
+    text.textContent = label;
+    svg.appendChild(text);
+
+    // Under the marks, so a bar or a dot still answers for itself.
+    const hit = el("rect", {
+      x: padding.left + slot * i, y: padding.top, width: slot, height: plotHeight,
+      fill: "transparent", class: "chart-hit",
+    });
+    const rows = [...bars, ...lines]
+      .map((s) => (s.values[i] === null || s.values[i] === undefined ? null : `${s.name}: ${format(s.values[i])}`))
+      .filter(Boolean);
+    title(hit, [`${weekTitle(i)}${partial[i] ? " (so far)" : ""}`, ...rows].join("\n"));
+    svg.appendChild(hit);
+  });
+
+  bars.forEach((s, b) => {
+    s.values.forEach((v, i) => {
+      if (v === null || v === undefined) return;
+      const x = xMid(i) - groupW / 2 + b * (barW + SEGMENT_GAP);
+      const h = v > 0 ? Math.max(2, (v / maxY) * plotHeight) : 0;
+      if (!h) return;
+      const bar = el("path", {
+        d: barPath(x, padding.top + plotHeight - h, barW, h, RADIUS, "top"),
+        fill: s.fill,
+        "fill-opacity": partial[i] ? 0.45 : null,
+        class: "chart-bar",
+      });
+      title(bar, `${weekTitle(i)}${partial[i] ? " (so far)" : ""} · ${s.name}: ${format(v)}`);
+      svg.appendChild(bar);
+    });
+  });
+
+  for (const s of lines) {
+    const pts = s.values
+      .map((v, i) => (v === null || v === undefined ? null : `${xMid(i).toFixed(1)},${yFor(v).toFixed(1)}`))
+      .filter(Boolean);
+    if (pts.length > 1) {
+      svg.appendChild(el("path", {
+        d: `M${pts.join("L")}`,
+        fill: "none",
+        stroke: s.stroke,
+        "stroke-width": 2,
+        "stroke-linejoin": "round",
+        "stroke-linecap": "round",
+        "stroke-dasharray": s.dashed ? "5 4" : null,
+      }));
+    }
+    s.values.forEach((v, i) => {
+      if (v === null || v === undefined) return;
+      const hollow = Boolean(partial[i]);
+      const dot = el("circle", {
+        cx: xMid(i), cy: yFor(v), r: 4,
+        fill: hollow ? "var(--chart-surface)" : s.stroke,
+        stroke: hollow ? s.stroke : "var(--chart-surface)",
+        "stroke-width": 2,
+        class: "chart-dot",
+      });
+      title(dot, `${weekTitle(i)}${hollow ? " (so far)" : ""} · ${s.name}: ${format(v)}`);
+      svg.appendChild(dot);
+    });
+  }
+  return svg;
+}
+
 // ── Donut (part-to-whole, with the whole in the middle) ─────────────────────
 // Five segments at most — the Team Overview's status split. The gap between
 // segments is cut out of the angle rather than drawn as a stroke, so it is the

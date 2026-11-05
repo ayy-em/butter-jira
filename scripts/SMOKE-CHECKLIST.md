@@ -357,7 +357,13 @@ that loses them loses them.
 - [ ] Deny clipboard access in the browser → the app says so and does not claim to have copied
 
 - [ ] Copy for Slack with DevTools focused, then with the page focused → both copy (the selection fallback covers the first)
-- [ ] "Closed" keys under What they did open the drawer; in What is planned, epic keys are purple and story/task keys green; no "Waiting on their review" list
+- [ ] "Closed" keys under What they did open the drawer; in What is planned, epic keys are purple, story/task keys green, bug keys red and sub-task keys cyan; no "Waiting on their review" list
+- [ ] Activity, weekly: five weeks (W-numbers), this week lighter with hollow markers; three bars a week and two pull-request lines (opened dashed, merged solid) on one axis, with a legend and no explanatory text
+- [ ] Hover a week → the tooltip names its dates and all five figures; hover a bar or a dot → that figure alone
+- [ ] Two comments on one ticket in a week count once; a move from review to done is not "started"
+- [ ] Somebody with no GitHub login: bars only, no lines along zero
+- [ ] **Table** swaps the chart for the same figures as a table; **Chart** swaps back
+- [ ] The window toggle does not change the activity chart
 
 ## 3g. My todos, and deleting all of it
 

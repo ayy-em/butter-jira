@@ -40,6 +40,10 @@
 // silently hide a week of work from the next real conversation.
 
 import { localGet, localSet } from "./browser.js";
+import { doneResolver } from "./activity.js";
+import { isSubtask } from "./monitor.js";
+import { weeksIn } from "./quarter.js";
+import { resolveStatusGroup } from "./utils.js";
 
 export const ONEONE_KEY = "oneOnes";
 
@@ -583,4 +587,150 @@ export function ganttBars(issues = [], { now = new Date(), startOf = null } = {}
     return a.key.localeCompare(b.key);
   });
   return { window: win, bars };
+}
+
+// ── Activity, week by week ──────────────────────────────────────────────────
+//
+// The sheet's one chart: four full weeks back and this week so far, Monday to
+// Sunday, so a week on this chart is the same week as on the quarterly
+// overview. Fixed rather than following the window toggle, for the reason the
+// mini-Gantt is fixed: a trend read at a different scale every time it is
+// opened is not a trend.
+//
+// Three Jira counts, each a number of issues rather than of events, so the bars
+// share a unit — a ticket commented on six times in a week is one issue
+// commented on:
+//
+//   * **created** — they are the creator (the reporter on a site that hides it);
+//   * **started** — they moved it out of a to-do status into work. Not "opened"
+//     in the sense of created, which would count creation twice;
+//   * **commented on** — they left at least one comment.
+//
+// Two GitHub counts, their pull requests opened and merged to the default
+// branch, which is what `statsFor` counts as merged everywhere else.
+//
+// Sub-tasks are left out of the Jira half, as `activityFrom` leaves them out:
+// starting a sub-task and its parent is one piece of work, not two.
+
+export const ACTIVITY_WEEKS_BACK = 4;
+
+export function activityWindow(now = new Date()) {
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) - ACTIVITY_WEEKS_BACK * 7);
+  return { since: monday, until: now };
+}
+
+// To-do or not, for a status name a changelog entry carries. Same three
+// sources, in the same order, as `doneResolver`: the issues in hand, then the
+// configured groups, then the names Jira ships with.
+function todoResolver(issues, statusGroups) {
+  const byName = new Map();
+  for (const issue of issues || []) {
+    const status = issue?.fields?.status;
+    const category = status?.statusCategory?.key;
+    if (status?.name && category) byName.set(String(status.name).toLowerCase(), category === "new");
+  }
+  const groups = Array.isArray(statusGroups) ? statusGroups : [];
+  return function isTodoStatus(name) {
+    if (!name) return true;
+    const key = String(name).toLowerCase();
+    if (byName.has(key)) return byName.get(key);
+    if (groups.length) {
+      const group = String(resolveStatusGroup(String(name), groups)).toLowerCase();
+      if (group !== key) return /^(to ?do|open|backlog|new)$/.test(group);
+    }
+    return /^(to ?do|open|backlog|new|selected for development)$/.test(key);
+  };
+}
+
+const msAt = (iso) => {
+  const t = Date.parse(iso || "");
+  return Number.isFinite(t) ? t : 0;
+};
+
+// `{ weeks, jira: { created, started, commented }, github: { opened, merged } | null,
+//    historyKnown, partial }` — each series an array, one entry a week. `github`
+// is null when there is no login or no stats to read, and that is drawn as no
+// line rather than as a line along zero.
+export function weeklyActivity({
+  issues = [],
+  stats = null,
+  accountId = "",
+  githubLogin = "",
+  statusGroups = [],
+  now = new Date(),
+} = {}) {
+  const { since, until } = activityWindow(now);
+  const weeks = weeksIn(since, until).map((w) => ({
+    key: w.key,
+    from: w.start.toISOString(),
+    to: w.end.toISOString(),
+    monday: w.monday,
+    partial: w.partial,
+  }));
+  const weekOf = (iso) => {
+    const at = msAt(iso);
+    if (!at) return -1;
+    return weeks.findIndex((w) => at >= msAt(w.from) && at < msAt(w.to));
+  };
+  const blank = () => weeks.map(() => new Set());
+  const created = blank();
+  const started = blank();
+  const commented = blank();
+
+  const me = String(accountId || "");
+  const counted = (issues || []).filter((i) => i && !isSubtask(i));
+  const isDoneStatus = doneResolver(counted, statusGroups);
+  const isTodoStatus = todoResolver(counted, statusGroups);
+  let partial = false;
+
+  for (const issue of counted) {
+    const key = issue.key || "";
+    const creator = issue.fields?.creator || issue.fields?.reporter;
+    if (me && creator?.accountId === me) {
+      const w = weekOf(issue.fields?.created);
+      if (w >= 0) created[w].add(key);
+    }
+    if (issue.history?.truncated || issue.comments?.truncated) partial = true;
+    for (const e of issue.history?.events || []) {
+      if (e.kind !== "status" || e.by !== me) continue;
+      if (!isTodoStatus(e.from) || isTodoStatus(e.to) || isDoneStatus(e.to)) continue;
+      const w = weekOf(e.at);
+      if (w >= 0) started[w].add(key);
+    }
+    for (const c of issue.comments?.events || []) {
+      if (c.by !== me) continue;
+      const w = weekOf(c.at);
+      if (w >= 0) commented[w].add(key);
+    }
+  }
+
+  let github = null;
+  const login = String(githubLogin || "").trim().toLowerCase();
+  if (login && stats) {
+    const opened = weeks.map(() => 0);
+    const merged = weeks.map(() => 0);
+    for (const pr of stats.pullRequests || []) {
+      if (String(pr.author || "").toLowerCase() !== login) continue;
+      const o = weekOf(pr.createdAt);
+      if (o >= 0) opened[o]++;
+      if (pr.toDefaultBranch && pr.mergedAt) {
+        const m = weekOf(pr.mergedAt);
+        if (m >= 0) merged[m]++;
+      }
+    }
+    github = { opened, merged };
+    // The fetch window starts after this chart does, or a repo ran out of
+    // pages: the early weeks are a floor.
+    if (msAt(stats.since) > since.getTime() || (stats.truncated || []).length) partial = true;
+  }
+
+  const sizes = (sets) => sets.map((s) => s.size);
+  return {
+    weeks,
+    jira: { created: sizes(created), started: sizes(started), commented: sizes(commented) },
+    github,
+    historyKnown: counted.some((i) => i.history),
+    partial,
+  };
 }

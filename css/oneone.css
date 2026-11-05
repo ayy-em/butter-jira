@@ -324,46 +324,60 @@
   max-width: 74ch;
 }
 
-/* ── Load over time ──────────────────────────────────────────────────────── */
+/* ── Activity, weekly ────────────────────────────────────────────────────── */
 
-.oo-load {
-  display: flex;
-  align-items: flex-end;
-  gap: 6px;
-  height: 92px;
-  padding-top: 8px;
+/* Chart roles for the sheet's one chart, selected per mode against the left
+   pane's surface (the page background) rather than flipped. The three bars are
+   the first three categorical slots, validated as a set in both modes; the
+   pull-request lines are text ink, so five series need only three hues and the
+   two lines are told apart by dash. */
+.oo-sheet,
+:root[data-theme="dark"] .oo-sheet {
+  --chart-surface: var(--bg);
+  --chart-grid: #252830;
+  --oo-series-created: #3987e5;
+  --oo-series-started: #d95926;
+  --oo-series-commented: #199e70;
+  --oo-series-pr: var(--text);
 }
-.oo-load-col {
-  flex: 1 1 0;
-  max-width: 54px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 4px;
+:root[data-theme="light"] .oo-sheet {
+  --chart-grid: #E5E7EB;
+  --oo-series-created: #2a78d6;
+  --oo-series-started: #eb6834;
+  --oo-series-commented: #1baf7a;
 }
-.oo-load-bar {
-  position: relative;
-  width: 100%;
-  min-height: 2px;
-  background: color-mix(in srgb, var(--accent-primary) 28%, transparent);
-  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-}
-/* Shipped inside assigned, rather than a second bar beside it: the pair is one
-   fact about one sprint, and two bars invite reading them as a race. */
-.oo-load-done {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--accent-primary);
-  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-}
-.oo-load-label {
-  font-size: calc(9.5px * var(--font-scale));
+
+.oo-activity .chart { max-width: 720px; }
+.oo-activity .chart-legend { margin-top: 6px; }
+.oo-activity .chart-hit { cursor: crosshair; }
+
+.oo-activity-toggle {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: transparent;
   color: var(--muted);
-  text-align: center;
+  font: inherit;
+  font-size: calc(11px * var(--font-scale));
+  cursor: pointer;
 }
+.oo-activity-toggle:hover { color: var(--text); border-color: var(--muted); }
+
+.oo-activity-table {
+  border-collapse: collapse;
+  font-size: calc(11px * var(--font-scale));
+  font-variant-numeric: tabular-nums;
+}
+.oo-activity-table th,
+.oo-activity-table td {
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+.oo-activity-table th { color: var(--muted); font-weight: 500; }
+.oo-activity-table th:first-child,
+.oo-activity-table td:first-child { text-align: left; color: var(--muted); }
 
 /* ── The mini-Gantt ──────────────────────────────────────────────────────── */
 

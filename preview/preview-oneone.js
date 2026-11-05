@@ -127,7 +127,7 @@ for (const [status, points, startOff, dueOff, personIdx] of SPEC) {
     issuetype: { name: seq % 5 === 0 ? "Epic" : "Story", subtask: false },
     assignee: { accountId: `acc-${personIdx}`, displayName: PEOPLE[personIdx][0] },
     creator: { accountId: `acc-${personIdx}`, displayName: PEOPLE[personIdx][0] },
-    created: daysAgo(seq % 4 === 0 ? 3 : 30),
+    created: daysAgo(seq % 4 === 0 ? 3 : 4 + ((seq * 5) % 28)),
     cf_sp: points,
   };
   if (!undated && startOff !== null) fields.cf_start = dayOf(startOff);
@@ -142,6 +142,15 @@ for (const [status, points, startOff, dueOff, personIdx] of SPEC) {
     fields,
     changelog: changelogFor(status, personIdx, seq),
   });
+  // Comments, spread over the weekly chart's five weeks. The search compacts
+  // them at the boundary, exactly as it does on a real site.
+  fields.comment = {
+    total: 1 + (seq % 3),
+    comments: Array.from({ length: 1 + (seq % 3) }, (_, c) => ({
+      author: { accountId: `acc-${(personIdx + c) % PEOPLE.length}`, displayName: PEOPLE[(personIdx + c) % PEOPLE.length][0] },
+      created: daysAgo(1 + ((seq * 4 + c * 9) % 32)),
+    })),
+  };
 }
 
 // A sub-task, which must not be counted: its points duplicate the parent's and
@@ -170,7 +179,9 @@ function changelogFor(status, personIdx, n) {
     histories.push({
       id: `h${n}-${step}`,
       author: mover,
-      created: daysAgo(6 - step),
+      // The move into work lands a week or three back on some issues, so the
+      // weekly chart's "started" bars are not all in this week.
+      created: daysAgo(6 - step + (step === 1 ? (n % 4) * 7 : 0)),
       items: [{
         field: "status", fieldId: "status",
         from: String(step), fromString: WORKFLOW[step - 1],
@@ -327,6 +338,25 @@ if (params.get("github") !== "off") {
         deletions: 32 + i * 109 + n * 217,
       });
     }
+    // Older, merged work across the four full weeks the activity chart shows.
+    for (let n = 0; n < 4 + (i % 3); n++) {
+      const opened = 8 + ((i * 3 + n * 5) % 24);
+      prs.push({
+        repo: "example/alpha",
+        number: 700 + i * 20 + n,
+        title: `Earlier change ${n + 1} from ${person[0]}`,
+        url: "#",
+        author: person[1],
+        state: "MERGED",
+        createdAt: daysAgo(opened),
+        updatedAt: daysAgo(opened - 2),
+        mergedAt: daysAgo(opened - 2),
+        baseRef: "main",
+        toDefaultBranch: true,
+        additions: 90 + n * 120,
+        deletions: 20 + n * 40,
+      });
+    }
     const target = PEOPLE[(i + 1) % PEOPLE.length];
     if (target[1]) {
       reviews.push({
@@ -410,40 +440,9 @@ function pr(number, title, author, state, ageDays) {
   };
 }
 
-// ── Stored history: snapshots, a 1:1 archive, and a todo list ───────────────
+// ── Stored history: a 1:1 archive and a todo list ───────────────────────────
 
 if (params.get("notes") !== "empty") {
-  const byPerson = (factor) =>
-    Object.fromEntries(
-      PEOPLE.map((p, i) => [
-        `acc-${i}`,
-        {
-          label: p[0],
-          points: 8 + ((i * 5 + factor * 3) % 14),
-          issues: 3 + (i % 4),
-          donePoints: 4 + ((i * 3 + factor) % 9),
-          doneIssues: 2 + (i % 3),
-        },
-      ])
-    );
-  // Five sprints of stored history, which is enough for the bars to have a
-  // shape and few enough that the "bounded by when this device started
-  // recording" caveat still means something.
-  local.sprintSnapshots = Object.fromEntries(
-    [0, 1, 2, 3, 4].map((n) => [
-      `${400 + n}`,
-      [{
-        date: new Date(Date.now() - (4 - n) * 14 * DAY).toISOString().slice(0, 10),
-        totalPoints: 60,
-        openPoints: 20,
-        donePoints: 40,
-        issueCount: 24,
-        doneIssues: 15,
-        byPerson: byPerson(n),
-      }],
-    ])
-  );
-
   local.oneOnes = {
     people: Object.fromEntries(
       PEOPLE.filter((p) => p[2] !== null).map((p, idx) => {
