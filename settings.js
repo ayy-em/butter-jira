@@ -31,6 +31,7 @@ import {
   readDeviceState,
 } from "./js/backup.js";
 import { clearAllTodos, loadTodos } from "./js/todos.js";
+import { clearSprintHistory, loadSprintHistory, sprintHistorySize } from "./js/history.js";
 import { mountThemeToggle } from "./js/components/theme-toggle.js";
 import { validateStatusGroups } from "./js/utils.js";
 import { icon } from "./js/components/icons.js";
@@ -627,13 +628,46 @@ backupBtn.addEventListener("click", async () => {
   const d = describeBackup(backup);
   backupNote.textContent =
     `Backed up ${d.days} snapshot day${d.days === 1 ? "" : "s"} across ${d.sprints} sprint${d.sprints === 1 ? "" : "s"}, ` +
-    `${d.freezes} freeze${d.freezes === 1 ? "" : "s"}, ${d.todos} todo${d.todos === 1 ? "" : "s"}, ` +
+    `${d.freezes} freeze${d.freezes === 1 ? "" : "s"}, ` +
+    `${d.sprintHistory} sprint${d.sprintHistory === 1 ? "" : "s"} of history, ${d.todos} todo${d.todos === 1 ? "" : "s"}, ` +
     `${d.standups} standup${d.standups === 1 ? "" : "s"} of history` +
     (d.roster ? `, ${d.members} roster member${d.members === 1 ? "" : "s"}` : "") +
     (d.config ? " and the config." : ".");
   const personal = includeRoster || d.todos || d.standups;
   flash(personal ? "Backed up — the file holds personal data, store it carefully" : "Backed up",
     personal ? "warning" : "success");
+});
+
+// ── Sprint history (M17) ────────────────────────────────────────────────────
+// Its whole retention policy is a cap and this button, so the button says what
+// it would delete. Snapshots and freezes still on the device are not re-read
+// into it afterwards: the delete records its day, and seeding skips anything
+// older.
+const sprintHistoryNote = document.getElementById("sprintHistoryNote");
+const clearSprintHistoryBtn = document.getElementById("clearSprintHistoryBtn");
+
+async function renderSprintHistoryNote() {
+  const size = sprintHistorySize(await loadSprintHistory());
+  sprintHistoryNote.textContent = size.sprints
+    ? `On this device: ${size.sprints} closed sprint${size.sprints === 1 ? "" : "s"}, from ${size.first}.`
+    : "On this device: no closed sprints yet. Each is added as it closes.";
+}
+
+clearSprintHistoryBtn.addEventListener("click", async () => {
+  const size = sprintHistorySize(await loadSprintHistory());
+  if (!size.sprints) {
+    flash("There is no sprint history stored on this device", "warning");
+    return;
+  }
+  const ok = confirm(
+    `Delete the history of ${size.sprints} closed sprint${size.sprints === 1 ? "" : "s"}, from ${size.first}?\n\n` +
+      "The velocity trend starts again from the running sprint. Jira cannot " +
+      "rebuild it. A backup made before now still holds it. This cannot be undone."
+  );
+  if (!ok) return;
+  await clearSprintHistory();
+  await renderSprintHistoryNote();
+  flash("Sprint history deleted from this device", "warning");
 });
 
 restoreBtn.addEventListener("click", () => restoreFile.click());
@@ -656,6 +690,7 @@ restoreFile.addEventListener("change", async () => {
   const lines = [
     `${a.snapshotDays} snapshot day${a.snapshotDays === 1 ? "" : "s"}`,
     `${a.freezes} sprint freeze${a.freezes === 1 ? "" : "s"}`,
+    a.sprintHistory ? `${a.sprintHistory} sprint${a.sprintHistory === 1 ? "" : "s"} of history` : null,
     `${a.todos} todo${a.todos === 1 ? "" : "s"}`,
     a.standups ? `${a.standups} standup${a.standups === 1 ? "" : "s"} of history` : null,
     a.members ? `${a.members} roster member${a.members === 1 ? "" : "s"}` : null,
@@ -1073,6 +1108,7 @@ async function init() {
   await renderTokenStatus();
   await renderGithubTokenStatus();
   await renderOneOneNote();
+  await renderSprintHistoryNote();
 }
 
 init();

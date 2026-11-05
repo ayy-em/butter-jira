@@ -12,8 +12,8 @@ it about what a user gets. The reasoning is in the commit history;
 sprint or any recent closed one), the day of the sprint, Jira and GitHub status
 and a **Run standup** button across the top; five KPIs — sprint progress,
 committed vs completed, tickets closed against the previous sprint at the same
-day, blockers, and PR review turnaround; the burndown, a velocity card that
-holds its place until per-sprint history exists, and the issue status split;
+day, blockers, and PR review turnaround; the burndown, the velocity trend, and
+the issue status split;
 each person's workload against the capacity left, scope change and carry-over
 risk; a checklist of things to check by hand — overdue, blocked over two days,
 PRs waiting over two days, unestimated, unassigned, scope added, dependencies —
@@ -21,6 +21,15 @@ where every count opens the issues or pull requests behind it; and standup prep,
 including who has no recent activity since the last standup. An **Individual
 view** tab holds a card per person and the delivery-by-person table. The recap
 buttons moved into the avatar menu.
+
+**Sprint history and the velocity trend.** The dashboard now keeps one row per
+sprint — points committed and completed, issues, completion, and with GitHub
+sync on, pull requests and lines — sealed when the sprint rolls over and kept
+for up to 104 sprints. The velocity card draws completed points for the last six
+sprints, with the running one hollow and marked provisional; **All figures**
+shows every row as small charts and a table. Sprints still in the daily
+snapshots on your device are filled in on the first load. It is included in the
+device backup, and Settings → Backup & transfer can delete it.
 
 **The navigation moved to a sidebar.** The three menus are now always-open
 groups down the left edge, with the team — its name, a head count by role, the

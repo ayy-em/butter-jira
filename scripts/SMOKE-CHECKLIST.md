@@ -94,7 +94,13 @@ override file. Anything else is a finding.
 - [ ] KPI — Blockers: counts flagged issues and blocked/on-hold statuses; first day reads "first reading", next day shows ± since yesterday; clicking opens the list
 - [ ] KPI — PR review turnaround: GitHub off says how to connect it; on, a median in days and how many PRs it is over
 - [ ] First visit → burndown says it is collecting history and explains why; second day → it draws, ideal dashed, legend present, crosshair readout on hover
-- [ ] Velocity card shows this sprint's points marked provisional and names M17 — and draws no fake bars
+- [ ] Velocity card: completed points for up to six closed sprints, then this sprint as a dashed outline; hovering it says "provisional, day N of M"; "avg N pts" in the corner once two whole sprints exist
+- [ ] A sprint last read before its last day draws lighter and its tooltip says incomplete
+- [ ] First load after installing this version: sprints still in the daily snapshots appear straight away (Storage → `sprintHistory` has a final row for each)
+- [ ] Close a sprint in Jira, start the next, reload → the old sprint's row is sealed (`final: true`) with its GitHub figures, and the new one is the hollow bar
+- [ ] **All figures** opens the drawer: five small charts on the same sprints (points, issues, completion, pull requests, lines), a legend under each pair, then the table, newest first
+- [ ] GitHub off: the pull-request and lines charts say no GitHub figures are stored; the table shows dashes, not zeros
+- [ ] A closed sprint's dashboard (`#dashboard/<board>:<sprint>`) shows the trend ending at that sprint, with no hollow bar, and writes nothing to `sprintHistory`
 - [ ] Issue status donut: five slices in workflow order, total in the middle, legend counts and shares add up; each legend row opens its issues
 - [ ] Workload: every active roster member has a row, in name order, with role; bars show done / in review / open, the capacity line sits at days left × 8 ÷ hours a point
 - [ ] Over / near capacity chips carry an icon and a word; someone holding only unestimated work reads "No estimates", not OK
@@ -554,7 +560,9 @@ Use a board where closing and starting a sprint is safe to try.
 
 ## Device backup
 
-- [ ] Settings → **Back up this device** downloads `butterjira-backup-<date>.json`; the note under the buttons counts snapshot days, freezes and todos
+- [ ] Settings → **Back up this device** downloads `butterjira-backup-<date>.json`; the note under the buttons counts snapshot days, freezes, sprints of history and todos
+- [ ] **Delete sprint history** names how many sprints and from when; after it the velocity card shows only the running sprint, and a reload does **not** bring the old sprints back from the snapshots
+- [ ] Restoring a backup made before that delete adds no rows from before it
 - [ ] The file holds no token, no account email and no `oneOnes` (search it)
 - [ ] With the roster box ticked, a confirm names the roster before the download
 - [ ] **Restore a backup** on the same device reports nothing to add; after deleting all todos, it brings them back

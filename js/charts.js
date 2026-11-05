@@ -380,6 +380,7 @@ export function weeklyLines({ labels = [], partial = [], series = [] }, options 
       : { top: 14, right: 40, bottom: 26, left: 40 },
     format = (v) => String(Math.round(v)),
     ticks = compact ? 3 : 4,
+    partialLabel = "part week",
   } = options;
 
   const plotWidth = width - padding.left - padding.right;
@@ -457,7 +458,7 @@ export function weeklyLines({ labels = [], partial = [], series = [] }, options 
         "stroke-width": compact ? 1.5 : 2,
         class: "chart-dot",
       });
-      title(dot, `${labels[i]}${hollow ? " (part week)" : ""} · ${s.name}: ${format(v)}`);
+      title(dot, `${labels[i]}${hollow ? ` (${partialLabel})` : ""} · ${s.name}: ${format(v)}`);
       svg.appendChild(dot);
     });
   }
@@ -483,15 +484,20 @@ export function weeklyLines({ labels = [], partial = [], series = [] }, options 
   return svg;
 }
 
-// ── Weekly bars and lines on one count axis ─────────────────────────────────
-// The 1:1 sheet's activity chart: a group of bars a week (Jira) with lines
-// across the same weeks (GitHub). One axis, because every series is a count of
-// things in a week; two different units would be two charts. Bars in a group
-// sit 2px apart. A part week — this one, so far — is drawn lighter, with
-// hollow markers, so it reads as unfinished rather than as a drop. Each week
-// has a hit area the full height of the plot that names all of its figures.
+// ── Columns and lines on one count axis ─────────────────────────────────────
+// A group of bars a period with lines across the same periods: the 1:1 sheet's
+// weekly activity (Jira bars, GitHub lines) and the dashboard's velocity (one
+// bar a sprint). One axis, because every series shares a unit; two units would
+// be two charts. Bars in a group sit 2px apart.
+//
+// Two ways a period can be unfinished, drawn differently because they mean
+// different things. `partial` is a period whose figures are a floor — this
+// week so far, a sprint nobody read on its last day — and draws lighter, with
+// hollow markers. `hollow` is a period still running whose figures will move —
+// the current sprint — and draws as an outline only. Each period has a hit area
+// the full height of the plot that names all of its figures.
 
-export function weeklyCombo({ labels = [], partial = [], bars = [], lines = [] }, options = {}) {
+export function comboChart({ labels = [], partial = [], hollow = [], bars = [], lines = [] }, options = {}) {
   const {
     width = 640,
     height = 190,
@@ -500,7 +506,10 @@ export function weeklyCombo({ labels = [], partial = [], bars = [], lines = [] }
     ticks = 4,
     barMax = 14,
     weekTitle = (i) => labels[i],
+    partialLabel = "so far",
+    hollowLabel = "so far",
   } = options;
+  const suffix = (i) => (hollow[i] ? ` (${hollowLabel})` : partial[i] ? ` (${partialLabel})` : "");
 
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
@@ -537,7 +546,7 @@ export function weeklyCombo({ labels = [], partial = [], bars = [], lines = [] }
     const rows = [...bars, ...lines]
       .map((s) => (s.values[i] === null || s.values[i] === undefined ? null : `${s.name}: ${format(s.values[i])}`))
       .filter(Boolean);
-    title(hit, [`${weekTitle(i)}${partial[i] ? " (so far)" : ""}`, ...rows].join("\n"));
+    title(hit, [`${weekTitle(i)}${suffix(i)}`, ...rows].join("\n"));
     svg.appendChild(hit);
   });
 
@@ -547,13 +556,18 @@ export function weeklyCombo({ labels = [], partial = [], bars = [], lines = [] }
       const x = xMid(i) - groupW / 2 + b * (barW + SEGMENT_GAP);
       const h = v > 0 ? Math.max(2, (v / maxY) * plotHeight) : 0;
       if (!h) return;
+      // An outline sits inside its own box, so the stroke does not widen it.
+      const inset = hollow[i] ? 1 : 0;
       const bar = el("path", {
-        d: barPath(x, padding.top + plotHeight - h, barW, h, RADIUS, "top"),
-        fill: s.fill,
-        "fill-opacity": partial[i] ? 0.45 : null,
+        d: barPath(x + inset, padding.top + plotHeight - h + inset, barW - 2 * inset, Math.max(0, h - inset), RADIUS, "top"),
+        fill: hollow[i] ? "none" : s.fill,
+        stroke: hollow[i] ? s.fill : null,
+        "stroke-width": hollow[i] ? 2 : null,
+        "stroke-dasharray": hollow[i] ? "4 3" : null,
+        "fill-opacity": !hollow[i] && partial[i] ? 0.45 : null,
         class: "chart-bar",
       });
-      title(bar, `${weekTitle(i)}${partial[i] ? " (so far)" : ""} · ${s.name}: ${format(v)}`);
+      title(bar, `${weekTitle(i)}${suffix(i)} · ${s.name}: ${format(v)}`);
       svg.appendChild(bar);
     });
   });
@@ -575,15 +589,15 @@ export function weeklyCombo({ labels = [], partial = [], bars = [], lines = [] }
     }
     s.values.forEach((v, i) => {
       if (v === null || v === undefined) return;
-      const hollow = Boolean(partial[i]);
+      const open = Boolean(partial[i] || hollow[i]);
       const dot = el("circle", {
         cx: xMid(i), cy: yFor(v), r: 4,
-        fill: hollow ? "var(--chart-surface)" : s.stroke,
-        stroke: hollow ? s.stroke : "var(--chart-surface)",
+        fill: open ? "var(--chart-surface)" : s.stroke,
+        stroke: open ? s.stroke : "var(--chart-surface)",
         "stroke-width": 2,
         class: "chart-dot",
       });
-      title(dot, `${weekTitle(i)}${hollow ? " (so far)" : ""} · ${s.name}: ${format(v)}`);
+      title(dot, `${weekTitle(i)}${suffix(i)} · ${s.name}: ${format(v)}`);
       svg.appendChild(dot);
     });
   }

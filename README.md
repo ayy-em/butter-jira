@@ -230,8 +230,8 @@ credential if you ticked either token box.
 
 **A config export moves a setup; a backup keeps a history.** Settings → Backup &
 transfer → **Back up this device** saves what the app has recorded and could not
-fetch again: the daily snapshots behind every burndown, the sprint freezes, your
-todos and preferences, plus the config and, if ticked, the roster. **Restore a
+fetch again: the daily snapshots behind every burndown, the sprint freezes, the
+per-sprint history behind the velocity trend, your todos and preferences, plus the config and, if ticked, the roster. **Restore a
 backup** merges it in. Where the device and the file both have an entry, the
 device keeps its own and the file only fills the gaps, so restoring an old backup
 never loses anything newer. Config is restored only onto an install that is not
@@ -575,11 +575,11 @@ Overview**, read top to bottom:
    turnaround* is the median time from a pull request opening to its first review
    by someone else, against the previous sprint's window.
 4. **Three charts.** The burndown (ideal against actual); the **velocity trend**,
-   which holds its place with this sprint's provisional figure until per-sprint
-   history exists (roadmap M17) rather than drawing a trend from data that cannot
-   support one; and the issue status split as a donut — To Do, In Progress, In
-   Review, Done, Blocked — with counts and shares beside it, each row opening its
-   issues.
+   completed points for the last six closed sprints with this sprint beside them
+   drawn hollow and labelled provisional, so a sprint in its second week never
+   reads as a slump (see [Sprint history](#sprint-history) below); and the issue
+   status split as a donut — To Do, In Progress, In Review, Done, Blocked — with
+   counts and shares beside it, each row opening its issues.
 5. **Team workload & health**, beside **Items to check manually.** One row per
    roster member, in name order: points done, in review and still open, against
    the capacity left — the working days remaining at the planner's hours a point
@@ -707,6 +707,35 @@ Stored device-local and pruned to the same eight sprints the burndown keeps, fro
 the same constant, so the two histories cannot end up different lengths. A
 60-issue sprint freezes to roughly 22 KB; eight of them, under 200 KB — measured
 in `scripts/test-dashboard.mjs` rather than assumed.
+
+### Sprint history
+
+One row a sprint, kept far longer than the daily snapshots: points committed and
+completed, issues in the sprint and closed, completion, and — with GitHub sync
+on — pull requests opened, merged and reviewed and lines reaching the default
+branch, all team totals. It feeds the dashboard's **velocity trend**, and
+**All figures** on that card opens every stored row as small multiples (one
+measure a chart, never two axes) and as a table.
+
+**Built forward.** Every live dashboard load writes the running sprint's row
+from the same summary as the day's snapshot, including the commitment read off
+the sprint's freeze. The first load after the sprint rolls over seals that row:
+the GitHub figures are counted over the sprint's own dates, once, and the row
+stops changing. Sprints that closed before this existed are seeded from what is
+still on the device — the last daily snapshot of each, and its freeze — so the
+trend starts with up to eight sprints rather than none.
+
+**What a row may claim.** A sprint whose last reading came before its last day
+(nobody opened the dashboard on the Friday) is drawn lighter and labelled
+incomplete: its figures are a floor. A sprint with no freeze has no measured
+commitment, and says so. GitHub figures are absent, not zero, when sync was off,
+and marked incomplete when the fetch window started late or a repository ran
+out of pages.
+
+Stored device-local, up to 104 sprints (about four years of fortnights). It is
+in the device backup, and Settings → Backup & transfer → **Delete sprint
+history** is the one way to remove it; a delete records its day, so the
+snapshots still on the device do not seed it straight back.
 
 ### Sprint recap (PDF)
 
@@ -1444,6 +1473,7 @@ js/backup.js        # device backup and merge-on-restore
 js/jira-links.js    # the Jira-links redirect rules
 js/snapshots.js     # daily sprint snapshots — the burndown's history
 js/freeze.js        # per-issue sprint freeze and the diff over it (DOM-free)
+js/history.js       # per-sprint history: one rollup row a sprint, the velocity trend
 js/charts.js        # inline SVG chart primitives, no libraries
 js/standup.js       # standup session: order, phases, timing (DOM-free)
 js/sfx.js           # bundled sound cues
@@ -2010,7 +2040,6 @@ behind it is in the commit history.
 
 | | | |
 |---|---|---|
-| M17 | Per-sprint history | A per-sprint trend on the dashboard, from rollups written at each rollover |
 | M20 | 1:1 recording | Record and transcribe a 1:1 on the device. Engine and consent unresolved |
 | M24 | Assisted planning | Proposed splits, estimates, assignees and fill-ups, gated on an AI Enablement review |
 | M25 | Planning follow-ups | The dashboard reading per-sprint freezes, due dates for epics, one entry point for both planners |

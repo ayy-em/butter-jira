@@ -12,11 +12,23 @@ import { BOARDS, compactNum, fmtDate, loadStatusGroups, relDate, showToast } fro
 import { CONFIG, siteHost } from "../config.js";
 import { buildBurndown, isBlocked, isoDay, reviewOrDone, summarize } from "../dashboard.js";
 import { isSubtask } from "../monitor.js";
-import { loadSnapshots, recordSnapshot, snapshotFrom, sprintKey } from "../snapshots.js";
+import { loadAllSnapshots, loadSnapshots, recordSnapshot, snapshotFrom, sprintKey } from "../snapshots.js";
+import {
+  completionRate,
+  draftRow,
+  loadSprintHistory,
+  meanCompleted,
+  planUpdate,
+  recordSprintHistory,
+  shortSprintName,
+  sprintHistoryRows,
+  trendRows,
+} from "../history.js";
 import {
   departedKeys,
   diffFreeze,
   freezeFrom,
+  loadAllFreezes,
   loadFreeze,
   recordFreeze,
   scopeBasis,
@@ -47,12 +59,14 @@ import {
   activityFor as githubActivityFor,
   getTeamActivity,
   getTeamStats,
+  getWindowStats,
   isGithubConfigured,
   mergedSince,
+  needsWindowFetch,
   prewarmGithub,
   statsFor,
 } from "../github.js";
-import { burndownChart, donutChart, emptyState, legend } from "../charts.js";
+import { burndownChart, comboChart, donutChart, emptyState, legend, weeklyLines } from "../charts.js";
 
 // The sprint dashboard, as a Team Overview.
 //
@@ -252,6 +266,34 @@ export async function mount(container, creds) {
     ? diffFreeze({ freeze, issues, sprints, statusGroups, departed: [], handedOff: team.handedOff })
     : null;
 
+  // Per-sprint history (M17). The running sprint's draft row is written from
+  // the same summary as today's snapshot; any other unfinished row is a sprint
+  // that has rolled over, and is sealed with its GitHub figures in the
+  // background. The card paints from the planned rows straight away and again
+  // once that lands.
+  let sprintHistory = sprintHistoryRows(await loadSprintHistory());
+  let historyPromise = null;
+  if (live) {
+    const draft = draftRow({ key, sprints, summary, scope: scopeChange({ summary, diff: scopeDiff }), now });
+    const [allSnapshots, allFreezes] = await Promise.all([loadAllSnapshots(), loadAllFreezes()]);
+    // Commitments are the team's, as the live sprint's is: each freeze scoped
+    // to the roster the way this sprint's was.
+    const freezes = Object.fromEntries(
+      Object.entries(allFreezes).map(([k, f]) => [k, teamScope({ freeze: f }).freeze])
+    );
+    const logins = activeMembers().map((m) => m.githubLogin).filter(Boolean);
+    const update = { liveKey: key, draft, snapshots: allSnapshots, freezes };
+    sprintHistory = sprintHistoryRows(planUpdate(await loadSprintHistory(), update));
+    historyPromise = recordSprintHistory({
+      ...update,
+      logins,
+      loadStats: async ({ since, until }) => {
+        if (!isGithubConfigured()) return null;
+        return needsWindowFetch(since, now) ? getWindowStats({ since, until, now }) : getTeamStats();
+      },
+    });
+  }
+
   // The last standup, for "since the previous standup". Device-local; without
   // one, the start of the previous working day — so a Monday still sees Friday.
   const history = await loadHistory().catch(() => []);
@@ -279,6 +321,7 @@ export async function mount(container, creds) {
     scopeDiff,
     snapshots,
     burndown,
+    sprintHistory,
     github,
     onGithub,
     closedPromise,
@@ -358,6 +401,16 @@ export async function mount(container, creds) {
       .then(() => ctx.repaint.forEach((fn) => fn()));
   }
   onGithub.push(() => ctx.repaint.forEach((fn) => fn()));
+
+  if (historyPromise) {
+    historyPromise
+      .then((result) => {
+        if (!result?.closed?.length) return;
+        ctx.sprintHistory = sprintHistoryRows(result);
+        ctx.repaint.forEach((fn) => fn());
+      })
+      .catch(() => {});
+  }
 
   // A re-freeze discards a record that cannot be recovered, so it confirms with
   // what it is about to throw away — not "are you sure".
@@ -1043,44 +1096,202 @@ function renderBurndown(ctx) {
   return el;
 }
 
-// Per-sprint history does not exist yet: the daily snapshots are pruned to
-// eight sprints and hold no rollup row, and a velocity drawn from them would be
-// a guess dressed as a trend. The card holds its place and says when it fills —
-// with the one honest figure this sprint has, marked provisional.
+// Completed points for the last six sprints, from the per-sprint history
+// (M17). The running sprint is drawn hollow beside the closed ones and
+// labelled provisional, so a sprint in its second week never reads as a slump;
+// a closed sprint whose last reading came before its last day is drawn lighter,
+// because its figure is a floor. The rest of each row — commitment, issues,
+// completion, pull requests, lines — is one click away in the drawer.
 function renderVelocity(ctx) {
   const { summary, live, now } = ctx;
-  const { el } = card("Velocity trend");
+  const { el, head } = card("Velocity trend");
   el.classList.add("dash-velocity");
-  const body = make("div", "dash-velocity-body");
-  body.appendChild(
-    make(
-      "p",
-      "dash-velocity-lead",
-      "Completed points for the last six sprints arrive with per-sprint history (roadmap M17): one rollup row written as each sprint closes, kept far longer than the daily snapshots."
-    )
-  );
-  const now1 = make("div", "dash-velocity-now");
-  const day = sprintDay(summary, now);
-  now1.append(
-    make("span", "dash-velocity-figure", summary.totalPoints > 0 ? trimNum(summary.donePoints) : "—"),
-    make(
-      "span",
-      "dash-velocity-caption",
-      live && day && !day.ended
-        ? `points done so far — provisional, day ${day.day} of ${day.of}`
-        : "points done in this sprint"
-    )
-  );
-  body.appendChild(now1);
-  body.appendChild(
+  const readout = make("span", "dash-readout mono");
+  head.appendChild(readout);
+  const slot = make("div", "dash-chart-slot");
+  const foot = make("div", "dash-velocity-foot");
+  el.append(slot, foot);
+
+  const upTo = live ? null : isoDay(summary.window.start);
+  const paint = () => {
+    const rows = trendRows(ctx.sprintHistory, { liveKey: live ? ctx.key : "", upTo });
+    slot.innerHTML = "";
+    foot.innerHTML = "";
+    const closed = rows.filter((r) => !r.running);
+    const mean = meanCompleted(rows);
+    readout.textContent = mean === null ? "" : `avg ${trimNum(mean)} pts`;
+    readout.title = mean === null ? "" : "Mean completed points over the closed sprints shown whose last reading was on or after their last day.";
+
+    if (!rows.length) {
+      slot.appendChild(emptyState("No sprint has been recorded on this device yet."));
+      return;
+    }
+    const day = sprintDay(summary, now);
+    const width = Math.max(240, Math.round(slot.clientWidth || 320));
+    slot.appendChild(
+      comboChart(
+        {
+          labels: rows.map((r) => shortSprintName(r.name)),
+          partial: rows.map((r) => Boolean(r.partial?.jira)),
+          hollow: rows.map((r) => r.running),
+          bars: [{ name: "Points completed", fill: "var(--chart-series-1)", values: rows.map((r) => r.pointsCompleted) }],
+        },
+        {
+          width,
+          height: 210,
+          barMax: 28,
+          format: (v) => trimNum(v),
+          hollowLabel: day && !day.ended ? `provisional, day ${day.day} of ${day.of}` : "provisional",
+          partialLabel: "incomplete: last read before its last day",
+          weekTitle: (i) => {
+            const r = rows[i];
+            const committed = r.pointsCommitted === null ? "" : ` · committed ${trimNum(r.pointsCommitted)}`;
+            return `${r.name || r.key} · ${r.start || "?"} → ${r.end || "?"}${committed}`;
+          },
+        }
+      )
+    );
+
+    const running = rows.find((r) => r.running);
+    foot.appendChild(
+      make(
+        "span",
+        "dash-note",
+        running
+          ? closed.length
+            ? `Hollow: this sprint so far, provisional${day && !day.ended ? ` — day ${day.day} of ${day.of}` : ""}.`
+            : "Hollow: this sprint so far. Each sprint is added here as it closes."
+          : `${closed.length} closed sprint${closed.length === 1 ? "" : "s"}.`
+      )
+    );
+    if (rows.length) {
+      const more = make("button", "btn small dash-velocity-more", "All figures");
+      more.type = "button";
+      more.addEventListener("click", () => openSprintHistory(ctx));
+      foot.appendChild(more);
+    }
+  };
+  ctx.afterAttach.push(paint);
+  ctx.repaint.push(paint);
+  return el;
+}
+
+// Every stored row, as small multiples on one shared set of sprints, then as a
+// table. One measure a chart: points, issues, completion, pull requests and
+// lines have three units and very different sizes, and a multi-axis chart
+// would invent a relationship between them.
+function openSprintHistory(ctx) {
+  const rows = trendRows(ctx.sprintHistory, { liveKey: ctx.live ? ctx.key : "", limit: 26 });
+  const { body } = openDrawerPanel({ label: "Sprint history", className: "dash-list-drawer dash-history-drawer" });
+  const wrap = make("div", "dash-list");
+  wrap.appendChild(make("h2", "dash-list-title", "Sprint history"));
+  wrap.appendChild(
     make(
       "p",
       "dash-note",
-      "When it lands, the running sprint is drawn hollow beside the closed ones, so a sprint in its second week never reads as a slump."
+      `${rows.filter((r) => !r.running).length} closed sprints recorded on this device. Solid is the outcome, dashed what it is measured against; hollow points are the running sprint.`
     )
   );
-  el.appendChild(body);
-  return el;
+
+  const labels = rows.map((r) => shortSprintName(r.name));
+  const partial = rows.map((r) => r.running);
+  const gh = (f) => rows.map((r) => (r.github ? r.github[f] : null));
+  const pct = (v) => `${Math.round(v)}%`;
+  const OUT = "var(--chart-series-1)";
+  const BASE = "var(--chart-muted-line)";
+  const multiples = [
+    {
+      title: "Story points",
+      series: [
+        { name: "Completed", stroke: OUT, values: rows.map((r) => r.pointsCompleted) },
+        { name: "Committed", stroke: BASE, dashed: true, values: rows.map((r) => r.pointsCommitted) },
+      ],
+    },
+    {
+      title: "Issues",
+      series: [
+        { name: "Closed", stroke: OUT, values: rows.map((r) => r.issuesClosed) },
+        { name: "In the sprint", stroke: BASE, dashed: true, values: rows.map((r) => r.issues) },
+      ],
+    },
+    {
+      title: "Completion",
+      format: pct,
+      series: [{ name: "Of commitment", stroke: OUT, values: rows.map((r) => (completionRate(r) === null ? null : completionRate(r) * 100)) }],
+    },
+    {
+      title: "Pull requests",
+      series: [
+        { name: "Merged", stroke: OUT, values: gh("prsMerged") },
+        { name: "Opened", stroke: BASE, dashed: true, values: gh("prsOpened") },
+      ],
+    },
+    {
+      title: "Lines reaching the default branch",
+      format: (v) => compactNum(v),
+      series: [{ name: "Added + removed", stroke: OUT, values: rows.map((r) => (r.github ? r.github.additions + r.github.deletions : null)) }],
+    },
+  ];
+
+  const grid = make("div", "dash-history-grid");
+  for (const m of multiples) {
+    const cell = make("div", "dash-history-cell");
+    cell.appendChild(make("h3", "dash-history-title", m.title));
+    const has = m.series.some((s) => s.values.some((v) => v !== null && v !== undefined));
+    if (!has) {
+      cell.appendChild(emptyState(m.title === "Pull requests" || m.title.startsWith("Lines") ? "No GitHub figures stored." : "Nothing stored."));
+    } else {
+      cell.appendChild(
+        weeklyLines(
+          { labels, partial, series: m.series },
+          { width: 330, height: 130, compact: true, format: m.format, partialLabel: "provisional" }
+        )
+      );
+      if (m.series.length > 1) {
+        cell.appendChild(legend(m.series.map((s) => ({ label: s.name, fill: s.stroke, dashed: s.dashed }))));
+      }
+    }
+    grid.appendChild(cell);
+  }
+  wrap.appendChild(grid);
+
+  const table = make("table", "dash-history-table mono");
+  const headRow = table.createTHead().insertRow();
+  for (const h of ["Sprint", "Dates", "Committed", "Completed", "Rate", "Issues", "Closed", "PRs merged", "Reviewed", "Lines", ""]) {
+    headRow.appendChild(make("th", "", h));
+  }
+  const tbody = table.createTBody();
+  for (const r of [...rows].reverse()) {
+    const tr = tbody.insertRow();
+    const rate = completionRate(r);
+    const notes = [
+      r.running ? "provisional" : "",
+      r.partial?.jira ? "Jira incomplete" : "",
+      r.partial?.github ? "GitHub incomplete" : "",
+    ].filter(Boolean).join(", ");
+    const cells = [
+      r.name || r.key,
+      `${r.start || "?"} → ${r.end || "?"}`,
+      r.pointsCommitted === null ? "—" : trimNum(r.pointsCommitted),
+      trimNum(r.pointsCompleted),
+      rate === null ? "—" : `${Math.round(rate * 100)}%`,
+      String(r.issues),
+      String(r.issuesClosed),
+      r.github ? String(r.github.prsMerged) : "—",
+      r.github ? String(r.github.prsReviewed) : "—",
+      r.github ? compactNum(r.github.additions + r.github.deletions) : "—",
+      notes,
+    ];
+    for (const c of cells) tr.insertCell().textContent = c;
+    tr.cells[0].title = cells[0];
+  }
+  const scroll = make("div", "dash-history-scroll");
+  scroll.appendChild(table);
+  wrap.appendChild(scroll);
+  wrap.appendChild(
+    make("p", "dash-note", "Stored on this device only. Settings → Backup & transfer deletes it, and backs it up.")
+  );
+  body.appendChild(wrap);
 }
 
 function renderStatusSplit(ctx) {

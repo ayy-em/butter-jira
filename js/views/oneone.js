@@ -23,7 +23,7 @@
 import { getActiveSprint, getAllSprintIssues, getAssignedOpenIssues, getIssuesInWindow, getQuarterIssues } from "../api.js";
 import { typeMeta } from "../backlog.js";
 import { runtimeUrl } from "../browser.js";
-import { legend, weeklyCombo } from "../charts.js";
+import { comboChart, legend } from "../charts.js";
 import { CONFIG } from "../config.js";
 import { isoDay, sprintWindow } from "../dashboard.js";
 import {
@@ -594,7 +594,7 @@ async function mountSheet(container, creds, accountId) {
 
     const chartView = document.createElement("div");
     chartView.className = "oo-activity";
-    chartView.appendChild(weeklyCombo({ labels, partial, bars, lines }, { weekTitle }));
+    chartView.appendChild(comboChart({ labels, partial, bars, lines }, { weekTitle }));
     chartView.appendChild(legend([
       ...bars.map((s) => ({ label: s.name, fill: s.fill })),
       ...lines.map((s) => ({ label: s.name, fill: s.stroke, dashed: s.dashed })),

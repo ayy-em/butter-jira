@@ -45,6 +45,7 @@ const PREFERENCE_KEYS = [
 export const STORES = {
   snapshots: "sprintSnapshots",
   freezes: "sprintFreezes",
+  sprintHistory: "sprintHistory",
   todos: "myTodos",
   standupHistory: "standupHistory",
   roster: "teams",
@@ -66,6 +67,7 @@ export function buildBackup({ local = {}, sync = {}, includeRoster = false, now 
     stores: {
       snapshots: isObject(local[STORES.snapshots]) ? local[STORES.snapshots] : {},
       freezes: isObject(local[STORES.freezes]) ? local[STORES.freezes] : {},
+      sprintHistory: isObject(local[STORES.sprintHistory]?.rows) ? { rows: local[STORES.sprintHistory].rows } : { rows: {} },
       todos: Array.isArray(local[STORES.todos]) ? local[STORES.todos] : [],
       standupHistory: Array.isArray(local[STORES.standupHistory]) ? local[STORES.standupHistory] : [],
       ...(includeRoster && local[STORES.roster] ? { roster: local[STORES.roster] } : {}),
@@ -87,6 +89,7 @@ export function describeBackup(backup) {
     sprints: Object.keys(s.snapshots || {}).length,
     days,
     freezes: Object.keys(s.freezes || {}).length,
+    sprintHistory: Object.values(s.sprintHistory?.rows || {}).filter((r) => r?.final).length,
     todos: (s.todos || []).length,
     standups: Array.isArray(s.standupHistory) ? s.standupHistory.length : 0,
     members,
@@ -169,6 +172,26 @@ export function mergeFreezes(local = {}, incoming = {}) {
   return { value: all, added };
 }
 
+// Per-sprint history (M17), by sprint key. The device's row wins, except that
+// a sealed row from the file replaces a draft here: the file saw the sprint
+// close and this device did not. The device's `clearedOn` is kept, so a delete
+// is not undone by an old file's rows from before it.
+export function mergeSprintHistory(local = {}, incoming = {}) {
+  const mine = isObject(local?.rows) ? local.rows : {};
+  const theirs = isObject(incoming?.rows) ? incoming.rows : {};
+  const clearedOn = typeof local?.clearedOn === "string" ? local.clearedOn : null;
+  const rows = { ...mine };
+  let added = 0;
+  for (const [key, row] of Object.entries(theirs)) {
+    if (!isObject(row) || row.key !== key) continue;
+    if (clearedOn && String(row.lastReading || "") <= clearedOn) continue;
+    if (rows[key] && (rows[key].final || !row.final)) continue;
+    if (!rows[key]) added++;
+    rows[key] = row;
+  }
+  return { value: { rows, clearedOn }, added };
+}
+
 export function mergeTodos(local = [], incoming = []) {
   const mine = Array.isArray(local) ? local : [];
   const ids = new Set(mine.map((t) => t?.id).filter(Boolean));
@@ -211,6 +234,8 @@ export function planRestore(backup, { local = {}, sync = {} } = {}) {
   const s = backup?.stores || {};
   const snapshots = mergeSnapshots(local[STORES.snapshots], s.snapshots);
   const freezes = mergeFreezes(local[STORES.freezes], s.freezes);
+  // A file from before M17 has no such store, and merges as nothing to add.
+  const sprintHistory = mergeSprintHistory(local[STORES.sprintHistory], s.sprintHistory);
   const todos = mergeTodos(local[STORES.todos], s.todos);
   // A file from before standup history existed has no such store, and merges
   // as nothing to add.
@@ -223,6 +248,7 @@ export function planRestore(backup, { local = {}, sync = {} } = {}) {
     [STORES.todos]: todos.value,
   };
   if (standups.added) localWrites[STORES.standupHistory] = standups.value;
+  if (sprintHistory.added) localWrites[STORES.sprintHistory] = sprintHistory.value;
   if (roster.value !== undefined) localWrites[STORES.roster] = roster.value;
   const prefs = [];
   for (const [key, value] of Object.entries(isObject(backup?.preferences) ? backup.preferences : {})) {
@@ -244,6 +270,7 @@ export function planRestore(backup, { local = {}, sync = {} } = {}) {
     added: {
       snapshotDays: snapshots.added,
       freezes: freezes.added,
+      sprintHistory: sprintHistory.added,
       todos: todos.added,
       standups: standups.added,
       members: roster.added,

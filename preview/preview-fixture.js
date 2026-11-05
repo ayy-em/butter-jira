@@ -1107,3 +1107,81 @@ if (params.get("snapshots") !== "off" && !CLOCK_SHIFT_DAYS) {
     }),
   };
 }
+
+// ── Per-sprint history, so the velocity card has a trend ────────────────────
+//
+// Five closed sprints sealed as the real rollover would seal them, one of them
+// read only mid-week before it closed (drawn lighter) and one from before
+// GitHub sync was on (no lines in the drawer). The sixth, the sprint just
+// before this one, is left as a stored snapshot only, so the load seeds and
+// seals it through the real code path. ?sprinthistory=off leaves all of it
+// out — the "nothing recorded yet" state, with the running sprint alone.
+if (params.get("sprinthistory") !== "off" && !CLOCK_SHIFT_DAYS) {
+  const pad = (n) => String(n).padStart(2, "0");
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const rows = {};
+  const FIGURES = [
+    [34, 31, 22, 19, 9, 11, 8, 3400, false, false],
+    [36, 29, 24, 18, 7, 9, 10, 2900, true, false],
+    [30, 30, 20, 20, 10, 12, 9, 4100, false, false],
+    [38, 33, 25, 21, 8, 10, 12, 3800, false, false],
+    [35, 32, 23, 21, 11, 13, 10, 5200, false, false],
+  ];
+  FIGURES.forEach(([committed, completed, issues, closed, merged, opened, reviewed, lines, lateRead, noGithub], i) => {
+    const back = FIGURES.length - i + 1; // two sprints back and earlier
+    const start = new Date(daysAgo(9 + 14 * back));
+    const end = new Date(daysAgo(9 + 14 * back - 11));
+    const key = `h${i + 1}`;
+    rows[key] = {
+      key,
+      sprintIds: [key],
+      name: `Sprint ${41 - back}`,
+      start: iso(start),
+      end: iso(end),
+      lastReading: iso(lateRead ? new Date(end.getTime() - 3 * 86400000) : end),
+      final: true,
+      issues,
+      issuesClosed: closed,
+      pointsCommitted: committed,
+      pointsTotal: committed + 2,
+      pointsCompleted: completed,
+      github: noGithub || i === 0
+        ? null
+        : { prsOpened: opened, prsMerged: merged, prsReviewed: reviewed, additions: Math.round(lines * 0.7), deletions: Math.round(lines * 0.3) },
+      partial: { jira: lateRead, github: false },
+    };
+  });
+  local.sprintHistory = { rows, clearedOn: null };
+
+  const prevStart = new Date(daysAgo(23));
+  const prevEnd = new Date(daysAgo(10));
+  local.sprintSnapshots = {
+    ...(local.sprintSnapshots || {}),
+    "40": [
+      { date: iso(prevStart), totalPoints: 33, openPoints: 33, donePoints: 0, issueCount: 21, doneIssues: 0, blocked: 0, byPerson: {} },
+      { date: iso(prevEnd), totalPoints: 35, openPoints: 6, donePoints: 29, issueCount: 22, doneIssues: 18, blocked: 1, byPerson: {} },
+    ],
+  };
+  // Its freeze, which is where a seeded row's name, dates and commitment come
+  // from. Rows are unassigned, so they survive the roster scoping.
+  local.sprintFreezes = {
+    ...(local.sprintFreezes || {}),
+    "40": {
+      takenAt: prevStart.toISOString(),
+      takenOn: iso(prevStart),
+      sprintNames: ["Sprint 40"],
+      sprintIds: ["40"],
+      windowStart: iso(prevStart),
+      windowEnd: iso(prevEnd),
+      dayOfSprint: 1,
+      atStart: true,
+      issueCount: 3,
+      totalPoints: 33,
+      rows: [
+        { key: "PREV-1", points: 13, assignee: null },
+        { key: "PREV-2", points: 12, assignee: null },
+        { key: "PREV-3", points: 8, assignee: null },
+      ],
+    },
+  };
+}

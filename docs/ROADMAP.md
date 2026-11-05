@@ -15,7 +15,8 @@ commit that shipped it (`git log --grep "M15"`). M21, the planner's polish, was
 removed on 2026-10-01 the same way (`git log --grep "M21"`), and M23, sprint
 planning as a process, on 2026-10-16 (`git log --grep "M23"`); its three open
 questions moved to Open questions below. M22, the 1:1 screen improvements, was
-removed on 2026-11-05 (`git log --grep "M22"`). Shipped milestone labels still appear in
+removed on 2026-11-05 (`git log --grep "M22"`), and M17, per-sprint history, the
+same day (`git log --grep "M17"`). Shipped milestone labels still appear in
 code comments and commit subjects, so they are indexed at the bottom.
 
 ## Current state
@@ -28,10 +29,10 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE), the sprint planner's reviewed push (sprint moves in and out, assignee, story points), and the planning flow's sprint create, complete and start. Nothing else writes |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist. Feeds the standup, dashboard, recap, quarterly overview and each issue's Development section |
 | Permissions | `storage`, `declarativeNetRequestWithHostAccess` (the opt-in Jira-links redirect), host access to `*.atlassian.net` and `api.github.com`, optional host access for anything else |
-| Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
+| Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, per-sprint history, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
 | Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
 | Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
-| Tests | 30 `scripts/test-*.mjs` suites (2698 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Tests | 31 `scripts/test-*.mjs` suites (2763 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
@@ -42,7 +43,7 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Order of work
 
 ```
-M24 Assisted planning (L, gated) ─▶ M17 Per-sprint history (M) ─▶ M20 1:1 recording (L, gated) ─▶ M25 Planning follow-ups (S–M)
+M24 Assisted planning (L, gated) ─▶ M20 1:1 recording (L, gated) ─▶ M25 Planning follow-ups (S–M)
 ```
 
 The deferred backlog below is scoped but unscheduled, and any item in it can be
@@ -86,7 +87,7 @@ author.
 | Risk | Where | Mitigation |
 |---|---|---|
 | Writes corrupt real sprint data | Sprint planner and planning flow (shipped) | Device-local draft, Jira re-read before the review, one confirmed batch, each failure retried alone up to three times and then reported by name. No write on drag |
-| Request fan-out across boards hits rate limits | Planner (shipped), M17 | Reuse cached aggregates, batch where the API allows (sprint moves already batch 50) |
+| Request fan-out across boards hits rate limits | Planner, sprint history (both shipped) | Reuse cached aggregates, batch where the API allows (sprint moves already batch 50) |
 | Per-person figures read as a performance measure | 1:1, recap, quarterly | Stated framing on every surface. Ranked only in the quarterly overview, at the author's request |
 | A planner that proposes who does what is worker-management AI | M24 | Suggestions change the draft only and are accepted by hand. AI Enablement review (EU AI Act Annex III, GDPR) before the assisted half is built; any LLM only through the approved LiteLLM gateway |
 | Recording a colleague's voice is a different category of data | M20 | Local-only, off by default, per-session start, visible indicator, and an AI Enablement / DPIA review before any code |
@@ -96,52 +97,17 @@ author.
 
 ## Open questions
 
-1. **How much history should the app keep?** Daily snapshots and freezes are
-   capped at eight sprints (`MAX_SPRINTS_KEPT`). That is right for sixty rows a
-   sprint and wrong for M17's one rollup row a sprint, which a trend wants years
-   of. Decide per store, with a visible clear action, as part of M17.
+1. ~~**How much history should the app keep?**~~ **Answered 2026-11-05, with
+   M17:** per store. Daily snapshots and freezes stay at eight sprints
+   (`MAX_SPRINTS_KEPT`); the per-sprint history keeps 104 rows
+   (`MAX_HISTORY_ROWS`, about four years of fortnights), is in the device
+   backup, and is deleted only from Settings → Backup & transfer.
 
 M23's three open questions were answered on 2026-10-16 and became M25.
 
 ---
 
 # Open
-
-## M17 — Per-sprint history
-
-**Size: M** · Depends on the daily snapshots and GitHub sync, both in place.
-
-**One chart, a row per sprint:** issues opened and closed, completion rate, pull
-requests merged and lines reaching the default branch, across the last N
-sprints. **Its slot already exists:** the Team Overview's *Velocity trend*
-card, beside the burndown, holds its place with the running sprint's
-provisional figure and says this milestone fills it — completed points for the
-last six sprints first, the rest of the row as small multiples after. The quarterly
-overview no longer needs it: it now reads GitHub over the quarter's own dates.
-
-- **A rollup record written once per sprint, at rollover**, from the last daily
-  snapshot of the outgoing sprint plus a GitHub window over that sprint's dates.
-  `sprintKey()` already detects the rollover, and the freeze hooks the same
-  moment. A figure not stored when it was available is gone, so history is built
-  forward.
-- **A row holds:** sprint id, name, dates, issues opened and closed, points
-  committed and completed, completion rate, PRs opened, merged and reviewed,
-  additions and deletions, and a per-source `partial` flag, so a row built from
-  a truncated window draws as incomplete rather than as a dip.
-- **Its own retention**, far longer than the eight sprints the daily snapshots
-  keep, set deliberately with a visible clear action (open question 1).
-- **Charting:** five series with two units and one very different magnitude.
-  Small multiples on the `weeklyLines` primitive, not a multi-axis chart.
-
-**Open questions:**
-
-1. ~~**Active sprint on the chart?**~~ **Answered 2026-11-03, with the Team
-   Overview:** in an in-progress style — drawn hollow beside the closed sprints
-   and labelled provisional with its day of the sprint, which is what the
-   placeholder card already promises.
-2. **Sprints or calendar months?** Everything here is per sprint, which matches
-   the app. Months would need events counted by date, as the quarterly overview
-   does.
 
 ## M20 — 1:1 recording and local transcription
 
@@ -360,6 +326,7 @@ in `git show c818893:docs/ROADMAP.md`.
 | M14 | Weekly 1:1 sheet and My todos |
 | M15 | Sprint planner |
 | M16 | Quarterly overview (was "Quarter Wrapped") |
+| M17 | Per-sprint history: a rollup row a sprint, the velocity trend, small multiples, a delete in Settings |
 | M18 | Linked issues |
 | M19 | Tagged releases built by CI |
 | M21 | Sprint planner polish: compact cards, people down the left, Dutch holidays, hours per story point, Split as pt.1 / pt.2 |
