@@ -397,7 +397,8 @@
         <div class="hint" style="margin-top: 18px;">
           <strong>Back up this device.</strong> The config export above moves a
           setup; this keeps what the app has recorded and could not fetch again —
-          the daily snapshots behind every burndown, the sprint freezes, your
+          the daily snapshots behind every burndown, the sprint freezes, the
+          per-sprint history behind the velocity trend, your
           todos, the standup history (who attended each standup and how long
           each person spoke) and your preferences — plus the config. Restore merges a backup
           into this device: anything already here wins, and the file only fills
@@ -420,6 +421,18 @@
         </div>
         <div class="hint" id="backupNote"></div>
         <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+
+        <div class="hint" style="margin-top: 18px;">
+          <strong>Sprint history.</strong> One row per closed sprint — points
+          committed and completed, issues, pull requests and lines — kept for
+          the dashboard's velocity trend. Daily snapshots are pruned to eight
+          sprints; this keeps up to 104, about four years of fortnights, and
+          nothing else removes it. Team totals only, never per person.
+        </div>
+        <div class="hint" id="sprintHistoryNote"></div>
+        <div class="btn-row">
+          <button class="add-board-btn" id="clearSprintHistoryBtn">✕ Delete sprint history</button>
+        </div>
       </div>
     </details>
 

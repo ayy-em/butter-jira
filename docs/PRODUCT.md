@@ -48,8 +48,9 @@ the same way:
 - **History Jira does not keep, recorded locally rather than reconstructed.**
   Daily sprint snapshots power the burndown; a per-issue *sprint freeze* powers
   "what changed underneath the plan" (crept in, pulled out, re-estimated, due
-  date moved, re-assigned, went backwards). Both exist because the API routes to
-  the same answers are a changelog request per issue or an undocumented internal
+  date moved, re-assigned, went backwards); one rollup row a sprint, kept for
+  years, powers the velocity trend. They exist because the API routes to the
+  same answers are a changelog request per issue or an undocumented internal
   endpoint.
 - **Zero infrastructure.** No server, no account, no build step, no runtime
   dependencies. The repo directory *is* the extension.

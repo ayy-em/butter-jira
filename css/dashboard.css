@@ -10,7 +10,9 @@
    review and open steps are the same hue's ramp (and a neutral for "not yet"),
    so done → in review → open reads as one ordered bar. */
 .dash-wrap,
-:root[data-theme="dark"] .dash-wrap {
+.dash-history-drawer,
+:root[data-theme="dark"] .dash-wrap,
+:root[data-theme="dark"] .dash-history-drawer {
   --chart-surface: var(--surface);
   --chart-series-1: #5598e7;      /* 5.89:1 on #161920 */
   --chart-series-review: #184f95;
@@ -19,7 +21,8 @@
   --chart-muted-line: #898781;    /* 4.90:1 on #161920 */
   --chart-grid: #252830;
 }
-:root[data-theme="light"] .dash-wrap {
+:root[data-theme="light"] .dash-wrap,
+:root[data-theme="light"] .dash-history-drawer {
   --chart-series-1: #2a78d6;      /* 4.42:1 on #FFFFFF */
   --chart-series-review: #86b6ef;
   --chart-series-open: rgba(75, 85, 99, 0.3);
@@ -343,18 +346,53 @@
 .dash-charts { display: grid; grid-template-columns: 35fr 30fr 35fr; gap: 12px; }
 .dash-chart-slot { width: 100%; min-height: 210px; }
 
-.dash-velocity-body { display: flex; flex-direction: column; gap: 10px; }
-.dash-velocity-lead { font-size: calc(12px * var(--font-scale)); color: var(--muted); line-height: 1.55; }
-.dash-velocity-now {
+.dash-velocity-foot {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  padding: 12px 14px;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-md);
+  margin-top: 8px;
 }
-.dash-velocity-figure { font-size: calc(30px * var(--font-scale)); font-weight: 600; line-height: 1; }
-.dash-velocity-caption { font-size: calc(11.5px * var(--font-scale)); color: var(--muted); }
+.dash-velocity-foot .dash-note { margin: 0; }
+.dash-velocity-more { flex: none; }
+.chart-combo .chart-hit { cursor: crosshair; }
+
+/* The sprint-history drawer: small multiples, then the table behind them. */
+.dash-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px 20px;
+  margin: 16px 0 20px;
+}
+.dash-history-title {
+  font-size: calc(11px * var(--font-scale));
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 4px;
+}
+.dash-history-scroll { overflow-x: auto; margin-bottom: 12px; }
+.dash-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: calc(11px * var(--font-scale));
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 12px;
+}
+.dash-history-table th,
+.dash-history-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+.dash-history-table th { color: var(--muted); font-weight: 500; }
+.dash-history-table th:first-child,
+.dash-history-table td:first-child,
+.dash-history-table td:last-child { text-align: left; }
+.dash-history-table td:last-child { color: var(--muted); }
+.dash-history-table td:first-child { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
 
 .dash-status-body { display: flex; align-items: center; gap: 18px; }
 .dash-status-body .chart-donut { flex: none; }

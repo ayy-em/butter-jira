@@ -47,16 +47,21 @@ if (wanted) {
 
 // ?open=blocked opens that checklist row's filtered list, once its source has
 // landed — the drawer is the other half of every count on the screen.
+// ?open=history opens the sprint-history drawer. ?sprinthistory=off (in the
+// fixture) starts with nothing recorded.
 const openId = params.get("open");
 if (openId) {
   const labels = {
     overdue: "Overdue", blocked: "Blocked for", prs: "PRs awaiting", unestimated: "Unestimated",
     unassigned: "without an assignee", added: "Scope added", deps: "Dependencies",
   };
+  // ?open=history is the velocity card's "All figures" drawer instead.
   const find = () =>
-    [...document.querySelectorAll(".dash-attention .dash-check")].find((b) =>
-      b.textContent.includes(labels[openId] || openId)
-    );
+    openId === "history"
+      ? document.querySelector(".dash-velocity-more")
+      : [...document.querySelectorAll(".dash-attention .dash-check")].find((b) =>
+          b.textContent.includes(labels[openId] || openId)
+        );
   const tryOpen = () => {
     const btn = find();
     if (btn && !btn.disabled) { btn.click(); return true; }
