@@ -159,6 +159,16 @@ in it dragged the bar. The expand caret sits level with its bar and has a
 proper click target. The hidden tooltip no longer blocks clicks on whatever is
 under it. The today line now shows on charts that fit their box.
 
+**Sprint planning: one entry, epic due dates, and the flow's freeze on the
+dashboard.** The sidebar's two planning entries are now one, **Sprint planning**
+(and the `p` key), which asks whether to use the **Step-by-step planning
+wizard** or the **Legacy manual flow**; each keeps its own draft. In the wizard,
+**Propose due dates** also lists the epics the plan touches, each with the
+latest due date among its open children; an epic's date is written with the
+push only if you use it. With several boards, the dashboard now builds its
+sprint freeze from the wizard's start-of-sprint freeze and the other boards'
+sprints, instead of taking a new one when it first loads.
+
 **Lunch reminder.** Every day except Friday, a standup opens with a
 three-second screen that fades in and out with a lunch reminder ("Don't forget
 to buy your lunch, people!" or one of a few variations). Then the usual

@@ -388,7 +388,7 @@ that loses them loses them.
 
 Needs an upcoming sprint created in Jira on at least one board.
 
-- [ ] `LAUNCH → Sprint planner`, and the `p` key, both open the setup screen
+- [ ] `LAUNCH → Sprint planning`, and the `p` key, open the chooser; **Legacy manual flow** opens the setup screen, and the sidebar entry stays lit
 - [ ] A first visit ticks every board with an upcoming sprint and everyone on the roster; dates come from the target sprint, and a Monday-to-Monday sprint suggests 10 working days, not 11
 - [ ] A new draft starts at 20%: 10 days shows 8 pt per person; lowering one person's days to 7 shows 5.6 for them only
 - [ ] Override days for three people in a row, then reload → all three are kept
@@ -418,13 +418,15 @@ Needs an upcoming sprint created in Jira on at least one board.
 
 Use a board where closing and starting a sprint is safe to try.
 
-- [ ] `LAUNCH → Sprint planning (new)` opens Set up; the planner's draft is untouched
+- [ ] `LAUNCH → Sprint planning → Step-by-step planning wizard` opens Set up; the planner's draft is untouched
 - [ ] Pick a board: its active sprint is named as outgoing; "Create a new sprint…" suggests the next name; **Create in Jira** makes it (check in Jira) and selects it; Next stays disabled until it exists
 - [ ] Wrap up: every open issue defaults to Backlog; Carry asks for an assignee or estimate if missing; Split proposes points from time under way, and a part two with no points stays listed under "Added this session"
 - [ ] Plan: **+ New issue** creates in Jira and lands in the plan; **Propose due dates** shows a date per issue, oldest first per person; **Use all** marks them for the push
+- [ ] Under the plan, the epic list shows each touched epic with the latest open child's date; **Use** on one appears in Review & start as a due-date write on the epic, and Jira shows it after the push
 - [ ] Next to Review & start opens the recap of the outgoing sprint in a new tab
 - [ ] **Write, close and start**: Jira shows the moves, the old sprint closed with its uncarried open issues in the backlog, the new sprint active with the planned dates
 - [ ] The dashboard for that sprint shows the freeze as taken at the start
+- [ ] With two boards configured: the dashboard's scope card says exact (or names the other board's freeze date), not a freeze taken today
 - [ ] With another sprint still active on the board (parallel sprints off): the start step fails with Jira's sentence, **Retry** resumes without redoing the earlier steps, and the board link opens Jira
 - [ ] Solo / Group changes the type size on every screen
 

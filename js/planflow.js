@@ -16,8 +16,8 @@
 // The sprint writes — create, complete, start — are the three new kinds of Jira
 // write M23 was settled to add (2026-10-01). Nothing else here is new.
 
-import { isDone, isSubtask } from "./monitor.js";
-import { getStoryPoints, resolveStatusGroup } from "./utils.js";
+import { isDone, isEpic, isSubtask } from "./monitor.js";
+import { getEpicKey, getStoryPoints, resolveStatusGroup } from "./utils.js";
 import { holidaysBetween, round2 } from "./planner.js";
 
 export const FLOW_KEY = "sprintPlanFlow";
@@ -175,6 +175,53 @@ export function proposeDueDates({ issues = [], assigneeOf = (i) => i?.fields?.as
     }
   }
   return out;
+}
+
+// Epics are never in a plan, so the per-issue proposal above never dates one.
+// This proposes a date for every epic the plan touches (settled 2026-10-16):
+// the latest due date among its open children, read through the draft so a
+// child's accepted proposal counts. A separate list, written only if accepted.
+//
+// `planned` decides which epics are listed; `issues` is everything loaded, so
+// a child left in the backlog with a later date still pushes the epic's date
+// out. `epics` is key → the epic issue. Done children are left out: an epic's
+// date is when its remaining work lands.
+export function proposeEpicDueDates({ planned = [], issues = [], epics = new Map(), dueOf = (i) => i?.fields?.duedate || null } = {}) {
+  const day = (v) => (v ? String(v).slice(0, 10) : null);
+  const wanted = new Set();
+  for (const issue of planned) {
+    const key = getEpicKey(issue);
+    if (key && epics.get(key) && isEpic(epics.get(key))) wanted.add(key);
+  }
+  const children = new Map([...wanted].map((k) => [k, new Map()]));
+  for (const issue of [...planned, ...issues]) {
+    if (!issue?.key || isSubtask(issue) || isEpic(issue) || isDone(issue)) continue;
+    const list = children.get(getEpicKey(issue));
+    if (list && !list.has(issue.key)) list.set(issue.key, issue);
+  }
+  return [...wanted].sort().map((key) => {
+    const epic = epics.get(key);
+    let proposed = null;
+    let from = null;
+    let undated = 0;
+    for (const child of children.get(key).values()) {
+      const due = day(dueOf(child));
+      if (!due) undated++;
+      else if (!proposed || due > proposed) {
+        proposed = due;
+        from = child.key;
+      }
+    }
+    return {
+      key,
+      summary: epic.fields?.summary || "",
+      current: day(dueOf(epic)),
+      proposed,
+      from,
+      children: children.get(key).size,
+      undated,
+    };
+  });
 }
 
 // ── Review & start ──────────────────────────────────────────────────────────

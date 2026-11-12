@@ -906,9 +906,16 @@ The rules it counts by:
 - **Epics in progress are as they stand today**, even for a past quarter,
   because Jira keeps no record of an epic's past state. The page says so.
 
+### Sprint planning: one entry, two planners
+
+**Launch → Sprint planning**, or press `p`, opens a choice of two: the
+**Step-by-step planning wizard** (the flow below) and the **Legacy manual flow**
+(the sprint planner). Both are kept while the team uses them side by side, and
+each keeps its own draft.
+
 ### Sprint planner
 
-**Launch → Sprint planner**, or press `p`. Plan the next sprint ahead of the
+**Launch → Sprint planning → Legacy manual flow**. Plan the next sprint ahead of the
 planning meeting, review it in the meeting, and push it to Jira in one reviewed
 batch at the end. Nothing is written to Jira while you plan.
 
@@ -994,8 +1001,7 @@ next push.
 
 ### Sprint planning (the flow)
 
-**Launch → Sprint planning (new)**, beside the planner while the two are
-compared. The planning ritual as four screens, one board per session, with the
+**Launch → Sprint planning → Step-by-step planning wizard**. The planning ritual as four screens, one board per session, with the
 sprint writes Jira's own screens used to do:
 
 1. **Set up.** The board; the new sprint, picked from its upcoming ones or
@@ -1011,11 +1017,16 @@ sprint writes Jira's own screens used to do:
    (title, type, parent, description, assignee, points: created in Jira at once
    and put in the plan) and **Propose due dates**: each person's issues, oldest
    first, laid end to end over the sprint's working days, used one at a time or
-   all at once and written with the rest.
+   all at once and written with the rest. Under the plan, a separate list
+   proposes a due date for each epic the plan touches: the latest due date
+   among its open children, the backlog's included and any child date you
+   accepted counted. An epic's date is written only if you use it.
 4. **Review & start.** The outgoing sprint's recap opens in a new tab on the
    way in, so it reads the sprint as it ended. Then one confirm writes the plan,
    completes the outgoing sprint (open issues not carried go to the backlog),
-   starts the new one with the planned dates, and takes its sprint freeze. Each
+   starts the new one with the planned dates, and takes its sprint freeze. With
+   several boards, the dashboard builds its freeze from this one plus the other
+   boards' sprints, so it shows the flow's start-of-sprint record. Each
    step runs only if the one before it worked. When Jira refuses one, the screen
    says which, with Jira's reason, a **Retry** that resumes after what is done,
    and a link to the board in Jira.
@@ -1428,7 +1439,7 @@ the product logo stands alone.
 | `d` | Sprint dashboard |
 | `1` | 1:1 |
 | `t` | My todos |
-| `p` | Sprint planner |
+| `p` | Sprint planning (choose the wizard or the planner) |
 | `n` | Quick note (opens over any view) |
 | `Esc` | Close the issue drawer or the quick note |
 
@@ -1698,7 +1709,7 @@ node scripts/test-team.mjs         # roster, display names, filtering (138 check
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
 node scripts/test-standup.mjs      # session timing, order, pressure (183 checks)
-node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (232 checks)
+node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (251 checks)
 node scripts/test-overview.mjs     # team overview, checklist, donut     (82 checks)
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (126 checks)
 node scripts/test-quarter.mjs      # quarter weeks, score, ranking     (54 checks)
@@ -1717,7 +1728,7 @@ node scripts/test-drawer.mjs       # the drawer's focus layer           (24 chec
 node scripts/test-release.mjs      # version rewriting, licence, notes   (41 checks)
 node scripts/test-oneone.mjs       # 1:1 windows, notes, todos, JQL    (153 checks)
 node scripts/test-planner.mjs      # capacity, holidays, push, split (105 checks)
-node scripts/test-planflow.mjs     # flow: split from time, due dates, run (38 checks)
+node scripts/test-planflow.mjs     # flow: split from time, due dates, epic dates, run (48 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it. Harnesses

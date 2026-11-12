@@ -157,7 +157,9 @@ the author scoped it: capacity in story points (one per working day, less a
 buffer), days off typed per person, nothing unassigned or unestimated in a plan,
 and sprints created, started and closed in Jira. Doing any of those three from
 the app is a new kind of write, and M23 (settled 2026-10-01) does all three
-from a four-screen planning flow. M24 holds assisted planning, gated on an AI
+from a four-screen planning flow. Since M25 (2026-11-12) both are reached from
+one Sprint planning entry; whether the flow replaces the planner is revisited
+after the team has used both. M24 holds assisted planning, gated on an AI
 Enablement review because it proposes who does what. M20 (recording a 1:1 on the device) stays
 gated on a local-engine question and an AI Enablement / DPIA review, since
 recording a named colleague is worker-management-shaped under the EU AI Act's

@@ -121,6 +121,53 @@ check("the draft's estimates move the dates", viaDraft.get("D-1").due === "2026-
 const ascension = F.proposeDueDates({ issues: [issue("H-1", { sp: 4, who: "amy" })], start: "2026-05-11", end: "2026-05-22", calendar: "nl" });
 check("holidays are skipped (Ascension Day, Thursday 14 May 2026)", ascension.get("H-1").due === "2026-05-15");
 
+section("Epic due dates");
+{
+  const child = (key, epic, { due = null, ...o } = {}) => {
+    const i = issue(key, o);
+    i.fields.parent = { key: epic, fields: { issuetype: { name: "Epic" } } };
+    if (due) i.fields.duedate = due;
+    return i;
+  };
+  const epic = (key, due = null) => ({ key, fields: { summary: `Epic ${key}`, issuetype: { name: "Epic" }, ...(due ? { duedate: due } : {}) } });
+  const epics = new Map([["E-1", epic("E-1", "2026-10-01")], ["E-2", epic("E-2")], ["E-3", epic("E-3")]]);
+  const planned = [
+    child("C-1", "E-1", { due: "2026-10-08" }),
+    child("C-2", "E-1", { due: "2026-10-14" }),
+    child("C-3", "E-2"),
+    issue("C-4"),
+  ];
+  const backlog = [
+    child("C-5", "E-1", { due: "2026-10-30" }),
+    child("C-6", "E-1", { due: "2026-12-01", status: "Done", cat: "done" }),
+    child("C-7", "E-3", { due: "2026-11-11" }),
+  ];
+  const out = F.proposeEpicDueDates({ planned, issues: backlog, epics });
+  const e1 = out.find((r) => r.key === "E-1");
+  check("only epics the plan touches are listed", out.map((r) => r.key).join() === "E-1,E-2");
+  check("the latest due date among open children, the backlog's included", e1.proposed === "2026-10-30" && e1.from === "C-5");
+  check("a done child does not push the date out", e1.proposed !== "2026-12-01");
+  check("the epic's own date is reported beside it", e1.current === "2026-10-01");
+  check("counts children and the undated among them", e1.children === 3 && e1.undated === 0);
+  const e2 = out.find((r) => r.key === "E-2");
+  check("no dated child means no proposal, not a guess", e2.proposed === null && e2.undated === 1);
+
+  const draft = P.normalizeDraft({});
+  P.setEdit(draft, planned[2], { dueDate: "2026-10-09" });
+  const viaDraft = F.proposeEpicDueDates({ planned, issues: backlog, epics, dueOf: (i) => P.effective(draft, i).dueDate });
+  check("a child's accepted date counts", viaDraft.find((r) => r.key === "E-2").proposed === "2026-10-09");
+  check("an epic not loaded is not listed", F.proposeEpicDueDates({ planned, issues: [], epics: new Map() }).length === 0);
+
+  // Accepting one is a due-date write on the epic, made with the push.
+  const issues = new Map([...planned, ...backlog, ...epics.values()].map((i) => [i.key, i]));
+  const pd = P.normalizeDraft({});
+  P.setEdit(pd, epics.get("E-1"), { dueDate: e1.proposed });
+  const push = P.buildPushPlan({ draft: pd, issues, inTarget: new Map() });
+  const write = push.fieldWrites.find((w) => w.key === "E-1");
+  check("an accepted epic date is pushed as a due-date write", write?.changes.dueDate === "2026-10-30" && write.from.dueDate === "2026-10-01");
+  check("and nothing else about the epic", Object.keys(write.changes).join() === "dueDate" && push.moves.length === 0 && push.blocked.length === 0);
+}
+
 section("Due dates in the draft and the push");
 const dd = P.normalizeDraft({ edits: { "D-1": { dueDate: "2026-10-05" } } });
 check("a due-date edit survives normalising", dd.edits["D-1"].dueDate === "2026-10-05");

@@ -9,7 +9,8 @@
 // States: ?flow=1 (the planning flow, M23) · ?sprint-start=refuse (Jira
 // refuses the start) · ?theme=light · ?push=fail (moving PLAT-312 is always refused, to see
 // the batch break up, the retries and the report) · ?stage=plan (start on the
-// plan screen with a prepared setup)
+// plan screen with a prepared setup; with ?flow=1, the flow's plan screen on
+// board 1, where Propose due dates also lists the epics)
 import { params } from "./preview-fixture.js";
 
 const DAY = 86400000;
@@ -30,6 +31,8 @@ const PROJECT = { 1: "ACME", 2: "PLAT", 3: "DATA" };
 const CREATED = {};
 const MOVED = {};
 const EPICS = { 1: ["ACME-700", "Importer v2"], 2: ["PLAT-300", "Index cutover"], 3: ["DATA-50", "Pipeline alerts"] };
+// The epics themselves, so the flow's epic due dates (M25) can read them by key.
+const EPIC_DUE = { 1: null, 2: "2026-12-04", 3: null };
 
 const status = (name, key) => ({ name, statusCategory: { key } });
 const TODO = status("To Do", "new");
@@ -61,6 +64,10 @@ function outsider(key) {
   const issue = { id: `o-${key}`, key, fields: { summary: "An issue from a board not being planned", status: TODO, assignee: null, issuetype: { id: "10001", name: "Task", subtask: false }, priority: { name: "Low" }, labels: [], cf_sp: 1 } };
   issues.set(key, issue);
   return issue;
+}
+
+for (const [board, [key, summary]] of Object.entries(EPICS)) {
+  issues.set(key, { id: `e-${key}`, key, fields: { summary, status: TODO, assignee: null, issuetype: { id: "10000", name: "Epic", subtask: false }, priority: { name: "Medium" }, labels: [], duedate: EPIC_DUE[board], parent: null } });
 }
 
 const BACKLOG = {
@@ -203,7 +210,18 @@ globalThis.fetch = async (input, options = {}) => {
 };
 
 const { localSet } = await import("../js/browser.js");
-if (params.get("stage") === "plan") {
+if (params.get("stage") === "plan" && params.get("flow")) {
+  await localSet({
+    sprintPlanFlow: {
+      v: 1, stage: "plan",
+      boards: [{ id: "1", target: "42", sources: ["41"] }],
+      start: iso(nextMonday).slice(0, 10), end: iso(nextMonday + 11 * DAY).slice(0, 10), workingDays: 10, buffer: { mode: "percent", value: 20 },
+      people: [0, 1, 2].map((i) => ({ accountId: `acc-${i}`, name: person(i).displayName, days: null, buffer: null })),
+      added: { "ACME-710": "42", "ACME-714": "42" }, removed: [], edits: {}, baseline: {}, extraKeys: [],
+      flow: { step: "plan", boardId: "1", outgoingSprintId: "41", goal: "", mode: "solo", run: {}, recapOpened: false },
+    },
+  });
+} else if (params.get("stage") === "plan") {
   await localSet({
     sprintPlanner: {
       v: 1, stage: "plan",
@@ -219,3 +237,13 @@ const { getCredentials } = await import("../js/credentials.js");
 // ?flow=1 mounts M23's planning flow instead of the planner.
 const { mount } = await import(params.get("flow") ? "../js/views/planflow.js" : "../js/views/planner.js");
 await mount(document.getElementById("view-container"), await getCredentials());
+
+// ?due=1 presses Propose due dates once the plan screen has painted.
+if (params.get("due")) {
+  const press = () => {
+    const btn = [...document.querySelectorAll("button")].find((b) => b.textContent === "Propose due dates");
+    if (btn) btn.click();
+    else setTimeout(press, 200);
+  };
+  press();
+}

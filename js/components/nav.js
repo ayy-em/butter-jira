@@ -36,10 +36,10 @@ const TABS = [
     items: [
       { hash: "#standup", label: "STANDUP", key: "S", icon: "timer", flair: true, prewarm: prewarmGithub },
       // Sprint planning is the fourth ritual: prepared the day before, reviewed
-      // in the meeting, pushed to Jira at the end of it (M15).
-      { hash: "#planner", label: "SPRINT PLANNER", key: "P", icon: "calendar" },
-      // M23's flow, beside the planner while the two are compared.
-      { hash: "#planflow", label: "SPRINT PLANNING (NEW)", icon: "flag" },
+      // in the meeting, pushed to Jira at the end of it. One entry (M25) that
+      // opens a chooser between the flow (M23) and the planner (M15); it stays
+      // lit inside either of them.
+      { hash: "#planning", label: "SPRINT PLANNING", key: "P", icon: "calendar", also: ["#planner", "#planflow"] },
       { hash: "#oneone", label: "1:1", key: "1", icon: "person" },
       { hash: "#todos", label: "MY TODOS", key: "T", icon: "check" },
       // The screen that builds any recap — active, closed, several sprints,
@@ -303,6 +303,7 @@ function createTabLink(tab) {
   } else {
     link.href = tab.hash;
     link.dataset.hash = tab.hash;
+    if (tab.also) link.dataset.also = tab.also.join(" ");
   }
   link.className = "nav-item mono";
   if (tab.flair) link.classList.add("flair");
@@ -536,7 +537,9 @@ export function routeOf(hash = location.hash) {
 export function updateActiveTab() {
   const hash = routeOf(location.hash || HOME_HASH);
   document.querySelectorAll(".nav-item").forEach((el) => {
-    const active = Boolean(el.dataset.hash) && el.dataset.hash === hash;
+    const active =
+      Boolean(el.dataset.hash) &&
+      (el.dataset.hash === hash || (el.dataset.also || "").split(" ").includes(hash));
     el.classList.toggle("active", active);
     if (active) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");

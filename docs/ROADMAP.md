@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-11-05
+Last updated: 2026-11-12
 
 An MV3 browser extension for Chrome, Firefox and Edge that gives one tab of
 Gantt, Backlog, Kanban, sprint and team views over several Jira Cloud boards.
@@ -16,7 +16,8 @@ removed on 2026-10-01 the same way (`git log --grep "M21"`), and M23, sprint
 planning as a process, on 2026-10-16 (`git log --grep "M23"`); its three open
 questions moved to Open questions below. M22, the 1:1 screen improvements, was
 removed on 2026-11-05 (`git log --grep "M22"`), and M17, per-sprint history, the
-same day (`git log --grep "M17"`). Shipped milestone labels still appear in
+same day (`git log --grep "M17"`). M25, the planning follow-ups, was removed on
+2026-11-12 (`git log --grep "M25"`). Shipped milestone labels still appear in
 code comments and commit subjects, so they are indexed at the bottom.
 
 ## Current state
@@ -24,7 +25,7 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Aspect | Status |
 |---|---|
 | Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
-| Views | Sprint dashboard (Team Overview + Individual view), Gantt, Backlog, Kanban, Monitor, Standup, Sprint planner (setup + plan), Sprint planning flow (set up, wrap up, plan, review and start), 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
+| Views | Sprint dashboard (Team Overview + Individual view), Gantt, Backlog, Kanban, Monitor, Standup, Sprint planning (one entry choosing between the planner and the flow), Sprint planner (setup + plan), Sprint planning flow (set up, wrap up, plan, review and start), 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
 | Documents | Sprint recap PDF (active, last closed, or any chosen sprints) and quarterly overview PDF, both print-styled pages of their own |
 | Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE), the sprint planner's reviewed push (sprint moves in and out, assignee, story points), and the planning flow's sprint create, complete and start. Nothing else writes |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist. Feeds the standup, dashboard, recap, quarterly overview and each issue's Development section |
@@ -32,7 +33,7 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, per-sprint history, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
 | Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
 | Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
-| Tests | 31 `scripts/test-*.mjs` suites (2763 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Tests | 31 `scripts/test-*.mjs` suites (2808 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
@@ -43,8 +44,12 @@ sustained chunk of work, **XL** ≈ needs breaking down further once started.
 ## Order of work
 
 ```
-M24 Assisted planning (L, gated) ─▶ M20 1:1 recording (L, gated) ─▶ M25 Planning follow-ups (S–M)
+M24 Assisted planning (L, gated) ─▶ M20 1:1 recording (L, gated)
 ```
+
+Both are gated on an AI Enablement review, so nothing in the queue can be built
+until one of those reviews comes back. Until then, take work from the deferred
+backlog.
 
 The deferred backlog below is scoped but unscheduled, and any item in it can be
 taken in a gap. New milestones take the next free number and join the queue at
@@ -103,7 +108,8 @@ author.
    (`MAX_HISTORY_ROWS`, about four years of fortnights), is in the device
    backup, and is deleted only from Settings → Backup & transfer.
 
-M23's three open questions were answered on 2026-10-16 and became M25.
+M23's three open questions were answered on 2026-10-16 and became M25, which
+shipped on 2026-11-12.
 
 ---
 
@@ -194,33 +200,6 @@ The author's ideas, 2026-10-01:
    the part Annex III is about, and the one to ask about first.
 4. **"Next items from in-progress epics": next by what?** Backlog rank, epic
    priority, due date, or how close the epic is to done?
-
-## M25 — Planning follow-ups
-
-**Size: S–M, as a set.** Follows M23, which left three open questions. The
-author answered them on 2026-10-16; execution is picked up later.
-
-### Settled 2026-10-16
-
-- [ ] **The dashboard reads per-sprint freezes.** The planning flow takes its
-      freeze keyed by the one sprint it started. With several boards, the
-      dashboard looks for a freeze keyed by all active sprints together and
-      takes its own when it finds none. **Answer: yes.** The dashboard should
-      also read per-sprint freezes, so the flow's start-of-sprint snapshot is
-      the one it shows.
-- [ ] **Due dates for epics.** Epics are never in a plan, so the flow proposes
-      no date for them today. **Answer: yes.** Propose an epic's due date as a
-      separate list, **defaulting to the latest due date among its
-      children**, and write it only if accepted (a due-date write, a kind the
-      app already makes).
-- [ ] **One entry point for both planners.** **Answer: keep both, for now.**
-      Sprint planning gets one launch entry, which opens a selection screen
-      with two buttons:
-      - **"Step-by-step planning wizard"** opens the M23 flow (`#planflow`).
-      - **"Legacy manual flow"** opens the sprint planner (`#planner`).
-
-      The two separate launch entries go away. Whether the flow replaces the
-      planner is revisited after the team has used both.
 
 ---
 
@@ -332,3 +311,4 @@ in `git show c818893:docs/ROADMAP.md`.
 | M21 | Sprint planner polish: compact cards, people down the left, Dutch holidays, hours per story point, Split as pt.1 / pt.2 |
 | M22 | 1:1 screen improvements: one weekly activity chart, keys coloured by type, the Copy for Slack fallback |
 | M23 | Sprint planning as a process: a four-screen flow with sprint create, close and start |
+| M25 | Planning follow-ups: the dashboard reads per-sprint freezes, epic due dates in the flow, one Sprint planning entry |

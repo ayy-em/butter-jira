@@ -27,6 +27,7 @@ import {
 import {
   departedKeys,
   diffFreeze,
+  composeFreeze,
   freezeFrom,
   loadAllFreezes,
   loadFreeze,
@@ -222,9 +223,21 @@ export async function mount(container, creds) {
   // Stored over *every* issue in the sprint, whoever holds it, and scoped to
   // the team only on read — so a roster change later never rewrites a record
   // that cannot be re-taken.
+  //
+  // With several boards the key covers every active sprint together, while the
+  // planning flow keys its start-of-sprint freeze by the one sprint it started.
+  // When there is nothing under the combined key, it is put together from the
+  // per-sprint freezes first (M25), and only taken whole when there are none.
   let storedFreeze = sprints.length ? await loadFreeze(key) : null;
   if (live && sprints.length && !storedFreeze) {
-    storedFreeze = freezeFrom({ issues: allIssues, sprints, statusGroups });
+    const composed = composeFreeze({
+      sprints,
+      stored: await loadAllFreezes(),
+      issues: allIssues,
+      statusGroups,
+      now,
+    });
+    storedFreeze = composed?.freeze || freezeFrom({ issues: allIssues, sprints, statusGroups });
     await recordFreeze(key, storedFreeze);
   }
 

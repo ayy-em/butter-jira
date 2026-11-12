@@ -582,6 +582,27 @@ select.pl-input { max-width: 100%; }
   padding: 6px 10px;
   font-size: calc(12px * var(--font-scale));
 }
+/* The flow's epic due dates (M25): a list of its own under the plan. */
+.pl-epic-due-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pl-epic-due {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: calc(12px * var(--font-scale));
+}
+.pl-epic-due.edited { border-color: var(--accent-primary); }
+.pl-epic-due-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pl-epic-due-text .pl-card-summary { -webkit-line-clamp: 1; }
+.pl-epic-due-detail { color: var(--muted); font-size: calc(11px * var(--font-scale)); }
 .pl-removed .pl-card-summary { color: var(--muted); text-decoration: line-through; -webkit-line-clamp: 1; }
 
 /* ── Dialogs ────────────────────────────────────────────────────────────── */
@@ -736,3 +757,33 @@ select.pl-input { max-width: 100%; }
 .btn.pl-due-proposal { color: var(--accent-primary); }
 .pl-col-head .btn.active { color: var(--text); border-color: var(--text); }
 .pl-mode-group .pl-body { grid-template-columns: 250px minmax(0, 1fr); }
+
+/* ── Launch → Sprint planning: the chooser (M25) ─────────────────────────── */
+.planning-choice-wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 24px 40px;
+}
+.planning-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+.planning-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  transition: border-color 0.15s ease;
+}
+.planning-choice:hover { border-color: var(--accent-primary); }
+.planning-choice:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.planning-choice-icon { color: var(--accent-primary); display: inline-flex; }
+.planning-choice-title { font-size: 16px; font-weight: 600; }
+.planning-choice-body { font-size: 13px; line-height: 1.5; color: var(--muted); }
