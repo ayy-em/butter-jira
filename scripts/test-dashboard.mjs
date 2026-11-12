@@ -652,6 +652,75 @@ check("pruned to the same depth as snapshots, from the same constant",
 check("the most recent freeze is kept", Boolean(freezes["sprint-11"]));
 check("the oldest is dropped", !freezes["sprint-0"]);
 
+section("per-sprint freezes (M25)");
+{
+  // Two boards: board 1 runs sprint 10 (started 08-03), board 2's sprint 57 was
+  // started by the planning flow on 08-10 and frozen by it under "57" alone.
+  const A = { id: 10, name: "ABC 42", state: "active", startDate: "2026-08-03", endDate: "2026-08-14" };
+  const B = { id: 57, name: "DEF 7", state: "active", startDate: "2026-08-10", endDate: "2026-08-21" };
+  const inA = (o) => issue({ ...o, board: 1, sprint: [{ id: 10, name: "ABC 42", state: "active" }] });
+  const inB = (o) => issue({ ...o, board: 2, sprint: [{ id: 57, name: "DEF 7", state: "active" }] });
+  const aIssues = [inA({ key: "ABC-501", points: 3 }), inA({ key: "ABC-502", points: 2 })];
+  const bIssues = [inB({ key: "DEF-1", points: 5 }), inB({ key: "DEF-2", points: 1 })];
+  const flowFreeze = frz.freezeFrom({
+    issues: bIssues, sprints: [B], statusGroups: GROUPS, now: new Date("2026-08-10T09:00:00Z"),
+  });
+  check("the flow's freeze is a start-of-sprint one", flowFreeze.atStart === true);
+
+  check("one sprint: nothing to compose, the key is already per-sprint",
+    frz.composeFreeze({ sprints: [B], stored: { 57: flowFreeze } }) === null);
+  check("no per-sprint freeze at all: null, the dashboard takes its own as before",
+    frz.composeFreeze({ sprints: [A, B], stored: {}, issues: [...aIssues, ...bIssues] }) === null);
+
+  // Sprint 10 also has one of its own, from the start.
+  const aFreeze = frz.freezeFrom({
+    issues: aIssues, sprints: [A], statusGroups: GROUPS, now: new Date("2026-08-03T09:00:00Z"),
+  });
+  const both = frz.composeFreeze({
+    sprints: [A, B], stored: { 10: aFreeze, 57: flowFreeze }, issues: [...aIssues, ...bIssues],
+  });
+  check("both sprints frozen: composed, nothing taken", both.taken.length === 0);
+  check("it holds every row of both", both.freeze.rows.length === 4 && both.freeze.totalPoints === 11);
+  check("and is exact when every part was taken at its sprint's start", both.freeze.atStart === true);
+  check("names both sprints", both.freeze.sprintIds.join(",") === "10,57");
+  check("it is as late as its latest part", both.freeze.takenOn === "2026-08-10");
+  check("the diff against it sees nothing changed",
+    frz.diffFreeze({ freeze: both.freeze, issues: [...aIssues, ...bIssues], sprints: [A, B], statusGroups: GROUPS }).counts.unchanged === 4);
+
+  // Sprint 10 has none of its own and no older record: its part is taken now.
+  const now = new Date("2026-08-11T09:00:00Z");
+  const half = frz.composeFreeze({
+    sprints: [A, B], stored: { 57: flowFreeze }, issues: [...aIssues, ...bIssues], statusGroups: GROUPS, now,
+  });
+  check("a sprint without a freeze gets one taken for it", half.taken.join(",") === "10");
+  check("from its own issues only", half.freeze.rows.length === 4);
+  check("the flow's part is kept as it was",
+    half.freeze.composedFrom.some((p) => p.sprintIds.join() === "57" && p.takenOn === "2026-08-10"));
+  check("a part taken mid-sprint makes the whole not exact", half.freeze.atStart === false);
+  check("the recap never takes one", frz.composeFreeze({
+    sprints: [A, B], stored: { 57: flowFreeze }, issues: [...aIssues, ...bIssues], take: false,
+  }) === null);
+
+  // Board 2 rolled over: the old combined freeze "10+56" still holds sprint 10's
+  // rows from its start, and those are read back rather than re-taken.
+  const old56 = { id: 56, name: "DEF 6", state: "active", startDate: "2026-07-27", endDate: "2026-08-07" };
+  const oldCombined = frz.freezeFrom({
+    issues: [...aIssues, inB({ key: "DEF-0", points: 8, sprint: undefined })].map((i) =>
+      i.key === "DEF-0" ? { ...i, fields: { ...i.fields, cf_sprint: [{ id: 56, name: "DEF 6", state: "active" }] } } : i),
+    sprints: [A, old56], statusGroups: GROUPS, now: new Date("2026-08-03T09:00:00Z"),
+  });
+  const rolled = frz.composeFreeze({
+    sprints: [A, B], stored: { "10+56": oldCombined, 57: flowFreeze }, issues: [...aIssues, ...bIssues], now,
+  });
+  check("a sprint still running is read from the older combined freeze", rolled.taken.length === 0);
+  check("only its own rows come across", rolled.freeze.rows.map((r) => r.key).sort().join(",") === "ABC-501,ABC-502,DEF-1,DEF-2");
+  check("and keeps that record's date", rolled.freeze.composedFrom.some((p) => p.sprintIds.join() === "10" && p.takenOn === "2026-08-03"));
+
+  const dup = frz.mergeFreezes([aFreeze, aFreeze], [A]);
+  check("an issue in two parts is counted once", dup.rows.length === 2 && dup.totalPoints === 5);
+  check("nothing to merge is null", frz.mergeFreezes([], [A]) === null);
+}
+
 section("what a freeze costs on the device");
 // The roadmap's risk register calls per-issue rows for eight sprints the largest
 // thing this extension keeps, so it is measured rather than assumed. A realistic

@@ -34,7 +34,7 @@ import { loadTeam, teamScope } from "./team.js";
 import { BOARDS, compactNum, fmtDate, loadBoards, loadStatusGroups } from "./utils.js";
 import { summarize } from "./dashboard.js";
 import { buildRecap } from "./recap.js";
-import { departedKeys, loadFreeze } from "./freeze.js";
+import { composeFreeze, departedKeys, loadAllFreezes, loadFreeze } from "./freeze.js";
 import { sprintKey } from "./snapshots.js";
 import {
   FALLBACK_SPRINT_DAYS,
@@ -230,7 +230,15 @@ async function init() {
   // opening the recap on a sprint the dashboard has never seen would otherwise
   // freeze it mid-sprint and then print "nothing has changed". The dashboard
   // takes it; this reads whatever is there, and says so when there is nothing.
-  const storedFreeze = sprints.length ? await loadFreeze(sprintKey(sprints)).catch(() => null) : null;
+  //
+  // Several sprints with no freeze under their combined key can still be read
+  // from per-sprint ones (the planning flow's), as long as every sprint has one:
+  // a missing part would have to be taken, and this never takes.
+  let storedFreeze = sprints.length ? await loadFreeze(sprintKey(sprints)).catch(() => null) : null;
+  if (!storedFreeze && sprints.length > 1) {
+    const stored = await loadAllFreezes().catch(() => ({}));
+    storedFreeze = composeFreeze({ sprints, stored, take: false })?.freeze || null;
+  }
 
   // The team's sprint only — issues held by roster members, plus unassigned —
   // and the freeze scoped the same way. See `teamScope` in js/team.js.

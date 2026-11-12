@@ -98,8 +98,8 @@ check("gecko id present — storage.sync silently does nothing without one",
   firefox.browser_specific_settings.gecko.id.includes("@"));
 check("a minimum version is declared",
   /^\d+\.\d+$/.test(firefox.browser_specific_settings.gecko.strict_min_version || ""));
-check("minimum is at least 115 (MV3 + optional_host_permissions)",
-  parseInt(firefox.browser_specific_settings.gecko.strict_min_version, 10) >= 115);
+check("minimum is at least 128 — optional_host_permissions arrived in Firefox 128",
+  parseInt(firefox.browser_specific_settings.gecko.strict_min_version, 10) >= 128);
 check("no minimum_chrome_version", firefox.minimum_chrome_version === undefined);
 
 section("edge");

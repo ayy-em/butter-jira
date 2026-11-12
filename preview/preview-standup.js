@@ -18,6 +18,10 @@ const NAMES = [
 // ?theme=light · ?select=nobody · ?roster=empty · ?github=off · ?resume=1 ·
 // ?start=1 · ?done=1 · ?sprint=undated · ?github=slow · ?github=stuck ·
 // ?github=partial · ?ghhover=1 · ?ghcase=nologin · ?ghcase=idle · ?refetch=1
+// ?showcase=1 (full names, realistic invented tickets with points and due dates,
+// some overdue) · ?speaking=1 (straight onto Avery's turn, two thirds through it)
+// · ?avatar=<url> (that picture on Avery; given at screenshot time, so no
+// photograph is ever committed)
 //
 // The three GitHub states the seeded caches cannot reach on their own. Both
 // caches are warm here, so the fetch normally settles before the first paint
@@ -28,6 +32,38 @@ const NAMES = [
 // repos it could not read and one it had to cut short.
 const params = new URLSearchParams(location.search);
 document.documentElement.dataset.theme = params.get("theme") || "dark";
+const SHOWCASE = params.get("showcase") === "1";
+// The first name, so ?showcase=1's full names still make a login without a space.
+const loginOf = (p) => p[0].split(" ")[0].toLowerCase();
+if (SHOWCASE) {
+  const SURNAMES = ["Quinn", "Ferreira", "Nakamura", "Okonjo", "Vance", "Salib", "Moreau", "Ito", "Lindqvist"];
+  NAMES.forEach((p, i) => { p[0] = `${p[0]} ${SURNAMES[i]}`; });
+}
+const SHOWCASE_TITLES = [
+  "Retry failed webhook deliveries with backoff", "Paginate the audit log export",
+  "Cache the settings page's board list", "Add CSV export to the usage report",
+  "Fix timezone drift in the nightly job", "Dark mode for the onboarding flow",
+  "Rate-limit the public search endpoint", "Migrate image uploads to signed URLs",
+  "Alert when the queue backs up", "Remove the legacy v1 importer",
+  "Keyboard shortcuts for the editor", "Speed up the dashboard's first paint",
+  "Health check for the billing worker", "Archive projects older than two years",
+  "Bulk-assign from the issue list", "Validate email domains on invite",
+  "Flaky test in the checkout suite", "Document the deploy rollback steps",
+];
+const PR_TITLES = [
+  "Exponential backoff for webhook retries", "Stream the audit export in pages",
+  "Memoise the board list on settings", "CSV writer for the usage report",
+  "Pin the nightly job to UTC", "Onboarding: dark theme tokens",
+  "Token-bucket limiter on /search", "Signed upload URLs behind a flag",
+  "Queue depth alert and runbook link", "Delete the v1 importer and its tests",
+  "Editor: shortcut map and help overlay", "Defer chart rendering below the fold",
+  "Billing worker /healthz", "Archive job for stale projects",
+];
+const prTitle = (n) => PR_TITLES[n % PR_TITLES.length];
+const dayOffset = (n) => {
+  const d = new Date(Date.now() + n * 86400000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
 // Nine days in, which is where a two-week sprint usually is when someone stops
@@ -166,7 +202,13 @@ function issuesFor(person, index, count) {
       key: `ACME-${100 + index * 20 + i}`,
       boardId: 1,
       fields: {
-        summary: `Work item ${i + 1} for ${person[0]}`,
+        summary: SHOWCASE
+          ? SHOWCASE_TITLES[(index * 5 + i) % SHOWCASE_TITLES.length]
+          : `Work item ${i + 1} for ${person[0]}`,
+        // ?showcase=1: points on everything, and a due date on every other open
+        // ticket — one in four of them already past it.
+        ...(SHOWCASE ? { cf_sp: [1, 2, 3, 5, 8][(index + i) % 5] } : {}),
+        ...(SHOWCASE && s[1] !== "done" && i % 2 === 1 ? { duedate: dayOffset(i % 4 === 1 ? -2 : 4) } : {}),
         status: blocked
           ? { name: "Blocked", statusCategory: { key: "indeterminate" } }
           : { name: s[0], statusCategory: { key: s[1] } },
@@ -240,6 +282,7 @@ const { loadConfig, saveConfig, CONFIG } = await import("../js/config.js");
 await saveConfig({
   site: { baseUrl: "https://example.atlassian.net", wikiPath: "/wiki" },
   boards: [{ id: 1, name: "ACME", projectKey: "ACME", color: "#4F8EF7" }],
+  ...(SHOWCASE ? { fields: { storyPoints: ["cf_sp"] } } : {}),
   github: params.get("github") === "off"
     ? { enabled: false, host: "github.com", org: "", repos: [] }
     : { enabled: true, host: "github.com", org: "example", repos: ["example/alpha", "example/beta"] },
@@ -262,9 +305,9 @@ TEAMS.teams = [{
     nameOverride: "",
     email: "",
     active: true,
-    githubLogin: ghCase === "nologin" ? "" : p[0].toLowerCase(),
+    githubLogin: ghCase === "nologin" ? "" : loginOf(p),
     slackHandle: "",
-    avatarUrl: "",
+    avatarUrl: params.get("avatar") && i === 0 ? params.get("avatar") : "",
   })),
 }];
 await saveTeam(TEAMS);
@@ -281,9 +324,9 @@ local[activityCacheKey(CONFIG)] = {
       Array.from({ length: p[2] }, (_, n) => ({
         repo: "example/alpha",
         number: 100 + i * 10 + n,
-        title: `Change ${n + 1} from ${p[0]}`,
+        title: SHOWCASE ? prTitle(i * 3 + n) : `Change ${n + 1} from ${p[0]}`,
         url: "#",
-        author: p[0].toLowerCase(),
+        author: loginOf(p),
         state: "waiting-review",
         reviewers: [],
         teamReviewers: [],
@@ -297,9 +340,9 @@ local[activityCacheKey(CONFIG)] = {
     drafts: NAMES.flatMap((p, i) => i % 2 ? [{
       repo: "example/beta",
       number: 300 + i,
-      title: `Draft from ${p[0]}`,
+      title: SHOWCASE ? prTitle(i * 3 + 7) : `Draft from ${p[0]}`,
       url: "#",
-      author: p[0].toLowerCase(),
+      author: loginOf(p),
       state: "draft",
       reviewers: [],
       teamReviewers: [],
@@ -327,15 +370,15 @@ const windowPrs = [];
 const windowReviews = [];
 const windowComments = [];
 NAMES.forEach((p, i) => {
-  const login = p[0].toLowerCase();
-  const target = NAMES[(i + 1) % NAMES.length][0].toLowerCase();
+  const login = loginOf(p);
+  const target = loginOf(NAMES[(i + 1) % NAMES.length]);
 
   for (let n = 0; n < 1 + ((i * 2) % 4) + p[2]; n++) {
     const merged = n % 2 === 0;
     windowPrs.push({
       repo: n % 2 ? "example/alpha" : "example/beta",
       number: 500 + i * 20 + n,
-      title: `Sprint change ${n + 1} from ${p[0]}`,
+      title: SHOWCASE ? prTitle(i * 3 + n + 11) : `Sprint change ${n + 1} from ${p[0]}`,
       url: "#",
       author: login,
       state: merged ? "MERGED" : "OPEN",
@@ -405,6 +448,24 @@ if (params.get("resume") === "1") {
   local[SESSION_KEY].index = 2;
 }
 
+// ?speaking=1: a session already under way, on Avery's turn with two thirds
+// of the two minutes gone, so the pressure ramp is showing. Taken through the
+// real Resume button below.
+if (params.get("speaking") === "1") {
+  const { SESSION_KEY, PHASES, createSession } = await import("../js/standup.js");
+  const now = Date.now();
+  const session = createSession({
+    participants: NAMES.slice(0, 6).map((_, i) => ({ accountId: `acc-${i}` })),
+    seed: 7,
+    now: now - 400_000,
+  });
+  session.index = Math.max(0, session.order.indexOf("acc-0"));
+  session.phase = PHASES.SPEAKING;
+  session.phaseStartedAt = now - 84_000;
+  for (const id of session.order.slice(0, session.index)) session.actualMs[id] = 95_000;
+  local[SESSION_KEY] = session;
+}
+
 const { mount } = await import("../js/views/standup.js");
 await mount(
   document.getElementById("view-container"),
@@ -419,6 +480,10 @@ if (params.get("ghhover") === "1") {
   style.textContent =
     ".su-gh-report { opacity: 1 !important; visibility: visible !important; transform: none !important; }";
   document.head.appendChild(style);
+}
+
+if (params.get("speaking") === "1") {
+  [...document.querySelectorAll(".su-btn")].find((b) => b.textContent.trim() === "Resume")?.click();
 }
 
 if (params.get("select") === "nobody") document.querySelectorAll(".su-seg")[1]?.click();

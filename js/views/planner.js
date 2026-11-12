@@ -53,6 +53,7 @@ import {
   executeRun,
   nextSprintName,
   proposeDueDates,
+  proposeEpicDueDates,
   proposeSplitPoints,
   runSteps,
   sprintInstants,
@@ -78,7 +79,7 @@ import { viewHeader, viewTiles } from "../components/view-header.js";
 import { attachIssueOpener } from "../components/issue-detail.js";
 import { icon, priorityIcon } from "../components/icons.js";
 import { statusTone } from "../backlog.js";
-import { isDone, isSubtask } from "../monitor.js";
+import { isDone, isEpic, isSubtask } from "../monitor.js";
 import { linkPayloadFor } from "../issue-link.js";
 import {
   addToPlan,
@@ -96,6 +97,7 @@ import {
   filterOptions,
   fmtPoints,
   isPlanned,
+  jiraDue,
   loadBand,
   loadDraft,
   missingForCommit,
@@ -149,6 +151,9 @@ export async function mount(container, creds, { flow = false } = {}) {
     backlog: [],
     extra: [],
     epicNames: {},
+    // The plan's epics, read on demand for the flow's epic due dates (M25).
+    epics: new Map(), // key -> epic issue
+    epicTried: new Set(),
     readAt: null,
   };
   const ui = {
@@ -818,6 +823,8 @@ export async function mount(container, creds, { flow = false } = {}) {
       keep(found);
 
       data.issues = issues;
+      data.epics = new Map();
+      data.epicTried = new Set();
       data.inTarget = inTarget;
       data.carryover = carry;
       data.backlog = backlog;
@@ -1534,6 +1541,8 @@ export async function mount(container, creds, { flow = false } = {}) {
       for (const issue of others) list.appendChild(planRow(issue));
     }
 
+    if (flow && ui.showDue && !ui.person) epicDueSection(planned, list);
+
     const removed = draft.removed.map((k) => data.issues.get(k)).filter(Boolean);
     if (removed.length && !ui.person) {
       list.appendChild(groupHead(`Taken out — back to the backlog on push · ${removed.length}`));
@@ -1554,6 +1563,106 @@ export async function mount(container, creds, { flow = false } = {}) {
     }
     col.appendChild(list);
     return col;
+  }
+
+  // Epics are never in a plan, so they get their own list under it (M25): each
+  // epic the plan touches, its date now, and the latest due date among its
+  // open children. Accepting one is a due-date edit on the epic, written with
+  // the push like any other; nothing is written unless it is accepted.
+  function epicDueSection(planned, list) {
+    ensureEpics(planned);
+    const rows = proposeEpicDueDates({
+      planned,
+      issues: [...data.issues.values()],
+      epics: data.epics,
+      dueOf: (i) => effective(draft, i).dueDate,
+    });
+    if (!rows.length) {
+      if (ui.epicsLoading) list.appendChild(note("Reading the plan's epics…"));
+      return;
+    }
+    const usable = rows.filter((r) => r.proposed && r.proposed !== r.current);
+    const head = document.createElement("div");
+    head.className = "pl-epic-due-head";
+    head.appendChild(groupHead(`Epic due dates — latest among open children · ${rows.length}`));
+    if (usable.length > 1) {
+      const all = button("Use all epic dates", "btn small ghost");
+      all.title = "Use every proposed epic due date (written with the push)";
+      all.addEventListener("click", () => change(() => {
+        for (const r of usable) setEdit(draft, data.epics.get(r.key), { dueDate: r.proposed });
+      }));
+      head.appendChild(all);
+    }
+    list.appendChild(head);
+
+    for (const r of rows) {
+      const epic = data.epics.get(r.key);
+      const row = document.createElement("div");
+      row.className = "pl-epic-due";
+      const key = document.createElement("span");
+      key.className = "mono";
+      key.textContent = r.key;
+      const text = document.createElement("span");
+      text.className = "pl-epic-due-text";
+      const name = document.createElement("span");
+      name.className = "pl-card-summary";
+      name.textContent = data.epicNames?.[r.key] || r.summary;
+      const detail = document.createElement("span");
+      detail.className = "pl-epic-due-detail mono";
+      const now = r.current ? `due ${fmtDate(r.current)}` : "no due date";
+      detail.textContent = r.proposed
+        ? `${now} · latest child ${r.from} ${fmtDate(r.proposed)}${r.undated ? ` · ${r.undated} undated` : ""}`
+        : `${now} · ${r.children} open child${r.children === 1 ? "" : "ren"}, none dated`;
+      text.append(name, detail);
+      row.append(key, text);
+
+      const edited = "dueDate" in (draft.edits[r.key] || {});
+      if (r.proposed && r.proposed !== r.current) {
+        const use = button(`Use ${fmtDate(r.proposed)}`, "btn small ghost pl-mini pl-due-proposal");
+        use.title = "Set the epic's due date to this (written with the push)";
+        use.dataset.focusId = `epic-due-${r.key}`;
+        use.addEventListener("click", () => change(() => setEdit(draft, epic, { dueDate: r.proposed })));
+        row.appendChild(use);
+      } else if (edited) {
+        const undo = button("Undo", "btn small ghost pl-mini");
+        undo.title = `Keep ${r.key}'s due date as it is in Jira`;
+        undo.dataset.focusId = `epic-due-${r.key}`;
+        undo.addEventListener("click", () => change(() => setEdit(draft, epic, { dueDate: jiraDue(epic) })));
+        row.appendChild(undo);
+        row.classList.add("edited");
+      } else {
+        row.appendChild(document.createElement("span"));
+      }
+      list.appendChild(row);
+    }
+  }
+
+  // The epics of the planned issues, read once each. Put in data.issues as well,
+  // so an accepted date is found by the push like any other edited issue.
+  function ensureEpics(planned) {
+    for (const issue of data.issues.values()) {
+      if (isEpic(issue) && !data.epics.has(issue.key)) data.epics.set(issue.key, issue);
+    }
+    const want = [...new Set(planned.map(getEpicKey).filter(Boolean))].filter(
+      (k) => !data.epics.has(k) && !data.epicTried.has(k)
+    );
+    if (!want.length || ui.epicsLoading) return;
+    for (const k of want) data.epicTried.add(k);
+    ui.epicsLoading = true;
+    const readAt = data.readAt;
+    getIssuesByKeys(want, creds)
+      .catch(() => [])
+      .then((found) => {
+        ui.epicsLoading = false;
+        // A reload landed meanwhile: its own pass reads them again.
+        if (data.readAt !== readAt) return schedulePaint();
+        for (const epic of found) {
+          if (!isEpic(epic)) continue;
+          data.epics.set(epic.key, epic);
+          if (!data.issues.has(epic.key)) data.issues.set(epic.key, epic);
+        }
+        schedulePaint();
+      });
   }
 
   function groupHead(text) {

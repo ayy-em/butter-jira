@@ -285,6 +285,7 @@ Use a pair of scratch issues.
 - [ ] "All in" / "None" work; per-person minutes and "Set all" apply
 - [ ] Totals line updates with attendance and shows both speaking and wall-clock time
 - [ ] Start → goes full-screen, sidebar and footer hidden (view uses the full width), `dun-dun-dun` plays
+- [ ] Monday to Thursday: a lunch reminder fades in and out for three seconds first (Space holds it, → skips it); on a Friday it is not shown
 - [ ] 5-second countdown shows the first person's name, then their board appears
 - [ ] Board shows only that person's current-sprint issues, no assignee avatars
 - [ ] Cards are readable from across a room; clicking one still opens the drawer
@@ -388,7 +389,7 @@ that loses them loses them.
 
 Needs an upcoming sprint created in Jira on at least one board.
 
-- [ ] `LAUNCH → Sprint planner`, and the `p` key, both open the setup screen
+- [ ] `LAUNCH → Sprint planning`, and the `p` key, open the chooser; **Legacy manual flow** opens the setup screen, and the sidebar entry stays lit
 - [ ] A first visit ticks every board with an upcoming sprint and everyone on the roster; dates come from the target sprint, and a Monday-to-Monday sprint suggests 10 working days, not 11
 - [ ] A new draft starts at 20%: 10 days shows 8 pt per person; lowering one person's days to 7 shows 5.6 for them only
 - [ ] Override days for three people in a row, then reload → all three are kept
@@ -418,13 +419,15 @@ Needs an upcoming sprint created in Jira on at least one board.
 
 Use a board where closing and starting a sprint is safe to try.
 
-- [ ] `LAUNCH → Sprint planning (new)` opens Set up; the planner's draft is untouched
+- [ ] `LAUNCH → Sprint planning → Step-by-step planning wizard` opens Set up; the planner's draft is untouched
 - [ ] Pick a board: its active sprint is named as outgoing; "Create a new sprint…" suggests the next name; **Create in Jira** makes it (check in Jira) and selects it; Next stays disabled until it exists
 - [ ] Wrap up: every open issue defaults to Backlog; Carry asks for an assignee or estimate if missing; Split proposes points from time under way, and a part two with no points stays listed under "Added this session"
 - [ ] Plan: **+ New issue** creates in Jira and lands in the plan; **Propose due dates** shows a date per issue, oldest first per person; **Use all** marks them for the push
+- [ ] Under the plan, the epic list shows each touched epic with the latest open child's date; **Use** on one appears in Review & start as a due-date write on the epic, and Jira shows it after the push
 - [ ] Next to Review & start opens the recap of the outgoing sprint in a new tab
 - [ ] **Write, close and start**: Jira shows the moves, the old sprint closed with its uncarried open issues in the backlog, the new sprint active with the planned dates
 - [ ] The dashboard for that sprint shows the freeze as taken at the start
+- [ ] With two boards configured: the dashboard's scope card says exact (or names the other board's freeze date), not a freeze taken today
 - [ ] With another sprint still active on the board (parallel sprints off): the start step fails with Jira's sentence, **Retry** resumes without redoing the earlier steps, and the board link opens Jira
 - [ ] Solo / Group changes the type size on every screen
 
@@ -531,6 +534,9 @@ Use a board where closing and starting a sprint is safe to try.
 - [ ] Change the repo list → next standup does fetch again (the cache is keyed by the list)
 
 ## 5e. Cross-browser (M12)
+- [ ] `node scripts/firefox-smoke.mjs` passes (needs Firefox and `npm i --no-save puppeteer-core@24`). It covers
+      install, storage.sync, restore onto a fresh install, the Jira-links redirect and the event page waking;
+      the Firefox lines below are what it cannot click
 - [ ] `node scripts/build.mjs` → three dist/ folders, each with its own manifest.json
 - [ ] `grep -r "assets/avatars\|assets/brand\|config.local" dist/` → no hits; personal data never ships
 - [ ] Firefox: about:debugging → Load Temporary Add-on → `dist/firefox/manifest.json` loads with no warning
@@ -548,6 +554,7 @@ Use a board where closing and starting a sprint is safe to try.
       A missing import only shows up on the view that has it, and the console is where it shows.
 - [ ] `git diff manifest.json` after a build is empty — the root manifest has not drifted from the base
 - [ ] Chrome → export config (both token boxes ticked) → import into Firefox → app works with no re-typing
+- [ ] Chrome → Back up this device (roster ticked) → Firefox → Restore a backup → setup has the site; email + token → boards, roster and history are there
 - [ ] Same file imported into Edge → works
 - [ ] Roster avatars after that import: present with a `--local-assets` build, fall back to Jira pictures without one
 - [ ] `node scripts/build.mjs --local-assets --zip` refuses rather than producing a zip

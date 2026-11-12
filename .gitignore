@@ -29,6 +29,9 @@ secrets.json
 # Config exported from the Settings page. Normally lands in ~/Downloads, but if
 # one is saved here it can carry a live API token and roster names/emails.
 butterjira-config-*.json
+# Device backups, likewise: with the roster ticked they hold colleagues' names
+# and emails.
+butterjira-backup-*.json
 
 # ── Packaging output ────────────────────────────────────────────────────────
 *.zip

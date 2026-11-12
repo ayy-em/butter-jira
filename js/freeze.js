@@ -122,6 +122,121 @@ export function freezeFrom({
   };
 }
 
+// ── Per-sprint freezes (M25) ────────────────────────────────────────────────
+//
+// The dashboard keys its freeze by every active sprint together ("41+57"); the
+// planning flow keys its own by the one sprint it started ("57"), taken the
+// moment the sprint starts. With a single board the two keys are the same. With
+// several they are not, and the dashboard used to find no freeze under its key
+// and take a new one, so the flow's start-of-sprint record was never the one it
+// showed. This puts the dashboard's record together from the per-sprint ones.
+//
+// `stored` is every freeze on the device, by key. Returns null when there is
+// nothing to compose from (the caller takes its own, as before), else
+// { freeze, taken } where `taken` lists the sprint ids a fresh part was taken
+// for. With `take: false` (the recap, which never writes history) a sprint
+// without a freeze of its own means no composed freeze at all.
+export function composeFreeze({
+  sprints = [],
+  stored = {},
+  issues = [],
+  statusGroups = [],
+  now = new Date(),
+  take = true,
+} = {}) {
+  if (sprints.length < 2) return null;
+  const parts = [];
+  const missing = [];
+  for (const sprint of sprints) {
+    const own = stored?.[String(sprint?.id)];
+    if (own?.rows) parts.push(own);
+    else missing.push(sprint);
+  }
+  if (!parts.length) return null;
+  if (missing.length && !take) return null;
+
+  const taken = [];
+  for (const sprint of missing) {
+    const id = String(sprint.id);
+    // A sprint still running when another board's sprint rolled over is in the
+    // old combined freeze already: its rows carry their sprint id, so that part
+    // is read back rather than re-taken mid-sprint.
+    const earlier = partFromCombined(stored, id);
+    if (earlier) {
+      parts.push(earlier);
+      continue;
+    }
+    const own = issues.filter((issue) => String(activeSprintIdOf(issue) ?? "") === id);
+    parts.push(freezeFrom({ issues: own, sprints: [sprint], statusGroups, now }));
+    taken.push(id);
+  }
+  return { freeze: mergeFreezes(parts, sprints), taken };
+}
+
+// The rows of one sprint out of a stored freeze that covered it with others.
+// A start-of-sprint record first, then the oldest. None when no stored row
+// carries the sprint id.
+function partFromCombined(stored = {}, id) {
+  const candidates = Object.values(stored || {})
+    .filter((f) => f?.rows && (f.sprintIds || []).map(String).includes(id) && f.sprintIds.length > 1)
+    .sort(
+      (a, b) =>
+        Number(b.atStart === true) - Number(a.atStart === true) ||
+        String(a.takenAt || "").localeCompare(String(b.takenAt || ""))
+    );
+  for (const f of candidates) {
+    const rows = f.rows.filter((row) => String(row.sprintId ?? "") === id);
+    if (!rows.length) continue;
+    return {
+      ...f,
+      sprintIds: [id],
+      rows,
+      issueCount: rows.length,
+      totalPoints: round1(rows.reduce((sum, row) => sum + (row.points ?? 0), 0)),
+    };
+  }
+  return null;
+}
+
+// One record from several. It is only as exact as its least exact part: taken
+// at the latest part's moment (exact from then on), at the start only if every
+// part was. An issue frozen in two parts is counted once.
+export function mergeFreezes(parts = [], sprints = []) {
+  const usable = parts.filter((p) => p?.rows);
+  if (!usable.length) return null;
+  const latest = usable.reduce((a, b) =>
+    String(b.takenAt || "").localeCompare(String(a.takenAt || "")) > 0 ? b : a
+  );
+  const seen = new Set();
+  const rows = [];
+  for (const part of usable) {
+    for (const row of part.rows) {
+      if (seen.has(row.key)) continue;
+      seen.add(row.key);
+      rows.push(row);
+    }
+  }
+  const window = sprintWindow(sprints);
+  return {
+    takenAt: latest.takenAt,
+    takenOn: latest.takenOn,
+    sprintNames: sprintNames(sprints),
+    sprintIds: sprints.map((s) => s?.id).filter((id) => id !== undefined).map(String),
+    windowStart: window.start ? isoDay(window.start) : null,
+    windowEnd: window.end ? isoDay(window.end) : null,
+    dayOfSprint: Math.max(...usable.map((p) => Number(p.dayOfSprint) || 0)),
+    atStart: usable.every((p) => p.atStart === true),
+    issueCount: rows.length,
+    totalPoints: round1(rows.reduce((sum, row) => sum + (row.points ?? 0), 0)),
+    rows,
+    composedFrom: usable.map((p) => ({
+      sprintIds: p.sprintIds || [],
+      takenOn: p.takenOn,
+      atStart: p.atStart === true,
+    })),
+  };
+}
+
 // ── What the freeze lets the dashboard claim ────────────────────────────────
 
 // How the scope-added figure was arrived at, so the number can never silently

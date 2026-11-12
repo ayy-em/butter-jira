@@ -2,16 +2,89 @@
   <img src="assets/logo-wordmark.png" alt="ButterJira" width="440">
 </p>
 
+<h3 align="center">Your whole team's Jira, in one tab. Because the other one sucks.</h3>
+
+<p align="center">
+  <a href="https://github.com/ayy-em/butter-jira/releases"><b>⬇️ Download</b></a> ·
+  <a href="#install-on-chrome--step-by-step"><b>🚀 Install in 2 minutes</b></a> ·
+  <a href="#screenshots"><b>🖼️ Screenshots</b></a> ·
+  <a href="docs/CHANGELOG.md"><b>📝 What's new</b></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ayy-em/butter-jira/actions/workflows/ci.yml"><img src="https://github.com/ayy-em/butter-jira/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
+<p align="center">
+  <a href="#screenshots"><img src="assets/screenshots/carousel.webp" alt="butter_jira cycling through the sprint dashboard, a standup and the Kanban board" width="100%"></a>
+</p>
+
 # butter_jira
 
 A browser extension that gives you Gantt (roadmap), Backlog, Kanban, sprint
 hygiene and per-person 1:1 views across several Jira boards at once, in one tab,
 with your own status grouping.
-Because the other one sucks.
 
 Runs on **Chrome, Firefox and Edge**. Works against any Jira Cloud site —
 nothing about your instance is baked into the code. Board IDs, project keys,
 custom field IDs, and branding all come from configuration you supply at setup.
+
+## Why butter_jira
+
+- 🗂️ **Every board, one tab.** Gantt, Backlog and Kanban across several Jira
+  boards at once, grouped by *your* statuses, not each project's.
+- 📊 **A sprint dashboard that answers questions.** Burndown, velocity trend,
+  committed vs completed, who is over capacity, and what changed since the plan
+  was frozen, all on one screen.
+- 🎙️ **Standups that run themselves.** Timed turns in a random order, each
+  person's board full-screen, overdue work in red, their pull requests alongside,
+  and a parking lot so tangents wait their turn. Also a lunch reminder. 🥪
+- 🧭 **Sprint planning without the spreadsheet.** Wrap up the old sprint,
+  balance the new one against real capacity, propose due dates, then write the
+  plan, close, start and freeze in one confirm.
+- 🤝 **1:1 prep done before you sit down.** Everything since your last 1:1 with
+  that person on one sheet, and notes that never leave your machine.
+- 🧾 **Recaps that write themselves.** An end-of-sprint PDF and a quarterly
+  overview, with real selectable text, in one click.
+- 🐙 **GitHub next to Jira.** Open PRs, reviews waiting and commits per person,
+  if you switch it on.
+- 🔗 **Jira links open here.** Click a Jira link in Slack or an email and land in
+  butter_jira instead, if you want that.
+- ⌨️ **Keyboard first.** One key per screen: `d` dashboard, `k` Kanban, `s`
+  standup, `p` planning, `1` for 1:1s.
+- 🔒 **Your data stays yours.** No server and no tracking. It talks to Jira and
+  GitHub and nothing else. Your token stays on your device and never syncs. It
+  reads freely and writes only when you press the button.
+- 🧈 **Nothing to build, nothing to host.** Download a zip, point your browser at
+  it, paste a Jira token. Any Jira Cloud site works.
+
+## Screenshots
+
+Invented data throughout: every name, ticket and pull request below is made up.
+Click any screen for the full-size image.
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <a href="assets/screenshots/dashboard-team-overview.png"><img src="assets/screenshots/dashboard-team-overview.png" alt="The sprint dashboard's Team Overview"></a>
+      <br><b>📊 Sprint dashboard</b><br>
+      Progress, burndown, velocity, the status split, each person's workload
+      against capacity, and the checklist of things to look at by hand.
+    </td>
+    <td width="33%" valign="top">
+      <a href="assets/screenshots/standup-speaker.png"><img src="assets/screenshots/standup-speaker.png" alt="A standup on one person's turn"></a>
+      <br><b>🎙️ Standup</b><br>
+      One person's turn: their board full-screen, overdue tickets in red, the
+      clock two thirds through, their GitHub activity and the parking lot.
+    </td>
+    <td width="33%" valign="top">
+      <a href="assets/screenshots/kanban.png"><img src="assets/screenshots/kanban.png" alt="The Kanban board"></a>
+      <br><b>📋 Kanban</b><br>
+      The sprint across two boards, filterable by board and person, with
+      priorities, due dates and the overdue count in the header.
+    </td>
+  </tr>
+</table>
 
 ## Install on Chrome — step by step
 
@@ -133,7 +206,26 @@ Chrome's in ways one file cannot hold, which is why they are separate downloads
   select the `manifest.json` file inside the unzipped folder (Firefox asks for
   the file, not the folder). Note the word *temporary*: Firefox drops it when
   you quit, and a permanent install needs a signed build from
-  addons.mozilla.org.
+  addons.mozilla.org. Your settings survive that: they are kept against the
+  add-on's fixed ID, so loading it again picks them back up. Firefox 128 or newer.
+
+**Already set up in Chrome?** Bring it across rather than setting up again:
+
+1. In Chrome: **Settings → Backup & transfer**, tick **Include the team
+   roster**, then **↑ Back up this device**. That saves a
+   `butterjira-backup-<date>.json` with your config, boards, roster, sprint
+   history, freezes, todos and preferences.
+2. In Firefox, with the add-on loaded: open its Settings → **Backup & transfer
+   → ↓ Restore a backup**, and pick that file.
+3. Open the app. Setup already has your Jira site; enter your email and API
+   token, and you are where you were in Chrome.
+4. Delete the backup file. With the roster ticked it holds colleagues' names
+   and emails.
+
+Neither token is ever in a backup, and neither are 1:1 notes, which have no way
+off the device by design. If you would rather not type the token again, the
+config export carries it when you tick its box (**Export config**, then
+**Import config** in Firefox), but that puts a live credential in a file.
 
 ## Install from source (developers)
 
@@ -247,7 +339,7 @@ genuinely cannot be shared: the manifest.
 |---|---|---|---|
 | Background | `service_worker` | `scripts` (event page) | `service_worker` |
 | Extension ID | pinned via `key` | `browser_specific_settings.gecko.id` | assigned by the store |
-| Minimum | Chrome 111 | Firefox 115 | Chromium 111 |
+| Minimum | Chrome 111 | Firefox 128 | Chromium 111 |
 
 Those three differences are each load-bearing, and each fails in a way you would
 otherwise only discover at submission:
@@ -260,6 +352,10 @@ otherwise only discover at submission:
 - **Firefox needs a gecko id for `storage.sync` to work at all.** Without a
   stable add-on ID there is nothing to sync against, and every configuration
   write goes quietly nowhere.
+- **Firefox 128 is the floor, not 115.** `optional_host_permissions`, which
+  setup uses to ask for a Jira or GitHub host outside the defaults, arrived in
+  Firefox 128. On anything older that request fails and a self-hosted site
+  cannot be set up.
 
 `manifests/base.json` holds everything the three agree on;
 `manifests/{chrome,firefox,edge}.json` are the overlays. Edit those, never the
@@ -906,9 +1002,16 @@ The rules it counts by:
 - **Epics in progress are as they stand today**, even for a past quarter,
   because Jira keeps no record of an epic's past state. The page says so.
 
+### Sprint planning: one entry, two planners
+
+**Launch → Sprint planning**, or press `p`, opens a choice of two: the
+**Step-by-step planning wizard** (the flow below) and the **Legacy manual flow**
+(the sprint planner). Both are kept while the team uses them side by side, and
+each keeps its own draft.
+
 ### Sprint planner
 
-**Launch → Sprint planner**, or press `p`. Plan the next sprint ahead of the
+**Launch → Sprint planning → Legacy manual flow**. Plan the next sprint ahead of the
 planning meeting, review it in the meeting, and push it to Jira in one reviewed
 batch at the end. Nothing is written to Jira while you plan.
 
@@ -994,8 +1097,7 @@ next push.
 
 ### Sprint planning (the flow)
 
-**Launch → Sprint planning (new)**, beside the planner while the two are
-compared. The planning ritual as four screens, one board per session, with the
+**Launch → Sprint planning → Step-by-step planning wizard**. The planning ritual as four screens, one board per session, with the
 sprint writes Jira's own screens used to do:
 
 1. **Set up.** The board; the new sprint, picked from its upcoming ones or
@@ -1011,11 +1113,16 @@ sprint writes Jira's own screens used to do:
    (title, type, parent, description, assignee, points: created in Jira at once
    and put in the plan) and **Propose due dates**: each person's issues, oldest
    first, laid end to end over the sprint's working days, used one at a time or
-   all at once and written with the rest.
+   all at once and written with the rest. Under the plan, a separate list
+   proposes a due date for each epic the plan touches: the latest due date
+   among its open children, the backlog's included and any child date you
+   accepted counted. An epic's date is written only if you use it.
 4. **Review & start.** The outgoing sprint's recap opens in a new tab on the
    way in, so it reads the sprint as it ended. Then one confirm writes the plan,
    completes the outgoing sprint (open issues not carried go to the backlog),
-   starts the new one with the planned dates, and takes its sprint freeze. Each
+   starts the new one with the planned dates, and takes its sprint freeze. With
+   several boards, the dashboard builds its freeze from this one plus the other
+   boards' sprints, so it shows the flow's start-of-sprint record. Each
    step runs only if the one before it worked. When Jira refuses one, the screen
    says which, with Jira's reason, a **Retry** that resumes after what is done,
    and a link to the board in Jira.
@@ -1027,7 +1134,8 @@ from the planner's.
 ### Standup mode
 
 Press `s` or the STANDUP tab. Pick who's in today, set each person's minutes
-(2 by default), and hit start: five-second countdown, then each person's sprint
+(2 by default), and hit start: on every day but Friday a three-second lunch
+reminder fades in and out first, then a five-second countdown, then each person's sprint
 board in a randomised order, one at a time, full-screen.
 
 - The countdown cue is timed to *finish* as the clock hits zero, using the
@@ -1428,7 +1536,7 @@ the product logo stands alone.
 | `d` | Sprint dashboard |
 | `1` | 1:1 |
 | `t` | My todos |
-| `p` | Sprint planner |
+| `p` | Sprint planning (choose the wizard or the planner) |
 | `n` | Quick note (opens over any view) |
 | `Esc` | Close the issue drawer or the quick note |
 
@@ -1516,6 +1624,7 @@ scripts/build.mjs   # copies source + writes each target's manifest
 scripts/set-version.mjs      # writes a tag's version into the manifests
 scripts/            # test-*.mjs suites, jira-smoke.js, manual smoke checklist
 preview/            # one harness per view — dev only, never packaged
+assets/screenshots/ # the README's screenshots — never packaged
 .github/workflows/  # ci.yml (every push and PR), release.yml (a v* tag)
 ```
 
@@ -1697,8 +1806,8 @@ node scripts/test-credentials.mjs  # migrations, tokens, export/import (105 chec
 node scripts/test-team.mjs         # roster, display names, filtering (138 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
-node scripts/test-standup.mjs      # session timing, order, pressure (183 checks)
-node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (232 checks)
+node scripts/test-standup.mjs      # session timing, order, pressure (215 checks)
+node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (251 checks)
 node scripts/test-overview.mjs     # team overview, checklist, donut     (82 checks)
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (126 checks)
 node scripts/test-quarter.mjs      # quarter weeks, score, ranking     (54 checks)
@@ -1717,7 +1826,7 @@ node scripts/test-drawer.mjs       # the drawer's focus layer           (24 chec
 node scripts/test-release.mjs      # version rewriting, licence, notes   (41 checks)
 node scripts/test-oneone.mjs       # 1:1 windows, notes, todos, JQL    (153 checks)
 node scripts/test-planner.mjs      # capacity, holidays, push, split (105 checks)
-node scripts/test-planflow.mjs     # flow: split from time, due dates, run (38 checks)
+node scripts/test-planflow.mjs     # flow: split from time, due dates, epic dates, run (48 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it. Harnesses
@@ -1741,6 +1850,17 @@ and issue summaries are placeholders — `ACME-101`, `Avery Quinn`, `Preview Tea
 public, a roster of real colleagues is personal data, and a fixture that names
 real projects publishes what a team is working on. Anything that looks like it
 came from a real board should be replaced rather than kept.
+
+**The README's screenshots come from these harnesses.** They are
+`preview-dashboard.html?showcase=1`, `preview-standup.html?showcase=1&speaking=1`
+and `preview-kanban.html`, taken with headless Chrome at 1512×945 and twice the
+pixel density. `?showcase=1` swaps the placeholder titles for realistic invented
+ones, and `?avatar=<url>` puts one picture on the first person. The picture is
+passed in when the screenshot is taken and is never committed. The app's own
+image paths are relative to the repo root, so link `preview/assets` to `../assets`
+while taking them, then remove the link. `python3 scripts/screenshot-carousel.py`
+then rebuilds `carousel.webp`, the animated hero at the top: GitHub strips
+scripts from a README, so an animated image is the only carousel it can show.
 
 Every view has a harness, and that is not decoration: for a long stretch only
 five did, and every light-theme defect a design review found in September 2026
@@ -1928,6 +2048,24 @@ all**, so anything still reaching for `chrome.*` fails there rather than in
 front of a Firefox user. `test-manifests.mjs` encodes the store rules that only
 bite at submission — a `key` left in a Firefox package, a service-worker
 background on Gecko, a missing gecko id quietly breaking `storage.sync`.
+
+**`scripts/firefox-smoke.mjs` drives the Firefox build in a real Firefox.**
+It is not a `test-*` suite, because it needs Firefox installed and one dev
+dependency, so CI does not run it:
+
+```bash
+npm i --no-save puppeteer-core@24      # once; node_modules/ is gitignored
+node scripts/build.mjs firefox
+node scripts/firefox-smoke.mjs         # --firefox <binary>, --shots <dir>
+```
+
+In a throwaway profile, with every Jira and GitHub request stubbed, it installs
+the package and checks the host permissions, a `storage.sync` round trip, a
+backup restored through Settings onto a fresh install, the Jira-links rules
+going in, the event page waking from suspension to take them out and put them
+back, a `/browse/` link landing on the issue page, `?butterjira=skip` reaching
+Jira, and every page rendering. Run it before a release that touches the
+manifest, `background.js`, `js/browser.js`, `js/jira-links.js` or the backup path.
 
 `scripts/SMOKE-CHECKLIST.md` is the manual pass for anything involving the UI.
 
