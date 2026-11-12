@@ -159,6 +159,11 @@ in it dragged the bar. The expand caret sits level with its bar and has a
 proper click target. The hidden tooltip no longer blocks clicks on whatever is
 under it. The today line now shows on charts that fit their box.
 
+**Lunch reminder.** Every day except Friday, a standup opens with a
+three-second screen that fades in and out with a lunch reminder ("Don't forget
+to buy your lunch, people!" or one of a few variations). Then the usual
+countdown to the first speaker starts. Space pauses it and → skips it.
+
 ## v0.9.0
 
 **Sprint planning as a process.** `LAUNCH → SPRINT PLANNING (NEW)`: set up,
