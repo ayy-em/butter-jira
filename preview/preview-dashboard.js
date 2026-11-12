@@ -16,6 +16,9 @@
 // ?shell=off (no sidebar) · ?open=<check id> (opens that checklist row's list)
 import { params } from "./preview-fixture.js";
 
+// Before the sidebar is drawn, so it lights DASHBOARD rather than the home view.
+if (!location.hash) history.replaceState(null, "", "#dashboard");
+
 if (params.get("shell") !== "off") {
   document.body.classList.add("shell");
   // The sidebar reads the theme from synced storage and would repaint the page
@@ -24,7 +27,6 @@ if (params.get("shell") !== "off") {
   const { renderNav } = await import("../js/components/nav.js");
   await renderNav(() => location.reload());
 }
-if (!location.hash) history.replaceState(null, "", "#dashboard");
 
 const { mount } = await import("../js/views/dashboard.js");
 await mount(

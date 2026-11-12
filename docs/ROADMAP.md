@@ -24,7 +24,7 @@ code comments and commit subjects, so they are indexed at the bottom.
 
 | Aspect | Status |
 |---|---|
-| Browsers | Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three manifests |
+| Browsers | Chrome 111+, Firefox 128+, Edge 111+ — one codebase, three manifests |
 | Views | Sprint dashboard (Team Overview + Individual view), Gantt, Backlog, Kanban, Monitor, Standup, Sprint planning (one entry choosing between the planner and the flow), Sprint planner (setup + plan), Sprint planning flow (set up, wrap up, plan, review and start), 1:1 (picker + per-person sheet), My todos, Recap config, Issue detail (drawer + full page) |
 | Documents | Sprint recap PDF (active, last closed, or any chosen sprints) and quarterly overview PDF, both print-styled pages of their own |
 | Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE), the sprint planner's reviewed push (sprint moves in and out, assignee, story points), and the planning flow's sprint create, complete and start. Nothing else writes |
@@ -96,7 +96,7 @@ author.
 | Per-person figures read as a performance measure | 1:1, recap, quarterly | Stated framing on every surface. Ranked only in the quarterly overview, at the author's request |
 | A planner that proposes who does what is worker-management AI | M24 | Suggestions change the draft only and are accepted by hand. AI Enablement review (EU AI Act Annex III, GDPR) before the assisted half is built; any LLM only through the approved LiteLLM gateway |
 | Recording a colleague's voice is a different category of data | M20 | Local-only, off by default, per-session start, visible indicator, and an AI Enablement / DPIA review before any code |
-| The Jira-links redirect misbehaves on Firefox | shipped | Verified in Chromium only. Settings reports "not supported" where the API is missing; check with the smoke checklist before relying on it there |
+| The Jira-links redirect misbehaves on Firefox | shipped | Verified in Firefox 157 on 2026-11-12 by `scripts/firefox-smoke.mjs`: rules installed, re-synced by a suspended event page, `/browse/` redirected, the skip parameter honoured. Settings still reports "not supported" where the API is missing |
 | GitHub search (30 requests a minute) throttles the Development section | shipped | Fetch only when an issue opens, batch repos per search, cache per key for 10 minutes |
 | CI's version-bump push to `main` is rejected | releases | The bump is the last step, after publishing, so a failed push leaves the release up and the fix at two commands |
 
@@ -236,7 +236,11 @@ public-or-unlisted decision, and Mozilla's review latency on a release path that
 is otherwise instant.
 
 **Not scheduled** because nobody runs the Firefox build yet. The Jira-links
-redirect is also unverified there.
+redirect was verified there on 2026-11-12. Before the first signed build:
+`browser_specific_settings.gecko.data_collection_permissions`, which
+addons.mozilla.org asks for, with the categories confirmed by Compliance (the
+app sends a user's Jira and GitHub data to those services and nowhere else),
+and the gecko id settled for good, since signing fixes it.
 
 ### Icebox
 

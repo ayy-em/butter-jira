@@ -6,7 +6,13 @@ tag into the release notes, so the wording here is the wording published — kee
 it about what a user gets. The reasoning is in the commit history;
 [ROADMAP.md](ROADMAP.md) is what is still to come.
 
-## Unreleased
+## v0.10.0
+
+**Firefox 128 or newer.** The Firefox build used to claim 115, but asking for a
+Jira or GitHub host outside the defaults needs 128, so a self-hosted site could
+not be set up on anything older. The Jira-links redirect is now verified on
+Firefox, and the README has the four steps for moving a Chrome setup into
+Firefox with a backup.
 
 **The sprint dashboard is now a Team Overview.** A sprint selector (the running
 sprint or any recent closed one), the day of the sprint, Jira and GitHub status

@@ -56,6 +56,8 @@ const EXCLUDE_PATTERNS = [
   /(^|\/)\.DS_Store$/,
   /(^|\/)\.gitkeep$/,
   /^config\.local\.json$/,
+  // README screenshots: documentation, not something the extension loads.
+  /^assets\/screenshots\//,
 ];
 
 // assets/brand and assets/avatars are gitignored working folders holding org

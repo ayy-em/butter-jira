@@ -57,7 +57,7 @@ the same way:
 
 ## Operating Context
 
-- **Where it runs:** Chrome 111+, Firefox 115+, Edge 111+ — one codebase, three
+- **Where it runs:** Chrome 111+, Firefox 128+, Edge 111+ — one codebase, three
   manifests, packaged by `scripts/build.mjs` (copy + manifest write, no
   compilation). Chrome loads the repo directory unpacked with no build step.
 - **What it talks to:** the user's own Jira Cloud or Data Center site over HTTP

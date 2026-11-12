@@ -285,6 +285,7 @@ Use a pair of scratch issues.
 - [ ] "All in" / "None" work; per-person minutes and "Set all" apply
 - [ ] Totals line updates with attendance and shows both speaking and wall-clock time
 - [ ] Start → goes full-screen, sidebar and footer hidden (view uses the full width), `dun-dun-dun` plays
+- [ ] Monday to Thursday: a lunch reminder fades in and out for three seconds first (Space holds it, → skips it); on a Friday it is not shown
 - [ ] 5-second countdown shows the first person's name, then their board appears
 - [ ] Board shows only that person's current-sprint issues, no assignee avatars
 - [ ] Cards are readable from across a room; clicking one still opens the drawer
@@ -533,6 +534,9 @@ Use a board where closing and starting a sprint is safe to try.
 - [ ] Change the repo list → next standup does fetch again (the cache is keyed by the list)
 
 ## 5e. Cross-browser (M12)
+- [ ] `node scripts/firefox-smoke.mjs` passes (needs Firefox and `npm i --no-save puppeteer-core@24`). It covers
+      install, storage.sync, restore onto a fresh install, the Jira-links redirect and the event page waking;
+      the Firefox lines below are what it cannot click
 - [ ] `node scripts/build.mjs` → three dist/ folders, each with its own manifest.json
 - [ ] `grep -r "assets/avatars\|assets/brand\|config.local" dist/` → no hits; personal data never ships
 - [ ] Firefox: about:debugging → Load Temporary Add-on → `dist/firefox/manifest.json` loads with no warning
@@ -550,6 +554,7 @@ Use a board where closing and starting a sprint is safe to try.
       A missing import only shows up on the view that has it, and the console is where it shows.
 - [ ] `git diff manifest.json` after a build is empty — the root manifest has not drifted from the base
 - [ ] Chrome → export config (both token boxes ticked) → import into Firefox → app works with no re-typing
+- [ ] Chrome → Back up this device (roster ticked) → Firefox → Restore a backup → setup has the site; email + token → boards, roster and history are there
 - [ ] Same file imported into Edge → works
 - [ ] Roster avatars after that import: present with a `--local-assets` build, fall back to Jira pictures without one
 - [ ] `node scripts/build.mjs --local-assets --zip` refuses rather than producing a zip

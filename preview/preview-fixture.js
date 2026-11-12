@@ -12,7 +12,9 @@
 //
 // ?theme=light · ?github=off · ?stats=slow · ?stats=error · ?sprint=undated
 // ?sprint=previous · ?push=off · ?roster=empty · ?avatars=off · ?jira=slow
-// ?stats=partial
+// ?stats=partial · ?showcase=1 (invented, realistic ticket titles instead of
+// "Work item N", for README screenshots) · ?avatar=<url> (that picture on the
+// first person; given at screenshot time, so no photograph is ever committed)
 
 export const params = new URLSearchParams(location.search);
 document.documentElement.dataset.theme = params.get("theme") || "dark";
@@ -77,7 +79,9 @@ function avatarDataUri(name, i) {
     ` fill="#ffffff" text-anchor="middle">${initials}</text></svg>`;
   return `data:image/svg+xml;base64,${btoa(svg)}`;
 }
+const AVATAR_PARAM = params.get("avatar");
 function avatarUrlsFor(name, i) {
+  if (AVATAR_PARAM && i === 0) return { "48x48": AVATAR_PARAM, "32x32": AVATAR_PARAM, "24x24": AVATAR_PARAM };
   if (params.get("avatars") === "off" || i % 2 === 1) return undefined;
   const uri = avatarDataUri(name, i);
   return { "48x48": uri, "32x32": uri, "24x24": uri };
@@ -242,6 +246,24 @@ function changelogFor(status, personIdx, n) {
   };
 }
 
+// ?showcase=1: invented titles of the kind a product team's sprint holds.
+const SHOWCASE_TITLES = [
+  "Retry failed webhook deliveries with backoff", "Paginate the audit log export",
+  "Cache the settings page's board list", "Add CSV export to the usage report",
+  "Fix timezone drift in the nightly job", "Dark mode for the onboarding flow",
+  "Rate-limit the public search endpoint", "Migrate image uploads to signed URLs",
+  "Alert when the queue backs up", "Remove the legacy v1 importer",
+  "Keyboard shortcuts for the editor", "Speed up the dashboard's first paint",
+  "Health check for the billing worker", "Archive projects older than two years",
+  "Bulk-assign from the issue list", "Validate email domains on invite",
+  "Flaky test in the checkout suite", "Document the deploy rollback steps",
+  "Dedupe notifications sent twice", "Upgrade the runtime to the LTS release",
+  "Split the search index by tenant", "Empty state for a new workspace",
+  "Audit role permissions on shared links", "Copy for the plan comparison page",
+  "Retry budget for third-party calls", "Trim payload size on the mobile feed",
+  "Fix sorting by due date in lists", "Slack digest for weekly activity",
+];
+
 PEOPLE.forEach((person, i) => {
   person[2].forEach(([status, points], n) => {
     seq++;
@@ -252,7 +274,9 @@ PEOPLE.forEach((person, i) => {
     // creep the recap flags, per person and per board.
     const crept = seq % 5 === 0;
     const fields = {
-      summary: `${status === "Done" ? "Shipped" : "Work item"} ${seq} for ${person[0]}`,
+      summary: params.get("showcase")
+        ? SHOWCASE_TITLES[(seq - 1) % SHOWCASE_TITLES.length]
+        : `${status === "Done" ? "Shipped" : "Work item"} ${seq} for ${person[0]}`,
       status: { name: status, statusCategory: { key: CATEGORY[status] } },
       assignee: {
         accountId: `acc-${i}`,
@@ -776,7 +800,7 @@ TEAMS.teams = [{
     githubLogin: p[1],
     role: roleFor(p[0]),
     slackHandle: "",
-    avatarUrl: "",
+    avatarUrl: AVATAR_PARAM && PEOPLE.indexOf(p) === 0 ? AVATAR_PARAM : "",
   })),
 }];
 await saveTeam(TEAMS);

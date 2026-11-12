@@ -18,6 +18,7 @@
 //                  what a fresh clone actually looks like on day one
 //   ?groups=none   no configured columns at all
 //   ?refuse=1      every transition refused, to see the drag/move refusal
+//   ?avatar=<url>  that picture on Avery Quinn, for screenshots (never committed)
 //
 // Self-contained rather than built on preview-fixture.js, following
 // preview-gantt.js: this view wants a *wide* spread of statuses across two
@@ -116,7 +117,16 @@ const issueFrom = ([key, summary, statusName, personIdx, priority, due], i) => {
       status: status(statusName),
       priority: { name: priority },
       duedate: due == null ? null : iso(due),
-      assignee: person ? { displayName: person[0], accountId: person[1] } : null,
+      assignee: person
+        ? {
+            displayName: person[0],
+            accountId: person[1],
+            // ?avatar=<url>: that picture on the first person, for screenshots.
+            ...(params.get("avatar") && person[1] === "acc-0"
+              ? { avatarUrls: { "48x48": params.get("avatar"), "24x24": params.get("avatar") } }
+              : {}),
+          }
+        : null,
       created: iso(-20),
       updated: iso(0),
     },

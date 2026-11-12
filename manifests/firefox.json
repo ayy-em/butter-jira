@@ -13,8 +13,14 @@
     "   work at all — without a stable add-on ID Firefox has nothing to sync",
     "   against, and every configuration write would silently go nowhere.",
     "",
-    "strict_min_version 115: MV3 with optional_host_permissions and a promise-",
-    "based `browser.*` across the APIs this uses."
+    "strict_min_version 128: the first Firefox with optional_host_permissions,",
+    "which setup uses to ask for a Jira or GitHub host outside the defaults.",
+    "On 115-127 that request fails and a self-hosted site cannot be set up.",
+    "",
+    "Not yet here: browser_specific_settings.gecko.data_collection_permissions,",
+    "which addons.mozilla.org asks for. Which categories apply (the app sends",
+    "the user's own Jira and GitHub data to those services, and nowhere else)",
+    "is to be confirmed with Compliance before the first signed build."
   ],
   "background": {
     "scripts": ["background.js"],
@@ -23,7 +29,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "butter-jira@ayy-em.github.io",
-      "strict_min_version": "115.0"
+      "strict_min_version": "128.0"
     }
   }
 }
