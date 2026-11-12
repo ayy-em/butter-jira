@@ -748,6 +748,33 @@
 }
 .standup-interstitial-name { font-size: calc(18px * var(--font-scale)); color: var(--muted); }
 
+/* Lunch reminder before the lead-in: fades in, holds, fades out across the
+   whole REMINDER_SEC phase (js/standup.js). Keep the duration in step with it. */
+.standup-reminder {
+  padding: 0 6vw;
+  opacity: 0;
+  animation: standup-reminder-fade 3s ease-in-out both;
+}
+.standup-reminder.paused { animation-play-state: paused; }
+.standup-reminder-text {
+  max-width: 18ch;
+  font-size: calc(clamp(40px, 8vmin, 96px) * var(--font-scale));
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  text-wrap: balance;
+}
+@keyframes standup-reminder-fade {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .standup-reminder { animation: none; opacity: 1; }
+}
+
 .standup-handoff { animation: handoff-in 0.35s ease; }
 @keyframes handoff-in {
   from { opacity: 0; transform: scale(0.96); }

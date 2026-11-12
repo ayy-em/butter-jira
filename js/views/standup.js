@@ -50,6 +50,7 @@ import {
   finish,
   formatClock,
   handoffPhrase,
+  isReminderDay,
   historyId,
   isOverrun,
   isPaused,
@@ -60,6 +61,7 @@ import {
   overpressure,
   overrunScale,
   phaseElapsedMs,
+  reminderPhrase,
   phaseRemainingMs,
   phaseTotalMs,
   plannedTotalSec,
@@ -1397,6 +1399,7 @@ export async function mount(container, creds) {
       durations,
       seed: Date.now() % 2147483647,
       now: Date.now(),
+      reminder: isReminderDay(Date.now()),
     });
     countdownCuePlayed = false;
     sfx.play("start");
@@ -1498,7 +1501,9 @@ export async function mount(container, creds) {
     wrap.className = "standup-wrap standup-stage";
     wrap.innerHTML = "";
 
-    if (session.phase === PHASES.COUNTDOWN) {
+    if (session.phase === PHASES.REMINDER) {
+      wrap.appendChild(renderReminder());
+    } else if (session.phase === PHASES.COUNTDOWN) {
       wrap.appendChild(renderCountdown());
     } else if (session.phase === PHASES.HANDOFF) {
       wrap.appendChild(renderHandoff());
@@ -1506,6 +1511,22 @@ export async function mount(container, creds) {
       wrap.appendChild(renderSpeaking());
     }
     paintClock(Date.now());
+  }
+
+  // Lunch reminder ahead of the lead-in. The fade is one CSS animation the
+  // length of the phase; a pause re-renders this screen, so the animation is
+  // started part-way through (negative delay) at the elapsed time rather than
+  // from zero, and held while paused.
+  function renderReminder() {
+    const el = document.createElement("div");
+    el.className = "standup-interstitial standup-reminder";
+    el.classList.toggle("paused", isPaused(session));
+    el.style.animationDelay = `-${phaseElapsedMs(session, Date.now())}ms`;
+    const line = document.createElement("div");
+    line.className = "standup-reminder-text";
+    line.textContent = reminderPhrase(session);
+    el.appendChild(line);
+    return el;
   }
 
   function renderCountdown() {

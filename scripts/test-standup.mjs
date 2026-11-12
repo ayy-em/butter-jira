@@ -431,6 +431,34 @@ check("empty list yields empty string, not undefined",
   su.handoffPhrase(phraseSession(1, 0), []) === "");
 check("no phrase is blank", su.HANDOFF_PHRASES.every((p) => p.trim().length > 0));
 
+section("lunch reminder");
+s = su.createSession({ participants: people(2), seed: 5, now: T0, reminder: true });
+check("reminder opens the session when asked", s.phase === su.PHASES.REMINDER);
+check("reminder is off by default",
+  su.createSession({ participants: people(2), seed: 5, now: T0 }).phase === su.PHASES.COUNTDOWN);
+check("no participants -> done even with the reminder",
+  su.createSession({ participants: [], seed: 1, now: T0, reminder: true }).phase === su.PHASES.DONE);
+check("reminder lasts REMINDER_SEC", su.phaseTotalMs(s) === su.REMINDER_SEC * 1000);
+check("reminder does not advance early", !su.shouldAutoAdvance(s, T0 + su.REMINDER_SEC * 1000 - 1));
+check("reminder auto-advances at zero", su.shouldAutoAdvance(s, T0 + su.REMINDER_SEC * 1000));
+s = su.advance(s, T0 + 3000);
+check("reminder -> countdown with a full lead-in",
+  s.phase === su.PHASES.COUNTDOWN && su.phaseRemainingMs(s, T0 + 3000) === su.LEAD_IN_SEC * 1000);
+check("pausing holds the reminder",
+  !su.shouldAutoAdvance(
+    su.pause(su.createSession({ participants: people(1), seed: 1, now: T0, reminder: true }), T0 + 1000),
+    T0 + 10_000));
+check("phrase is one of the list", su.REMINDER_PHRASES.includes(su.reminderPhrase({ seed: 3 })));
+check("phrase is stable for a session", su.reminderPhrase({ seed: 42 }) === su.reminderPhrase({ seed: 42 }));
+check("every phrase is reachable",
+  new Set([...Array(400).keys()].map((seed) => su.reminderPhrase({ seed }))).size === su.REMINDER_PHRASES.length);
+check("empty list yields empty string", su.reminderPhrase({ seed: 1 }, []) === "");
+// 2026-11-09 is a Monday; local-time constructor so the test holds in any zone.
+const day = (d) => new Date(2026, 10, d, 9, 30).getTime();
+check("shown Monday to Thursday", [9, 10, 11, 12].every((d) => su.isReminderDay(day(d))));
+check("not shown on Friday", su.isReminderDay(day(13)) === false);
+check("shown at the weekend", su.isReminderDay(day(14)) && su.isReminderDay(day(15)));
+
 section("pressure — the run-up to time-up");
 
 // A speaking phase of `totalSec` that started at t=0 and has never paused.

@@ -12,6 +12,7 @@ import { localGet, localRemove, localSet } from "./browser.js";
 
 export const PHASES = {
   SETUP: "setup",
+  REMINDER: "reminder",
   COUNTDOWN: "countdown",
   SPEAKING: "speaking",
   HANDOFF: "handoff",
@@ -21,6 +22,7 @@ export const PHASES = {
 export const DEFAULT_DURATION_SEC = 120;
 export const LEAD_IN_SEC = 5;   // "5 seconds countdown" before the first person
 export const HANDOFF_SEC = 3;   // "get ready" card between people
+export const REMINDER_SEC = 3;  // lunch reminder ahead of the lead-in
 export const MIN_DURATION_SEC = 15;
 export const MAX_DURATION_SEC = 3600;
 
@@ -91,6 +93,31 @@ export function handoffPhrase(session, phrases = HANDOFF_PHRASES) {
   return phrases[chosen];
 }
 
+// The lunch reminder that fades in and out before the lead-in. Not shown on
+// Fridays (see isReminderDay). Picked from the seed for the same reason as the
+// hand-off phrase: a pause re-renders the screen, and the line should not
+// change under the room when it does.
+export const REMINDER_PHRASES = [
+  "Don't forget to buy your lunch, people!",
+  "Lunch won't order itself. Go buy it!",
+  "Friendly reminder: lunch. Buy it.",
+  "Hungry later? Buy your lunch now!",
+  "Before we start: have you bought lunch?",
+  "Psst… lunch. Don't forget it.",
+  "Future you says: buy lunch now.",
+];
+
+export function reminderPhrase(session, phrases = REMINDER_PHRASES) {
+  if (!phrases.length) return "";
+  const seed = Number(session?.seed) || 0;
+  return phrases[Math.floor(makeRandom(seed ^ 0x5eed)() * phrases.length)];
+}
+
+// Every day except Friday, in the local time zone of the machine running it.
+export function isReminderDay(now = Date.now()) {
+  return new Date(now).getDay() !== 5;
+}
+
 export function clampDuration(seconds) {
   const n = Math.round(Number(seconds));
   if (!Number.isFinite(n)) return DEFAULT_DURATION_SEC;
@@ -99,7 +126,8 @@ export function clampDuration(seconds) {
 
 // `participants` are roster members; only their accountId is carried in the
 // session, so a rename between sessions doesn't matter.
-export function createSession({ participants, durations = {}, seed, now = 0 }) {
+// `reminder` opens the session on the lunch reminder instead of the lead-in.
+export function createSession({ participants, durations = {}, seed, now = 0, reminder = false }) {
   const ids = participants.map((p) => p.accountId).filter(Boolean);
   const resolvedSeed = Number.isFinite(seed) ? seed : 1;
   const order = shuffleWithSeed(ids, resolvedSeed);
@@ -114,7 +142,7 @@ export function createSession({ participants, durations = {}, seed, now = 0 }) {
     order,
     durations: resolvedDurations,
     index: 0,
-    phase: order.length ? PHASES.COUNTDOWN : PHASES.DONE,
+    phase: !order.length ? PHASES.DONE : reminder ? PHASES.REMINDER : PHASES.COUNTDOWN,
     phaseStartedAt: now,
     pausedAt: null,
     pauseAccumMs: 0,
@@ -152,6 +180,8 @@ export function phaseElapsedMs(session, now) {
 
 export function phaseTotalMs(session) {
   switch (session.phase) {
+    case PHASES.REMINDER:
+      return REMINDER_SEC * 1000;
     case PHASES.COUNTDOWN:
       return LEAD_IN_SEC * 1000;
     case PHASES.HANDOFF:
@@ -245,7 +275,11 @@ export function overpressure(session, now) {
 // True when a timed phase has run out. Speaking never expires on its own: the
 // facilitator decides when to move on.
 export function shouldAutoAdvance(session, now) {
-  if (session.phase === PHASES.COUNTDOWN || session.phase === PHASES.HANDOFF) {
+  if (
+    session.phase === PHASES.REMINDER ||
+    session.phase === PHASES.COUNTDOWN ||
+    session.phase === PHASES.HANDOFF
+  ) {
     return phaseRemainingMs(session, now) <= 0;
   }
   return false;
@@ -261,8 +295,12 @@ function enterPhase(session, phase, now) {
   };
 }
 
-// countdown -> speaking -> handoff -> speaking -> ... -> done
+// [reminder ->] countdown -> speaking -> handoff -> speaking -> ... -> done
 export function advance(session, now) {
+  if (session.phase === PHASES.REMINDER) {
+    return enterPhase(session, PHASES.COUNTDOWN, now);
+  }
+
   if (session.phase === PHASES.COUNTDOWN) {
     return enterPhase(session, PHASES.SPEAKING, now);
   }
