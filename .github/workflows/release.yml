@@ -129,9 +129,7 @@ jobs:
           cat > /tmp/notes.md <<NOTES
           ## Install
 
-          Download the zip for your browser, unzip it somewhere permanent, and load
-          the folder unpacked. Full instructions, with screenshots of each step, are
-          in the [README](https://github.com/${GITHUB_REPOSITORY}#install-on-chrome--step-by-step).
+          Download the zip for your browser, unzip it somewhere permanent, and load the folder unpacked. Full instructions, with screenshots of each step, are in the [README](https://github.com/${GITHUB_REPOSITORY}#install-on-chrome--step-by-step).
 
           | Browser | File | Load it via |
           |---|---|---|
@@ -139,17 +137,11 @@ jobs:
           | Edge | \`edge-$version.zip\` | \`edge://extensions\` → Developer mode → Load unpacked |
           | Firefox | \`firefox-$version.zip\` | \`about:debugging\` → This Firefox → Load Temporary Add-on |
 
-          **Firefox installs are temporary.** Firefox drops an add-on loaded through
-          \`about:debugging\` when you quit; a permanent install needs a build signed
-          by addons.mozilla.org, which this release does not include. Chrome and Edge
-          keep the extension across restarts.
+          **Firefox installs are temporary.** Firefox drops an add-on loaded through \`about:debugging\` when you quit; a permanent install needs a build signed by addons.mozilla.org, which this release does not include. Chrome and Edge keep the extension across restarts.
 
-          \`SHA256SUMS.txt\` lists the checksum of each zip. Verify with
-          \`sha256sum -c SHA256SUMS.txt\` in the download folder.
+          \`SHA256SUMS.txt\` lists the checksum of each zip. Verify with \`sha256sum -c SHA256SUMS.txt\` in the download folder.
 
-          Settings, boards and roster live in browser storage, not in the folder, so
-          they survive an upgrade — unzip the new version over the old folder and
-          press refresh on the extension's card.
+          Settings, boards and roster live in browser storage, not in the folder, so they survive an upgrade — unzip the new version over the old folder and press refresh on the extension's card.
 
           ---
 

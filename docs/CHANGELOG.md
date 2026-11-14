@@ -1,422 +1,139 @@
 # Changelog
 
-What changed between released versions, for somebody deciding whether to
-download a zip. `.github/workflows/release.yml` lifts the section matching the
-tag into the release notes, so the wording here is the wording published — keep
-it about what a user gets. The reasoning is in the commit history;
-[ROADMAP.md](ROADMAP.md) is what is still to come.
+What changed between released versions, for somebody deciding whether to download a zip. `.github/workflows/release.yml` lifts the section matching the tag into the release notes, so the wording here is the wording published — keep it about what a user gets. The reasoning is in the commit history; [ROADMAP.md](ROADMAP.md) is what is still to come.
+
+Write each paragraph of a version section as one unbroken line, with no manual line breaks. GitHub renders a single newline in release notes as a hard break, so text wrapped at 80 columns shows up as a narrow column filling a fraction of a desktop screen. Separate paragraphs and list items as usual; let the editor soft-wrap the rest.
 
 ## v0.10.0
 
-**Firefox 128 or newer.** The Firefox build used to claim 115, but asking for a
-Jira or GitHub host outside the defaults needs 128, so a self-hosted site could
-not be set up on anything older. The Jira-links redirect is now verified on
-Firefox, and the README has the four steps for moving a Chrome setup into
-Firefox with a backup.
+**Firefox 128 or newer.** The Firefox build used to claim 115, but asking for a Jira or GitHub host outside the defaults needs 128, so a self-hosted site could not be set up on anything older. The Jira-links redirect is now verified on Firefox, and the README has the four steps for moving a Chrome setup into Firefox with a backup.
 
-**The sprint dashboard is now a Team Overview.** A sprint selector (the running
-sprint or any recent closed one), the day of the sprint, Jira and GitHub status
-and a **Run standup** button across the top; five KPIs — sprint progress,
-committed vs completed, tickets closed against the previous sprint at the same
-day, blockers, and PR review turnaround; the burndown, the velocity trend, and
-the issue status split;
-each person's workload against the capacity left, scope change and carry-over
-risk; a checklist of things to check by hand — overdue, blocked over two days,
-PRs waiting over two days, unestimated, unassigned, scope added, dependencies —
-where every count opens the issues or pull requests behind it; and standup prep,
-including who has no recent activity since the last standup. An **Individual
-view** tab holds a card per person and the delivery-by-person table. The recap
-buttons moved into the avatar menu.
+**The sprint dashboard is now a Team Overview.** A sprint selector (the running sprint or any recent closed one), the day of the sprint, Jira and GitHub status and a **Run standup** button across the top; five KPIs — sprint progress, committed vs completed, tickets closed against the previous sprint at the same day, blockers, and PR review turnaround; the burndown, the velocity trend, and the issue status split; each person's workload against the capacity left, scope change and carry-over risk; a checklist of things to check by hand — overdue, blocked over two days, PRs waiting over two days, unestimated, unassigned, scope added, dependencies — where every count opens the issues or pull requests behind it; and standup prep, including who has no recent activity since the last standup. An **Individual view** tab holds a card per person and the delivery-by-person table. The recap buttons moved into the avatar menu.
 
-**Sprint history and the velocity trend.** The dashboard now keeps one row per
-sprint — points committed and completed, issues, completion, and with GitHub
-sync on, pull requests and lines — sealed when the sprint rolls over and kept
-for up to 104 sprints. The velocity card draws completed points for the last six
-sprints, with the running one hollow and marked provisional; **All figures**
-shows every row as small charts and a table. Sprints still in the daily
-snapshots on your device are filled in on the first load. It is included in the
-device backup, and Settings → Backup & transfer can delete it.
+**Sprint history and the velocity trend.** The dashboard now keeps one row per sprint — points committed and completed, issues, completion, and with GitHub sync on, pull requests and lines — sealed when the sprint rolls over and kept for up to 104 sprints. The velocity card draws completed points for the last six sprints, with the running one hollow and marked provisional; **All figures** shows every row as small charts and a table. Sprints still in the daily snapshots on your device are filled in on the first load. It is included in the device backup, and Settings → Backup & transfer can delete it.
 
-**The navigation moved to a sidebar.** The three menus are now always-open
-groups down the left edge, with the team — its name, a head count by role, the
-faces — and Settings at the foot.
+**The navigation moved to a sidebar.** The three menus are now always-open groups down the left edge, with the team — its name, a head count by role, the faces — and Settings at the foot.
 
-**Roster: a role per person** ("Data Engineer", "Data Analyst"), shown on the
-dashboard and counted into the sidebar's team summary.
+**Roster: a role per person** ("Data Engineer", "Data Analyst"), shown on the dashboard and counted into the sidebar's team summary.
 
-**Blocked issues** are read from Jira's *Flagged* field as well as from the
-status name. Re-run field discovery in Settings to map it on an existing install.
+**Blocked issues** are read from Jira's *Flagged* field as well as from the status name. Re-run field discovery in Settings to map it on an existing install.
 
-**Quick note, from any screen.** A **+** in the sidebar (or `N`) opens a small
-popover for writing something down without leaving what you are looking at:
-an agenda item or an action for one person's 1:1, the same agenda item for
-everyone on the team at once, or a todo for yourself. It opens addressed to
-the person whose sheet you are on. Notes added this way wait on the sheet until
-the 1:1 is completed — they are not cleared with three-week-old scratch — and
-an agenda item shows the day it was added. A sheet or My todos open underneath
-picks the note up straight away.
+**Quick note, from any screen.** A **+** in the sidebar (or `N`) opens a small popover for writing something down without leaving what you are looking at: an agenda item or an action for one person's 1:1, the same agenda item for everyone on the team at once, or a todo for yourself. It opens addressed to the person whose sheet you are on. Notes added this way wait on the sheet until the 1:1 is completed — they are not cleared with three-week-old scratch — and an agenda item shows the day it was added. A sheet or My todos open underneath picks the note up straight away.
 
-**1:1: one weekly activity chart** replaces "Load over time". Four full weeks
-back and this week so far: bars for the issues the person created, started and
-commented on, lines for their pull requests opened and merged, with a **Table**
-button for the same figures as a table. Bug keys are now red and sub-task keys
-cyan in "What is planned", as in the backlog.
+**1:1: one weekly activity chart** replaces "Load over time". Four full weeks back and this week so far: bars for the issues the person created, started and commented on, lines for their pull requests opened and merged, with a **Table** button for the same figures as a table. Bug keys are now red and sub-task keys cyan in "What is planned", as in the backlog.
 
-**1:1: "Important info" is now "Agenda & FYI"**, on the sheet and in the
-Slack paste, since it is where things to raise now go.
+**1:1: "Important info" is now "Agenda & FYI"**, on the sheet and in the Slack paste, since it is where things to raise now go.
 
-**1:1: notes for one person no longer overwrite another's.** Typing on one
-person's sheet wrote back the whole notes store as it was when the sheet
-opened, so with two tabs on two people's sheets, each wrote the other's new
-notes away. A sheet now saves only its own person's notes.
+**1:1: notes for one person no longer overwrite another's.** Typing on one person's sheet wrote back the whole notes store as it was when the sheet opened, so with two tabs on two people's sheets, each wrote the other's new notes away. A sheet now saves only its own person's notes.
 
-**Standup: the Slack summary, one shape for everyone.** Each person's line
-starts with their @handle and nothing in front of it, and every line of their
-notes sits underneath as a "- " item, a one-line note included. A note line
-you already started with a dash keeps just the one, even typed as "-x".
+**Standup: the Slack summary, one shape for everyone.** Each person's line starts with their @handle and nothing in front of it, and every line of their notes sits underneath as a "- " item, a one-line note included. A note line you already started with a dash keeps just the one, even typed as "-x".
 
-**Standup: no more false "No GitHub login".** A speaker whose GitHub login is
-on the roster could be told it was not, when the sprint numbers had arrived
-before their pull-request list (or the list's query had failed) and they had
-merged nothing this sprint. It cleared itself once the list landed. The panel
-now says the list is still loading, or that it is unavailable and why.
+**Standup: no more false "No GitHub login".** A speaker whose GitHub login is on the roster could be told it was not, when the sprint numbers had arrived before their pull-request list (or the list's query had failed) and they had merged nothing this sprint. It cleared itself once the list landed. The panel now says the list is still loading, or that it is unavailable and why.
 
-**Standup: re-fetch Jira mid-meeting.** A small "Re-fetch Jira" button beside
-the speaker's name (or `R`) reads the sprint again without leaving the
-standup. The speaker's board shows what changed since it was loaded: a ticket
-that changed status flies to its new column and says which one it came from,
-a ticket new to the board drops in marked "new", and one that left it is
-marked "gone" before it falls away. A toast counts the changes. The parking
-lot keeps what you were typing, and with reduced motion turned on the changes
-are marked without the movement.
+**Standup: re-fetch Jira mid-meeting.** A small "Re-fetch Jira" button beside the speaker's name (or `R`) reads the sprint again without leaving the standup. The speaker's board shows what changed since it was loaded: a ticket that changed status flies to its new column and says which one it came from, a ticket new to the board drops in marked "new", and one that left it is marked "gone" before it falls away. A toast counts the changes. The parking lot keeps what you were typing, and with reduced motion turned on the changes are marked without the movement.
 
-**Roadmap: opens on the weeks that matter.** The default timeframe runs from
-the Monday of last week to the Friday four weeks after this one, shown by the
-week. "All time" and the other options are still in the timeframe dropdown,
-and the custom date fields start from the default range.
+**Roadmap: opens on the weeks that matter.** The default timeframe runs from the Monday of last week to the Friday four weeks after this one, shown by the week. "All time" and the other options are still in the timeframe dropdown, and the custom date fields start from the default range.
 
-**Roadmap: remembers how you left it.** The zoom, the timeframe (including
-a custom range) and every Epics, Boards, Statuses, Components and Labels
-filter are saved on this device, and the roadmap opens the same way next
-time. The default timeframe is saved as "last week → 4 weeks out", so it
-moves with the calendar. A filter for an epic, status or board that no longer
-exists is dropped.
+**Roadmap: remembers how you left it.** The zoom, the timeframe (including a custom range) and every Epics, Boards, Statuses, Components and Labels filter are saved on this device, and the roadmap opens the same way next time. The default timeframe is saved as "last week → 4 weeks out", so it moves with the calendar. A filter for an epic, status or board that no longer exists is dropped.
 
-**Roadmap: shows work that runs past the view.** A bar cut at the edge of
-the timeframe shows a bold arrow there with the date it actually reaches, as
-DD.MM: » and the due date at the right end, when the epic is due after the
-last day shown; « and the start date at the left, when it started before the
-first. So an epic due mid-December, in a view that stops on 1 December,
-doesn't look like it finishes there. The arrows are white with a black outline
-in dark theme and the reverse in light, so they read over any bar. Hovering
-the bar says which edge it runs past. The marks are in the export too. A
-label that doesn't fit inside a bar cut at the right edge goes before the
-bar rather than off the chart.
+**Roadmap: shows work that runs past the view.** A bar cut at the edge of the timeframe shows a bold arrow there with the date it actually reaches, as DD.MM: » and the due date at the right end, when the epic is due after the last day shown; « and the start date at the left, when it started before the first. So an epic due mid-December, in a view that stops on 1 December, doesn't look like it finishes there. The arrows are white with a black outline in dark theme and the reverse in light, so they read over any bar. Hovering the bar says which edge it runs past. The marks are in the export too. A label that doesn't fit inside a bar cut at the right edge goes before the bar rather than off the chart.
 
-**Roadmap: titles stay in view.** When a bar runs off the side of the chart,
-its title moves along with the scroll, so you can still read it.
+**Roadmap: titles stay in view.** When a bar runs off the side of the chart, its title moves along with the scroll, so you can still read it.
 
-**Roadmap: zooms to the timeframe you pick.** Choosing a timeframe now sets the
-chart's axis to that range, and the view switches to the zoom that fits it: a
-two-month range shows its weeks across the full width, not two columns lost in
-a year of empty months. The Day/Week/Month/Quarter buttons still change the
-zoom within the range. Bars that run past either end are cut at the edge, and
-hovering one shows its real dates. A custom range applies when you press
-Apply (or Enter) in the date fields, whichever timeframe option was
-selected. Before, Apply with "All time" still selected changed the button's
-label and nothing else. Quarter view works now: it used to draw no
-header and keep whatever scale the last view left behind.
+**Roadmap: zooms to the timeframe you pick.** Choosing a timeframe now sets the chart's axis to that range, and the view switches to the zoom that fits it: a two-month range shows its weeks across the full width, not two columns lost in a year of empty months. The Day/Week/Month/Quarter buttons still change the zoom within the range. Bars that run past either end are cut at the edge, and hovering one shows its real dates. A custom range applies when you press Apply (or Enter) in the date fields, whichever timeframe option was selected. Before, Apply with "All time" still selected changed the button's label and nothing else. Quarter view works now: it used to draw no header and keep whatever scale the last view left behind.
 
-**Roadmap: Export for slides.** An "Export" button downloads the roadmap as a
-PNG, exactly as it is filtered and zoomed: just the chart, without the
-toolbar, carets or app chrome. Month, week and year labels are larger, the
-chart is laid out at slide width (1920px) and saved at twice that for a
-sharp projector, in the current theme.
+**Roadmap: Export for slides.** An "Export" button downloads the roadmap as a PNG, exactly as it is filtered and zoomed: just the chart, without the toolbar, carets or app chrome. Month, week and year labels are larger, the chart is laid out at slide width (1920px) and saved at twice that for a sharp projector, in the current theme.
 
-**Roadmap: easier to read bars.** Bars are solid and rounder. Each delivery
-state now has its own fill and text colour, every pair at 4.5:1 contrast or
-better. White text sits on a deeper green in dark theme, and light theme gets
-a fresh green with dark text instead of the muddy one. Both rows of the axis are larger (about 1rem) and semibold, in the app's
-sans font. Week view labels its columns "Wk 44" (ISO weeks), centred, with
-each month centred over its weeks above. Titles inside bars are
-centred, a size larger and bolder. A bar too narrow to hold its issue key on
-one line keeps its title beside it. Child issues that are done are greyed
-like a done epic.
+**Roadmap: easier to read bars.** Bars are solid and rounder. Each delivery state now has its own fill and text colour, every pair at 4.5:1 contrast or better. White text sits on a deeper green in dark theme, and light theme gets a fresh green with dark text instead of the muddy one. Both rows of the axis are larger (about 1rem) and semibold, in the app's sans font. Week view labels its columns "Wk 44" (ISO weeks), centred, with each month centred over its weeks above. Titles inside bars are centred, a size larger and bolder. A bar too narrow to hold its issue key on one line keeps its title beside it. Child issues that are done are greyed like a done epic.
 
-**Roadmap: a Statuses filter**, next to Boards, listing the epics' statuses
-in workflow order.
+**Roadmap: a Statuses filter**, next to Boards, listing the epics' statuses in workflow order.
 
-**Roadmap: a Display dropdown** beside the view buttons, with three toggles,
-remembered on this device:
-- *Show issue key* (on by default): untick it and titles show the summary
-  alone.
-- *Titles inside*: draws each epic's title inside its bar, wrapped to up to
-  three lines and cut off with an ellipsis after that. A bar too narrow to
-  hold its title keeps it beside the bar.
-- *Hide completed*: leaves out epics, and expanded child issues, that are
-  done.
+**Roadmap: a Display dropdown** beside the view buttons, with three toggles, remembered on this device:
+- *Show issue key* (on by default): untick it and titles show the summary alone.
+- *Titles inside*: draws each epic's title inside its bar, wrapped to up to three lines and cut off with an ellipsis after that. A bar too narrow to hold its title keeps it beside the bar.
+- *Hide completed*: leaves out epics, and expanded child issues, that are done.
 
-The button reads "Display · 2" when two settings differ from the defaults, so
-a roadmap with its done epics hidden doesn't pass for the whole roadmap.
+The button reads "Display · 2" when two settings differ from the defaults, so a roadmap with its done epics hidden doesn't pass for the whole roadmap.
 
-**Roadmap: fixes.** One click on a bar opens the issue. Before, it only showed
-a tooltip, the drawer needed a double-click, and a click with any mouse movement
-in it dragged the bar. The expand caret sits level with its bar and has a
-proper click target. The hidden tooltip no longer blocks clicks on whatever is
-under it. The today line now shows on charts that fit their box.
+**Roadmap: fixes.** One click on a bar opens the issue. Before, it only showed a tooltip, the drawer needed a double-click, and a click with any mouse movement in it dragged the bar. The expand caret sits level with its bar and has a proper click target. The hidden tooltip no longer blocks clicks on whatever is under it. The today line now shows on charts that fit their box.
 
-**Sprint planning: one entry, epic due dates, and the flow's freeze on the
-dashboard.** The sidebar's two planning entries are now one, **Sprint planning**
-(and the `p` key), which asks whether to use the **Step-by-step planning
-wizard** or the **Legacy manual flow**; each keeps its own draft. In the wizard,
-**Propose due dates** also lists the epics the plan touches, each with the
-latest due date among its open children; an epic's date is written with the
-push only if you use it. With several boards, the dashboard now builds its
-sprint freeze from the wizard's start-of-sprint freeze and the other boards'
-sprints, instead of taking a new one when it first loads.
+**Sprint planning: one entry, epic due dates, and the flow's freeze on the dashboard.** The sidebar's two planning entries are now one, **Sprint planning** (and the `p` key), which asks whether to use the **Step-by-step planning wizard** or the **Legacy manual flow**; each keeps its own draft. In the wizard, **Propose due dates** also lists the epics the plan touches, each with the latest due date among its open children; an epic's date is written with the push only if you use it. With several boards, the dashboard now builds its sprint freeze from the wizard's start-of-sprint freeze and the other boards' sprints, instead of taking a new one when it first loads.
 
-**Lunch reminder.** Every day except Friday, a standup opens with a
-three-second screen that fades in and out with a lunch reminder ("Don't forget
-to buy your lunch, people!" or one of a few variations). Then the usual
-countdown to the first speaker starts. Space pauses it and → skips it.
+**Lunch reminder.** Every day except Friday, a standup opens with a three-second screen that fades in and out with a lunch reminder ("Don't forget to buy your lunch, people!" or one of a few variations). Then the usual countdown to the first speaker starts. Space pauses it and → skips it.
 
 ## v0.9.0
 
-**Sprint planning as a process.** `LAUNCH → SPRINT PLANNING (NEW)`: set up,
-wrap up the outgoing sprint, plan, review and start, one board at a time. The
-new sprint can be created from here, the outgoing one is closed and the new one
-started from here, the recap opens before the close and the scope snapshot is
-taken at the start. Split proposes part one's points from the time already
-spent; due dates can be proposed for the whole plan; new issues can be created
-straight into it. A Solo / Group switch sizes the type for one person or a
-shared screen.
+**Sprint planning as a process.** `LAUNCH → SPRINT PLANNING (NEW)`: set up, wrap up the outgoing sprint, plan, review and start, one board at a time. The new sprint can be created from here, the outgoing one is closed and the new one started from here, the recap opens before the close and the scope snapshot is taken at the start. Split proposes part one's points from the time already spent; due dates can be proposed for the whole plan; new issues can be created straight into it. A Solo / Group switch sizes the type for one person or a shared screen.
 
-**Standup, recorded.** Every finished standup is kept on this device: how long
-it ran, who was there, how long each person spoke and how many parking-lot
-notes it produced. The end screen has a "Don't record this standup's stats"
-button for test runs and accidental starts. The history is in the device
-backup. In session, the parking lot is always the right-hand 40% of the
-bottom strip and fills its height, with pull requests in the other 60%, so it
-no longer jumps sides between speakers. The pull-request panel is always
-there: it lists the speaker's open pull requests with their drafts last and
-everything they merged this sprint (not just since the previous working day),
-and says "No open or merged pull requests this sprint" when there is nothing.
-A speaker with no GitHub login on the roster gets a narrow "No GitHub user
-link" placeholder and a wider parking lot. Pull-request state labels now
-carry their colour (amber waiting on review, red changes requested or checks
-failing, green approved) and clear AA contrast in both themes, the parking-lot
-box is named by its label for screen readers, and the speaker's progress bar
-advances without re-laying-out the stage every second.
+**Standup, recorded.** Every finished standup is kept on this device: how long it ran, who was there, how long each person spoke and how many parking-lot notes it produced. The end screen has a "Don't record this standup's stats" button for test runs and accidental starts. The history is in the device backup. In session, the parking lot is always the right-hand 40% of the bottom strip and fills its height, with pull requests in the other 60%, so it no longer jumps sides between speakers. The pull-request panel is always there: it lists the speaker's open pull requests with their drafts last and everything they merged this sprint (not just since the previous working day), and says "No open or merged pull requests this sprint" when there is nothing. A speaker with no GitHub login on the roster gets a narrow "No GitHub user link" placeholder and a wider parking lot. Pull-request state labels now carry their colour (amber waiting on review, red changes requested or checks failing, green approved) and clear AA contrast in both themes, the parking-lot box is named by its label for screen readers, and the speaker's progress bar advances without re-laying-out the stage every second.
 
-**Edit an issue's title and description in the detail panel.** Click the title
-to change it; Enter saves, Escape cancels. The description has an Edit button
-and a plain-text editor, which warns before saving over lists, links, tables or
-code. Both toast with an undo, and the undo puts the original formatting back.
+**Edit an issue's title and description in the detail panel.** Click the title to change it; Enter saves, Escape cancels. The description has an Edit button and a plain-text editor, which warns before saving over lists, links, tables or code. Both toast with an undo, and the undo puts the original formatting back.
 
-**The 1:1 sheet, tidier.** Copy for Slack works when the browser refuses its
-clipboard (it said "Clipboard was refused" whenever the page had lost focus).
-Keys in the Closed list open the issue. In What is planned, epics are purple and
-stories and tasks green. The "waiting on their review" list and the "activity,
-not performance" note are gone, and the picker's footnote says where notes are
-deleted.
+**The 1:1 sheet, tidier.** Copy for Slack works when the browser refuses its clipboard (it said "Clipboard was refused" whenever the page had lost focus). Keys in the Closed list open the issue. In What is planned, epics are purple and stories and tasks green. The "waiting on their review" list and the "activity, not performance" note are gone, and the picker's footnote says where notes are deleted.
 
 ## v0.8.1
 
-**A sprint planner.** `LAUNCH → SPRINT PLANNER`, or press `p`. Prepare the next
-sprint before the planning meeting, go through it in the meeting, and push it to
-Jira in one reviewed batch at the end. Sprints are still created, started and
-closed in Jira.
+**A sprint planner.** `LAUNCH → SPRINT PLANNER`, or press `p`. Prepare the next sprint before the planning meeting, go through it in the meeting, and push it to Jira in one reviewed batch at the end. Sprints are still created, started and closed in Jira.
 
-- **Setup.** Choose the boards. On each, choose the sprint to plan into and the
-  sprints to carry leftovers over from, including another board's. Then the
-  dates and working days, a buffer for unplanned work (20% by default, or
-  points per person), and the people. Dutch public holidays are taken off the
-  working days and named, each one untickable. Everyone's capacity is their
-  working days less their buffer, one day being one story point unless
-  Settings → Sprint planner says otherwise. Days and buffer can be changed per
-  person for leave.
-- **Planning.** Everyone down the left with their capacity, what is assigned to
-  them and the difference, warning at 100% and 120%. Beside them, the leftovers
-  first, then the backlogs, under way before to do before on hold, filterable
-  by epic, label and priority, with each epic's remaining work alongside. Drag
-  cards onto the plan or onto a person, or press +. Nothing gets in without an
-  assignee and an estimate, and cards with no estimate are marked in red.
-  Cards are two lines, with the estimate and the assignee changed in place.
-  Add issues from any board by key or link.
-- **Split** a half-done leftover: the original becomes "- pt.1" and closes with
-  the points done (half by default), "- pt.2" carries the rest, the due date and
-  the parent, and both are linked and commented.
-- **The draft stays on this device** until you push, so it survives a reload
-  and can be finished the next day. **Refresh tasks** re-reads Jira.
-- **Review & push** re-reads Jira, shows every change and anything that moved
-  underneath the plan, and refuses to push an unassigned or unestimated issue.
-  A write that fails is retried three times, then reported by issue with Jira's
-  reason.
-- **Settings → Sprint planner:** hours per story point and the holiday
-  calendar, both carried in the config export.
+- **Setup.** Choose the boards. On each, choose the sprint to plan into and the sprints to carry leftovers over from, including another board's. Then the dates and working days, a buffer for unplanned work (20% by default, or points per person), and the people. Dutch public holidays are taken off the working days and named, each one untickable. Everyone's capacity is their working days less their buffer, one day being one story point unless Settings → Sprint planner says otherwise. Days and buffer can be changed per person for leave.
+- **Planning.** Everyone down the left with their capacity, what is assigned to them and the difference, warning at 100% and 120%. Beside them, the leftovers first, then the backlogs, under way before to do before on hold, filterable by epic, label and priority, with each epic's remaining work alongside. Drag cards onto the plan or onto a person, or press +. Nothing gets in without an assignee and an estimate, and cards with no estimate are marked in red. Cards are two lines, with the estimate and the assignee changed in place. Add issues from any board by key or link.
+- **Split** a half-done leftover: the original becomes "- pt.1" and closes with the points done (half by default), "- pt.2" carries the rest, the due date and the parent, and both are linked and commented.
+- **The draft stays on this device** until you push, so it survives a reload and can be finished the next day. **Refresh tasks** re-reads Jira.
+- **Review & push** re-reads Jira, shows every change and anything that moved underneath the plan, and refuses to push an unassigned or unestimated issue. A write that fails is retried three times, then reported by issue with Jira's reason.
+- **Settings → Sprint planner:** hours per story point and the holiday calendar, both carried in the config export.
 
 ## v0.8.0
 
-**Development on every issue.** With GitHub connected, an issue's page and
-drawer now list the pull requests, branches and commits that mention its key in
-your configured repositories: each pull request's state and review status, its
-branch, who opened it and when it last moved. Matching is exact, so ABC-1 does
-not pick up ABC-12.
+**Development on every issue.** With GitHub connected, an issue's page and drawer now list the pull requests, branches and commits that mention its key in your configured repositories: each pull request's state and review status, its branch, who opened it and when it last moved. Matching is exact, so ABC-1 does not pick up ABC-12.
 
-**Jira links can open here.** Switch on Settings → Jira links, and clicking a
-Jira issue, board or backlog link anywhere in the browser opens the issue page,
-the Kanban or the Backlog in butter_jira instead. Everything else still opens in
-Jira, and the app's own "Open in Jira" links always do. Atlassian Cloud sites
-only; off unless you turn it on.
+**Jira links can open here.** Switch on Settings → Jira links, and clicking a Jira issue, board or backlog link anywhere in the browser opens the issue page, the Kanban or the Backlog in butter_jira instead. Everything else still opens in Jira, and the app's own "Open in Jira" links always do. Atlassian Cloud sites only; off unless you turn it on.
 
-**Back up this device.** Settings → Backup & transfer can now save everything the
-app has recorded and could not fetch again: the snapshots behind every burndown,
-sprint freezes, your todos, preferences and the config, plus the roster if you
-tick it. Restoring merges the backup in without changing anything already on the
-device, so an old backup is safe to restore. Tokens and 1:1 notes are never in
-the file.
+**Back up this device.** Settings → Backup & transfer can now save everything the app has recorded and could not fetch again: the snapshots behind every burndown, sprint freezes, your todos, preferences and the config, plus the roster if you tick it. Restoring merges the backup in without changing anything already on the device, so an old backup is safe to restore. Tokens and 1:1 notes are never in the file.
 
-**No more double counting across boards.** When two configured boards show
-the same issue (two boards over one project, split by team or component), it is
-now counted once everywhere: sprint totals, the burndown, hygiene findings, the
-backlog and the standup. Filtering by either board still shows it, and each
-board's own block on the dashboard and in the recap still counts it.
+**No more double counting across boards.** When two configured boards show the same issue (two boards over one project, split by team or component), it is now counted once everywhere: sprint totals, the burndown, hygiene findings, the backlog and the standup. Filtering by either board still shows it, and each board's own block on the dashboard and in the recap still counts it.
 
-**Recap config: build a recap from any sprints you like.** `LAUNCH → RECAP
-CONFIG`, or *Configure a recap…* in the Sprint Dashboard's recap menu. Tick the
-boards you want and, within each, the sprints — active or closed, one or
-several, with quick picks for *Active*, *Last closed* and *Last 3 closed* — then
-**Generate recap** for one combined document across all of them. The same board
-choice opens the quarterly overview for just those boards. The selection lives in
-the recap's link, so a recap can be reloaded or bookmarked, and the screen
-remembers your last choice. Recaps of sprints older than six weeks now read
-GitHub over those sprints' own dates rather than stopping at the last 45 days.
+**Recap config: build a recap from any sprints you like.** `LAUNCH → RECAP CONFIG`, or *Configure a recap…* in the Sprint Dashboard's recap menu. Tick the boards you want and, within each, the sprints — active or closed, one or several, with quick picks for *Active*, *Last closed* and *Last 3 closed* — then **Generate recap** for one combined document across all of them. The same board choice opens the quarterly overview for just those boards. The selection lives in the recap's link, so a recap can be reloaded or bookmarked, and the screen remembers your last choice. Recaps of sprints older than six weeks now read GitHub over those sprints' own dates rather than stopping at the last 45 days.
 
-**The dashboard and recaps only count your team.** With a roster set up under
-Settings → Team, the Sprint Dashboard, the sprint recap and the quarterly
-overview count only tickets held by people on it, plus unassigned tickets.
-Anyone else working on the same boards — opening, closing or picking up
-tickets — no longer appears in a row, a total, the burndown or the freeze diff,
-and outside contributors to your repositories never did. The dashboard header
-and the recap both say how many issues were left out. A team ticket handed to
-somebody outside the team mid-sprint shows as pulled out, "reassigned outside
-the team". Kanban, Backlog and Monitor keep their Team only / Everyone toggle.
+**The dashboard and recaps only count your team.** With a roster set up under Settings → Team, the Sprint Dashboard, the sprint recap and the quarterly overview count only tickets held by people on it, plus unassigned tickets. Anyone else working on the same boards — opening, closing or picking up tickets — no longer appears in a row, a total, the burndown or the freeze diff, and outside contributors to your repositories never did. The dashboard header and the recap both say how many issues were left out. A team ticket handed to somebody outside the team mid-sprint shows as pulled out, "reassigned outside the team". Kanban, Backlog and Monitor keep their Team only / Everyone toggle.
 
-**A quarterly overview.** The Sprint Dashboard's second button is now a menu,
-**Recap past sprint**, with two entries: the past-sprint recap, and **Prepare a
-quarterly overview** — a printable document for a calendar quarter. It has the
-team's week-by-week velocity as two charts (a Jira activity score and GitHub
-commits to main), a table of the quarter's key figures, a small chart and a row
-of whole-quarter figures per person, and the epics closed and still in progress.
-Pick the quarter on the page: this one so far, or any of the three before it.
-The Jira score's formula is printed on the document, and GitHub is read over the
-whole quarter rather than the last 45 days. Each person's chart has its own
-scale, weeks with fewer than three days in the quarter are left off the charts
-(still counted in the figures), the per-person table is ordered by a combined
-ranking of Jira activity, commits and lines to main, and the PDF prints edge to
-edge.
+**A quarterly overview.** The Sprint Dashboard's second button is now a menu, **Recap past sprint**, with two entries: the past-sprint recap, and **Prepare a quarterly overview** — a printable document for a calendar quarter. It has the team's week-by-week velocity as two charts (a Jira activity score and GitHub commits to main), a table of the quarter's key figures, a small chart and a row of whole-quarter figures per person, and the epics closed and still in progress. Pick the quarter on the page: this one so far, or any of the three before it. The Jira score's formula is printed on the document, and GitHub is read over the whole quarter rather than the last 45 days. Each person's chart has its own scale, weeks with fewer than three days in the quarter are left off the charts (still counted in the figures), the per-person table is ordered by a combined ranking of Jira activity, commits and lines to main, and the PDF prints edge to edge.
 
-**Recap a sprint after it has closed.** The Sprint Dashboard has a second button,
-**Recap previous sprint**, which builds the same printable document for the last
-sprint each board closed rather than the one running now. It is there whether or
-not a sprint is currently active — a board between sprints is exactly when you
-want it — so a fortnight that rolled over while you were away is no longer a
-document you missed the chance to make.
+**Recap a sprint after it has closed.** The Sprint Dashboard has a second button, **Recap previous sprint**, which builds the same printable document for the last sprint each board closed rather than the one running now. It is there whether or not a sprint is currently active — a board between sprints is exactly when you want it — so a fortnight that rolled over while you were away is no longer a document you missed the chance to make.
 
-The closed document says so on the page, and its figures are as at the moment the
-sprint was completed, not the day you printed it: no "5 days remaining" on a
-sprint that finished a fortnight ago, and pull requests merged the week after do
-not count towards it.
+The closed document says so on the page, and its figures are as at the moment the sprint was completed, not the day you printed it: no "5 days remaining" on a sprint that finished a fortnight ago, and pull requests merged the week after do not count towards it.
 
-**The loading screen is the mark, breathing.** Where a small spinning logo used
-to sit while a view loaded, the ButterJira wordmark now fades in and out at the
-centre of the window. For anyone whose system asks for reduced motion it drops
-the scaling and just fades, slowly.
+**The loading screen is the mark, breathing.** Where a small spinning logo used to sit while a view loaded, the ButterJira wordmark now fades in and out at the centre of the window. For anyone whose system asks for reduced motion it drops the scaling and just fades, slowly.
 
 ## v0.7.0
 
-**The weekly 1:1.** `LAUNCH → 1:1`, or press `1`. Pick somebody from the roster
-and get the sheet you would otherwise assemble by hand in the ten minutes before
-the meeting: what is on their plate, what they closed and moved, what is stuck
-(including the pull requests in the way, ordered by *how* stuck), what is
-planned, their load per sprint, and a mini-Gantt of everything of theirs that
-carries a date. On the right, notes you take during the conversation — actions
-with an owner and a deadline, and context worth remembering — saved as you type.
+**The weekly 1:1.** `LAUNCH → 1:1`, or press `1`. Pick somebody from the roster and get the sheet you would otherwise assemble by hand in the ten minutes before the meeting: what is on their plate, what they closed and moved, what is stuck (including the pull requests in the way, ordered by *how* stuck), what is planned, their load per sprint, and a mini-Gantt of everything of theirs that carries a date. On the right, notes you take during the conversation — actions with an owner and a deadline, and context worth remembering — saved as you type.
 
-**It knows when you last spoke.** Pressing **Complete 1:1** archives the notes
-as a dated entry and stamps a per-person clock, so the sheet opens on everything
-since that moment: a week for the people you see weekly, a fortnight for the
-people you see fortnightly, with nothing to configure. Open actions carry into
-next time under a dated rule. **Copy for Slack** puts the outcomes on your
-clipboard for the message you were going to send anyway.
+**It knows when you last spoke.** Pressing **Complete 1:1** archives the notes as a dated entry and stamps a per-person clock, so the sheet opens on everything since that moment: a week for the people you see weekly, a fortnight for the people you see fortnightly, with nothing to configure. Open actions carry into next time under a dated rule. **Copy for Slack** puts the outcomes on your clipboard for the message you were going to send anyway.
 
-**My todos.** `LAUNCH → My todos`, or press `t`. Actions you took on in a 1:1
-land here when you complete the meeting, so your own commitments are one list
-rather than scattered across a dozen sheets. Add anything else by hand.
+**My todos.** `LAUNCH → My todos`, or press `t`. Actions you took on in a 1:1 land here when you complete the meeting, so your own commitments are one list rather than scattered across a dozen sheets. Add anything else by hand.
 
-**The notes never leave the device.** They are the only thing this extension
-holds that you wrote about a named colleague, so they get the strictest
-treatment in it: never synced, and **no export path at all** — not even a
-checkbox. The only way one leaves is you pasting it. They are also kept until
-you delete them, which makes **Settings → 1:1 notes and todos** the whole
-retention policy; it says how much is stored and deletes it in one action.
+**The notes never leave the device.** They are the only thing this extension holds that you wrote about a named colleague, so they get the strictest treatment in it: never synced, and **no export path at all** — not even a checkbox. The only way one leaves is you pasting it. They are also kept until you delete them, which makes **Settings → 1:1 notes and todos** the whole retention policy; it says how much is stored and deletes it in one action.
 
-**Standup and the sprint recap moved into `LAUNCH`.** Three rituals behind one
-menu instead of one promoted tab and a recap button buried in the dashboard
-header. Standup keeps its `s`.
+**Standup and the sprint recap moved into `LAUNCH`.** Three rituals behind one menu instead of one promoted tab and a recap button buried in the dashboard header. Standup keeps its `s`.
 
-**New mark.** ButterJira has a face. It replaces the old logo everywhere it
-appeared — the nav bar, the loading spinner, the setup card, the Settings
-header, and the toolbar button, which now carries the mark rendered at 16, 32,
-48 and 128 rather than one 128 the browser squashes. Every page also has a
-favicon for the first time, so an app tab is findable in a crowded tab strip.
+**New mark.** ButterJira has a face. It replaces the old logo everywhere it appeared — the nav bar, the loading spinner, the setup card, the Settings header, and the toolbar button, which now carries the mark rendered at 16, 32, 48 and 128 rather than one 128 the browser squashes. Every page also has a favicon for the first time, so an app tab is findable in a crowded tab strip.
 
 ## v0.6.0
 
-**Sprint freeze, and what changed under the plan.** The sprint's state is frozen
-per issue on the first dashboard load of a new sprint, and the dashboard shows
-what happened to it since: crept in, pulled out, re-estimated, due date moved,
-re-assigned, went backwards — with an arithmetic line that reconciles the
-buckets. Jira does not keep this; it is recorded forward, so it starts
-accruing the day you install.
+**Sprint freeze, and what changed under the plan.** The sprint's state is frozen per issue on the first dashboard load of a new sprint, and the dashboard shows what happened to it since: crept in, pulled out, re-estimated, due date moved, re-assigned, went backwards — with an arithmetic line that reconciles the buckets. Jira does not keep this; it is recorded forward, so it starts accruing the day you install.
 
-**Linked issues, read and write.** *Blocks*, *is blocked by*, *duplicates*,
-*relates to* — created and removed from the issue detail, with the link types
-discovered from your own site. Direction is the part this is careful about: a
-link built the wrong way round does not fail, it just quietly means the
-opposite.
+**Linked issues, read and write.** *Blocks*, *is blocked by*, *duplicates*, *relates to* — created and removed from the issue detail, with the link types discovered from your own site. Direction is the part this is careful about: a link built the wrong way round does not fail, it just quietly means the opposite.
 
-**The standup setup screen fits one screen.** Participants, speaking clock,
-sound toggle and Start, with the meeting's three keys on one line beneath the
-button. Two panels that used to push Start below the fold on a 14" laptop are
-gone; what they said moved into the header.
+**The standup setup screen fits one screen.** Participants, speaking clock, sound toggle and Start, with the meeting's three keys on one line beneath the button. Two panels that used to push Start below the fold on a 14" laptop are gone; what they said moved into the header.
 
-**GitHub's fetch says what it is doing.** Hover the GitHub state on the standup
-setup screen for both queries, how far the paged one has got, how long it has
-taken, and which repos are missing by name — and a headline that says whether
-anything is still running. Starting a standup mid-fetch warns first, with a
-`Start anyway`. Nothing is blocked and nothing has a timeout: the standup has
-never waited for GitHub.
+**GitHub's fetch says what it is doing.** Hover the GitHub state on the standup setup screen for both queries, how far the paged one has got, how long it has taken, and which repos are missing by name — and a headline that says whether anything is still running. Starting a standup mid-fetch warns first, with a `Start anyway`. Nothing is blocked and nothing has a timeout: the standup has never waited for GitHub.
 
-**A design pass over every screen.** Primary button labels now pass WCAG AA in
-dark theme (they were 3.21:1), one icon vocabulary replaces four, the drawer
-reads as a drawer, and every view carries the same header. The Board's header
-is a single row, so the columns get the height back. The Backlog's density
-pills now show which one is selected. The nav tabs are one width.
+**A design pass over every screen.** Primary button labels now pass WCAG AA in dark theme (they were 3.21:1), one icon vocabulary replaces four, the drawer reads as a drawer, and every view carries the same header. The Board's header is a single row, so the columns get the height back. The Backlog's density pills now show which one is selected. The nav tabs are one width.
 
-**Installable from a release.** Chrome, Firefox and Edge zips, built and
-published by GitHub Actions from a tag, with checksums — and a licence:
-[PolyForm Noncommercial 1.0.0](../LICENSE). Source-available, not open source:
-fork and modify freely for noncommercial purposes.
+**Installable from a release.** Chrome, Firefox and Edge zips, built and published by GitHub Actions from a tag, with checksums — and a licence: [PolyForm Noncommercial 1.0.0](../LICENSE). Source-available, not open source: fork and modify freely for noncommercial purposes.
 
-**Upgrading from v0.5.0:** unzip over the old folder and press refresh on the
-extension's card. Settings, boards, roster and the local histories live in
-browser storage, not in the folder, so nothing is lost.
+**Upgrading from v0.5.0:** unzip over the old folder and press refresh on the extension's card. Settings, boards, roster and the local histories live in browser storage, not in the folder, so nothing is lost.
 
 ## v0.5.0
 
-The first tagged build. Sprint dashboard, Gantt roadmap, Backlog, Kanban,
-Monitor, Standup mode and issue detail over several Jira Cloud boards at once,
-with optional GitHub sync, the write layer (transitions, field edits, issue and
-sub-task creation, comments) and the daily snapshots behind the burndown.
-Packaged by hand.
+The first tagged build. Sprint dashboard, Gantt roadmap, Backlog, Kanban, Monitor, Standup mode and issue detail over several Jira Cloud boards at once, with optional GitHub sync, the write layer (transitions, field edits, issue and sub-task creation, comments) and the daily snapshots behind the burndown. Packaged by hand.
