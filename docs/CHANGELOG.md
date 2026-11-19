@@ -4,6 +4,25 @@ What changed between released versions, for somebody deciding whether to downloa
 
 Write each paragraph of a version section as one unbroken line, with no manual line breaks. GitHub renders a single newline in release notes as a hard break, so text wrapped at 80 columns shows up as a narrow column filling a fraction of a desktop screen. Separate paragraphs and list items as usual; let the editor soft-wrap the rest.
 
+## Unreleased
+
+**Standup recaps saved as Markdown files.** Pick a folder in Settings →
+Standup recaps (Chrome and Edge) and every finished standup is written to
+`standup-recaps/<year>/<month>/standup_YYYY-MM-DD.md` inside it: a header with
+the date, weekday, start time, total duration and each person's talk time, then
+the recap as copied for Slack. Edits on the end screen are saved, "Don't record"
+removes the file, and a second standup that day gets `_2`.
+
+**Setting up a standup freezes the sprint, one board at a time.** If a board's
+running sprint has no freeze yet, opening the standup takes one in the
+background, so a day-one freeze no longer depends on somebody opening the
+dashboard that day. Each board is frozen on its own: a board without an active
+sprint no longer holds another one back. The dashboard puts its all-boards view
+together from those parts, and keeps eight sprints of them, not eight records.
+
+**Completing a 1:1 goes back to the list of people,** with the Slack summary
+already on the clipboard.
+
 ## v0.10.0
 
 **Firefox 128 or newer.** The Firefox build used to claim 115, but asking for a Jira or GitHub host outside the defaults needs 128, so a self-hosted site could not be set up on anything older. The Jira-links redirect is now verified on Firefox, and the README has the four steps for moving a Chrome setup into Firefox with a backup.

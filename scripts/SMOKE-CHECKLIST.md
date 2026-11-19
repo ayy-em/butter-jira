@@ -122,6 +122,9 @@ that has actually moved since. A scratch sprint you can drag issues in and out o
 is the fastest way to see all six buckets.
 - [ ] First ever load of a sprint → a freeze is written (Storage → `sprintFreezes`) and the panel says nothing has moved
 - [ ] The readout says whether it was taken at the sprint start or on day N of it, and matches when you first opened the tab
+- [ ] Open the standup setup on a sprint's first day, before the dashboard → `sprintFreezes` gains one record per board's active sprint, keyed by sprint id; the dashboard later says "frozen …, at the sprint start"
+- [ ] Two boards, one with no active sprint → the standup still freezes the other board's sprint
+- [ ] Two boards, both running → the dashboard's freeze lists both parts and its points match the two together
 - [ ] Drag an issue into the sprint in Jira, reload → it appears under **Crept in**, in the *already existed* half
 - [ ] Create a new issue in the sprint, reload → it appears under **Crept in**, in the *created after the freeze* half
 - [ ] Drag an issue out to the backlog → **Pulled out**, "→ backlog"
@@ -313,6 +316,12 @@ Use a pair of scratch issues.
 - [ ] Reload mid-standup → setup shows "Unfinished standup"; Resume continues at the same person in the same order
 - [ ] Discard clears it; starting fresh produces a different order
 - [ ] Parking-lot text survives a person change and a reload
+- [ ] Settings → Standup recaps → Choose folder; finish a standup → `<folder>/standup-recaps/<year>/<month>/standup_YYYY-MM-DD.md` exists, the end screen names it, and its header has the date, weekday, duration and every participant's talk time (`null` for anyone not reached)
+- [ ] Edit the Slack text on the end screen, or press Copy message → the file follows the edit
+- [ ] "Don't record this standup's stats" → the file is gone; flipping it back writes it again
+- [ ] A second standup the same day → `standup_YYYY-MM-DD_2.md`, the first untouched
+- [ ] Restart the browser, finish a standup → the end screen offers "Save recap to <folder>", which asks for access once and writes
+- [ ] Firefox: Settings says folders are not available there, and the end screen shows nothing about recaps
 - [ ] After the last person → summary with actual vs planned per person
 - [ ] Someone who overran is flagged; ending early marks the rest "not reached"
 - [ ] Copy notes and Download .txt both work
@@ -356,6 +365,7 @@ that loses them loses them.
 - [ ] A window reaching back more than 45 days: the sheet says the GitHub figures cover the shorter period
 - [ ] The activity note ("conversation fuel, not a score") is on screen beside the figures, in every window
 - [ ] **Complete 1:1** → confirm names how many open actions carry; the notes archive as a dated entry; the archive entry cannot be edited
+- [ ] After **Complete 1:1** the screen returns to the picker, that person reads "today", and the Slack-copy toast is still showing
 - [ ] After completing, the header reads "Last 1:1 today" — and the window on screen does **not** move, because the data you were just discussing is still the meeting's; reopening the sheet is what picks up the new boundary
 - [ ] Open actions reappear at the top of the next sheet under a "carried from …" rule; ticked ones do not
 - [ ] Actions you owned (`me`) appear in `LAUNCH → My todos`, labelled with the person, and completing a second time does not add them twice

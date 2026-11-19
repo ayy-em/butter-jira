@@ -25,6 +25,8 @@ import {
   activityFor as jiraActivityFor,
   activityFrom as jiraActivityFrom,
 } from "../activity.js";
+import { ensureSprintFreezes } from "../freeze.js";
+import { folderPermission, getRecapFolder, removeRecap, writeRecap } from "../recaps.js";
 import * as confetti from "../confetti.js";
 import { animateBoardChanges, boardSnapshot, renderColumns } from "../components/board.js";
 import { openIssueDrawer } from "../components/issue-detail.js";
@@ -104,13 +106,24 @@ export async function mount(container, creds) {
   // getAllSprintIssues has already asked for these, so every call here is a
   // cache hit rather than a second round trip, and a board that refuses one is
   // simply left out.
-  const activeSprints = (
-    await Promise.all(BOARDS.map((b) => getActiveSprint(b.id, creds).catch(() => [])))
-  )
-    .flat()
-    .filter(Boolean);
+  // A board whose sprint list failed is null rather than [], so the freeze below
+  // can tell "no active sprint" from "did not answer".
+  const sprintLists = await Promise.all(
+    BOARDS.map((b) => getActiveSprint(b.id, creds).catch(() => null))
+  );
+  const activeSprints = sprintLists.flat().filter(Boolean);
 
-  // Named for the header line.
+  // Setting up the standup freezes each board's sprint if nothing has yet. The
+  // dashboard takes the same freezes on its first load, but it is opened days
+  // into a sprint, while the standup is opened on day one. Behind the scenes:
+  // not awaited, and a failure costs nothing here. Per board, so a board with
+  // no active sprint, or one that did not answer, holds nobody else back.
+  ensureSprintFreezes({
+    boardSprints: BOARDS.map((board, i) => ({ board, sprints: sprintLists[i] })).filter((b) => Array.isArray(b.sprints)),
+    issues: sprintIssues,
+    statusGroups,
+  }).catch((err) => console.warn("butter_jira: standup could not freeze the sprint", err));
+
   const sprintNames = [...new Set(activeSprints.map((s) => s?.name).filter(Boolean))];
 
   // The window every GitHub statistic is counted over. Earliest start among the
@@ -2170,19 +2183,27 @@ export async function mount(container, creds) {
 
     // ── The thing to hand over ──────────────────────────────────────────────
     const entries = notesEntries(session);
+    let digestBox = null;
+    const recap = recapWriter(session, () => (digestBox ? digestBox.value : ""));
     if (entries.length) {
       const notesPanel = el("section", "su-panel");
       const head = panelHead("Parking lot", "Paste this into Slack");
 
       // A textarea rather than a <pre>: the point is to select and copy it, and
       // it stays editable so the facilitator can tidy wording before pasting.
-      const digestBox = document.createElement("textarea");
+      digestBox = document.createElement("textarea");
       digestBox.className = "su-done-digest mono";
       digestBox.value = slackDigest(session);
       // Sub-bullets make the line count unpredictable, so measure the text.
       digestBox.rows = Math.min(18, digestBox.value.split("\n").length + 1);
       digestBox.spellcheck = false;
       digestBox.setAttribute("aria-label", "Standup summary to paste into Slack");
+      // The recap file follows the box, so what is saved is what was posted.
+      let editTimer = null;
+      digestBox.addEventListener("input", () => {
+        clearTimeout(editTimer);
+        editTimer = setTimeout(() => recap.save(), 800);
+      });
 
       // The two things this screen exists to hand over, in the panel head where
       // the setup screen puts a panel's actions. They were ghost buttons under
@@ -2191,7 +2212,12 @@ export async function mount(container, creds) {
       const actions = el("div", "su-panel-actions");
       const copyBtn = el("button", "su-btn small primary", "Copy message");
       copyBtn.addEventListener("click", async () => {
-        if (await copyDigest(digestBox.value)) {
+        const copied = await copyDigest(digestBox.value);
+        // Still inside the click, so a folder whose permission lapsed can ask
+        // for it back. After the copy: the prompt takes focus, and a clipboard
+        // write needs it.
+        recap.save({ request: true });
+        if (copied) {
           copyBtn.textContent = "Copied";
           setTimeout(() => { copyBtn.textContent = "Copy message"; }, 1500);
         } else {
@@ -2228,8 +2254,10 @@ export async function mount(container, creds) {
       session = null;
       renderSetup();
     });
-    footer.append(again, historyToggle(session));
+    footer.append(again, historyToggle(session, recap));
     wrap.appendChild(footer);
+    wrap.appendChild(recap.el);
+    recap.save();
 
     // After the panels are in the DOM, so the bursts land on the finished screen
     // rather than on the one being torn down.
@@ -2241,7 +2269,7 @@ export async function mount(container, creds) {
   // out rather than the way in. It flips back, because the one click on it
   // that matters is the accidental one. Writes are chained so a click before
   // the first write has landed cannot be overtaken by it.
-  function historyToggle(finished) {
+  function historyToggle(finished, recap) {
     let recorded = true;
     let pending = recordHistory(finished).catch(() => {});
     const btn = el("button", "su-btn small ghost su-done-history");
@@ -2261,9 +2289,71 @@ export async function mount(container, creds) {
       pending = pending
         .then(() => (want ? recordHistory(finished) : discardHistory(historyId(finished))))
         .catch(() => {});
+      // A test run leaves no recap file either.
+      recap.setRecorded(want);
     });
     paint();
     return btn;
+  }
+
+  // The recap file (js/recaps.js): written as the end screen appears, again
+  // after an edit to the Slack text or a copy, and removed by "don't record".
+  // Nothing at all when no folder is chosen in Settings. A folder whose
+  // permission lapsed with the browser session gets a button, because asking
+  // for it needs a click.
+  function recapWriter(finished, getDigest) {
+    const line = el("div", "su-done-recap");
+    let recorded = true;
+    let chain = Promise.resolve();
+
+    const say = (text, tone = "") => {
+      line.className = `su-done-recap${tone ? ` ${tone}` : ""}`;
+      line.replaceChildren(el("span", null, text));
+    };
+
+    async function run({ request = false } = {}) {
+      const folder = await getRecapFolder();
+      if (!folder) {
+        line.replaceChildren();
+        return;
+      }
+      const state = await folderPermission(folder, { request });
+      if (state !== "granted") {
+        const btn = el("button", "su-btn small ghost", `Save recap to ${folder.name}`);
+        btn.title = "The browser asks once per session for write access to the recap folder";
+        btn.addEventListener("click", () => save({ request: true }));
+        line.className = "su-done-recap";
+        line.replaceChildren(btn);
+        return;
+      }
+      if (!recorded) {
+        await removeRecap(folder, finished);
+        say("Not recorded — no recap file");
+        return;
+      }
+      const path = await writeRecap(folder, finished, { labelFor, digest: getDigest() });
+      say(`Recap saved to ${folder.name}/${path}`);
+    }
+
+    // Permission is asked for synchronously inside the click; the write itself
+    // queues behind any write still in flight.
+    function save(opts = {}) {
+      const asked = opts.request ? getRecapFolder().then((f) => folderPermission(f, { request: true })) : null;
+      chain = chain
+        .then(() => asked)
+        .then(() => run())
+        .catch((err) => say(`Recap not saved — ${err?.message || err}`, "error"));
+      return chain;
+    }
+
+    return {
+      el: line,
+      save,
+      setRecorded(want) {
+        recorded = want;
+        save();
+      },
+    };
   }
 
   // Dated heading for the pasted message, so a channel full of these is

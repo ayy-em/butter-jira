@@ -203,6 +203,35 @@
       </div>
     </details>
 
+    <!-- ── Standup recaps ───────────────────────────────────────────────── -->
+    <details class="settings-section" id="section-recaps">
+      <summary class="section-head">
+        Standup recaps
+        <span class="section-note">Save each standup's recap as a Markdown file · this device only</span>
+      </summary>
+      <div class="section-body">
+        <div class="hint">
+          Pick a folder and every finished standup is written into it as
+          <code>standup-recaps/&lt;year&gt;/&lt;month&gt;/standup_YYYY-MM-DD.md</code>:
+          a header with the date, weekday, start time, total duration and each
+          person's talk time, then the recap as it was copied for Slack. Edits to
+          the text on the end screen are saved too; "Don't record this standup"
+          removes the file. A second standup on the same day gets <code>_2</code>.
+        </div>
+        <div class="hint">
+          The browser shows only the folder's name, not its full path, and asks
+          again for write access in a new browser session unless you choose
+          "Allow on every visit". The recap names colleagues and what they are
+          working on, so pick a folder only you can read.
+        </div>
+        <div class="btn-row">
+          <button class="add-board-btn" id="chooseRecapFolderBtn">📁 Choose folder</button>
+          <button class="add-board-btn" id="forgetRecapFolderBtn" hidden>✕ Stop saving recaps</button>
+        </div>
+        <div class="hint" id="recapFolderNote"></div>
+      </div>
+    </details>
+
     <details class="settings-section" id="section-team">
       <summary class="section-head">
         Team settings

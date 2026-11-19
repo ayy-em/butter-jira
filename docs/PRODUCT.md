@@ -96,7 +96,7 @@ hand where every count opens its issues, standup prep, the since-the-freeze
 panel, and an Individual view with per-person cards and delivery-per-person
 including optional GitHub columns), a left sidebar for navigation with the
 team summary at its foot, Gantt/roadmap, Backlog, Kanban, Monitor (four hygiene
-checks), Standup mode, the weekly 1:1 sheet (per-person window, device-local
+checks), Standup mode (with optional recap files in a folder of the user's choosing), the weekly 1:1 sheet (per-person window, device-local
 notes and archive, Slack copy, mini-Gantt) with a personal todo list beside it,
 issue detail as drawer and full page with a GitHub development section, the
 sprint planner (setup, capacity per person, carryover and backlog, a device-local
@@ -140,7 +140,9 @@ product currently behaves and are worth preserving by default, but the user did
 not name them as invariants.
 
 **Terminology.** *Freeze* = the per-issue snapshot of a sprint taken on first
-sight of it. *Since the freeze* = the diff over it. *Crept in* / *pulled out* /
+sight of it, by the dashboard or the standup setup, one per board's active
+sprint. *Recap file* = a finished standup's Markdown file, written to the
+folder chosen in Settings → Standup recaps. *Since the freeze* = the diff over it. *Crept in* / *pulled out* /
 *re-estimated* / *went backwards* = the diff's buckets. *Hygiene* = the coarse
 share of issues with no Monitor finding, explicitly a nudge and not a KPI.
 *Status group* = the user's mapping from real Jira statuses onto columns.
@@ -188,7 +190,7 @@ recap and the quarterly overview, and the team scope above.
 - `docs/ROADMAP.md` — what is still open, and the product rules in force.
   Completed milestones were removed on 2026-09-29; their record is
   `docs/CHANGELOG.md` and the commit history.
-- Twenty-nine `scripts/test-*.mjs` suites (2445 checks, no dependencies, no
+- Thirty-two `scripts/test-*.mjs` suites (2850 checks, no dependencies, no
   network, no browser), fourteen preview harnesses in `preview/`, most of them
   sharing `preview/preview-fixture.js`, and
   `scripts/SMOKE-CHECKLIST.md`. Every suite runs in GitHub Actions on push and

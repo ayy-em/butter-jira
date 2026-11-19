@@ -26,7 +26,7 @@
 // dashboard load of a sprint takes one without being asked.
 
 import { localGet, localSet } from "./browser.js";
-import { MAX_SPRINTS_KEPT } from "./snapshots.js";
+import { MAX_SPRINTS_KEPT, sprintKey } from "./snapshots.js";
 import {
   isoDay,
   sprintEntries,
@@ -537,16 +537,95 @@ export async function recordFreeze(key, freeze) {
   const previous = all[key] || null;
   all[key] = freeze;
 
-  const keys = Object.keys(all);
-  if (keys.length > MAX_SPRINTS_KEPT) {
-    const kept = keys
-      .sort((a, b) => String(all[b]?.takenAt || "").localeCompare(String(all[a]?.takenAt || "")))
-      .slice(0, MAX_SPRINTS_KEPT);
-    for (const k of Object.keys(all)) if (!kept.includes(k)) delete all[k];
-  }
-
-  await localSet({ [FREEZE_KEY]: all });
+  await localSet({ [FREEZE_KEY]: pruneFreezes(all) });
   return previous;
+}
+
+// Keeps the newest MAX_SPRINTS_KEPT records, counting a board's own part of an
+// all-boards record as part of it rather than as a sprint of its own: with
+// per-board freezes, two boards write three records a sprint, and counting each
+// would keep under three sprints of history where the snapshots keep eight.
+// A part is a single-sprint record whose sprint is in some multi-sprint record;
+// it stays while that record does.
+export function pruneFreezes(all = {}) {
+  const idsOf = (f) => (f?.sprintIds || []).map(String);
+  const multiIds = new Set(Object.values(all).flatMap((f) => (idsOf(f).length > 1 ? idsOf(f) : [])));
+  const isPart = (f) => idsOf(f).length === 1 && multiIds.has(idsOf(f)[0]);
+  const primaries = Object.keys(all).filter((k) => !isPart(all[k]));
+  if (primaries.length <= MAX_SPRINTS_KEPT) return all;
+  const kept = new Set(
+    primaries
+      .sort((a, b) => String(all[b]?.takenAt || "").localeCompare(String(all[a]?.takenAt || "")))
+      .slice(0, MAX_SPRINTS_KEPT)
+  );
+  const keptIds = new Set([...kept].flatMap((k) => idsOf(all[k])));
+  const out = {};
+  for (const [k, f] of Object.entries(all)) {
+    if (kept.has(k) || (isPart(f) && keptIds.has(idsOf(f)[0]))) out[k] = f;
+  }
+  return out;
+}
+
+// ── Taking the running sprint's freeze ──────────────────────────────────────
+//
+// Each board is frozen on its own: one record per active sprint, keyed by the
+// sprint id, which is the key the planning flow already writes when it starts a
+// sprint. A board with no active sprint, or one whose sprint list did not load,
+// is skipped without holding the others back. The dashboard's record over every
+// board is then put together from those parts (composeFreeze).
+//
+// Called by every screen that may be the first to see a sprint: the dashboard,
+// and the standup setup, which is opened on day one while the dashboard often is
+// not until day three or four, by when "committed at the start" is a guess.
+// Never overwrites: a stored freeze stays as it is.
+//
+// `boardSprints` is [{ board: { id }, sprints }], one entry per board that
+// answered. Returns the sprint ids a freeze was recorded for.
+export async function ensureSprintFreezes({ boardSprints = [], issues = [], statusGroups = [], now = new Date() } = {}) {
+  const stored = await loadAllFreezes();
+  const recorded = [];
+  for (const { board, sprints = [] } of boardSprints) {
+    const live = (sprints || []).filter((s) => s?.id !== undefined);
+    if (!live.length) continue;
+    const boardIssues = issues.filter((issue) =>
+      (issue.boardIds?.length ? issue.boardIds : [issue.boardId]).map(String).includes(String(board?.id))
+    );
+    for (const sprint of live) {
+      const id = String(sprint.id);
+      if (stored[id]?.rows) continue;
+      // A sprint already covered by an older all-boards freeze (taken before
+      // freezes were per board) is read back from it rather than re-taken
+      // mid-sprint.
+      const earlier = partFromCombined(stored, id);
+      // One active sprint on the board: everything the board's sprint query
+      // returned is in it. Parallel sprints are told apart by the sprint field.
+      const own = live.length === 1
+        ? boardIssues
+        : boardIssues.filter((issue) => String(activeSprintIdOf(issue) ?? "") === id);
+      const freeze = earlier || freezeFrom({ issues: own, sprints: [sprint], statusGroups, now });
+      await recordFreeze(id, freeze);
+      stored[id] = freeze;
+      recorded.push(id);
+    }
+  }
+  return recorded;
+}
+
+// The dashboard's freeze over every board's running sprint: the stored record
+// under the combined key if there is one, else each board frozen as above and
+// the parts composed. With one sprint the part is the record.
+export async function ensureFreeze({ boardSprints = [], issues = [], statusGroups = [], now = new Date() } = {}) {
+  const sprints = boardSprints.flatMap((b) => b.sprints || []).filter((s) => s?.id !== undefined);
+  if (!sprints.length) return { key: "", freeze: null, created: false };
+  const key = sprintKey(sprints);
+  const existing = await loadFreeze(key);
+  if (existing) return { key, freeze: existing, created: false };
+  await ensureSprintFreezes({ boardSprints, issues, statusGroups, now });
+  if (sprints.length === 1) return { key, freeze: await loadFreeze(key), created: true };
+  const composed = composeFreeze({ sprints, stored: await loadAllFreezes(), take: false });
+  const freeze = composed?.freeze || freezeFrom({ issues, sprints, statusGroups, now });
+  await recordFreeze(key, freeze);
+  return { key, freeze, created: true };
 }
 
 export async function clearFreezes() {
