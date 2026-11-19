@@ -33,6 +33,14 @@ import {
 import { clearAllTodos, loadTodos } from "./js/todos.js";
 import { clearSprintHistory, loadSprintHistory, sprintHistorySize } from "./js/history.js";
 import { mountThemeToggle } from "./js/components/theme-toggle.js";
+import {
+  RECAP_ROOT,
+  chooseRecapFolder,
+  folderPermission,
+  forgetRecapFolder,
+  getRecapFolder,
+  recapFolderSupported,
+} from "./js/recaps.js";
 import { validateStatusGroups } from "./js/utils.js";
 import { icon } from "./js/components/icons.js";
 import {
@@ -571,6 +579,52 @@ exportBtn.addEventListener("click", async () => {
     caveats.length ? "warning" : "success"
   );
 });
+
+// ── Standup recaps ───────────────────────────────────────────────────────────
+// The folder is a File System Access handle kept in IndexedDB (js/recaps.js),
+// so it is per device and never in an export or a backup.
+const chooseRecapBtn = document.getElementById("chooseRecapFolderBtn");
+const forgetRecapBtn = document.getElementById("forgetRecapFolderBtn");
+const recapNote = document.getElementById("recapFolderNote");
+
+async function renderRecapFolder() {
+  if (!recapFolderSupported()) {
+    chooseRecapBtn.disabled = true;
+    forgetRecapBtn.hidden = true;
+    recapNote.textContent =
+      "Not available in this browser: saving to a folder needs the File System Access API (Chrome or Edge).";
+    return;
+  }
+  const folder = await getRecapFolder();
+  forgetRecapBtn.hidden = !folder;
+  chooseRecapBtn.textContent = folder ? "📁 Change folder" : "📁 Choose folder";
+  if (!folder) {
+    recapNote.textContent = "Off — no folder chosen, recaps are not saved.";
+    return;
+  }
+  const state = await folderPermission(folder);
+  recapNote.textContent =
+    `Saving to ${folder.name}/${RECAP_ROOT}/` +
+    (state === "granted" ? "" : " — the browser will ask for write access at the next standup.");
+}
+
+chooseRecapBtn.addEventListener("click", async () => {
+  try {
+    const folder = await chooseRecapFolder();
+    if (folder) flash(`Standup recaps will be saved to ${folder.name}/${RECAP_ROOT}/`, "success");
+  } catch (err) {
+    flash(`Could not use that folder — ${err?.message || err}`, "error");
+  }
+  renderRecapFolder();
+});
+
+forgetRecapBtn.addEventListener("click", async () => {
+  await forgetRecapFolder();
+  flash("Standup recaps are no longer saved. Files already written are kept.", "success");
+  renderRecapFolder();
+});
+
+renderRecapFolder();
 
 // ── Jira links open here ─────────────────────────────────────────────────────
 // A device-level switch (it changes what links do in this browser), stored

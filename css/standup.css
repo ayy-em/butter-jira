@@ -1281,3 +1281,12 @@
 body[data-standup-active="1"] #nav,
 body[data-standup-active="1"] #app-footer { display: none; }
 body[data-standup-active="1"] #view-container { top: 0; bottom: 0; left: 0; }
+
+/* Where the recap file went, under the footer. Quiet: it is a receipt. */
+.su-done-recap {
+  align-self: center;
+  font-size: calc(11.5px * var(--font-scale));
+  color: var(--muted);
+  min-height: 1em;
+}
+.su-done-recap.error { color: var(--accent-warning); }

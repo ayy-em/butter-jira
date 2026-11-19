@@ -27,7 +27,7 @@ import {
 import {
   departedKeys,
   diffFreeze,
-  composeFreeze,
+  ensureFreeze,
   freezeFrom,
   loadAllFreezes,
   loadFreeze,
@@ -228,18 +228,12 @@ export async function mount(container, creds) {
   // planning flow keys its start-of-sprint freeze by the one sprint it started.
   // When there is nothing under the combined key, it is put together from the
   // per-sprint freezes first (M25), and only taken whole when there are none.
-  let storedFreeze = sprints.length ? await loadFreeze(key) : null;
-  if (live && sprints.length && !storedFreeze) {
-    const composed = composeFreeze({
-      sprints,
-      stored: await loadAllFreezes(),
-      issues: allIssues,
-      statusGroups,
-      now,
-    });
-    storedFreeze = composed?.freeze || freezeFrom({ issues: allIssues, sprints, statusGroups });
-    await recordFreeze(key, storedFreeze);
-  }
+  // Each board is frozen on its own (ensureSprintFreezes), here or by the
+  // standup setup, whichever sees the sprint first; this record is composed
+  // from those parts.
+  let storedFreeze = null;
+  if (live) storedFreeze = (await ensureFreeze({ boardSprints, issues: allIssues, statusGroups, now })).freeze;
+  else if (sprints.length) storedFreeze = await loadFreeze(key);
 
   // The team's sprint: issues held by roster members, plus unassigned ones.
   const team = teamScope({ issues: allIssues, freeze: storedFreeze });

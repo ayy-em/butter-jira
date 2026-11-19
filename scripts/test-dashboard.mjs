@@ -637,6 +637,74 @@ check("a record with no rows is refused rather than stored as an empty freeze",
   (await frz.recordFreeze("other", {})) === null && (await frz.loadFreeze("other")) === null);
 check("other sprints are isolated", (await frz.loadFreeze("999")) === null);
 
+section("ensureFreeze: each board frozen on its own");
+{
+  local = {};
+  const day1 = new Date("2026-08-03T09:00:00Z");
+  const one = [{ board: { id: 1 }, sprints: [SPRINT] }];
+  const first = await frz.ensureFreeze({ boardSprints: one, issues: FROZEN_ISSUES, statusGroups: GROUPS, now: day1 });
+  check("no stored freeze: one is taken and recorded", first.created === true && first.freeze.rows.length === 4);
+  check("one board: the board's part is the dashboard's record, under its own key",
+    first.key === snap.sprintKey([SPRINT]) && (await frz.loadFreeze(first.key)).takenOn === "2026-08-03");
+  check("taken on day one, it counts as a start-of-sprint freeze", first.freeze.atStart === true);
+  const later = await frz.ensureFreeze({
+    boardSprints: one, issues: FROZEN_ISSUES.slice(0, 1), statusGroups: GROUPS,
+    now: new Date("2026-08-06T09:00:00Z"),
+  });
+  check("a later visit reads the stored freeze and never overwrites it",
+    later.created === false && later.freeze.takenOn === "2026-08-03" && later.freeze.rows.length === 4);
+  const none = await frz.ensureFreeze({ boardSprints: [{ board: { id: 1 }, sprints: [] }], issues: FROZEN_ISSUES });
+  check("no active sprint: nothing is taken", none.freeze === null && none.created === false);
+
+  // Two boards. The standup sees board 1 on its day one; board 2 has no active
+  // sprint yet, which must not stop board 1's freeze.
+  local = {};
+  const A = { id: 10, name: "ABC 42", state: "active", startDate: "2026-08-03", endDate: "2026-08-14" };
+  const B = { id: 57, name: "DEF 7", state: "active", startDate: "2026-08-10", endDate: "2026-08-21" };
+  const aIssues = [issue({ key: "ABC-701", points: 3, board: 1 }), issue({ key: "ABC-702", points: 2, board: 1 })];
+  const bIssues = [issue({ key: "DEF-701", points: 5, board: 2 })];
+  const got = await frz.ensureSprintFreezes({
+    boardSprints: [{ board: { id: 1 }, sprints: [A] }, { board: { id: 2 }, sprints: [] }],
+    issues: aIssues, statusGroups: GROUPS, now: day1,
+  });
+  check("a board with no active sprint does not hold another board back", got.length === 1 && got[0] === "10");
+  check("the board's freeze is keyed by its sprint, holding only its issues",
+    (await frz.loadFreeze("10")).rows.map((r) => r.key).join() === "ABC-701,ABC-702");
+  const day6 = new Date("2026-08-10T09:00:00Z");
+  const again = await frz.ensureSprintFreezes({
+    boardSprints: [{ board: { id: 1 }, sprints: [A] }, { board: { id: 2 }, sprints: [B] }],
+    issues: [...aIssues, ...bIssues], statusGroups: GROUPS, now: day6,
+  });
+  check("board 2's sprint starts: only it is frozen, board 1's stays as taken",
+    again.join() === "57" && (await frz.loadFreeze("10")).takenOn === "2026-08-03" &&
+    (await frz.loadFreeze("57")).rows.map((r) => r.key).join() === "DEF-701");
+  const both = await frz.ensureFreeze({
+    boardSprints: [{ board: { id: 1 }, sprints: [A] }, { board: { id: 2 }, sprints: [B] }],
+    issues: [...aIssues, ...bIssues], statusGroups: GROUPS, now: new Date("2026-08-12T09:00:00Z"),
+  });
+  check("the dashboard composes its record from the two boards' parts",
+    both.key === "10+57" && both.freeze.rows.length === 3 && both.freeze.composedFrom.length === 2);
+  check("and it is as exact as its parts: taken when the later part was",
+    both.freeze.takenOn === "2026-08-10");
+}
+
+section("freeze pruning: a board's part rides with its all-boards record");
+{
+  const rec = (ids, day) => ({ sprintIds: ids, takenAt: `2026-07-${day}T09:00:00.000Z`, takenOn: `2026-07-${day}`, rows: [] });
+  const all = {};
+  // Ten sprint cycles on two boards: a part each and the composed record.
+  for (let i = 0; i < 10; i++) {
+    const d = String(i + 10);
+    all[`a${i}`] = rec([`a${i}`], d);
+    all[`b${i}`] = rec([`b${i}`], d);
+    all[`a${i}+b${i}`] = rec([`a${i}`, `b${i}`], d);
+  }
+  const pruned = frz.pruneFreezes(all);
+  check("eight cycles are kept, not eight records", Object.keys(pruned).length === 3 * snap.MAX_SPRINTS_KEPT);
+  check("the newest cycle keeps its parts", Boolean(pruned.a9 && pruned.b9 && pruned["a9+b9"]));
+  check("the oldest cycle goes with its parts", !pruned.a0 && !pruned.b0 && !pruned["a0+b0"]);
+}
+
 section("freeze pruning");
 local = {};
 for (let i = 0; i < 12; i++) {

@@ -1,6 +1,6 @@
 # butter_jira — Roadmap
 
-Last updated: 2026-11-12
+Last updated: 2026-11-19
 
 An MV3 browser extension for Chrome, Firefox and Edge that gives one tab of
 Gantt, Backlog, Kanban, sprint and team views over several Jira Cloud boards.
@@ -30,10 +30,10 @@ code comments and commit subjects, so they are indexed at the bottom.
 | Jira writes | Transitions, field edits (assignee, due date, story points), issue and sub-task creation, comments, issue links (the only DELETE), the sprint planner's reviewed push (sprint moves in and out, assignee, story points), and the planning flow's sprint create, complete and start. Nothing else writes |
 | Second source | Optional GitHub sync (`js/github.js`), read-only, scoped to an explicit repo allowlist. Feeds the standup, dashboard, recap, quarterly overview and each issue's Development section |
 | Permissions | `storage`, `declarativeNetRequestWithHostAccess` (the opt-in Jira-links redirect), host access to `*.atlassian.net` and `api.github.com`, optional host access for anything else |
-| Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, per-sprint history, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges |
+| Storage | Synced storage for config. Device-local for tokens, the roster, view prefs, daily snapshots, sprint freezes, per-sprint history, 1:1 notes, todos, the sprint planner's draft and a five-minute response cache. Settings backs up everything but tokens, 1:1 notes and the planner draft to a file, and restore merges. Optional standup recap files go to a folder the user picks (File System Access, Chrome and Edge), whose handle stays in this device's IndexedDB and is never exported |
 | Build step | None to run it; `scripts/build.mjs` packages the three targets (copy plus manifest, no compilation) |
 | Releases | Tag-led: a `v*` tag makes `.github/workflows/release.yml` run every suite, build and verify the three zips, publish them with checksums, and push the version bump to `main` |
-| Tests | 31 `scripts/test-*.mjs` suites (2808 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
+| Tests | 32 `scripts/test-*.mjs` suites (2850 checks), 14 preview harnesses in `preview/`, a manual `scripts/SMOKE-CHECKLIST.md`. CI runs the suites on every push and pull request |
 | Licence | [PolyForm Noncommercial 1.0.0](../LICENSE) |
 
 ## Sizing
@@ -86,6 +86,13 @@ author.
 - **History is built forward.** Where Jira cannot cheaply answer a question about
   the past, the app records the answer locally from now on, rather than mining
   Jira backwards.
+- **Freezes are per board.** Each board's active sprint is frozen on its own,
+  keyed by sprint id, by whichever of the dashboard and the standup setup sees
+  it first (settled 2026-11-19). The dashboard's all-boards record is composed
+  from those parts, and pruning counts a cycle, not a record.
+- **Standup recaps go only where the user points them.** Off until a folder is
+  chosen; the files name colleagues and their parking-lot notes, so Settings
+  says to pick a folder only the user can read. The app never uploads them.
 
 ## Risk register
 
@@ -104,7 +111,8 @@ author.
 
 1. ~~**How much history should the app keep?**~~ **Answered 2026-11-05, with
    M17:** per store. Daily snapshots and freezes stay at eight sprints
-   (`MAX_SPRINTS_KEPT`); the per-sprint history keeps 104 rows
+   (`MAX_SPRINTS_KEPT`; a board's own freeze rides with the all-boards record
+   it belongs to); the per-sprint history keeps 104 rows
    (`MAX_HISTORY_ROWS`, about four years of fortnights), is in the device
    backup, and is deleted only from Settings → Backup & transfer.
 

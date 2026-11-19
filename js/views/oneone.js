@@ -945,13 +945,10 @@ async function mountSheet(container, creds, accountId) {
     // remember: the end of the meeting is when the summary gets sent.
     await copyForSlack(result.session);
 
-    // The window deliberately does not move. Completing sets the boundary for
-    // *next* time; re-resolving it here would relabel the header "since a moment
-    // ago" over a fortnight of data still on screen, which is a lie about the
-    // numbers you were discussing thirty seconds earlier. The header saying
-    // "Last 1:1 today" is the signal that it landed.
-    whoMeta.textContent = `Last 1:1 ${lastMetLabel(person.lastCompletedAt, new Date())}`;
-    renderRight();
+    // Done with this person: back to the roster, where they now read "today"
+    // and the next person is one click away. The toast from the copy survives
+    // the route change, so the Slack text is still announced.
+    location.hash = "#oneone";
   }
 
   function archiveBlock() {

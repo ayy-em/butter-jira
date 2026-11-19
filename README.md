@@ -777,9 +777,16 @@ and from then on the **Since the freeze** panel shows what moved:
 - An **unchanged** count, and a line of arithmetic: frozen − pulled out + crept
   in = the sprint now. The buckets have to reconcile on screen.
 
-It is taken **automatically**, unasked, on the first load of a sprint — history
-only accrues forward, and a sprint boundary that passes unfrozen cannot be
-reconstructed later. **Freeze now**, on the panel, replaces it for a sprint that
+It is taken **automatically**, unasked, the first time either the dashboard or
+the **standup setup** sees a sprint — history only accrues forward, and a sprint
+boundary that passes unfrozen cannot be reconstructed later. The standup is the
+one opened on day one, so in practice that is where it happens, in the
+background, without holding the setup screen up. **Each board is frozen on its
+own**, one record per active sprint under the sprint's id (the key the planning
+flow also writes when it starts a sprint): a board with no active sprint, or one
+whose sprint list did not load, holds nobody else back. With several boards the
+dashboard's record is put together from those parts, and is as exact as the
+least exact of them. **Freeze now**, on the panel, replaces it for a sprint that
 was re-planned; it confirms with what it is about to discard, because there is no
 way back to the old one.
 
@@ -801,6 +808,8 @@ discovered.
 
 Stored device-local and pruned to the same eight sprints the burndown keeps, from
 the same constant, so the two histories cannot end up different lengths. A
+board's own part rides with the all-boards record it belongs to rather than
+counting as a sprint of its own. A
 60-issue sprint freezes to roughly 22 KB; eight of them, under 200 KB — measured
 in `scripts/test-dashboard.mjs` rather than assumed.
 
@@ -1163,6 +1172,17 @@ board in a randomised order, one at a time, full-screen.
   just the one), then the sign-off. Copy puts it on the clipboard twice over —
   as a real list for Slack, as plain text for anything else.
 - The summary shows actual vs planned time per person and who never got reached.
+- **Recaps saved as files**, if you pick a folder in Settings → Standup recaps
+  (Chrome and Edge; Firefox has no API for it). Each standup is written to
+  `<folder>/standup-recaps/<year>/<month>/standup_YYYY-MM-DD.md`: a YAML header
+  with the date, weekday, start time, total duration, total speaking time and
+  every participant's talk time (`null` for anyone not reached), then the
+  summary as copied for Slack. Written as the end screen appears, rewritten when
+  you edit the text or copy it, removed by *Don't record this standup's stats*.
+  A second standup that day becomes `_2`. The line under the footer says where it
+  went. In a new browser session the browser asks once for write access, unless
+  you picked *Allow on every visit*; until then the line is a *Save recap*
+  button, since that prompt needs a click.
 
 **The turn screen is the speaker's board, and everything else gets out of its
 way.** Their sprint board takes the width; a slim rail down the right carries
@@ -1268,7 +1288,8 @@ for a message — the outcomes, deliberately not the numbers. **Complete 1:1**
 archives the notes as a dated, read-only entry, carries the open actions into
 next time, pushes the ones *you* took on to **Launch → My todos**, and offers the
 copy at that moment, because the end of the meeting is when the summary actually
-gets sent.
+gets sent. Then it takes you back to the picker, where that person now reads
+"today" and the next one is a click away.
 
 **Per-person line counts over the window are part of the sheet**, because
 per-person output is what the conversation is about. The sheet shows one person
@@ -1584,6 +1605,7 @@ js/freeze.js        # per-issue sprint freeze and the diff over it (DOM-free)
 js/history.js       # per-sprint history: one rollup row a sprint, the velocity trend
 js/charts.js        # inline SVG chart primitives, no libraries
 js/standup.js       # standup session: order, phases, timing (DOM-free)
+js/recaps.js        # standup recap files in a chosen folder (File System Access)
 js/sfx.js           # bundled sound cues
 js/sanitize.js      # allowlist sanitiser for Jira-rendered HTML
 js/adf.js           # Atlassian Document Format <-> text (comment posting)
@@ -1807,7 +1829,7 @@ node scripts/test-team.mjs         # roster, display names, filtering (138 check
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
 node scripts/test-standup.mjs      # session timing, order, pressure (215 checks)
-node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (251 checks)
+node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (264 checks)
 node scripts/test-overview.mjs     # team overview, checklist, donut     (82 checks)
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (126 checks)
 node scripts/test-quarter.mjs      # quarter weeks, score, ranking     (54 checks)
@@ -1827,6 +1849,7 @@ node scripts/test-release.mjs      # version rewriting, licence, notes   (41 che
 node scripts/test-oneone.mjs       # 1:1 windows, notes, todos, JQL    (153 checks)
 node scripts/test-planner.mjs      # capacity, holidays, push, split (105 checks)
 node scripts/test-planflow.mjs     # flow: split from time, due dates, epic dates, run (48 checks)
+node scripts/test-recaps.mjs       # standup recap files: path, header, rewrite (28 checks)
 ```
 
 View code is verified by rendering it rather than asserting on it. Harnesses
