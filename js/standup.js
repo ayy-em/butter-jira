@@ -93,8 +93,8 @@ export function handoffPhrase(session, phrases = HANDOFF_PHRASES) {
   return phrases[chosen];
 }
 
-// The lunch reminder that fades in and out before the lead-in. Not shown on
-// Fridays (see isReminderDay). Picked from the seed for the same reason as the
+// The screen that fades in and out before the lead-in: a lunch reminder, or
+// TGIF on a Friday (see reminderPhrases). Picked from the seed for the same reason as the
 // hand-off phrase: a pause re-renders the screen, and the line should not
 // change under the room when it does.
 export const REMINDER_PHRASES = [
@@ -107,15 +107,22 @@ export const REMINDER_PHRASES = [
   "Future you says: buy lunch now.",
 ];
 
-export function reminderPhrase(session, phrases = REMINDER_PHRASES) {
+export const FRIDAY_PHRASES = ["TGIF"];
+
+// Friday in the local time zone of the machine running it, judged by when the
+// session started, so a standup resumed after midnight keeps its line.
+export function isFriday(now = Date.now()) {
+  return new Date(now).getDay() === 5;
+}
+
+export function reminderPhrases(now = Date.now()) {
+  return isFriday(now) ? FRIDAY_PHRASES : REMINDER_PHRASES;
+}
+
+export function reminderPhrase(session, phrases = reminderPhrases(session?.startedAt ?? Date.now())) {
   if (!phrases.length) return "";
   const seed = Number(session?.seed) || 0;
   return phrases[Math.floor(makeRandom(seed ^ 0x5eed)() * phrases.length)];
-}
-
-// Every day except Friday, in the local time zone of the machine running it.
-export function isReminderDay(now = Date.now()) {
-  return new Date(now).getDay() !== 5;
 }
 
 export function clampDuration(seconds) {

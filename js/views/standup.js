@@ -52,7 +52,6 @@ import {
   finish,
   formatClock,
   handoffPhrase,
-  isReminderDay,
   historyId,
   isOverrun,
   isPaused,
@@ -1154,10 +1153,9 @@ export async function mount(container, creds) {
 
     if (p.phase === "running") {
       const waited = fmtElapsed(now - p.startedAt);
-      // The activity query is a single POST covering every repo, so it has no
-      // count to report; the window query reaches each repo on its own and does.
+      // Both queries reach each repo on its own, so both can count.
       const where =
-        kind === "stats" && p.reposTotal
+        p.reposTotal
           ? `${p.reposDone} of ${p.reposTotal} ${plural(p.reposTotal, "repo")}`
           : "in flight";
       return {
@@ -1242,7 +1240,13 @@ export async function mount(container, creds) {
       const reach = githubReach(kind);
       const failed = reach?.failed.length ? reach.failed : progress[kind].failed;
       const capped = reach?.capped.length ? reach.capped : progress[kind].capped;
-      if (failed.length) notes.push(`${label} — could not read ${failed.join(", ")}.`);
+      // With the reason GitHub gave, so "timed out" and "not found" read as
+      // the two different fixes they are.
+      const payload = kind === "activity" ? github.activity : github.stats;
+      const why = (repo) => payload?.failures?.find((f) => f.repo === repo)?.message;
+      if (failed.length) {
+        notes.push(`${label} — could not read ${failed.map((r) => (why(r) ? `${r} (${why(r)})` : r)).join(", ")}.`);
+      }
       if (capped.length) {
         notes.push(`${label} — ${capped.join(", ")} hit the page cap, so its older half is not counted.`);
       }
@@ -1412,7 +1416,8 @@ export async function mount(container, creds) {
       durations,
       seed: Date.now() % 2147483647,
       now: Date.now(),
-      reminder: isReminderDay(Date.now()),
+      // Every day: the lunch reminder, or TGIF on a Friday (reminderPhrase).
+      reminder: true,
     });
     countdownCuePlayed = false;
     sfx.play("start");
@@ -1526,7 +1531,7 @@ export async function mount(container, creds) {
     paintClock(Date.now());
   }
 
-  // Lunch reminder ahead of the lead-in. The fade is one CSS animation the
+  // Lunch reminder, or TGIF on a Friday, ahead of the lead-in. The fade is one CSS animation the
   // length of the phase; a pause re-renders this screen, so the animation is
   // started part-way through (negative delay) at the elapsed time rather than
   // from zero, and held while paused.

@@ -748,7 +748,7 @@
 }
 .standup-interstitial-name { font-size: calc(18px * var(--font-scale)); color: var(--muted); }
 
-/* Lunch reminder before the lead-in: fades in, holds, fades out across the
+/* Lunch reminder (TGIF on Fridays) before the lead-in: fades in, holds, fades out across the
    whole REMINDER_SEC phase (js/standup.js). Keep the duration in step with it. */
 .standup-reminder {
   padding: 0 6vw;

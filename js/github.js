@@ -14,7 +14,7 @@
 //      metered against a 30/minute budget with a 256-character query ceiling
 //      that a dozen `repo:` qualifiers would breach. Aliased
 //      `repository(owner:, name:)` fields ask for exactly the declared repos,
-//      in one POST, against the ordinary 5000-point/hour budget.
+//      one POST per repo, against the ordinary 5000-point/hour budget.
 //   3. **Never fatal.** Every failure degrades to "no panel". A dead GitHub
 //      token must not read as the app being broken, so nothing here dispatches
 //      the app-wide `jira-auth-error` the Jira layer uses, and a repo the token
@@ -678,7 +678,7 @@ async function fetchRepoWindow(repo, { token, host, since, maxPages, query }) {
       owner: repo.owner,
       name: repo.name,
       cursor,
-    });
+    }, { label: `sprint window ${repoSlug(repo)} page ${pages + 1}` });
     const node = payload?.data?.repository;
     if (!node) {
       const err = payload?.errors?.[0];
@@ -792,7 +792,7 @@ async function fetchRepoCommits(repo, { token, host, since, until = 0, maxPages,
       since: new Date(since).toISOString(),
       until: until ? new Date(until).toISOString() : null,
       cursor,
-    });
+    }, { label: `commits ${repoSlug(repo)} page ${pages + 1}` });
     const node = payload?.data?.repository;
     if (!node) {
       const err = payload?.errors?.[0];
@@ -1091,9 +1091,30 @@ async function githubRest(path, token, host) {
   return resp.json();
 }
 
-async function githubGraphql(query, token, host, variables = null) {
+// Console lines for every GitHub GraphQL failure, and a debug line for every
+// success, prefixed so they filter. Never the token or the query: status,
+// timing, GitHub's request id (what GitHub support asks for) and the first few
+// hundred characters of whatever came back.
+const LOG_PREFIX = "butter_jira GitHub";
+
+function logGithub(level, label, details) {
+  try {
+    console[level](`${LOG_PREFIX} ${label}:`, details);
+  } catch {
+    // A console that refuses is not worth failing a fetch over.
+  }
+}
+
+function bodySample(text) {
+  const t = String(text ?? "");
+  return t.length > 300 ? `${t.slice(0, 300)}… (${t.length} chars)` : t;
+}
+
+// `label` names the request in the log ("activity acme/api").
+async function githubGraphql(query, token, host, variables = null, { label = "graphql" } = {}) {
   const url = githubGraphqlUrl(host);
   if (!url) throw new GithubError("GitHub host is not configured", { kind: "config" });
+  const started = Date.now();
   const resp = await fetch(url, {
     method: "POST",
     headers: {
@@ -1104,16 +1125,47 @@ async function githubGraphql(query, token, host, variables = null) {
     body: JSON.stringify(variables ? { query, variables } : { query }),
   });
   noteExpiry(resp);
-  if (!resp.ok) throw describeStatus(resp.status, await resp.text().catch(() => ""));
-  const payload = await resp.json();
+  const seconds = Math.round((Date.now() - started) / 100) / 10;
+  const requestId = resp.headers?.get?.("x-github-request-id") || "";
+  const text = await resp.text().catch(() => "");
+  const context = { status: resp.status, seconds, requestId, bytes: text.length };
+
+  if (!resp.ok) {
+    const err = describeStatus(resp.status, text);
+    logGithub("warn", label, { ...context, error: err.message, body: bodySample(text) });
+    throw err;
+  }
+
+  // GitHub answers a query that ran past its ten-second limit with an empty or
+  // cut-off body, sometimes under a 200. Parsing that blind said "Unexpected
+  // end of JSON input", which explained nothing.
+  let payload;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    const err = new GithubError(
+      text.trim()
+        ? `GitHub sent an incomplete response after ${seconds}s (HTTP ${resp.status}) — most likely its query timeout`
+        : `GitHub sent an empty response after ${seconds}s (HTTP ${resp.status}) — most likely its query timeout`,
+      { status: resp.status, kind: "timeout" }
+    );
+    logGithub("warn", label, { ...context, error: err.message, body: bodySample(text) });
+    throw err;
+  }
+
   // A GraphQL 200 with data: null and top-level errors is a whole-query
-  // failure (bad token scope, malformed document) rather than a per-repo one.
+  // failure (bad token scope, malformed document, a timeout reported properly)
+  // rather than a per-repo one.
   if (!payload?.data && payload?.errors?.length) {
-    throw new GithubError(payload.errors[0]?.message || "GraphQL request failed", {
-      status: 200,
-      kind: "graphql",
+    const message = payload.errors[0]?.message || "GraphQL request failed";
+    logGithub("warn", label, { ...context, error: message, errors: payload.errors });
+    throw new GithubError(message, {
+      status: resp.status,
+      kind: /timeout/i.test(message) ? "timeout" : "graphql",
     });
   }
+  if (payload?.errors?.length) logGithub("info", label, { ...context, partialErrors: payload.errors });
+  else logGithub("debug", label, context);
   return payload;
 }
 
@@ -1183,7 +1235,7 @@ export async function listOrgMembers({ host, org } = {}, token) {
   return members;
 }
 
-// One POST for every declared repo. Returns the view model, or throws for a
+// Every declared repo, one POST each. Returns the view model, or throws for a
 // whole-query failure — callers treat a throw as "no panel", never as an app
 // error.
 export async function fetchTeamActivity({ config = CONFIG, token, now = new Date() } = {}) {
@@ -1195,8 +1247,80 @@ export async function fetchTeamActivity({ config = CONFIG, token, now = new Date
   const authToken = token || (await getGithubToken());
   if (!authToken) throw new GithubError("No GitHub token stored", { kind: "auth" });
 
-  const payload = await githubGraphql(buildActivityQuery(gh.repos), authToken, gh.host);
-  return toActivity(payload, gh.repos, { now });
+  // One query per repo, run a few at a time, rather than one query over every
+  // repo. The single query timed out on GitHub's side once enough repos and
+  // pull requests were in it, and a timeout lost the whole list for everybody.
+  // Now a slow repo costs that repo. A repo that times out is asked again once
+  // for fewer items; one that still fails is reported by name, and toActivity
+  // reads the per-repo answers exactly as it read the aliases of the one query.
+  const answers = await mapLimit(gh.repos, ACTIVITY_CONCURRENCY, async (repo) => {
+    const slug = repoSlug(repo);
+    try {
+      const payload = await fetchRepoActivity(repo, authToken, gh.host);
+      noteRepoDone("activity", slug);
+      return { payload };
+    } catch (err) {
+      noteRepoDone("activity", slug, { failed: true });
+      return { error: err };
+    }
+  });
+
+  // Every repo failed the same way is a whole failure (a dead token, a rate
+  // limit, GitHub down), and is thrown as one, as before.
+  if (answers.every((a) => a.error)) throw answers[0].error;
+
+  const merged = { data: {}, errors: [] };
+  answers.forEach((answer, i) => {
+    const alias = `r${i}`;
+    if (answer.error) {
+      merged.errors.push({
+        path: [alias],
+        type: answer.error instanceof GithubError ? answer.error.kind : "error",
+        message: answer.error?.message || "Request failed",
+      });
+      return;
+    }
+    const node = answer.payload?.data?.r0;
+    if (node) merged.data[alias] = node;
+    for (const err of answer.payload?.errors || []) {
+      merged.errors.push({ ...err, path: [alias, ...(Array.isArray(err.path) ? err.path.slice(1) : [])] });
+    }
+  });
+  return toActivity(merged, gh.repos, { now });
+}
+
+const ACTIVITY_CONCURRENCY = 4;
+// The retry after a timeout asks for less: the open list is what the screens
+// are for, so it keeps the most; merged and issues give way first.
+const ACTIVITY_RETRY_LIMITS = { openPrLimit: 25, mergedLimit: 10, issueLimit: 10 };
+const RETRYABLE = new Set(["timeout"]);
+
+async function fetchRepoActivity(repo, token, host) {
+  const label = `activity ${repoSlug(repo)}`;
+  try {
+    return await githubGraphql(buildActivityQuery([repo]), token, host, null, { label });
+  } catch (err) {
+    const retry = err instanceof GithubError && (RETRYABLE.has(err.kind) || err.status >= 500);
+    if (!retry) throw err;
+    logGithub("info", label, { retrying: "with smaller lists", after: err.message });
+    return githubGraphql(buildActivityQuery([repo], ACTIVITY_RETRY_LIMITS), token, host, null, {
+      label: `${label} (retry)`,
+    });
+  }
+}
+
+// Promise.all over `items`, at most `limit` running at once, results in order.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
 }
 
 // The sprint-window counterpart: pull requests, reviews and comments over the
@@ -1509,7 +1633,9 @@ export async function getIssueDevelopment(issueKey, { config = CONFIG, force = f
     const slugs = gh.repos.map(repoSlug);
     const failures = [];
     const prSearches = searchBatches(`${issueKey} type:pr`, slugs);
-    const payload = await githubGraphql(buildDevelopmentQuery(issueKey, gh.repos, prSearches), token, gh.host);
+    const payload = await githubGraphql(buildDevelopmentQuery(issueKey, gh.repos, prSearches), token, gh.host, null, {
+      label: `development ${issueKey}`,
+    });
     // A repo the token cannot read comes back as a null alias with an error;
     // the rest of the answer stands.
     for (const err of payload?.errors || []) {

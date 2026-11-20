@@ -288,7 +288,7 @@ Use a pair of scratch issues.
 - [ ] "All in" / "None" work; per-person minutes and "Set all" apply
 - [ ] Totals line updates with attendance and shows both speaking and wall-clock time
 - [ ] Start → goes full-screen, sidebar and footer hidden (view uses the full width), `dun-dun-dun` plays
-- [ ] Monday to Thursday: a lunch reminder fades in and out for three seconds first (Space holds it, → skips it); on a Friday it is not shown
+- [ ] Monday to Thursday: a lunch reminder fades in and out for three seconds first (Space holds it, → skips it); on a Friday the same screen says TGIF instead
 - [ ] 5-second countdown shows the first person's name, then their board appears
 - [ ] Board shows only that person's current-sprint issues, no assignee avatars
 - [ ] Cards are readable from across a room; clicking one still opens the drawer

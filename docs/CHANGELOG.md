@@ -20,6 +20,20 @@ dashboard that day. Each board is frozen on its own: a board without an active
 sprint no longer holds another one back. The dashboard puts its all-boards view
 together from those parts, and keeps eight sprints of them, not eight records.
 
+**Open pull requests are back.** The pull-request list was one request to
+GitHub covering every repo. Once that request got big enough, GitHub stopped it
+at its ten-second limit and sent back an empty answer, so the standup, the 1:1
+sheet and the dashboard showed no open pull requests for anyone ("Unexpected end
+of JSON input"). Each repo is now asked on its own and, if GitHub times out, asked
+once more for fewer items. A repo that still fails is named in the GitHub hover
+panel with the reason, and the others still show. Every GitHub request now logs
+its status, time taken and GitHub's request id to the browser console, under
+`butter_jira GitHub`.
+
+**TGIF on Fridays.** The three-second screen before the standup's countdown,
+which skipped Fridays, now shows on Fridays too and says TGIF instead of the
+lunch reminder.
+
 **Completing a 1:1 goes back to the list of people,** with the Slack summary
 already on the clipboard.
 

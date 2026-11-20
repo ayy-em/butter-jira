@@ -431,7 +431,7 @@ check("empty list yields empty string, not undefined",
   su.handoffPhrase(phraseSession(1, 0), []) === "");
 check("no phrase is blank", su.HANDOFF_PHRASES.every((p) => p.trim().length > 0));
 
-section("lunch reminder");
+section("pre-standup screen: lunch reminder, TGIF on Fridays");
 s = su.createSession({ participants: people(2), seed: 5, now: T0, reminder: true });
 check("reminder opens the session when asked", s.phase === su.PHASES.REMINDER);
 check("reminder is off by default",
@@ -448,16 +448,23 @@ check("pausing holds the reminder",
   !su.shouldAutoAdvance(
     su.pause(su.createSession({ participants: people(1), seed: 1, now: T0, reminder: true }), T0 + 1000),
     T0 + 10_000));
-check("phrase is one of the list", su.REMINDER_PHRASES.includes(su.reminderPhrase({ seed: 3 })));
-check("phrase is stable for a session", su.reminderPhrase({ seed: 42 }) === su.reminderPhrase({ seed: 42 }));
-check("every phrase is reachable",
-  new Set([...Array(400).keys()].map((seed) => su.reminderPhrase({ seed }))).size === su.REMINDER_PHRASES.length);
-check("empty list yields empty string", su.reminderPhrase({ seed: 1 }, []) === "");
 // 2026-11-09 is a Monday; local-time constructor so the test holds in any zone.
 const day = (d) => new Date(2026, 10, d, 9, 30).getTime();
-check("shown Monday to Thursday", [9, 10, 11, 12].every((d) => su.isReminderDay(day(d))));
-check("not shown on Friday", su.isReminderDay(day(13)) === false);
-check("shown at the weekend", su.isReminderDay(day(14)) && su.isReminderDay(day(15)));
+const MON = day(9);
+check("phrase is one of the list", su.REMINDER_PHRASES.includes(su.reminderPhrase({ seed: 3, startedAt: MON })));
+check("phrase is stable for a session",
+  su.reminderPhrase({ seed: 42, startedAt: MON }) === su.reminderPhrase({ seed: 42, startedAt: MON }));
+check("every phrase is reachable",
+  new Set([...Array(400).keys()].map((seed) => su.reminderPhrase({ seed, startedAt: MON }))).size === su.REMINDER_PHRASES.length);
+check("empty list yields empty string", su.reminderPhrase({ seed: 1 }, []) === "");
+check("lunch reminder Monday to Thursday",
+  [9, 10, 11, 12].every((d) => su.REMINDER_PHRASES.includes(su.reminderPhrase({ seed: 7, startedAt: day(d) }))));
+check("TGIF on a Friday, whatever the seed",
+  [...Array(50).keys()].every((seed) => su.reminderPhrase({ seed, startedAt: day(13) }) === "TGIF"));
+check("lunch reminder at the weekend",
+  [14, 15].every((d) => su.REMINDER_PHRASES.includes(su.reminderPhrase({ seed: 7, startedAt: day(d) }))));
+check("judged by when the session started: a Friday standup resumed after midnight stays TGIF",
+  su.reminderPhrase({ seed: 1, startedAt: new Date(2026, 10, 13, 23, 59).getTime() }) === "TGIF");
 
 section("pressure — the run-up to time-up");
 
