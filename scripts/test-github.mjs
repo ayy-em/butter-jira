@@ -78,7 +78,7 @@ globalThis.fetch = async (url, options = {}) => {
     status: resp.status,
     headers: { get: (name) => resp.headers?.[name.toLowerCase()] ?? null },
     json: async () => resp.body,
-    text: async () => JSON.stringify(resp.body ?? ""),
+    text: async () => (resp.raw !== undefined ? resp.raw : JSON.stringify(resp.body ?? "")),
   };
 };
 
@@ -515,14 +515,30 @@ await cfg.loadConfig();
 localStore = {};
 await creds.saveGithubToken("gh-token");
 requests = [];
-nextResponse = { status: 200, body: payload, headers: { "github-authentication-token-expiration": "2026-10-01 00:00:00 +0000" } };
+const EXPIRY = { "github-authentication-token-expiration": "2026-10-01 00:00:00 +0000" };
+const repoOk = { status: 200, body: { data: { r0: payload.data.r0 } }, headers: EXPIRY };
+const repoMissing = {
+  status: 200,
+  body: { data: { r0: null }, errors: [{ type: "NOT_FOUND", path: ["r0"], message: "Could not resolve to a Repository" }] },
+  headers: {},
+};
+const emptyBody = { status: 200, raw: "", headers: { "x-github-request-id": "ABCD:1234" } };
+// Console output is captured, so the log lines can be checked and stay quiet.
+const logged = [];
+for (const level of ["warn", "info", "debug"]) console[level] = (...args) => logged.push({ level, args });
+responseQueue = [repoOk, repoMissing];
 
 const fetched = await gh.fetchTeamActivity({ now: NOW });
-check("one request for every declared repo", requests.length === 1);
+check("one request per declared repo", requests.length === 2);
 check("posted to the GraphQL endpoint", requests[0].url === "https://api.github.com/graphql");
 check("bearer auth", requests[0].options.headers.Authorization === "Bearer gh-token");
-check("query names both repos", /platform-api[\s\S]*web-ui/.test(requests[0].options.body));
+check("each query names only its own repo",
+  /platform-api/.test(requests[0].options.body) && !/web-ui/.test(requests[0].options.body) &&
+  /web-ui/.test(requests[1].options.body) && !/platform-api/.test(requests[1].options.body));
 check("view model returned, drafts already split off", fetched.pullRequests.length === 2);
+check("a repo GitHub cannot find is reported by name, the other still read",
+  fetched.reached.join() === "acme/platform-api" &&
+  fetched.failures.some((f) => f.repo === "acme/web-ui" && f.type === "NOT_FOUND"));
 await new Promise((r) => setTimeout(r, 0));   // the expiry write is fire-and-forget
 check("expiry recorded from the response header", localStore.githubTokenExpiresAt === "2026-10-01");
 
@@ -555,6 +571,63 @@ nextResponse = { status: 200, body: { errors: [{ message: "Bad credentials" }] }
 caught = null;
 try { await gh.fetchTeamActivity({ now: NOW }); } catch (err) { caught = err; }
 check("a whole-query GraphQL failure throws", caught?.kind === "graphql");
+
+section("activity: timeouts and empty responses");
+storage.github = { enabled: true, host: "github.com", org: "acme", repos: ["acme/platform-api", "acme/web-ui"] };
+await cfg.loadConfig();
+nextResponse = null;
+
+requests = [];
+logged.length = 0;
+responseQueue = [emptyBody, repoMissing, repoOk];
+let got = await gh.fetchTeamActivity({ now: NOW });
+check("an empty body is retried once, for fewer items",
+  requests.length === 3 && /first: 25/.test(requests[2].options.body) && /platform-api/.test(requests[2].options.body));
+check("and the retry's answer is used", got.pullRequests.length === 2 && got.reached.includes("acme/platform-api"));
+const warn = logged.find((l) => l.level === "warn");
+check("the empty response is logged with status, timing and GitHub's request id",
+  warn && /activity acme\/platform-api/.test(warn.args[0]) &&
+  warn.args[1].status === 200 && warn.args[1].requestId === "ABCD:1234" && warn.args[1].bytes === 0 &&
+  typeof warn.args[1].seconds === "number");
+check("the log never carries the token", !JSON.stringify(logged.map((l) => l.args)).includes("gh-token"));
+
+requests = [];
+responseQueue = [emptyBody, repoMissing, { ...emptyBody, raw: '{"data": {"r0": {"nameWith' }];
+got = await gh.fetchTeamActivity({ now: NOW });
+const timeout = got.failures.find((f) => f.repo === "acme/platform-api");
+check("a repo that times out twice costs that repo, not the list",
+  Array.isArray(got.pullRequests) && timeout?.type === "timeout");
+check("and says what happened instead of a JSON parse error",
+  /incomplete response after .*s \(HTTP 200\) — most likely its query timeout/.test(timeout?.message) &&
+  !/JSON/.test(timeout?.message));
+
+requests = [];
+responseQueue = [emptyBody, emptyBody, emptyBody, emptyBody];
+caught = null;
+try { await gh.fetchTeamActivity({ now: NOW }); } catch (err) { caught = err; }
+check("every repo failing is still a whole failure, thrown as one",
+  caught?.kind === "timeout" && /empty response/.test(caught.message));
+
+requests = [];
+responseQueue = [{ status: 502, raw: "", headers: {} }, repoMissing, repoOk];
+got = await gh.fetchTeamActivity({ now: NOW });
+check("a 5xx is retried too", requests.length === 3 && got.reached.includes("acme/platform-api"));
+
+requests = [];
+responseQueue = [{ status: 401, body: { message: "Bad credentials" }, headers: {} }, { status: 401, body: {}, headers: {} }];
+caught = null;
+try { await gh.fetchTeamActivity({ now: NOW }); } catch (err) { caught = err; }
+check("an auth failure is not retried", requests.length === 2 && caught?.kind === "auth");
+
+requests = [];
+responseQueue = [
+  { status: 200, body: { data: null, errors: [{ message: "Something went wrong while executing your query. This may be the result of a timeout" }] }, headers: {} },
+  repoMissing, repoOk,
+];
+got = await gh.fetchTeamActivity({ now: NOW });
+check("a timeout GitHub reports as a GraphQL error is retried as one",
+  requests.length === 3 && got.reached.includes("acme/platform-api"));
+responseQueue = [];
 
 section("sprint-window transport");
 storage.github = { enabled: true, host: "github.com", org: "acme", repos: ["acme/platform-api"] };

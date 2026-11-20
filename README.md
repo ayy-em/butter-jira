@@ -38,7 +38,7 @@ custom field IDs, and branding all come from configuration you supply at setup.
   was frozen, all on one screen.
 - 🎙️ **Standups that run themselves.** Timed turns in a random order, each
   person's board full-screen, overdue work in red, their pull requests alongside,
-  and a parking lot so tangents wait their turn. Also a lunch reminder. 🥪
+  and a parking lot so tangents wait their turn. Also a lunch reminder, and TGIF on Fridays. 🥪
 - 🧭 **Sprint planning without the spreadsheet.** Wrap up the old sprint,
   balance the new one against real capacity, propose due dates, then write the
   plan, close, start and freeze in one confirm.
@@ -1143,8 +1143,8 @@ from the planner's.
 ### Standup mode
 
 Press `s` or the STANDUP tab. Pick who's in today, set each person's minutes
-(2 by default), and hit start: on every day but Friday a three-second lunch
-reminder fades in and out first, then a five-second countdown, then each person's sprint
+(2 by default), and hit start: a three-second lunch reminder (TGIF on a
+Friday) fades in and out first, then a five-second countdown, then each person's sprint
 board in a randomised order, one at a time, full-screen.
 
 - The countdown cue is timed to *finish* as the clock hits zero, using the
@@ -1449,8 +1449,8 @@ Note the gap that leaves: pull requests by people who aren't on the roster, and
 roster members with no GitHub login, are simply not shown and are not counted
 anywhere. The panel shows what it can attribute, not everything that exists.
 
-Three queries run: one GraphQL request covering every declared repo for the
-lists, and two paged ones per repo for the sprint numbers — 45 days back, capped
+Three queries run, all per repo: one GraphQL request each for the lists (four
+repos at a time), and two paged ones each for the sprint numbers — 45 days back, capped
 at 300 pull requests and 400 default-branch commits per repo. The commit half is
 allowed to fail on its own: losing direct pushes is a smaller loss than losing
 the repo, so the rest still renders and the gap is named in the failure list
@@ -1471,7 +1471,19 @@ per caller, matching the in-flight map beside it: the standup's own call and the
 nav bar's prewarm are two callers watching one piece of work. The standup's
 status line is the first thing to read it.
 
-Nothing here has a timeout. GitHub is allowed to be slow, no view waits on it,
+**GitHub's own timeout is handled per repo.** GitHub stops a query after about
+ten seconds and answers with an empty or cut-off body, sometimes under a 200.
+The lists used to be one request over every repo, so once there were enough
+repos and pull requests in it, that timeout emptied the list for everybody
+("Unexpected end of JSON input"). Now a repo that times out, or gets a 5xx, is
+asked once more for fewer items (25 open pull requests, 10 merged, 10 issues);
+if that fails too, that repo is named in the hover panel with the reason and the
+rest still show. Every GitHub request logs to the browser console under
+`butter_jira GitHub`: a debug line on success, a warning on failure with the
+HTTP status, the time it took, GitHub's request id and the start of the body.
+Never the token or the query.
+
+Nothing on our side has a timeout. GitHub is allowed to be slow, no view waits on it,
 and cancelling a paged query half-finished would be a worse answer than a line
 saying it has been three minutes.
 
@@ -1828,7 +1840,7 @@ node scripts/test-credentials.mjs  # migrations, tokens, export/import (105 chec
 node scripts/test-team.mjs         # roster, display names, filtering (138 checks)
 node scripts/test-monitor.mjs      # hygiene checks, exclusions        (54 checks)
 node scripts/test-issue.mjs        # sanitiser, ADF conversion         (86 checks)
-node scripts/test-standup.mjs      # session timing, order, pressure (215 checks)
+node scripts/test-standup.mjs      # session timing, order, pressure (216 checks)
 node scripts/test-dashboard.mjs    # aggregation, burndown, freeze    (264 checks)
 node scripts/test-overview.mjs     # team overview, checklist, donut     (82 checks)
 node scripts/test-recap.mjs        # recap model, flags, PDF caveats  (126 checks)
@@ -1837,7 +1849,7 @@ node scripts/test-recap-selection.mjs # recap URL selection, gaps       (17 chec
 node scripts/test-backup.mjs       # device backup, merge-on-restore   (27 checks)
 node scripts/test-jira-links.mjs   # Jira link redirect rules          (23 checks)
 node scripts/test-palette.mjs      # command palette matching          (47 checks)
-node scripts/test-github.mjs       # GitHub sync, issue development   (239 checks)
+node scripts/test-github.mjs       # GitHub sync, issue development   (261 checks)
 node scripts/test-write.mjs        # field writes, undo, bulk, links  (152 checks)
 node scripts/test-create.mjs       # createmeta -> form -> payload      (71 checks)
 node scripts/test-activity.mjs     # issue history -> per-person activity (75 checks)
@@ -2026,7 +2038,11 @@ the behaviours that only show up in the transport: paging stops at the window,
 a repo busier than the page cap says so, one repo failing degrades to that one
 repo, every repo failing throws rather than reading as a sprint of zeroes, a
 second caller joins a request already in flight, and the real token expiry is
-read off the response header.
+read off the response header. The pull-request list goes out one request per
+repo, and the suite holds it to that: an empty or cut-off body (GitHub's query
+timeout) is retried once with smaller lists, a 502 is retried, a bad token is
+not, a repo that fails twice is named as a timeout rather than a JSON error,
+and the token never reaches the console log.
 
 `test-imports.mjs` exists because a mechanical rename across twenty files once
 missed two imports and shipped: `node --check` parses without resolving
